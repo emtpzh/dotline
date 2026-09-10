@@ -156,13 +156,13 @@
 
 /* draft dialect: on the drafting board cards sit like components —
    smaller radius, flat shadow. The layout laws are untouched. */
-:root[data-paper='grid'] .thought-node,
 :root[data-paper='grid'] .content-card {
   border-radius: 7px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
-:root[data-paper='grid'] .thought-node::before {
-  border-radius: 0;
+:root[data-paper='grid'] .thought-node {
+  border-radius: 7px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 html, body, #root {
@@ -281,27 +281,30 @@ textarea:focus-visible {
 .selected-glow { animation: pulse-selected 2s ease-in-out infinite; }
 
 /* Node styling — type is expressed by a left accent bar:
-   root = accent, explore branch = warm, continuation = none. */
+   root = accent, explore branch = warm, continuation = none.
+   The bar is a full-card layer clipped by the card's own radius (a hard
+   gradient stop at 3px), not a 3px strip: the card cannot clip with
+   overflow:hidden — that would cut the connection handles — so a strip
+   squares off at the corners and pokes past the rounded edge. `inset:-1px`
+   lands the layer on the card's border box and `border-radius: inherit`
+   copies the card's radius, so the bar follows the corner exactly (the
+   default 12px and the draft paper's 7px alike). The layer is transparent
+   except that left stop, and it never takes pointer events. */
 .thought-node {
   background: var(--color-card);
   border: 1px solid var(--color-line);
   box-shadow: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.05);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-  /* NO overflow:hidden here — it would clip the connection handles'
-     protruding half and their hit halos (the type bar below rounds its
-     own corners instead). Wide content clips inside .markdown-body pre. */
   position: relative;
 }
 
 .thought-node::before {
   content: '';
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  border-radius: 12px 0 0 12px; /* hug the card's rounded-xl corners */
-  background: transparent;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--node-bar, transparent) 3px, transparent 3px);
 }
 
 .thought-node:hover {
@@ -310,32 +313,23 @@ textarea:focus-visible {
   transform: translateY(-1px);
 }
 
-.root-node::before {
-  background: var(--color-accent);
-}
-
-.orange-node::before {
-  background: var(--color-warm);
+.root-node {
+  --node-bar: var(--color-accent);
 }
 
 .orange-node {
+  --node-bar: var(--color-warm);
   border-color: color-mix(in srgb, var(--color-warm) 30%, var(--color-line));
 }
 
-.evaluator-node::before {
-  background: var(--color-watch);
-}
-
 .evaluator-node {
+  --node-bar: var(--color-watch);
   border-color: color-mix(in srgb, var(--color-watch) 25%, var(--color-line));
 }
 
 /* Instantiated paradigm human turn: the person acts here */
-.human-node::before {
-  background: var(--color-warm);
-}
-
 .human-node {
+  --node-bar: var(--color-warm);
   border-color: color-mix(in srgb, var(--color-warm) 45%, var(--color-line));
 }
 
