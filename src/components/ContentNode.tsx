@@ -5,6 +5,7 @@ import type { ThoughtNode as ThoughtNodeType } from '../types';
 import { useStore } from '../store';
 import { useZoomTier } from '../lib/use-map-mode';
 import { useUiStore } from '../lib/ui-store';
+import { useEntranceFade } from '../lib/use-entrance-fade';
 import { triggerParadigmCascade } from '../store/streaming';
 import { extractImage, fetchLinkIntoNode, ingestFiles } from '../lib/content';
 import { FILE_INPUT_ACCEPT } from '../lib/attachments';
@@ -44,6 +45,9 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
   const glyphTier = zoomTier === 'glyph';
   const updateNodeInternals = useUpdateNodeInternals();
   useEffect(() => { updateNodeInternals(id); }, [glyphTier, id, updateNodeInternals]);
+  // entrance, played once — the selected glow shares the `animation`
+  // property, and handing it back and forth replayed the fade
+  const entrance = useEntranceFade();
 
   const kind = data.stepKind === 'file' ? 'file' : data.stepKind === 'link' ? 'link' : 'note';
   const [editing, setEditing] = useState(!isViewerMode && kind === 'note' && !data.question);
@@ -125,7 +129,7 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
 
   return (
     <div
-      className={`content-card w-full h-full min-w-[340px] flex flex-col rounded-xl shadow-sm border-2 animate-fade-in transition-colors duration-200 ${
+      className={`content-card w-full h-full min-w-[340px] flex flex-col rounded-xl shadow-sm border-2 ${entrance} transition-colors duration-200 ${
         kind === 'note' ? 'bg-amber-50/90 border-amber-200' : 'bg-card border-line'
       } ${selectedNodeId === id ? 'ring-2 ring-accent selected-glow' : ''}`}
       onClick={() => setSelectedNodeId(id)}
