@@ -2,7 +2,7 @@ import type { StateCreator } from 'zustand';
 import type { ThoughtNode, ThoughtEdge } from '../../types';
 import { generateId, countTokens } from '../../utils';
 import { COLORS } from '../../lib/constants';
-import { healLegacyNoteEdges, autoLayout, estimateNodeHeight, nodeHeight } from '../../lib/layout';
+import { healLegacyNoteEdges, autoLayout, estimateNodeHeight, nodeHeight, placeNewNodes, reseatSubtree } from '../../lib/layout';
 import { getDescendantIds, walkUpAncestors } from '../../lib/graph';
 import { referenceBlockContent, upstreamFingerprint, buildContext } from '../context-builder';
 import { pruneHighlights } from '../../lib/highlight-match';
@@ -150,7 +150,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
       target: id,
     } : null;
     const newEdges = newEdge ? [...get().edges, newEdge] : get().edges;
-    const newNodes = autoLayout([...get().nodes, newNode], newEdges);
+    const newNodes = placeNewNodes([...get().nodes, newNode], newEdges, [newNode.id]);
     set({ nodes: newNodes, edges: newEdges, selectedNodeId: id });
     get().pushHistory();
   },
@@ -302,8 +302,14 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
         };
       }),
     }));
-    // Solid lines obey the arrow grammar — re-run the column tree
-    set((state) => ({ nodes: autoLayout(state.nodes, state.edges) }));
+    // Solid lines obey the arrow grammar. Going solid re-seats that card and
+    // what grows out of it; the rest of the canvas keeps the arrangement the
+    // user gave it (autoLayout here re-derived every card — one click and a
+    // hand-arranged canvas was a different canvas). Going back to a reference
+    // only REMOVES a constraint, so nothing has to move at all.
+    if (structural) {
+      set((state) => ({ nodes: reseatSubtree(state.nodes, state.edges, edge.target) }));
+    }
     get().pushHistory();
   },
 

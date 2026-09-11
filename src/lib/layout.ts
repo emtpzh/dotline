@@ -3,6 +3,12 @@ import { getDescendantIds } from './graph';
 import { frameContains, frameMembers, frameRect, isFrameNode } from './frames';
 import { COLLAPSED_LAYOUT_HEIGHT, LAYOUT_COL_WIDTH, LAYOUT_H_GAP, LAYOUT_V_GAP } from './constants';
 
+/** Material + regions: user-arranged, never moved by any layout pass.
+ *  Notes/files/links are content the user placed; a frame is a region rather
+ *  than a card, so a card landing inside one is the point of a frame. */
+const CONTENT_KINDS = new Set(['note', 'file', 'link', 'frame']);
+const isContentKind = (node: ThoughtNode) => CONTENT_KINDS.has(node.data.stepKind ?? '');
+
 // Estimated rendered height of a node — fallback when React Flow hasn't
 // measured the DOM yet (fresh nodes) and for collapse shifting. Every
 // variable region of the card is height-capped in CSS (question scrolls at
@@ -34,6 +40,223 @@ export function estimateNodeHeight(node: ThoughtNode): number {
 // generous spacing beats overlapping cards.
 export function nodeHeight(node: ThoughtNode): number {
   return Math.max(node.measured?.height ?? 0, estimateNodeHeight(node));
+}
+
+/** Rendered width of a card: React Flow's measurement when it has one, the
+ *  author-declared width next (frames, file cards), the column width last. */
+function cardWidth(node: ThoughtNode): number {
+  return node.measured?.width ?? node.width ?? LAYOUT_COL_WIDTH;
+}
+
+/** Height a NEW card hangs from.
+ *
+ *  - A parent that was just collapsed still reports its expanded `measured`
+ *    height for a render tick; hanging the child off that number would leave
+ *    a canyon under the short card, so the estimate (which knows collapsed
+ *    cards are short) wins there.
+ *  - Material measures itself honestly — a document card has no answer, no
+ *    follow-up box, none of the chrome the estimate budgets for, so its
+ *    measured height is the truth and the estimate overshoots it by a
+ *    couple of hundred pixels.
+ *  - Everywhere else the measured DOM height is the truth. */
+function hangHeight(node: ThoughtNode): number {
+  if (node.data.isCollapsed) return estimateNodeHeight(node);
+  const measured = node.measured?.height;
+  if (measured && isContentKind(node)) return measured;
+  return nodeHeight(node);
+}
+
+/**
+ * Seat freshly created cards WITHOUT re-deriving the rest of the canvas.
+ *
+ * autoLayout is a pure re-derivation of the whole graph: right for the
+ * one-click relayout and for reading an imported session, destructive as the
+ * side effect of creating one node. A canvas whose cards were placed by hand
+ * (the example) or dragged by the user jumped the moment a follow-up was
+ * asked, and chains landed outside the chapter frames drawn around them.
+ *
+ * Making a node is a LOCAL gesture, so its placement is local too: the card
+ * lands where the arrow grammar puts it relative to its parents — a
+ * continuation directly below its parent in the parent's column, an explore
+ * branch beside it, a chain grown from material below that material — and it
+ * steps sideways only far enough to not sit on top of a card that is already
+ * there. Everything else stays exactly where it was left; the global reflow
+ * stays where it belongs, behind the relayout button.
+ *
+ * Several ids are seated in order, each seeing the ones before it, so a batch
+ * (a fan-out) spreads into consecutive columns instead of stacking.
+ *
+ * Returns the whole array; only the listed nodes' positions change.
+ */
+export function placeNewNodes(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], newNodeIds: string[]): ThoughtNode[] {
+  const byId = new Map(allNodes.map((n) => [n.id, n]));
+  const pending = newNodeIds.filter((id) => byId.has(id));
+  if (pending.length === 0) return allNodes;
+
+  const pos = new Map(allNodes.map((n) => [n.id, { ...n.position }]));
+  // Siblings not seated yet are not obstacles — but ones already seated are,
+  // or a fan-out would land every card on the same spot.
+  const unseated = new Set(pending);
+  const seated = new Set<string>();
+  const V_PAD = 24;
+  const H_GAP = LAYOUT_H_GAP;
+
+  for (const id of pending) {
+    const node = byId.get(id)!;
+    unseated.delete(id);
+    // Material is placed by the gesture that creates it (a drop point, the
+    // reader pane); no layout pass has ever moved it and this one doesn't.
+    if (isContentKind(node)) continue;
+
+    const w = cardWidth(node);
+    const h = estimateNodeHeight(node);
+    const obstacles = allNodes
+      .filter((n) => n.id !== id && !unseated.has(n.id) && n.data.stepKind !== 'frame')
+      .map((n) => ({ x: pos.get(n.id)!.x, y: pos.get(n.id)!.y, w: cardWidth(n), h: hangHeight(n) }));
+    const hits = (x: number, y: number) => obstacles.filter((r) =>
+      x < r.x + r.w && x + w > r.x && y < r.y + r.h + V_PAD && y + h + V_PAD > r.y);
+
+    // The wires that make this card hang where it hangs. Dashed references
+    // are not parentage — unless a reference is the ONLY thing pointing here
+    // (its original edge was deleted and redrawn), which is exactly the case
+    // autoLayout adopts as parent.
+    const incoming = allEdges.filter((e) => e.target === id);
+    const structural = incoming.filter((e) => !e.data?.isCrossLink);
+    const wires = (structural.length ? structural : incoming)
+      .map((e) => ({ e, p: byId.get(e.source) }))
+      .filter((w): w is { e: ThoughtEdge; p: ThoughtNode } => !!w.p && w.p.id !== id);
+    // The parent the card hangs from: a plain wire wins over an explore wire,
+    // the same way autoLayout picks the claimant — being explored out of one
+    // parent doesn't stop a card continuing from another. The card is a
+    // BRANCH only with respect to the parent it hangs from.
+    const baseWire = wires.find((w) => !w.e.data?.isBranchFromSelection) ?? wires[0];
+    const base = baseWire?.p;
+    const isBranch = !!baseWire?.e.data?.isBranchFromSelection;
+
+    // Slide right past whatever the card lands ON, column by column, sizing
+    // each step to the cards actually in the way — a hand-arranged canvas has
+    // no uniform grid to march along. First free slot wins. `limit` is the
+    // chapter frame's right edge: a slot past it means leaving the chapter,
+    // which the caller handles differently (null). The guard is only there for
+    // a canvas so packed that nothing is ever free.
+    const slideRight = (from: number, y: number, limit: number): number | null => {
+      let cx = from;
+      for (let guard = 0; guard <= obstacles.length + 2; guard++) {
+        const blocked = hits(cx, y);
+        if (blocked.length === 0) return cx;
+        const next = Math.max(...blocked.map((r) => r.x + r.w)) + H_GAP;
+        if (next + w > limit) return null;
+        cx = next;
+      }
+      return null;
+    };
+
+    let x: number;
+    let y: number;
+    if (!base) {
+      // A root question: the next free column on the right, on the top row.
+      // Frames are regions, and cards still waiting for a seat don't exist yet.
+      const cards = allNodes.filter((n) => n.id !== id && !unseated.has(n.id) && n.data.stepKind !== 'frame');
+      x = cards.length
+        ? Math.max(...cards.map((n) => pos.get(n.id)!.x + cardWidth(n))) + LAYOUT_H_GAP
+        : 0;
+      y = cards.length ? Math.min(...cards.map((n) => pos.get(n.id)!.y)) : 0;
+    } else {
+      const basePos = pos.get(base.id)!;
+      const baseH = hangHeight(base);
+      if (isBranch) {
+        // Explore branch: beside its parent, out of the parent's side handle.
+        y = basePos.y + baseH * 0.25;
+      } else {
+        // Continuation: the next link of the column, clearing every parent it
+        // reads (a material parent is simply the top of the chain). A parent
+        // it was only EXPLORED out of is meant to stand beside it, so that one
+        // is owed its top edge and no more.
+        y = Math.max(...wires.map(({ e, p }) => {
+          const pp = pos.get(p.id)!;
+          return e.data?.isBranchFromSelection ? pp.y : pp.y + hangHeight(p) + LAYOUT_V_GAP;
+        }));
+      }
+      // A chapter frame is a promise about what belongs together: a card
+      // asked inside one is seated inside it, or not beside the chain at all.
+      const chapter = allNodes.find((n) => n.data.stepKind === 'frame'
+        && basePos.x >= n.position.x && basePos.x + cardWidth(base) <= n.position.x + cardWidth(n)
+        && basePos.y >= n.position.y && basePos.y + baseH <= n.position.y + (n.measured?.height ?? n.height ?? 0));
+      const limit = chapter ? chapter.position.x + cardWidth(chapter) : Infinity;
+
+      // A card already hanging below the parent in its own column makes the
+      // new one an ALTERNATIVE answer: it starts beside the chain, never in
+      // the gap, where the parent's own arrow would run straight through it.
+      let beside = basePos.x;
+      if (!isBranch) {
+        for (const r of obstacles) {
+          if (Math.abs(r.x - basePos.x) < 1 && r.y > basePos.y + 1) beside = Math.max(beside, r.x + r.w + H_GAP);
+        }
+      }
+
+      const slot = slideRight(beside, y, limit);
+      if (slot !== null) {
+        x = slot;
+      } else {
+        // The chapter is out of room on this row: take the floor under the
+        // parent's own column. The card stays in its chapter, next to the
+        // parent it was asked from, instead of being flung past every other
+        // chapter in the room.
+        x = basePos.x;
+        y = Math.max(basePos.y + baseH,
+          ...obstacles.filter((r) => Math.abs(r.x - basePos.x) < 1).map((r) => r.y + r.h)) + LAYOUT_V_GAP;
+        x = slideRight(x, y, Infinity) ?? x;
+      }
+    }
+    pos.set(id, { x, y });
+    seated.add(id);
+  }
+
+  if (seated.size === 0) return allNodes;
+  return allNodes.map((n) => (seated.has(n.id) ? { ...n, position: pos.get(n.id)! } : n));
+}
+
+/**
+ * Re-seat one card and everything that grows OUT of it, after the graph
+ * itself changed under it (a dashed reference promoted to a real wire, so the
+ * card now continues from a new parent).
+ *
+ * This is the graph's own re-derivation, scoped: the affected chain obeys the
+ * arrow grammar again, and every other card on the canvas keeps the
+ * arrangement the user gave it. Material ends the walk — a note or a document
+ * is never moved, so the chain hanging off it is none of this function's
+ * business either.
+ *
+ * Order is breadth-first, parents before children, so each card is measured
+ * against parents that have already landed.
+ */
+export function reseatSubtree(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], nodeId: string): ThoughtNode[] {
+  const node = allNodes.find((n) => n.id === nodeId);
+  if (!node || isContentKind(node)) return allNodes;
+
+  const byId = new Map(allNodes.map((n) => [n.id, n]));
+  const children = new Map<string, string[]>();
+  for (const e of allEdges) {
+    if (e.data?.isCrossLink) continue;
+    children.set(e.source, [...(children.get(e.source) ?? []), e.target]);
+  }
+
+  const order: string[] = [];
+  const seen = new Set([nodeId]);
+  let frontier = [nodeId];
+  while (frontier.length > 0) {
+    order.push(...frontier);
+    const next: string[] = [];
+    for (const id of frontier) {
+      const current = byId.get(id);
+      if (!current || isContentKind(current)) continue;
+      for (const c of children.get(id) ?? []) {
+        if (!seen.has(c)) { seen.add(c); next.push(c); }
+      }
+    }
+    frontier = next;
+  }
+  return placeNewNodes(allNodes, allEdges, order);
 }
 
 /**
@@ -128,9 +351,7 @@ export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[]): Th
   // Content nodes (notes / files) are user-arranged material: layout never
   // moves them and their edges don't shape the column tree. A node whose
   // only parent is a content node simply roots its own chain.
-  const contentIds = new Set(
-    allNodes.filter((n) => ['note', 'file', 'link', 'frame'].includes(n.data.stepKind ?? '')).map((n) => n.id)
-  );
+  const contentIds = new Set(allNodes.filter(isContentKind).map((n) => n.id));
   const nodes = allNodes.filter((n) => !contentIds.has(n.id));
   const edges = allEdges.filter((e) => !contentIds.has(e.source) && !contentIds.has(e.target));
 

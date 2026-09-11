@@ -24,7 +24,7 @@ execFileSync(join(ROOT, 'node_modules/.bin/esbuild'), [
   `--outfile=${bundle}`, '--define:import.meta.env.VITE_API_BASE=""',
   '--define:import.meta.env.DEV=false',
 ], { stdio: ['ignore', 'ignore', 'pipe'] });
-const { autoLayout, nodeHeight } = await import(pathToFileURL(bundle).href);
+const { autoLayout, nodeHeight, placeNewNodes, reseatSubtree } = await import(pathToFileURL(bundle).href);
 const framesBundle = join(tmp, 'frames.mjs');
 execFileSync(join(ROOT, 'node_modules/.bin/esbuild'), [
   join(ROOT, 'src/lib/frames.ts'), '--bundle', '--format=esm', '--platform=node', `--outfile=${framesBundle}`,
@@ -242,6 +242,167 @@ test('auto layout keeps partially overlapping frames on their own members', () =
   const f2 = nodeOf(laid, 'F2'), far = nodeOf(laid, 'far'), a = nodeOf(laid, 'a');
   const wraps = (f, n) => f.position.x < n.position.x && f.position.y < n.position.y && f.position.x + f.width > n.position.x + 520 && f.position.y + f.height > n.position.y + nodeHeight(n);
   assert(wraps(f2, far) && wraps(f2, a), 'F2 no longer wraps its own members after layout');
+});
+
+// ── placeNewNodes: creating ONE card must not reflow the canvas ──
+// autoLayout re-derives the whole graph, which is right behind the relayout
+// button and wrong as the side effect of asking a follow-up: on a canvas
+// placed by hand (the example canvas, or anything the user dragged) every
+// card jumped the moment a child appeared. These fixtures are deliberately
+// OFF the layout grid for that reason.
+const seat = (id, x, y, over) => ({ ...th(id, over), position: { x, y } });
+const spots = (nodes) => new Map(nodes.map((n) => [n.id, `${Math.round(n.position.x)},${Math.round(n.position.y)}`]));
+const movedOther = (before, after, except) => [...before]
+  .filter(([id]) => !except.includes(id))
+  .filter(([id, p]) => {
+    const n = after.find((x) => x.id === id);
+    return !n || `${Math.round(n.position.x)},${Math.round(n.position.y)}` !== p;
+  })
+  .map(([id]) => id);
+const at = (laid, id) => laid.find((n) => n.id === id).position;
+
+// The reported bug, in its own shape: a hand-placed chain with a branch and a
+// far-away chapter, one follow-up, nothing else may move.
+test('a follow-up leaves every card already on the canvas exactly where it was', () => {
+  const nodes = [seat('root', 40, 390), seat('a', 40, 640),
+                 seat('branch', 700, 860), seat('far', 2210, 150)];
+  const edges = [ed('root', 'a'), ed('root', 'branch', { isBranchFromSelection: true }), ed('a', 'next')];
+  const before = spots(nodes);
+  const laid = placeNewNodes([...nodes, seat('next', 0, 0)], edges, ['next']);
+  const moved = movedOther(before, laid, ['next']);
+  assert(moved.length === 0, `cards moved: ${moved.join(', ')}`);
+  assert(violations(laid, edges).length === 0, violations(laid, edges).join('; '));
+});
+
+test('a follow-up hangs in its parent column, directly below the parent', () => {
+  const nodes = [seat('root', 40, 390), seat('a', 40, 640)];
+  const edges = [ed('root', 'a'), ed('a', 'next')];
+  const laid = placeNewNodes([...nodes, seat('next', 0, 0)], edges, ['next']);
+  const n = at(laid, 'next');
+  assert(n.x === 40, `next at x=${n.x}, parent column is 40`);
+  assert(n.y === 640 + nodeHeight(nodes[1]) + 72, `next at y=${n.y}`);
+});
+
+// A parent that just collapsed still carries its expanded `measured` height
+// for a render tick; believing it pushed the child — and then the whole
+// column — into the next free slot out on the right.
+test('a parent that just collapsed is measured collapsed, not as it was', () => {
+  const parent = { ...seat('a', 40, 640), measured: { width: 520, height: 900 } };
+  const nodes = [seat('root', 40, 390), parent];
+  const edges = [ed('root', 'a'), ed('a', 'next')];
+  const laid = placeNewNodes([...nodes, seat('next', 0, 0)], edges, ['next']);
+  const n = at(laid, 'next');
+  assert(n.x === 40, `next at x=${n.x} — a stale parent height pushed it out of the column`);
+  assert(n.y === 640 + 240 + 72, `next at y=${n.y}, not tight under the collapsed parent`);
+});
+
+test('a second child lands beside the chain, not in the gap under the first', () => {
+  const nodes = [seat('root', 40, 390), seat('a', 40, 640)];
+  const edges = [ed('root', 'a'), ed('root', 'b')];
+  const laid = placeNewNodes([...nodes, seat('b', 0, 0)], edges, ['b']);
+  const n = at(laid, 'b');
+  assert(n.x > 580 && n.y >= 640, `b at ${n.x},${n.y} — inside the column it must not enter`);
+  assert(violations(laid, edges).length === 0, violations(laid, edges).join('; '));
+});
+
+test('a selection branch sits beside its parent, past the parent card', () => {
+  const nodes = [seat('root', 40, 390), seat('a', 40, 640), seat('sib', 700, 410)];
+  const edges = [ed('root', 'a'), ed('root', 'sib', { isBranchFromSelection: true }),
+                 ed('a', 'b', { isBranchFromSelection: true })];
+  const laid = placeNewNodes([...nodes, seat('b', 0, 0)], edges, ['b']);
+  const n = at(laid, 'b');
+  assert(n.x > 580 && n.x < 1240, `branch at x=${n.x}, not beside its parent`);
+  assert(violations(laid, edges).length === 0, violations(laid, edges).join('; '));
+});
+
+test('a batch of branches spreads into consecutive slots instead of stacking', () => {
+  const nodes = [seat('root', 40, 390)];
+  const ids = ['f1', 'f2', 'f3'];
+  const edges = ids.map((i) => ed('root', i, { isBranchFromSelection: true }));
+  const laid = placeNewNodes([...nodes, ...ids.map((i) => seat(i, 0, 0))], edges, ids);
+  const xs = ids.map((i) => at(laid, i).x);
+  assert(new Set(xs).size === ids.length, `batch stacked: ${xs.join(', ')}`);
+  assert(violations(laid, edges).length === 0, violations(laid, edges).join('; '));
+});
+
+// The example canvas is a poster of chapter frames. A card asked inside a
+// chapter must not be flung past every other chapter because the row is full.
+const chapterFrame = (id, x, y, w, h) => ({
+  ...th(id, { stepKind: 'frame' }),
+  position: { x, y }, width: w, height: h, measured: { width: w, height: h },
+});
+
+test('a card asked inside a chapter frame is seated inside it', () => {
+  // the chapter's one open column is filled top to bottom
+  const filler = { ...seat('filler', 700, 410, { isCollapsed: false }), measured: { width: 520, height: 1200 } };
+  const nodes = [chapterFrame('ch', 0, 0, 1290, 1460), seat('root', 40, 390), seat('a', 40, 640), filler];
+  const edges = [ed('root', 'a'), ed('root', 'b')];
+  const laid = placeNewNodes([...nodes, seat('b', 0, 0)], edges, ['b']);
+  const n = at(laid, 'b');
+  assert(n.x === 40, `b at x=${n.x}, not back under the parent's column`);
+  assert(n.y === 640 + 240 + 72, `b at y=${n.y}, not below the chain it must clear`);
+  assert(n.x + 520 <= 1290, `b at x=${n.x} leaves the chapter frame`);
+  assert(violations(laid, edges).length === 0, violations(laid, edges).join('; '));
+});
+
+test('a chapter frame only bounds the card when its row is actually full', () => {
+  const nodes = [chapterFrame('ch', 0, 0, 2000, 1460), seat('root', 40, 390), seat('a', 40, 640)];
+  const edges = [ed('root', 'a'), ed('root', 'b')];
+  const laid = placeNewNodes([...nodes, seat('b', 0, 0)], edges, ['b']);
+  assert(at(laid, 'b').x === 628, `b at x=${at(laid, 'b').x}, expected beside the chain inside the chapter`);
+});
+
+// A card can continue from one parent and be explored out of another. The
+// plain wire decides the column and the checkout floor; the explore parent is
+// owed its top edge and no more (a branch beside it, not a link under it).
+test('a card explored from one parent and continued from another follows the plain wire', () => {
+  const nodes = [seat('noise', 2210, 150), seat('explorer', 1450, 1200)];
+  const edges = [ed('noise', 't'), ed('explorer', 't', { isBranchFromSelection: true })];
+  const laid = placeNewNodes([...nodes, seat('t', 0, 0)], edges, ['t']);
+  const n = at(laid, 't');
+  assert(n.x === 2210, `t at x=${n.x}, not in the column of the parent it continues from`);
+  assert(n.y === 1200, `t at y=${n.y}, expected level with the top of the parent that explored it`);
+  assert(violations(laid, edges).length === 0, violations(laid, edges).join('; '));
+});
+
+// Promoting a dashed reference to a real wire changes the graph under that
+// card: it and its chain must obey the arrow grammar again — and only they.
+test('wiring a card solid re-seats its chain and moves nothing else', () => {
+  const nodes = [seat('root', 40, 390), seat('a', 40, 640),
+                 seat('side', 700, 400), seat('t', 700, 1400), seat('tChild', 700, 1800)];
+  // the new wire: side -> t (t now continues from side)
+  const edges = [ed('root', 'a'), ed('side', 't'), ed('t', 'tChild')];
+  const before = spots(nodes);
+  const laid = reseatSubtree(nodes, edges, 't');
+  const moved = movedOther(before, laid, ['t', 'tChild']);
+  assert(moved.length === 0, `cards moved: ${moved.join(', ')}`);
+  assert(at(laid, 't').y > 400 + nodeHeight(nodes[2]), 't did not land under its new parent');
+  assert(at(laid, 'tChild').y > at(laid, 't').y, 'tChild did not follow its parent');
+  assert(violations(laid, edges).length === 0, violations(laid, edges).join('; '));
+});
+
+test('a re-seat stops at material: a chain under a document keeps its place', () => {
+  const doc = file('doc', 40);
+  const nodes = [seat('p', 40, 900), doc, seat('below', 40, 600), seat('deep', 40, 1000)];
+  const edges = [ed('p', 'doc'), ed('doc', 'below'), ed('below', 'deep')];
+  const before = spots(nodes);
+  const laid = reseatSubtree(nodes, edges, 'doc');
+  assert(movedOther(before, laid, []).length === 0, 'a re-seat walked through material and moved its chain');
+});
+
+test('a question asked from a document hangs just below that document', () => {
+  const doc = file('pdf', 2980); // measured 120 tall
+  const edges = [ed('pdf', 'q')];
+  const laid = placeNewNodes([doc, seat('q', 0, 0)], edges, ['q']);
+  const n = at(laid, 'q');
+  assert(n.x === 2980, `ask at x=${n.x}, document at 2980`);
+  assert(n.y >= 120 && n.y < 400, `ask at y=${n.y}, not tight under the document`);
+});
+
+test('the first card sits at the origin; a later root takes the next free column', () => {
+  assert(at(placeNewNodes([seat('r', 0, 0)], [], ['r']), 'r').x === 0, 'first card is not at the origin');
+  const laid = placeNewNodes([seat('a', 0, 0), seat('b', 628, 0), seat('r', 0, 0)], [], ['r']);
+  assert(at(laid, 'r').x === 1216, `root at x=${at(laid, 'r').x}, expected past both cards`);
 });
 
 test('the benchmark canvases keep the arrow order', () => {
