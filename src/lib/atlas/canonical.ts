@@ -98,7 +98,12 @@ function placeSegment(
   return { moved, edges };
 }
 
-export async function importOrAppendConversation(conv: import('../import-chat').ImportableConversation | null): Promise<CanonicalResult> {
+/** `background`: the live watcher's sync, not a person opening the session —
+ *  a sync that finds nothing new leaves the camera where it is. */
+export async function importOrAppendConversation(
+  conv: import('../import-chat').ImportableConversation | null,
+  opts: { background?: boolean } = {},
+): Promise<CanonicalResult> {
   if (!conv) return null;
 
   const built = conv.build();
@@ -108,7 +113,7 @@ export async function importOrAppendConversation(conv: import('../import-chat').
 
   // ── 1. subscribed somewhere? open + idempotent append ──
   const hit = findSubscription(conv.sessionId);
-  if (hit) return appendPastLedger(conv, built, qa, tailQaId, hit);
+  if (hit) return appendPastLedger(conv, built, qa, tailQaId, hit, opts);
 
   // ── 1a. provenance adoption: a canvas that still HOLDS this
   //       session's mirror nodes but lost its ledger entry (a healed
@@ -134,7 +139,7 @@ export async function importOrAppendConversation(conv: import('../import-chat').
           sessionId: conv.sessionId, runner: conv.source, importedCount: lastIdx + 1, tailNodeId: tailNode,
         });
         const adopted = findSubscription(conv.sessionId);
-        if (adopted) return appendPastLedger(conv, built, qa, tailQaId, adopted);
+        if (adopted) return appendPastLedger(conv, built, qa, tailQaId, adopted, opts);
       }
     }
   }
@@ -280,6 +285,7 @@ async function appendPastLedger(
   qa: ThoughtNode[],
   tailQaId: string,
   hit: LedgerHit,
+  opts: { background?: boolean } = {},
 ): Promise<CanonicalResult> {
   await switchProject(hit.project.id);
   const store = useStore.getState();
@@ -337,7 +343,12 @@ async function appendPastLedger(
   }
 
   if (qa.length <= hit.entry.importedCount) {
-    useUiStore.getState().setArrivalFocusNodeId(anchor?.id ?? null);
+    // Opening an up-to-date session lands on its tail. The watcher reaches
+    // here on every write of a file that grows without new turns — an agent
+    // turn running on this canvas (claimed ahead of the file), or a
+    // half-turn filling in — and landing each time would drag the camera
+    // back to that node every few seconds.
+    if (!opts.background) useUiStore.getState().setArrivalFocusNodeId(anchor?.id ?? null);
     return { kind: 'opened' };
   }
 
