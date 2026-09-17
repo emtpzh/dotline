@@ -352,6 +352,42 @@ test('a chapter frame only bounds the card when its row is actually full', () =>
   assert(at(laid, 'b').x === 628, `b at x=${at(laid, 'b').x}, expected beside the chain inside the chapter`);
 });
 
+// Frames follow their members (autoLayout re-wraps them). Seating keeps the
+// same promise without moving anything: a card that had to take the floor
+// past a linked chapter's bottom edge grows that chapter down to hold it.
+test('a card seated past its chapter edge grows the linked frame to hold it', () => {
+  const nodes = [chapterFrame('ch', 0, 0, 1290, 1000), seat('root', 40, 390), seat('a', 40, 640)];
+  const edges = [ed('root', 'a'), ed('a', 'next')];
+  const before = spots(nodes);
+  const laid = placeNewNodes([...nodes, seat('next', 0, 0)], edges, ['next']);
+  assert(movedOther(before, laid, ['next']).length === 0, `cards moved: ${movedOther(before, laid, ['next']).join(', ')}`);
+  const ch = nodeOf(laid, 'ch');
+  assert(ch.position.x === 0 && ch.position.y === 0, 'the chapter moved');
+  assert(ch.width === 1290, `chapter width changed to ${ch.width} for a card inside its columns`);
+  const card = nodeOf(laid, 'next');
+  assert(ch.height >= card.position.y + nodeHeight(card), `chapter height ${ch.height} does not hold the card`);
+  assert(frameMembers(ch, laid).some((n) => n.id === 'next'), 'the new card is not a member of its chapter');
+});
+
+test('a chapter the card already fits in keeps its size, and an unlinked one never grows', () => {
+  const roomy = placeNewNodes([chapterFrame('ch', 0, 0, 1290, 3000), seat('a', 40, 640), seat('next', 0, 0)], [ed('a', 'next')], ['next']);
+  assert(nodeOf(roomy, 'ch').height === 3000, `a roomy chapter resized to ${nodeOf(roomy, 'ch').height}`);
+  const loose = { ...chapterFrame('ch', 0, 0, 1290, 1000), data: { ...th('ch').data, stepKind: 'frame', frameCarry: false } };
+  const laid = placeNewNodes([loose, seat('a', 40, 640), seat('next', 0, 0)], [ed('a', 'next')], ['next']);
+  assert(nodeOf(laid, 'ch').height === 1000, `an unlinked frame grew to ${nodeOf(laid, 'ch').height}`);
+});
+
+test('a chapter that grows past its enclosing frame grows that frame too', () => {
+  const nodes = [chapterFrame('outer', -100, -100, 1600, 1200), chapterFrame('ch', 0, 0, 1290, 1000),
+                 seat('a', 40, 640)];
+  const edges = [ed('a', 'next')];
+  const laid = placeNewNodes([...nodes, seat('next', 0, 0)], edges, ['next']);
+  const outer = nodeOf(laid, 'outer'), ch = nodeOf(laid, 'ch');
+  assert(ch.height > 1000, 'the inner chapter did not grow');
+  assert(outer.position.y + outer.height > ch.position.y + ch.height, 'the outer frame no longer holds the chapter');
+  assert(frameMembers(outer, laid).some((n) => n.id === 'ch'), 'the chapter fell out of its enclosing frame');
+});
+
 // A card can continue from one parent and be explored out of another. The
 // plain wire decides the column and the checkout floor; the explore parent is
 // owed its top edge and no more (a branch beside it, not a link under it).

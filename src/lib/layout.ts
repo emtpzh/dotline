@@ -66,6 +66,14 @@ function hangHeight(node: ThoughtNode): number {
   return nodeHeight(node);
 }
 
+/** The smallest frame that owns `node` by frames.ts's rule, if any. */
+function innermostFrameOf(node: ThoughtNode, allNodes: ThoughtNode[]): ThoughtNode | undefined {
+  const area = (f: ThoughtNode) => frameRect(f).width * frameRect(f).height;
+  return allNodes
+    .filter((f) => isFrameNode(f) && frameMembers(f, [node]).length > 0)
+    .sort((a, b) => area(a) - area(b))[0];
+}
+
 /**
  * Seat freshly created cards WITHOUT re-deriving the rest of the canvas.
  *
@@ -86,7 +94,14 @@ function hangHeight(node: ThoughtNode): number {
  * Several ids are seated in order, each seeing the ones before it, so a batch
  * (a fan-out) spreads into consecutive columns instead of stacking.
  *
- * Returns the whole array; only the listed nodes' positions change.
+ * A card seated for a chapter stays that chapter's member. When the row and
+ * the floor ran past a linked frame's edge, the frame grows right and down to
+ * hold it (it never moves or shrinks), and so does every frame that held that
+ * chapter — the promise autoLayout keeps by re-wrapping, kept without moving
+ * anything.
+ *
+ * Returns the whole array; only the listed nodes' positions and the sizes of
+ * the frames that had to grow change.
  */
 export function placeNewNodes(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], newNodeIds: string[]): ThoughtNode[] {
   const byId = new Map(allNodes.map((n) => [n.id, n]));
@@ -100,6 +115,24 @@ export function placeNewNodes(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], 
   const seated = new Set<string>();
   const V_PAD = 24;
   const H_GAP = LAYOUT_H_GAP;
+
+  // Frames as this batch has left them: a later card sees an earlier one's growth.
+  const grown = new Map<string, { width: number; height: number }>();
+  const liveFrame = (f: ThoughtNode): ThoughtNode => {
+    const g = grown.get(f.id);
+    return g ? { ...f, width: g.width, height: g.height, measured: { ...g } } : f;
+  };
+  const liveFrames = () => allNodes.filter(isFrameNode).map(liveFrame);
+  const growToHold = (frame: ThoughtNode, r: { x: number; y: number; width: number; height: number }, pad: number) => {
+    if (frame.data.frameCarry === false) return;
+    const fr = frameRect(liveFrame(frame));
+    if (r.x + r.width <= fr.x + fr.width && r.y + r.height <= fr.y + fr.height) return;
+    const outers = liveFrames().filter((o) => o.id !== frame.id && frameContains(frameRect(o), fr));
+    const width = Math.max(fr.width, Math.ceil(r.x + r.width + pad - fr.x));
+    const height = Math.max(fr.height, Math.ceil(r.y + r.height + pad - fr.y));
+    grown.set(frame.id, { width, height });
+    for (const outer of outers) growToHold(outer, { x: fr.x, y: fr.y, width, height }, FRAME_NESTING_GAP);
+  };
 
   for (const id of pending) {
     const node = byId.get(id)!;
@@ -153,6 +186,7 @@ export function placeNewNodes(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], 
 
     let x: number;
     let y: number;
+    let chapter: ThoughtNode | undefined;
     if (!base) {
       // A root question: the next free column on the right, on the top row.
       // Frames are regions, and cards still waiting for a seat don't exist yet.
@@ -179,10 +213,10 @@ export function placeNewNodes(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], 
       }
       // A chapter frame is a promise about what belongs together: a card
       // asked inside one is seated inside it, or not beside the chain at all.
-      const chapter = allNodes.find((n) => n.data.stepKind === 'frame'
-        && basePos.x >= n.position.x && basePos.x + cardWidth(base) <= n.position.x + cardWidth(n)
-        && basePos.y >= n.position.y && basePos.y + baseH <= n.position.y + (n.measured?.height ?? n.height ?? 0));
-      const limit = chapter ? chapter.position.x + cardWidth(chapter) : Infinity;
+      // Which frame the parent is in follows the one membership rule dragging
+      // and autoLayout share (frames.ts, by centre); nested, the innermost wins.
+      chapter = innermostFrameOf({ ...base, position: basePos }, liveFrames());
+      const limit = chapter ? frameRect(chapter).x + frameRect(chapter).width : Infinity;
 
       // A card already hanging below the parent in its own column makes the
       // new one an ALTERNATIVE answer: it starts beside the chain, never in
@@ -210,10 +244,16 @@ export function placeNewNodes(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], 
     }
     pos.set(id, { x, y });
     seated.add(id);
+    if (chapter) growToHold(chapter, { x, y, width: w, height: h }, FRAME_SIDE_PADDING);
   }
 
   if (seated.size === 0) return allNodes;
-  return allNodes.map((n) => (seated.has(n.id) ? { ...n, position: pos.get(n.id)! } : n));
+  return allNodes.map((n) => {
+    if (seated.has(n.id)) return { ...n, position: pos.get(n.id)! };
+    const g = grown.get(n.id);
+    // `measured` goes with it, so frameRect reads the new size before React Flow re-measures
+    return g ? { ...n, width: g.width, height: g.height, ...(n.measured ? { measured: { ...g } } : {}) } : n;
+  });
 }
 
 /**
