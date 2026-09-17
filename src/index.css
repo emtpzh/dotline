@@ -11,13 +11,15 @@
   --font-sans: 'Inter Variable', -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono Variable', 'SF Mono', 'PingFang SC', monospace;
 
-  /* Type scale — bumped one notch from Tailwind defaults for research-
-     grade readability (xs 12→13px, sm 14→15px); 2xs is the old xs. */
-  --text-2xs: 0.8125rem;
+  /* Type scale — a compact, evenly-stepped ladder for a denser UI.
+     Body (text-sm) sits at 14px (Tailwind's default) and every step
+     is a clean 1px apart, so nothing reads big next to something small.
+     2xs is the smallest label tier. */
+  --text-2xs: 0.75rem;
   --text-2xs--line-height: 1.35;
-  --text-xs: 0.875rem;
+  --text-xs: 0.8125rem;
   --text-xs--line-height: 1.45;
-  --text-sm: 1rem;
+  --text-sm: 0.875rem;
   --text-sm--line-height: 1.6;
 
   --color-surface: #FAF9F7;      /* app / canvas background        */
@@ -156,13 +158,13 @@
 
 /* draft dialect: on the drafting board cards sit like components —
    smaller radius, flat shadow. The layout laws are untouched. */
-:root[data-paper='grid'] .thought-node,
 :root[data-paper='grid'] .content-card {
   border-radius: 7px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
-:root[data-paper='grid'] .thought-node::before {
-  border-radius: 0;
+:root[data-paper='grid'] .thought-node {
+  border-radius: 7px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 html, body, #root {
@@ -281,61 +283,58 @@ textarea:focus-visible {
 .selected-glow { animation: pulse-selected 2s ease-in-out infinite; }
 
 /* Node styling — type is expressed by a left accent bar:
-   root = accent, explore branch = warm, continuation = none. */
+   root = accent, explore branch = warm, continuation = none.
+   The bar is a full-card layer clipped by the card's own radius (a hard
+   gradient stop at 3px), not a 3px strip: the card cannot clip with
+   overflow:hidden — that would cut the connection handles — so a strip
+   squares off at the corners and pokes past the rounded edge. `inset:-1px`
+   lands the layer on the card's border box and `border-radius: inherit`
+   copies the card's radius, so the bar follows the corner exactly (the
+   default 12px and the draft paper's 7px alike). The layer is transparent
+   except that left stop, and it never takes pointer events. */
 .thought-node {
   background: var(--color-card);
   border: 1px solid var(--color-line);
   box-shadow: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.05);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-  /* NO overflow:hidden here — it would clip the connection handles'
-     protruding half and their hit halos (the type bar below rounds its
-     own corners instead). Wide content clips inside .markdown-body pre. */
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   position: relative;
 }
 
 .thought-node::before {
   content: '';
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  border-radius: 12px 0 0 12px; /* hug the card's rounded-xl corners */
-  background: transparent;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--node-bar, transparent) 3px, transparent 3px);
 }
 
+/* Hover raises the card in LIGHT, not in space: the lift is the stronger
+   shadow and the darker border. A `translateY(-1px)` here moved the card
+   under the pointer — and so under the pointer of every click that selected
+   one — which read as the card jumping when it was picked. */
 .thought-node:hover {
   border-color: var(--color-line-strong);
   box-shadow: 0 4px 14px rgba(0,0,0,0.09), 0 2px 4px rgba(0,0,0,0.05);
-  transform: translateY(-1px);
 }
 
-.root-node::before {
-  background: var(--color-accent);
-}
-
-.orange-node::before {
-  background: var(--color-warm);
+.root-node {
+  --node-bar: var(--color-accent);
 }
 
 .orange-node {
+  --node-bar: var(--color-warm);
   border-color: color-mix(in srgb, var(--color-warm) 30%, var(--color-line));
 }
 
-.evaluator-node::before {
-  background: var(--color-watch);
-}
-
 .evaluator-node {
+  --node-bar: var(--color-watch);
   border-color: color-mix(in srgb, var(--color-watch) 25%, var(--color-line));
 }
 
 /* Instantiated paradigm human turn: the person acts here */
-.human-node::before {
-  background: var(--color-warm);
-}
-
 .human-node {
+  --node-bar: var(--color-warm);
   border-color: color-mix(in srgb, var(--color-warm) 45%, var(--color-line));
 }
 

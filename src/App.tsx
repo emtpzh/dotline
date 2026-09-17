@@ -1504,31 +1504,31 @@ function Canvas() {
               draggable
               onDragStart={(e) => { e.dataTransfer.setData('application/thoughtdag-content', 'ask'); e.dataTransfer.effectAllowed = 'copy'; }}
               title={t('palette.askTitle')}
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-accent hover:bg-accent/10 transition-colors cursor-grab"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-accent hover:bg-accent/10 transition-colors cursor-grab"
             >
-              <MessageCircleQuestion size={17} strokeWidth={1.75} />
+              <MessageCircleQuestion size={15} strokeWidth={1.75} />
             </button>
           )}
           <button
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnContentNode('note', flowPosAt(screen)))}
             title={t('palette.noteTitle')}
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-amber-600 hover:bg-amber-500/10 transition-colors"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-amber-600 hover:bg-amber-500/10 transition-colors"
           >
-            <StickyNote size={17} strokeWidth={1.75} />
+            <StickyNote size={15} strokeWidth={1.75} />
           </button>
           <button
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnContentNode('file', flowPosAt(screen)))}
             title={t('palette.fileTitle')}
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-ink-muted hover:bg-wash transition-colors"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:bg-wash transition-colors"
           >
-            <Paperclip size={17} strokeWidth={1.75} />
+            <Paperclip size={15} strokeWidth={1.75} />
           </button>
           <button
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnFrame(flowPosAt(screen)))}
             title={t('palette.frameTitle')}
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-ink-muted hover:bg-wash transition-colors"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:bg-wash transition-colors"
           >
-            <Frame size={17} strokeWidth={1.75} />
+            <Frame size={15} strokeWidth={1.75} />
           </button>
         </div>
       )}

@@ -87,13 +87,13 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
         <button
           onClick={() => setOpen(!open)}
           disabled={switching}
-          className="bg-card/90 backdrop-blur border border-line rounded-xl px-3.5 py-2 shadow-sm hover:bg-wash transition-colors flex items-center gap-2 text-sm text-ink max-w-[240px] disabled:opacity-60"
+          className="bg-card/90 backdrop-blur border border-line rounded-lg h-8 px-3 shadow-sm hover:bg-wash transition-colors flex items-center gap-2 text-xs text-ink max-w-[220px] disabled:opacity-60"
         >
           {switching
-            ? <Loader2 size={16} strokeWidth={1.75} className="animate-spin shrink-0 text-accent" />
+            ? <Loader2 size={15} strokeWidth={1.75} className="animate-spin shrink-0 text-accent" />
             : activeIsParadigm
-              ? <Dna size={16} strokeWidth={1.75} className="shrink-0 text-accent" />
-              : <FolderOpen size={16} strokeWidth={1.75} className="shrink-0 text-ink-muted" />}
+              ? <Dna size={15} strokeWidth={1.75} className="shrink-0 text-accent" />
+              : <FolderOpen size={15} strokeWidth={1.75} className="shrink-0 text-ink-muted" />}
           <span className="truncate font-medium">{active?.name ?? '…'}</span>
           <ChevronDown size={14} strokeWidth={1.75} className="shrink-0 text-ink-faint" />
         </button>
@@ -112,7 +112,7 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
                 ? ti('switcher.mirrorBadgeGone')
                 : fmt(ti('switcher.mirrorBadge'), { runner: active.sourceSession!.runner })}
               onClick={() => { setAtlasFocus(active.sourceSession!.sessionId); setAtlasOpen(true); }}
-              className={`bg-card/90 backdrop-blur border border-line rounded-xl px-2 py-2 shadow-sm hover:bg-wash transition-colors text-2xs font-mono flex items-center gap-1 ${unreachable ? 'text-ink-faint/50 line-through decoration-1' : 'text-ink-faint hover:text-accent'}`}
+              className={`bg-card/90 backdrop-blur border border-line rounded-lg h-8 px-2 shadow-sm hover:bg-wash transition-colors text-2xs font-mono flex items-center gap-1 ${unreachable ? 'text-ink-faint/50 line-through decoration-1' : 'text-ink-faint hover:text-accent'}`}
               data-twin-badge={unreachable ? 'unreachable' : 'live'}
             >
               ⇄ {active.sourceSession!.runner}
@@ -122,7 +122,7 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
       </div>
 
       {open && (
-        <div className="mt-1.5 bg-card border border-line rounded-xl shadow-lg py-1.5 w-[320px] animate-fade-in">
+        <div className="mt-1.5 bg-card border border-line rounded-xl shadow-lg py-1.5 w-[280px] animate-fade-in">
           <div className="max-h-[320px] overflow-y-auto">
             {sorted.map((p) => (
               <div
@@ -144,13 +144,13 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
                       if (e.key === 'Escape') setRenamingId(null);
                     }}
                     onBlur={() => setRenamingId(null)}
-                    className="flex-1 text-sm text-ink border border-accent/40 rounded-lg px-2 py-1 bg-surface focus:outline-none"
+                    className="flex-1 text-xs text-ink border border-accent/40 rounded-lg px-2 py-1 bg-surface focus:outline-none"
                   />
                 ) : (
                   <>
                     <div className="flex-1 min-w-0">
                       {/* the name owns its line; provenance rides below with the time */}
-                      <div className={`text-sm truncate ${p.id === activeId ? 'text-accent font-medium' : 'text-ink'}`}>
+                      <div className={`text-xs truncate ${p.id === activeId ? 'text-accent font-medium' : 'text-ink'}`}>
                         {p.name}
                       </div>
                       <div className="text-2xs text-ink-faint flex items-center gap-1.5">
@@ -193,19 +193,19 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
           <div className="border-t border-line mt-1 pt-1">
             <button
               onClick={() => { setOpen(false); void createProject().then(onSwitched); }}
-              className="w-full text-left px-3 py-2 text-sm text-accent hover:bg-wash transition-colors flex items-center gap-2"
+              className="w-full text-left px-3 py-2 text-xs text-accent hover:bg-wash transition-colors flex items-center gap-2"
             >
               <Plus size={15} strokeWidth={1.75} /> {t('switcher.newCanvas')}
             </button>
             <button
               onClick={() => importFileRef.current?.click()}
-              className="w-full text-left px-3 py-2 text-sm text-ink-muted hover:bg-wash transition-colors flex items-center gap-2"
+              className="w-full text-left px-3 py-2 text-xs text-ink-muted hover:bg-wash transition-colors flex items-center gap-2"
             >
               <Upload size={15} strokeWidth={1.75} /> {t('switcher.importBackup')}
             </button>
             <button
               onClick={() => { setOpen(false); setAtlasOpen(true); }}
-              className="w-full text-left px-3 py-2 text-sm text-ink-muted hover:bg-wash transition-colors flex items-center gap-2"
+              className="w-full text-left px-3 py-2 text-xs text-ink-muted hover:bg-wash transition-colors flex items-center gap-2"
               data-open-atlas
             >
               <MapIcon size={15} strokeWidth={1.75} /> {t('switcher.allCanvases')}
@@ -213,7 +213,7 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
             {window.desktop && (
               <button
                 onClick={() => { setOpen(false); void window.desktop!.checkForUpdates(); }}
-                className="w-full text-left px-3 py-2 text-sm text-ink-muted hover:bg-wash transition-colors flex items-center gap-2"
+                className="w-full text-left px-3 py-2 text-xs text-ink-muted hover:bg-wash transition-colors flex items-center gap-2"
                 data-check-updates
               >
                 <RefreshCw size={15} strokeWidth={1.75} /> {t('update.checkMenu')}
