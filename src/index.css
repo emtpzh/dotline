@@ -41,13 +41,16 @@
   --canvas-dot: #E8E5E0;
   --canvas-grid-fine: rgba(84, 100, 128, 0.10);
   --canvas-grid-major: rgba(84, 100, 128, 0.22);
+  /* the accent as an rgb triplet, for the translucent glows and tints below */
+  --accent-rgb: 107, 92, 231;
 }
 
 /* ── appearance: light × dark is a full token remap; paper × grid is a
    canvas texture plus a component dialect. Set by lib/appearance.ts. ── */
 
-/* the drafting board runs a touch cooler than reading paper (light only) */
-:root[data-paper='grid']:not([data-theme='dark']) {
+/* the drafting board runs a touch cooler than reading paper (light only;
+   the harness palette keeps its own neutral surface) */
+:root[data-paper='grid']:not([data-theme='dark']):not([data-palette='harness']) {
   --color-surface: #F7F6F2;
 }
 
@@ -91,6 +94,51 @@
   --color-amber-600: #E2B558;
   --color-amber-700: #EAC272;
   --color-amber-800: #F2D18C;
+}
+
+/* ── palette: harness — DeepSeek Harness's design system, fixed here (the
+   plugin build sets data-palette; see lib/appearance.ts). Values are the
+   harness's --dsw-* aliases resolved from @deepseek-ai/dsh-client-ui-theme
+   (0.1.5): surface bg-module-platform, card bg-layer-1, wash
+   interactive-bg-hover, line border-l2 / -l4, ink label-primary / -secondary
+   / -tertiary, accent state-business-primary, accent-strong
+   button-info-hover, warm state-warn-primary, watch state-error-primary.
+   trace is state-success-primary: the harness's amber pair is too close to
+   tell an ancestor-path highlight from an explore branch. ── */
+:root[data-palette='harness'] {
+  --color-surface: #f5f6f7;
+  --color-card: #ffffff;
+  --color-wash: #2631480f;
+  --color-line: #0000001a;
+  --color-line-strong: #00000029;
+  --color-ink: #0f1115;
+  --color-ink-muted: #61666b;
+  --color-ink-faint: #81858c;
+  --color-accent: #4176e6;
+  --color-accent-strong: #679efe;
+  --color-warm: #f59e0b;
+  --color-trace: #22c55e;
+  --color-watch: #ec1313;
+  --canvas-dot: #e1e5ee;
+  --accent-rgb: 65, 118, 230;
+}
+
+:root[data-palette='harness'][data-theme='dark'] {
+  --color-surface: #353638;
+  --color-card: #232324;
+  --color-wash: #ffffff14;
+  --color-line: #ffffff1f;
+  --color-line-strong: #ffffff33;
+  --color-ink: #f9fafb;
+  --color-ink-muted: #cfd3d6;
+  --color-ink-faint: #adb2b8;
+  --color-accent: #679efe;
+  --color-accent-strong: #4176e6;
+  --color-warm: #f59e0b;
+  --color-trace: #4ed17e;
+  --color-watch: #f25a5a;
+  --canvas-dot: #ffffff1f;
+  --accent-rgb: 103, 158, 254;
 }
 
 /* code highlighting flips with the theme (github.css is light-only) */
@@ -235,7 +283,7 @@ code, pre {
 }
 
 /* Selection highlight */
-::selection { background: rgba(107, 92, 231, 0.2); }
+::selection { background: rgba(var(--accent-rgb), 0.2); }
 
 /* Consistent keyboard-focus ring on buttons and disclosure controls.
    Text inputs are embedded borderless fields — their containers carry the
@@ -275,8 +323,8 @@ textarea:focus-visible {
 .loading-border { animation: pulse-border 1.5s ease-in-out infinite; }
 
 @keyframes pulse-selected {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(107, 92, 231, 0.25); }
-  50% { box-shadow: 0 0 0 5px rgba(107, 92, 231, 0.12); }
+  0%, 100% { box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.25); }
+  50% { box-shadow: 0 0 0 5px rgba(var(--accent-rgb), 0.12); }
 }
 .selected-glow { animation: pulse-selected 2s ease-in-out infinite; }
 
@@ -606,8 +654,8 @@ body.tdag-connecting, body.tdag-connecting * {
 
 /* ── Timeline bar (map/glyph tiers): recently-edited dots breathe ── */
 @keyframes tdag-timeline-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(107, 92, 231, 0.45); }
-  50% { box-shadow: 0 0 0 5px rgba(107, 92, 231, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.45); }
+  50% { box-shadow: 0 0 0 5px rgba(var(--accent-rgb), 0); }
 }
 .tdag-timeline-pulse { animation: tdag-timeline-glow 2s ease-in-out infinite; }
 .tdag-timeline { animation: fadeIn 0.25s ease; }

@@ -18,10 +18,16 @@ function resolve(lighting: Lighting): 'light' | 'dark' {
   return lighting === 'system' ? (media?.matches ? 'dark' : 'light') : lighting;
 }
 
+// Inside DeepSeek Harness (the plugin builds with VITE_DSH_BRIDGE) the board
+// wears the harness's own colors: index.css keeps them as a fixed palette,
+// light and dark alike, so the canvas reads as part of the host app.
+const PALETTE = import.meta.env.VITE_DSH_BRIDGE ? 'harness' : 'thoughtdag';
+
 function apply(lighting: Lighting, paper: Paper): 'light' | 'dark' {
   const resolved = resolve(lighting);
   document.documentElement.dataset.theme = resolved;
   document.documentElement.dataset.paper = paper;
+  document.documentElement.dataset.palette = PALETTE;
   return resolved;
 }
 
