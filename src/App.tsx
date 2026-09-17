@@ -1241,33 +1241,33 @@ function Canvas() {
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
           {/* Watermark: faint DAG sketches anchoring the corners */}
           <svg className="absolute -left-10 top-[8%] w-[360px] h-[300px] opacity-[0.35] pointer-events-none" viewBox="0 0 360 300" aria-hidden>
-            <path d="M80 40 C80 90 80 90 80 130 M80 170 C80 210 80 210 80 250" stroke={COLORS.line} strokeWidth="2" fill="none" />
-            <path d="M95 150 C150 150 150 90 205 88" stroke={COLORS.line} strokeWidth="2" strokeDasharray="6 5" fill="none" />
-            <circle cx="80" cy="30" r="7" fill={COLORS.line} />
-            <circle cx="80" cy="150" r="7" fill="none" stroke={COLORS.line} strokeWidth="2.5" />
-            <circle cx="80" cy="262" r="7" fill={COLORS.line} />
-            <circle cx="218" cy="88" r="7" fill={COLORS.line} />
+            <path d="M80 40 C80 90 80 90 80 130 M80 170 C80 210 80 210 80 250" stroke="var(--color-line)" strokeWidth="2" fill="none" />
+            <path d="M95 150 C150 150 150 90 205 88" stroke="var(--color-line)" strokeWidth="2" strokeDasharray="6 5" fill="none" />
+            <circle cx="80" cy="30" r="7" fill="var(--color-line)" />
+            <circle cx="80" cy="150" r="7" fill="none" stroke="var(--color-line)" strokeWidth="2.5" />
+            <circle cx="80" cy="262" r="7" fill="var(--color-line)" />
+            <circle cx="218" cy="88" r="7" fill="var(--color-line)" />
           </svg>
           <svg className="absolute right-[-30px] bottom-[10%] w-[320px] h-[280px] opacity-[0.35] pointer-events-none" viewBox="0 0 320 280" aria-hidden>
-            <path d="M240 30 C240 80 240 80 240 120 M240 160 C240 200 240 200 240 240" stroke={COLORS.line} strokeWidth="2" fill="none" />
-            <path d="M225 140 C170 140 170 210 115 212" stroke={COLORS.line} strokeWidth="2" strokeDasharray="6 5" fill="none" />
-            <circle cx="240" cy="20" r="7" fill={COLORS.line} />
-            <circle cx="240" cy="140" r="7" fill="none" stroke={COLORS.line} strokeWidth="2.5" />
-            <circle cx="240" cy="252" r="7" fill={COLORS.line} />
-            <circle cx="102" cy="212" r="7" fill={COLORS.line} />
+            <path d="M240 30 C240 80 240 80 240 120 M240 160 C240 200 240 200 240 240" stroke="var(--color-line)" strokeWidth="2" fill="none" />
+            <path d="M225 140 C170 140 170 210 115 212" stroke="var(--color-line)" strokeWidth="2" strokeDasharray="6 5" fill="none" />
+            <circle cx="240" cy="20" r="7" fill="var(--color-line)" />
+            <circle cx="240" cy="140" r="7" fill="none" stroke="var(--color-line)" strokeWidth="2.5" />
+            <circle cx="240" cy="252" r="7" fill="var(--color-line)" />
+            <circle cx="102" cy="212" r="7" fill="var(--color-line)" />
           </svg>
 
           <div className="pointer-events-auto w-[560px] animate-fade-in relative">
             <div className="text-center mb-8">
               {/* Mark: a tiny DAG lighting up — main chain in accent, explore branch in warm */}
               <svg width="52" height="52" viewBox="0 0 44 44" className="mx-auto mb-4" aria-hidden>
-                <circle className="dag-pop" style={{ animationDelay: '0.05s' }} cx="22" cy="7" r="3.5" fill={COLORS.accent} />
-                <line className="dag-pop" style={{ animationDelay: '0.2s' }} x1="22" y1="11" x2="22" y2="19" stroke={COLORS.accent} strokeWidth="2" strokeLinecap="round" />
-                <circle className="dag-pop" style={{ animationDelay: '0.35s' }} cx="22" cy="22" r="3.5" fill="none" stroke={COLORS.accent} strokeWidth="2.5" />
-                <line className="dag-pop" style={{ animationDelay: '0.5s' }} x1="22" y1="25" x2="22" y2="33" stroke={COLORS.accent} strokeWidth="2" strokeLinecap="round" />
-                <circle className="dag-pop" style={{ animationDelay: '0.65s' }} cx="22" cy="37" r="3.5" fill={COLORS.accent} opacity="0.35" />
-                <line className="dag-pop" style={{ animationDelay: '0.8s' }} x1="25.5" y1="23.5" x2="33" y2="28.5" stroke={COLORS.warm} strokeWidth="2" strokeLinecap="round" strokeDasharray="3 3" />
-                <circle className="dag-pop" style={{ animationDelay: '0.95s' }} cx="36" cy="30" r="3.5" fill={COLORS.warm} />
+                <circle className="dag-pop" style={{ animationDelay: '0.05s' }} cx="22" cy="7" r="3.5" fill="var(--color-accent)" />
+                <line className="dag-pop" style={{ animationDelay: '0.2s' }} x1="22" y1="11" x2="22" y2="19" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" />
+                <circle className="dag-pop" style={{ animationDelay: '0.35s' }} cx="22" cy="22" r="3.5" fill="none" stroke="var(--color-accent)" strokeWidth="2.5" />
+                <line className="dag-pop" style={{ animationDelay: '0.5s' }} x1="22" y1="25" x2="22" y2="33" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" />
+                <circle className="dag-pop" style={{ animationDelay: '0.65s' }} cx="22" cy="37" r="3.5" fill="var(--color-accent)" opacity="0.35" />
+                <line className="dag-pop" style={{ animationDelay: '0.8s' }} x1="25.5" y1="23.5" x2="33" y2="28.5" stroke="var(--color-warm)" strokeWidth="2" strokeLinecap="round" strokeDasharray="3 3" />
+                <circle className="dag-pop" style={{ animationDelay: '0.95s' }} cx="36" cy="30" r="3.5" fill="var(--color-warm)" />
               </svg>
               <h1 className="text-4xl font-semibold tracking-tight text-ink mb-2.5">ThoughtDAG</h1>
               <p className="text-sm text-ink-muted">{t('landing.tagline')}</p>

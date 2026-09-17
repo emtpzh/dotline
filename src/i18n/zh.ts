@@ -66,7 +66,7 @@ export const zh: Record<keyof typeof en, string> = {
   'tutorial.step6.title': '6 · 材料与阅读器',
   'tutorial.step6.desc': '粘贴成便签，网址成快照，文档成文件节点。双击打开阅读器，圈选即问，答案带页码落回画布。不连线就不进上下文。',
   'tutorial.step7.title': '7 · 引用',
-  'tutorial.step7.desc': '从节点把手拖线。落到已有节点成紫色虚线引用，只带那份问答，有 token 价签。落到空白处，就地新问。',
+  'tutorial.step7.desc': '从节点把手拖线。落到已有节点成虚线引用，只带那份问答，有 token 价签。落到空白处，就地新问。',
   'tutorial.step8.title': '8 · 批量与分区',
   'tutorial.step8.desc': '圈选多个节点：合并摘要、一起提问、整块复制、归档。用 Frame 框出章节，拖动框，节点一起走。',
   'tutorial.step9.title': '9 · 陈旧与重放',

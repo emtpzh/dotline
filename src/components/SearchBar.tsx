@@ -81,7 +81,7 @@ export default function SearchBar({
           const el = tn.parentElement;
           el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
           el?.animate(
-            [{ backgroundColor: 'rgba(107, 92, 231, 0.22)' }, { backgroundColor: 'transparent' }],
+            [{ backgroundColor: `rgba(${getComputedStyle(document.documentElement).getPropertyValue('--accent-rgb').trim() || '107, 92, 231'}, 0.22)` }, { backgroundColor: 'transparent' }],
             { duration: 1800, easing: 'ease-out' },
           );
           break;
