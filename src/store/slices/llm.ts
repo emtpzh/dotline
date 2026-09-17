@@ -1,7 +1,7 @@
 import type { StateCreator } from 'zustand';
 import type { ThoughtNode, ThoughtEdge } from '../../types';
 import { generateId } from '../../utils';
-import { autoLayout } from '../../lib/layout';
+import { autoLayout, placeNewNodes } from '../../lib/layout';
 import { getDescendantIds, selectionSinks, walkUpAncestors } from '../../lib/graph';
 import { COLORS } from '../../lib/constants';
 import type { ContextMessage, ImageAttachment } from '../../lib/api';
@@ -114,7 +114,9 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     const updatedNodes = parentId
       ? get().nodes.map((n) => n.id === parentId ? { ...n, data: { ...n.data, isCollapsed: true } } : n)
       : get().nodes;
-    const newNodes = autoLayout([...updatedNodes, newNode], newEdges);
+    // The new card is SEATED, not laid out: asking one follow-up must not
+    // re-derive a canvas the user arranged. See placeNewNodes.
+    const newNodes = placeNewNodes([...updatedNodes, newNode], newEdges, [newNode.id]);
     set({ nodes: newNodes, edges: newEdges, selectedNodeId: id });
 
     // Build full context from ancestors + explicit role for the new node
@@ -246,7 +248,9 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
 
     const allEdges = [...get().edges, ...newEdges];
     const merged = [...get().nodes.map((n) => (n.id === parentId && !follow ? { ...n, data: { ...n.data, isCollapsed: true } } : n)), ...newNodes];
-    const allNodes = follow ? merged : autoLayout(merged, allEdges);
+    // follow mode keeps its hand-stacked reviewers (watch edges are cross-
+    // links); the one-shot candidates are seated beside the parent in order
+    const allNodes = follow ? merged : placeNewNodes(merged, allEdges, newNodes.map((n) => n.id));
     set({ nodes: allNodes, edges: allEdges, selectedNodeId: null, selectedNodeIds: [] });
 
     // Bounded concurrency: free-tier providers dislike large bursts
@@ -317,7 +321,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       data: {},
     }));
     const allEdges = [...edges, ...newEdges];
-    set({ nodes: autoLayout([...nodes, newNode], allEdges), edges: allEdges, selectedNodeId: id, selectedNodeIds: [] });
+    set({ nodes: placeNewNodes([...nodes, newNode], allEdges, [newNode.id]), edges: allEdges, selectedNodeId: id, selectedNodeIds: [] });
 
     // Standard context walk through the fresh fan-in edges (self blanked)
     const ctx = buildContext(
@@ -437,7 +441,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       ? [...get().edges, { id: `edge-${parentId}-${id}`, source: parentId, target: id, type: 'smoothstep' }]
       : get().edges;
 
-    const newNodes = autoLayout([...get().nodes, newNode], newEdges);
+    const newNodes = placeNewNodes([...get().nodes, newNode], newEdges, [newNode.id]);
     set({ nodes: newNodes, edges: newEdges, selectedNodeId: id });
 
     const regenSelf = get().nodes.find((n) => n.id === id);
@@ -513,7 +517,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
 
     get().pushHistory();
     const newEdges = [...edges, ...fanIn];
-    const newNodes = autoLayout([...nodes, newNode], newEdges);
+    const newNodes = placeNewNodes([...nodes, newNode], newEdges, [newNode.id]);
     set({ nodes: newNodes, edges: newEdges, selectedNodeId: id, selectedNodeIds: [] });
 
     // Context arrives via the fan-in edges; the prompt is instruction only
@@ -647,7 +651,7 @@ ${intent.trim()}` : ''}` },
 
     get().pushHistory();
     const newEdges = [...edges, ...fanIn];
-    set({ nodes: autoLayout([...nodes, newNode], newEdges), edges: newEdges, selectedNodeId: id, selectedNodeIds: [] });
+    set({ nodes: placeNewNodes([...nodes, newNode], newEdges, [newNode.id]), edges: newEdges, selectedNodeId: id, selectedNodeIds: [] });
 
     // First generation feeds ONLY the marks (the whole point: human-curated
     // input). The fan-in edges carry provenance and the full upstream for
