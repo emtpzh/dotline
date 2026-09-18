@@ -13,6 +13,7 @@ import { copyText } from '../lib/export';
 import { isRunLocked } from '../lib/paradigm';
 import { collectExploreMarksKey, type ExploreMark } from '../lib/explore-marks';
 import { useUiStore, toast } from '../lib/ui-store';
+import { isFactNode } from '../lib/facts';
 import SearchToggles from './ui/SearchToggles';
 import { useEntranceFade } from '../lib/use-entrance-fade';
 import { Markdown, HighlightedMarkdown } from './Markdown';
@@ -651,6 +652,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                 rows={2}
                 autoFocus
               />
+              {isFactNode({ data }) && !isHuman && !isAwaitingAsk && <p className="text-2xs text-ink-faint mt-1.5" data-fact-note>{t('fact.editQuestionNote')}</p>}
               {/* Revision confirms explicitly: visible exits instead of an
                   invisible Enter contract. mousedown-preventDefault keeps the
                   textarea's blur from racing the click. */}
@@ -754,6 +756,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                 rows={6}
                 autoFocus
               />
+              {isFactNode({ data }) && <p className="text-2xs text-ink-faint mt-1.5" data-fact-note>{t('fact.editResponseNote')}</p>}
               <div className="flex justify-end gap-2 mt-2">
                 <button onClick={() => setEditingResponse(id, false)} className="text-xs text-ink-muted hover:text-ink px-3 py-1.5 rounded-lg hover:bg-wash transition-colors">{t('common.cancel')}</button>
                 <button onClick={handleResponseEditSubmit} className="text-xs bg-accent hover:bg-accent-strong text-white px-4 py-1.5 rounded-lg transition-colors">{t('common.save')}</button>

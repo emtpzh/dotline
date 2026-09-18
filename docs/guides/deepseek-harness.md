@@ -62,7 +62,7 @@ PDF import, text extraction, and material wiring work as in the standalone app. 
 
 ### Append a turn; do not rewrite history
 
-Editing or deleting a mirror node changes the canvas, not an existing Harness session log. Sending through Agent mode executes and records a **new turn** in Harness.
+A mirror node is a session record: the canvas never rewrites it. Changing its question or running it again creates a new branch beside it (for an Agent, a session forked right before it); changing its answer creates a revision node beside it, which the canvas owns. Deleting a mirror node removes it from the canvas, not from the Harness session log. Sending through Agent mode executes and records a **new turn** in Harness.
 
 Open [Session Atlas](./session-atlas) from the canvas menu to browse other conversations. The plugin accesses supported sessions on the machine running Harness, not arbitrary files on a browser client.
 

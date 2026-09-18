@@ -203,6 +203,9 @@ export interface ThoughtData extends Record<string, unknown> {
   autoRerunRounds?: number; // max auto-triggered runs per user action (default 1); >1 enables loops
   tokenCount: number;
   branchContext?: string;
+  /** A revision: the fact node (a session turn) whose answer this node
+      rewrote. The fact stays as recorded; this node is the canvas's. */
+  revisionOf?: string;
   highlights: Highlight[];
   highlightMode: 'off' | 'tag' | 'filter'; // off=normal, tag=mark important, filter=pass highlights only
   summary?: string; // legacy single display summary (pre-versioned nodes)

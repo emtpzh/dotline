@@ -6,6 +6,7 @@ import { toast, updateToast, useUiStore } from '../../lib/ui-store';
 import { t, fmt } from '../../i18n';
 import type { StoreState, EvaluatorSlice } from '../types';
 import { condenseGuard } from '../../lib/condense-guard';
+import { isFactNode } from '../../lib/facts';
 
 // Batch-replay cancellation flag — one replay at a time, module-scoped.
 let replayAborted = false;
@@ -37,6 +38,15 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
     const { nodes, edges } = get();
     const node = nodes.find((n) => n.id === nodeId);
     if (!node || node.data.isLoading) return;
+    // A session turn is not rerun in place. By hand it grows a sibling turn;
+    // automatically (auto-rerun, replay) it stays as recorded — stale if
+    // its context moved, which is the truth about it.
+    if (isFactNode(node)) {
+      if (opts?.auto) return;
+      toast('info', t('fact.rerunBranched'), 6000);
+      await get().regenerate(nodeId);
+      return;
+    }
     // In-place regenerate works for anything with a question — roots included
     // (their context is just role + question). Material/frames never generate.
     if (!node.data.question) return;
