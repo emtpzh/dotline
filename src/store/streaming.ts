@@ -7,7 +7,7 @@ import { llmCall, llmCallStream, type ContextMessage, type ImageAttachment } fro
 import { agentOutbound, adoptAgentTurn, claimAgentTurn, isAgentModel } from '../lib/agents/agent-runtime';
 import { countTokens, activeSummary } from '../utils';
 import { toast, useUiStore } from '../lib/ui-store';
-import { getModelsOnce, reconcileModelId } from '../lib/use-models';
+import { modelsWith, reconcileModelId } from '../lib/use-models';
 import { contextLengthFor } from '../lib/runtime-providers';
 import { memoryContextBlock, judgeMemory } from '../lib/memory';
 import { t, fmt } from '../i18n';
@@ -145,7 +145,7 @@ export async function runNodeGeneration(
   // never silently mismatched between execution and provenance.
   const pinnedRaw = get().nodes.find((n) => n.id === nodeId)?.data.model;
   let pinnedModel = pinnedRaw;
-  const modelData = await getModelsOnce();
+  const modelData = await modelsWith(pinnedRaw);
   const serverDefaultModel: string | null = modelData?.default ?? null;
   if (pinnedRaw && modelData && modelData.models.length > 0) {
     const r = reconcileModelId(pinnedRaw, modelData.models);

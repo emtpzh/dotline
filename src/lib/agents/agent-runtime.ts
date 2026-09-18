@@ -82,8 +82,12 @@ export function agentTarget(id: string): { runtime: AgentRuntime; provider: stri
 export async function agentModels(): Promise<ModelInfo[]> {
   const bridge = window.desktopAgents;
   if (!bridge) return [];
+  // only runtimes the host says it has: a host that predates one (an older
+  // harness plugin, before the harness's own loop joined) must not answer
+  // for it with another runtime's catalog
+  const present = await bridge.available().catch(() => ({} as Record<string, string | null>));
   // the runtimes answer side by side: one slow catalog does not queue the others
-  const answers = await Promise.all(LIVE_RUNTIMES.map((runtime) => bridge.models(runtime).catch(() => null)));
+  const answers = await Promise.all(LIVE_RUNTIMES.map((runtime) => (present[runtime] ? bridge.models(runtime).catch(() => null) : null)));
   const out: ModelInfo[] = [];
   LIVE_RUNTIMES.forEach((runtime, i) => {
     const def = AGENT_RUNTIMES[runtime];

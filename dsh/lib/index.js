@@ -102,8 +102,15 @@ async function latestPluginVersion() {
 // the shared runtime, copied under lib/runtime by the build (Node code, no
 // harness dependency); the harness's own agent loop joins it as the dsh runtime
 function createAgentsHost(ctx) {
-  const { createAgentsHttp } = require(resolve(__dirname, 'runtime', 'agents', 'http.cjs'))
+  const shared = require(resolve(__dirname, 'runtime', 'agents', 'http.cjs'))
+  const { createAgentsHttp } = shared
   const log = (line) => console.error(line)
+  // lib/runtime is a build copy: one older than this file has no harness runtime
+  if (!shared.extraRuntimes) {
+    const msg = '[dsh-thoughtdag] lib/runtime predates this plugin build: the harness agent is unavailable until the plugin is rebuilt (npm run build in dsh/)'
+    ctx.logger.warn(msg)
+    log(msg)
+  }
   return createAgentsHttp({ log, extraRuntimes: { dsh: (_log, host) => createDshRuntime(ctx, { log, host }) } })
 }
 

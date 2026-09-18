@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { API_BASE } from './constants';
 import { storedProviders, pushProviders } from './runtime-providers';
-import { agentModels, AGENT_PROVIDER, AGENT_RUNTIMES, agentTarget, isAgentModel } from './agents/agent-runtime';
+import { agentModels, AGENT_PROVIDER, AGENT_RUNTIMES, agentTarget, isAgentModel, runtimeOf } from './agents/agent-runtime';
 
 export interface ModelInfo {
   id: string;
@@ -68,11 +68,14 @@ function modelBasename(id: string): string {
 
 /** Reconcile a pinned model id against the locally available list: exact id
     → itself; same family under a different provider → the local id;
-    otherwise null (not reachable here). */
+    otherwise null (not reachable here). An agent entry only ever maps to an
+    entry of the same runtime — never to a bare model of the same family,
+    which would run a plain call where an agent turn was pinned. */
 export function reconcileModelId(pinned: string, models: ModelInfo[]): string | null {
   if (models.some((m) => m.id === pinned)) return pinned;
   const base = modelBasename(pinned);
-  const match = models.find((m) => modelBasename(m.id) === base);
+  const runtime = runtimeOf(pinned);
+  const match = models.find((m) => runtimeOf(m.id) === runtime && modelBasename(m.id) === base);
   return match ? match.id : null;
 }
 
@@ -142,6 +145,17 @@ async function refreshAgents(): Promise<void> {
   return agentsRefreshing;
 }
 
+/** The model list with the agent runtimes' answer in it, when `id` is an
+ *  agent entry the list does not hold yet (a pinned agent model checked
+ *  before any picker opened): asks the runtimes once and waits for them. */
+export async function modelsWith(id: string | null | undefined): Promise<ModelData | null> {
+  const d = await getModelsOnce();
+  if (!d || !id || !isAgentModel(id) || !hasAgentsBridge() || d.models.some((m) => m.id === id)) return d;
+  agentsAsked = true;
+  await refreshAgents();
+  return cache;
+}
+
 /** The first picker to open in this launch asks the runtimes for their
  *  catalogs (the spinner in the agent group covers the wait); later opens
  *  reuse the answer. Harmless when there is no agents bridge. */
@@ -165,6 +179,11 @@ export function noteAgentModelName(id: string, resolved: string): void {
   setModelsCache({ ...cache, models: [...own, ...withResolvedNames(agents)] });
 }
 if (typeof window !== 'undefined') {
+  // the agents bridge arrives after the first list (over HTTP it is probed):
+  // last launch's agent entries join the list then, not only at the next launch
+  window.addEventListener('td:agents-ready', () => {
+    if (cache && !cache.models.some(isRuntimeAgent)) setModelsCache({ ...cache, agentsPending: undefined });
+  });
   window.addEventListener('td:agent-model-resolved', (ev) => {
     const d = (ev as CustomEvent<{ id?: string; resolved?: string }>).detail;
     if (d?.id && d?.resolved) noteAgentModelName(d.id, d.resolved);

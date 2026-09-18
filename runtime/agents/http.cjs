@@ -104,4 +104,5 @@ function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag
   return { handle, shutdown };
 }
 
-module.exports = { createAgentsHttp };
+// hosts that bring runtimes of their own check for this before relying on it
+module.exports = { createAgentsHttp, extraRuntimes: true };
