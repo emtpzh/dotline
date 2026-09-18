@@ -222,6 +222,8 @@ export const en = {
   'agent.cwdWorkspace': 'Canvas workspace',
   'agent.cwdWorkspaceHint': 'Default: this canvas\'s own folder',
   'agent.cwdMirrored': 'Mirrored project',
+  'agent.cwdSession': 'Current session',
+  'agent.cwdSessionHint': 'Default: the folder of the session open in the chat, else the agent\'s own default',
   'agent.cwdRecent': 'Recent',
   'agent.cwdPick': 'Choose a folder…',
   'agent.cwdType': 'Type the full path of a folder…',

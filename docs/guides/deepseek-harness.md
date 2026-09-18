@@ -30,6 +30,11 @@ Choose how to run a question in the canvas model picker:
 | A regular model provided by Harness | Calls the model directly; does not run the full agent tool loop | ThoughtDAG canvas |
 | **DeepSeek Harness · Agent** | Runs a real harness turn, with tools as configured in Harness | Canvas and Harness session log |
 | An Agent follow-up at the tail of a mirrored Harness session | Continues the corresponding Harness session | A new turn in that session, with the result reflected on the canvas |
+| An Agent follow-up from an earlier turn of a mirrored Harness session | Forks the session right after that turn, so later turns do not leak into the branch | A new Harness session holding the conversation up to that turn, plus the new turn |
+
+A follow-up continues or forks a session only when nothing above it was edited on the canvas and nothing else is wired into the question. Otherwise the turn runs in a fresh session that receives the compiled canvas context, so your edits reach the agent.
+
+When an Agent model is selected, the folder chip on the toolbar sets where the turn runs. By default it follows the mirrored project, then the session open in the chat. You can type an absolute path on the machine running Harness. An Agent turn keeps running if you close the canvas; when you reopen it, the node picks up the finished answer from the session.
 
 Selecting a regular model is not the same as running the Harness Agent. Choose **DeepSeek Harness · Agent** when you want tool execution and a recorded harness turn.
 

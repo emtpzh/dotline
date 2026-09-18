@@ -4,12 +4,14 @@ import { useT } from '../../i18n';
 import { useUiStore } from '../../lib/ui-store';
 import { useProjects, setProjectAgentCwd } from '../../store/projects';
 import { useStore } from '../../store';
-import { isAgentModel, resolveAgentCwd, mirroredCwd, setGuardMode, allowLocation, type CwdChoice } from '../../lib/agents/agent-runtime';
+import { runtimeOf, AGENT_RUNTIMES, resolveAgentCwd, mirroredCwd, setGuardMode, allowLocation, type CwdChoice } from '../../lib/agents/agent-runtime';
 
 // Where the agent works, on the toolbar, whenever an agent model is the
 // pick: the chosen folder, the mirrored project, or the canvas's own
-// workspace. One click shows the choices; the folder dialog adds a new one.
-// Nothing is mandatory — the default stays the workspace.
+// workspace — for a runtime without workspaces (the harness), the session
+// its chat shows, else its own default. One click shows the choices; the
+// folder dialog (or a typed path, where there is no dialog) adds a new one.
+// Nothing is mandatory.
 
 const tail = (p: string) => p.split('/').filter(Boolean).slice(-1)[0] ?? p;
 
@@ -24,15 +26,17 @@ export default function AgentCwdChip() {
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
-  const visible = !!window.desktopAgents && isAgentModel(selectedModel);
+  const runtime = runtimeOf(selectedModel);
+  const visible = !!window.desktopAgents && !!runtime;
+  const caps = runtime ? AGENT_RUNTIMES[runtime].caps : null;
 
   useEffect(() => {
     if (!visible) return;
     let alive = true;
-    void resolveAgentCwd().then((c) => { if (alive) setChoice(c); });
+    void resolveAgentCwd(runtime).then((c) => { if (alive) setChoice(c); });
     void mirroredCwd().then((m) => { if (alive) setMirrored(m); });
     return () => { alive = false; };
-  }, [visible, activeId, projects, nodeCount]);
+  }, [visible, runtime, activeId, projects, nodeCount]);
 
   useEffect(() => {
     if (!open) return;
@@ -44,6 +48,11 @@ export default function AgentCwdChip() {
   }, [open]);
 
   if (!visible || !choice) return null;
+  // what "no choice" means on this runtime: the mirrored project, else the
+  // canvas's workspace, or the harness's current session / its own default
+  const defaultLabel = mirrored ? t('agent.cwdMirrored') : caps?.workspace ? t('agent.cwdWorkspace') : t('agent.cwdSession');
+  const defaultHint = mirrored ?? (caps?.workspace ? t('agent.cwdWorkspaceHint') : (choice.kind === 'session' ? choice.cwd : t('agent.cwdSessionHint')));
+  const chipLabel = choice.kind === 'workspace' ? t('agent.cwdWorkspace') : choice.kind === 'default' ? t('agent.cwdSession') : tail(choice.cwd);
   const meta = projects.find((p) => p.id === activeId);
   const recent = [...new Set(projects.map((p) => p.agentCwd).filter((c): c is string => !!c))].filter((c) => c !== meta?.agentCwd).slice(0, 5);
 
@@ -67,11 +76,11 @@ export default function AgentCwdChip() {
       <button
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         className="bg-card/90 backdrop-blur border border-line rounded-lg h-8 px-2.5 flex items-center gap-1.5 shadow-sm hover:bg-wash transition-colors text-xs text-ink max-w-[220px]"
-        title={`${t('agent.cwd')} · ${choice.cwd}`}
+        title={`${t('agent.cwd')} · ${choice.cwd || t('agent.cwdSessionHint')}`}
         data-agent-cwd={choice.kind}
       >
         <FolderOpen size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" />
-        <span className="truncate">{choice.kind === 'workspace' ? t('agent.cwdWorkspace') : tail(choice.cwd)}</span>
+        <span className="truncate">{chipLabel}</span>
         <ChevronDown size={12} strokeWidth={1.75} className="text-ink-faint shrink-0" />
       </button>
       {open && (
@@ -79,8 +88,8 @@ export default function AgentCwdChip() {
           <p className="text-2xs text-ink-faint uppercase tracking-wider font-medium px-3 pt-1 pb-1">{t('agent.cwd')}</p>
           <button onClick={() => void choose(undefined)} className="w-full text-left px-3 py-2 text-xs hover:bg-wash flex items-center gap-2">
             <span className="flex-1 min-w-0">
-              <span className="block text-ink">{mirrored ? t('agent.cwdMirrored') : t('agent.cwdWorkspace')}</span>
-              <span className="block text-2xs text-ink-faint truncate">{mirrored ?? t('agent.cwdWorkspaceHint')}</span>
+              <span className="block text-ink">{defaultLabel}</span>
+              <span className="block text-2xs text-ink-faint truncate">{defaultHint}</span>
             </span>
             {!meta?.agentCwd && <Check size={13} strokeWidth={2} className="shrink-0 text-accent" />}
           </button>
@@ -114,29 +123,34 @@ export default function AgentCwdChip() {
               <button onClick={() => void submitTyped()} className="text-xs text-accent hover:underline shrink-0">{t('agent.cwdUse')}</button>
             </div>
           )}
-          <div className="border-t border-line/60 my-1" />
-          <p className="text-2xs text-ink-faint uppercase tracking-wider font-medium px-3 pt-1 pb-1">{t('agent.guard')}</p>
-          <button onClick={() => { void setGuardMode('ask'); setOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-wash flex items-center gap-2" data-agent-guard="ask">
-            <ShieldCheck size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" />
-            <span className="flex-1 min-w-0"><span className="block text-ink">{t('agent.guardAsk')}</span><span className="block text-2xs text-ink-faint">{t('agent.guardAskHint')}</span></span>
-            {(meta?.agentGuard?.mode ?? 'ask') === 'ask' && <Check size={13} strokeWidth={2} className="shrink-0 text-accent" />}
-          </button>
-          <button onClick={() => { void setGuardMode('allow'); setOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-wash flex items-center gap-2" data-agent-guard="allow">
-            <ShieldOff size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" />
-            <span className="flex-1 min-w-0"><span className="block text-ink">{t('agent.guardAllow')}</span><span className="block text-2xs text-ink-faint">{t('agent.guardAllowHint')}</span></span>
-            {meta?.agentGuard?.mode === 'allow' && <Check size={13} strokeWidth={2} className="shrink-0 text-accent" />}
-          </button>
-          {(meta?.agentGuard?.allow?.length ?? 0) > 0 && (
+          {/* the boundary guard: only a runtime that reads the guard file */}
+          {caps?.guard && (
             <>
-              <p className="text-2xs text-ink-faint px-3 pt-2 pb-1">{t('agent.guardAllowed')}</p>
-              {meta!.agentGuard!.allow.map((a) => (
-                <div key={a} className="px-3 py-1 text-xs flex items-center gap-2 min-w-0" data-agent-guard-allowed={a}>
-                  <span className="flex-1 min-w-0 truncate text-ink-muted font-mono" title={a}>{a}</span>
-                  <button onClick={() => void allowLocation(a, true)} className="text-ink-faint hover:text-red-500 shrink-0" title={t('agent.guardRemove')}>
-                    <X size={12} strokeWidth={2} />
-                  </button>
-                </div>
-              ))}
+              <div className="border-t border-line/60 my-1" />
+              <p className="text-2xs text-ink-faint uppercase tracking-wider font-medium px-3 pt-1 pb-1">{t('agent.guard')}</p>
+              <button onClick={() => { void setGuardMode('ask'); setOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-wash flex items-center gap-2" data-agent-guard="ask">
+                <ShieldCheck size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" />
+                <span className="flex-1 min-w-0"><span className="block text-ink">{t('agent.guardAsk')}</span><span className="block text-2xs text-ink-faint">{t('agent.guardAskHint')}</span></span>
+                {(meta?.agentGuard?.mode ?? 'ask') === 'ask' && <Check size={13} strokeWidth={2} className="shrink-0 text-accent" />}
+              </button>
+              <button onClick={() => { void setGuardMode('allow'); setOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-wash flex items-center gap-2" data-agent-guard="allow">
+                <ShieldOff size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" />
+                <span className="flex-1 min-w-0"><span className="block text-ink">{t('agent.guardAllow')}</span><span className="block text-2xs text-ink-faint">{t('agent.guardAllowHint')}</span></span>
+                {meta?.agentGuard?.mode === 'allow' && <Check size={13} strokeWidth={2} className="shrink-0 text-accent" />}
+              </button>
+              {(meta?.agentGuard?.allow?.length ?? 0) > 0 && (
+                <>
+                  <p className="text-2xs text-ink-faint px-3 pt-2 pb-1">{t('agent.guardAllowed')}</p>
+                  {meta!.agentGuard!.allow.map((a) => (
+                    <div key={a} className="px-3 py-1 text-xs flex items-center gap-2 min-w-0" data-agent-guard-allowed={a}>
+                      <span className="flex-1 min-w-0 truncate text-ink-muted font-mono" title={a}>{a}</span>
+                      <button onClick={() => void allowLocation(a, true)} className="text-ink-faint hover:text-red-500 shrink-0" title={t('agent.guardRemove')}>
+                        <X size={12} strokeWidth={2} />
+                      </button>
+                    </div>
+                  ))}
+                </>
+              )}
             </>
           )}
         </div>

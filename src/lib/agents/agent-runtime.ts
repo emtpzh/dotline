@@ -6,7 +6,8 @@
 // catalog; the canvas keeps the context.
 //
 // THE CONTRACT — the only things this file asks of a runtime, whichever it
-// is (Pi today; Codex and Claude Code follow the same shape):
+// is (Pi, Codex, Claude Code, and the harness's own agent loop when the
+// canvas runs inside it):
 //   1. start a run on a working directory with one prompt (and, if the
 //      person chose one, an effort level in the runtime's own words); abort it
 //   2. an event stream carrying eight kinds, nothing else is read:
@@ -19,18 +20,37 @@
 
 import type { ContextMessage, ImageAttachment, StreamCallbacks } from '../api';
 import type { ModelInfo } from '../use-models';
-import type { AgentRuntime } from '../../types';
+import type { AgentRuntime, ThoughtNode } from '../../types';
 import { useUiStore } from '../ui-store';
 import { useStore } from '../../store';
+import { pristineChain } from './pristine';
+import { upstreamFingerprint } from '../../store/context-builder';
+import { countTokens } from '../../utils';
+
+/** What a runtime does beyond the contract's minimum. */
+export interface RuntimeCaps {
+  /** honors the boundary guard file the canvas writes into the working directory */
+  guard: boolean;
+  /** opens a new session holding a conversation up to one of its earlier turns */
+  forkAt: boolean;
+  /** runs in the canvas's own workspace when nothing else is chosen; without
+      one the runtime's own default applies, and a directory binds a turn
+      only when the person chose it */
+  workspace: boolean;
+}
 
 /** The runtimes the shell can run, keyed by the prefix of their picker ids. */
-export const AGENT_RUNTIMES: Record<AgentRuntime, { prefix: string; label: string; rootKey: string }> = {
-  pi: { prefix: 'pi/', label: 'Pi', rootKey: 'pi-sessions' },
-  codex: { prefix: 'codex/', label: 'Codex', rootKey: 'codex-sessions' },
-  'claude-code': { prefix: 'claude/', label: 'Claude Code', rootKey: 'claude-projects' },
+export const AGENT_RUNTIMES: Record<AgentRuntime, { prefix: string; label: string; rootKey: string; caps: RuntimeCaps }> = {
+  pi: { prefix: 'pi/', label: 'Pi', rootKey: 'pi-sessions', caps: { guard: true, forkAt: true, workspace: true } },
+  codex: { prefix: 'codex/', label: 'Codex', rootKey: 'codex-sessions', caps: { guard: true, forkAt: false, workspace: true } },
+  'claude-code': { prefix: 'claude/', label: 'Claude Code', rootKey: 'claude-projects', caps: { guard: true, forkAt: false, workspace: true } },
+  // the harness's agent loop, served by the harness itself (nowhere else answers for it)
+  dsh: { prefix: 'harness/agent/', label: 'Harness', rootKey: 'dsh-sessions', caps: { guard: false, forkAt: true, workspace: false } },
 };
 /** The runtimes the shell implements today. */
-export const LIVE_RUNTIMES: AgentRuntime[] = ['pi', 'codex', 'claude-code'];
+export const LIVE_RUNTIMES: AgentRuntime[] = ['pi', 'codex', 'claude-code', 'dsh'];
+/** The harness's agent entry from before it listed one per model: the session's current model. */
+const BARE_HARNESS_AGENT = 'harness/agent';
 
 
 /** The provider key the picker groups every agent-run model under. */
@@ -38,6 +58,7 @@ export const AGENT_PROVIDER = '__agent__';
 
 export const runtimeOf = (id: string | undefined | null): AgentRuntime | null => {
   if (!id) return null;
+  if (id === BARE_HARNESS_AGENT) return 'dsh';
   for (const [rt, def] of Object.entries(AGENT_RUNTIMES)) if (id.startsWith(def.prefix)) return rt as AgentRuntime;
   return null;
 };
@@ -47,6 +68,7 @@ export const isAgentModel = (id: string | undefined | null): boolean => runtimeO
 export function agentTarget(id: string): { runtime: AgentRuntime; provider: string; id: string } | null {
   const runtime = runtimeOf(id);
   if (!runtime) return null;
+  if (id === BARE_HARNESS_AGENT) return { runtime, provider: 'dsh', id: '' };
   const rest = id.slice(AGENT_RUNTIMES[runtime].prefix.length);
   if (!rest) return null;
   const i = rest.indexOf('/');
@@ -72,28 +94,44 @@ export async function agentModels(): Promise<ModelInfo[]> {
   return out;
 }
 
-export type AgentRoute = { cwd: string; sessionPath?: string; forkEntryId?: string; continue?: boolean };
+export type AgentRoute = { cwd: string; sessionPath?: string; forkAfterTurn?: string[]; continue?: boolean };
 
-export type CwdChoice = { cwd: string; kind: 'chosen' | 'mirrored' | 'workspace' };
+/** Where an agent turn runs: the folder the person chose for this canvas,
+ *  the project its mirrored nodes came from, the canvas's own workspace —
+ *  or, for a runtime without workspaces, the session the harness chat
+ *  shows now, else the runtime's own default (cwd ''). */
+export type CwdChoice = { cwd: string; kind: 'chosen' | 'mirrored' | 'workspace' | 'session' | 'default' };
 
-/** The working directory the active canvas's agent turns run in: the one
- *  the person chose for this canvas, else the project its mirrored nodes
- *  came from, else the canvas's own workspace. */
-export async function resolveAgentCwd(): Promise<CwdChoice | null> {
+/** The project directory most of the active canvas's mirrored nodes came from. */
+function majorityCwd(nodes: ThoughtNode[]): string | null {
+  const counts = new Map<string, number>();
+  for (const n of nodes) {
+    const c = n.data.importSource?.cwd;
+    if (c) counts.set(c, (counts.get(c) ?? 0) + 1);
+  }
+  let best: string | null = null; let bestN = 0;
+  for (const [c, n] of counts) if (n > bestN) { best = c; bestN = n; }
+  return best;
+}
+
+/** The working directory the active canvas's agent turns run in on this
+ *  runtime (the picked model's when omitted): the one the person chose for
+ *  this canvas, else the project its mirrored nodes came from, else the
+ *  canvas's own workspace — or, where the runtime has none, the harness
+ *  chat's current session, else the runtime's default. */
+export async function resolveAgentCwd(runtime: AgentRuntime | null = runtimeOf(useUiStore.getState().selectedModel)): Promise<CwdChoice | null> {
   if (!window.desktopAgents) return null;
   try {
-    const { useStore } = await import('../../store');
     const { useProjects } = await import('../../store/projects');
     const { projects, activeId } = useProjects.getState();
     const meta = projects.find((p) => p.id === activeId);
     if (meta?.agentCwd) return { cwd: meta.agentCwd, kind: 'chosen' };
-    const counts = new Map<string, number>();
-    for (const n of useStore.getState().nodes) {
-      const c = n.data.importSource?.cwd;
-      if (c) counts.set(c, (counts.get(c) ?? 0) + 1);
+    const best = majorityCwd(useStore.getState().nodes);
+    if (runtime && !AGENT_RUNTIMES[runtime].caps.workspace) {
+      if (best) return { cwd: best, kind: 'mirrored' };
+      const current = runtime === 'dsh' ? (await import('../atlas/dsh-bridge')).currentDshSession()?.cwd : null;
+      return current ? { cwd: current, kind: 'session' } : { cwd: '', kind: 'default' };
     }
-    let best: string | null = null; let bestN = 0;
-    for (const [c, n] of counts) if (n > bestN) { best = c; bestN = n; }
     const workspace = await window.desktopAgents.workspace(activeId ?? 'default');
     if (best && best !== workspace) return { cwd: best, kind: 'mirrored' };
     return { cwd: workspace, kind: 'workspace' };
@@ -105,16 +143,9 @@ export async function resolveAgentCwd(): Promise<CwdChoice | null> {
 /** The mirrored project directory of the active canvas, if any. */
 export async function mirroredCwd(): Promise<string | null> {
   try {
-    const { useStore } = await import('../../store');
     const { useProjects } = await import('../../store/projects');
     const workspace = window.desktopAgents ? await window.desktopAgents.workspace(useProjects.getState().activeId ?? 'default') : null;
-    const counts = new Map<string, number>();
-    for (const n of useStore.getState().nodes) {
-      const c = n.data.importSource?.cwd;
-      if (c) counts.set(c, (counts.get(c) ?? 0) + 1);
-    }
-    let best: string | null = null; let bestN = 0;
-    for (const [c, n] of counts) if (n > bestN) { best = c; bestN = n; }
+    const best = majorityCwd(useStore.getState().nodes);
     return best && best !== workspace ? best : null;
   } catch { return null; }
 }
@@ -139,39 +170,50 @@ async function agentSessionFile(runtime: AgentRuntime, sessionId: string, tail: 
 
 /**
  * The route for the node about to generate. A question asked DIRECTLY off
- * the tail of a Pi session this canvas subscribes to, with nothing else
- * wired in, continues that session in its own directory: the session
- * already holds the conversation, so only the question travels. Any other
- * wiring, or a different working directory, opens a fresh session carrying
- * the compiled context.
+ * a session's tail, with nothing else wired in and nothing above it edited
+ * on the canvas, continues that session: the session already holds the
+ * conversation, so only the question travels. The same question off an
+ * earlier turn of a session opens a new session holding the conversation
+ * up to that turn, where the runtime can cut one. Anything else — other
+ * wiring, an edit, a working directory the person chose elsewhere — opens a
+ * fresh session carrying the compiled context.
  */
 export async function agentOutbound(model: string | undefined, nodeId?: string): Promise<AgentRoute | undefined> {
   const runtime = runtimeOf(model);
   if (!window.desktopAgents || !runtime) return undefined;
-  const choice = await resolveAgentCwd();
+  const { caps } = AGENT_RUNTIMES[runtime];
+  const choice = await resolveAgentCwd(runtime);
   if (!choice) return undefined;
-  if (!nodeId) return { cwd: choice.cwd };
+  const fresh: AgentRoute = { cwd: choice.cwd };
+  if (!nodeId) return fresh;
   try {
-    const { useStore } = await import('../../store');
     const { useProjects } = await import('../../store/projects');
-    const { projects, activeId } = useProjects.getState();
-    const ss = projects.find((p) => p.id === activeId)?.sourceSession;
-    if (!ss) return { cwd: choice.cwd };
     const { nodes, edges } = useStore.getState();
     const incoming = edges.filter((e) => e.target === nodeId);
-    if (incoming.length !== 1) return { cwd: choice.cwd };
-    const parentId = incoming[0].source;
-    const entries = [ss, ...(ss.chapters ?? []), ...(ss.branches ?? [])].filter((e) => e.runner === runtime && e.sessionId);
-    const entry = entries.find((e) => e.tailNodeId === parentId);
-    if (!entry) return { cwd: choice.cwd };
-    const tail = nodes.find((n) => n.id === parentId);
-    const sessionCwd = tail?.data.agentSession?.cwd ?? tail?.data.importSource?.cwd ?? null;
-    if (sessionCwd && sessionCwd !== choice.cwd) return { cwd: choice.cwd };
-    const sessionPath = await agentSessionFile(runtime, entry.sessionId, tail);
-    if (!sessionPath) return { cwd: choice.cwd };
-    return { cwd: sessionCwd ?? choice.cwd, sessionPath, continue: true };
+    if (incoming.length !== 1) return fresh;
+    if (!pristineChain(nodeId, nodes, edges)) return fresh;
+    const parent = nodes.find((n) => n.id === incoming[0].source);
+    if (!parent) return fresh;
+    const sessionCwd = parent.data.agentSession?.cwd || parent.data.importSource?.cwd || null;
+    // a directory binds the turn where the runtime works in one, or where the person chose it
+    if ((caps.workspace || choice.kind === 'chosen') && sessionCwd && sessionCwd !== choice.cwd) return fresh;
+    const cwd = sessionCwd ?? choice.cwd;
+    const { projects, activeId } = useProjects.getState();
+    const ss = projects.find((p) => p.id === activeId)?.sourceSession;
+    const entries = ss ? [ss, ...(ss.chapters ?? []), ...(ss.branches ?? [])].filter((e) => e.runner === runtime && e.sessionId) : [];
+    const entry = entries.find((e) => e.tailNodeId === parent.id);
+    if (entry) {
+      const sessionPath = await agentSessionFile(runtime, entry.sessionId, parent);
+      return sessionPath ? { cwd, sessionPath, continue: true } : fresh;
+    }
+    const src = parent.data.importSource;
+    if (caps.forkAt && src?.runner === runtime && src.sessionId && src.itemIds?.length) {
+      const sessionPath = await agentSessionFile(runtime, src.sessionId, parent);
+      if (sessionPath) return { cwd, sessionPath, forkAfterTurn: src.itemIds };
+    }
+    return fresh;
   } catch {
-    return { cwd: choice.cwd };
+    return fresh;
   }
 }
 
@@ -262,11 +304,31 @@ export function compileForAgent(messages: ContextMessage[]): { question: string;
 
 type AgentEvent = { runId: string; event: Record<string, unknown> & { type: string } };
 const handlers = new Map<string, (event: AgentEvent['event']) => void>();
+/** Events of runs nobody handles yet. Over HTTP the events feed can beat the
+ *  run's own reply: a run's first events wait here until its handler is set
+ *  (other pages' runs pass through too; only the latest few are kept). */
+const early = new Map<string, AgentEvent['event'][]>();
+const EARLY_RUNS = 16;
 let subscribed = false;
 function subscribe() {
   if (subscribed || !window.desktopAgents) return;
   subscribed = true;
-  window.desktopAgents.onEvent(({ runId, event }) => { handlers.get(runId)?.(event); });
+  window.desktopAgents.onEvent(({ runId, event }) => {
+    const h = handlers.get(runId);
+    if (h) { h(event); return; }
+    const q = early.get(runId) ?? [];
+    if (q.length < 2000) q.push(event);
+    early.delete(runId);
+    early.set(runId, q);
+    if (early.size > EARLY_RUNS) early.delete(early.keys().next().value!);
+  });
+}
+/** Handle a run's events, starting with any that arrived before its id did. */
+function handleRun(runId: string, handler: (event: AgentEvent['event']) => void): void {
+  handlers.set(runId, handler);
+  const q = early.get(runId);
+  early.delete(runId);
+  for (const event of q ?? []) handlers.get(runId)?.(event);
 }
 
 /** One line naming what a tool call does, for the node's progress row. */
@@ -282,10 +344,10 @@ function toolQuery(name: string, args: unknown): string {
 }
 
 /**
- * One turn on the Pi runtime with the streamed-call contract: text deltas
+ * One turn on an agent runtime with the streamed-call contract: text deltas
  * through onChunk, thinking through onReasoning, tool starts through
  * onToolCall, the session through onAgentSession; resolves with the final
- * text; an aborted signal stops Pi and rejects with AbortError.
+ * text; an aborted signal stops the run and rejects with AbortError.
  */
 export async function agentCallStream(
   messages: ContextMessage[],
@@ -301,14 +363,19 @@ export async function agentCallStream(
   if (!bridge) throw new Error('agent runtimes need the desktop app');
   const target = agentTarget(modelId);
   if (!target) throw new Error('not an agent model: ' + modelId);
+  const { caps } = AGENT_RUNTIMES[target.runtime];
   const cwd = route?.cwd ?? (await agentOutbound(modelId))?.cwd;
-  if (!cwd) throw new Error('no working directory for this canvas');
+  // '' leaves the directory to a runtime that has a default of its own
+  if (cwd === undefined || (!cwd && caps.workspace)) throw new Error('no working directory for this canvas');
   const { question, context } = compileForAgent(messages);
-  await writeGuard(cwd);
-  const continuing = !!route?.continue && !!route?.sessionPath;
-  const materials = continuing ? '' : await materialsToDisk(nodeId, cwd);
-  const ahead = continuing ? '' : [context, materials].filter(Boolean).join('\n\n');
-  const prompt = ahead ? `${ahead}\n\n---\n\n${question}` : question;
+  if (caps.guard) await writeGuard(cwd);
+  // a continued or forked session already holds the conversation: only the
+  // question travels (the context rides along for a runtime that has to
+  // fall back to a fresh session)
+  const inherits = !!route?.sessionPath && (!!route.continue || !!route.forkAfterTurn?.length);
+  const materials = inherits || !cwd ? '' : await materialsToDisk(nodeId, cwd);
+  const ahead = [context, materials].filter(Boolean).join('\n\n');
+  const prompt = !inherits && ahead ? `${ahead}\n\n---\n\n${question}` : question;
   const effort = useUiStore.getState().agentEffort || undefined;
   // what this conversation already allowed for good: every 'allowed-session'
   // decision on this canvas whose rule belongs to this runtime
@@ -320,18 +387,20 @@ export async function agentCallStream(
   let finalText = '';
   const done = new Promise<{ how: string; error?: string }>((resolve) => {
     void bridge.run({
-      runtime: target.runtime, cwd, prompt,
+      runtime: target.runtime, cwd, prompt, question,
+      ...(ahead ? { context: ahead } : {}),
       ...(route?.sessionPath ? { sessionPath: route.sessionPath } : {}),
-      ...(route?.forkEntryId ? { forkEntryId: route.forkEntryId } : {}),
+      ...(route?.forkAfterTurn?.length ? { forkAfterTurn: route.forkAfterTurn } : {}),
       images: (images ?? []).map((img) => ({ type: 'image' as const, data: img.data, mimeType: img.mimeType })),
-      model: { provider: target.provider, id: target.id },
+      // the bare harness entry names no model: the session keeps its own
+      ...(target.id ? { model: { provider: target.provider, id: target.id } } : {}),
       ...(effort ? { effort } : {}),
       ...(allowRules.length ? { allowRules } : {}),
     }).then((runId) => {
       const stop = () => { void bridge.abort(runId); };
       if (signal?.aborted) { stop(); }
       signal?.addEventListener('abort', stop, { once: true });
-      handlers.set(runId, (event) => {
+      handleRun(runId, (event) => {
         switch (event.type) {
           case 'session': {
             // an alias (`opus`) resolved inside the CLI: the picker learns the real name
@@ -414,42 +483,57 @@ export async function agentCallStream(
   return finalText || full;
 }
 
-/** After a Pi run: the node becomes the mirror of the turn Pi just wrote —
+type AgentSessionRef = { runtime: AgentRuntime; sessionFile: string | null; sessionId: string | null; cwd: string };
+
+/** A session file as the sessions bridge names it: its root and the path under it. */
+async function sessionFileLocation(runtime: AgentRuntime, sessionFile: string): Promise<{ rootKey: string; rel: string } | string> {
+  const bridge = window.desktopSessions;
+  if (!bridge) return 'no sessions bridge';
+  const rootKey = AGENT_RUNTIMES[runtime].rootKey;
+  const root = (await bridge.roots()).find((x) => x.key === rootKey);
+  if (!root) return 'no root ' + rootKey;
+  const base = root.path.replace(/\/$/, '') + '/';
+  if (!sessionFile.startsWith(base)) return 'file outside root ' + base;
+  return { rootKey, rel: sessionFile.slice(base.length) };
+}
+
+/** The turn a question became in a session file: the last one asking it
+ *  (the canvas's context may ride ahead of it in the record), else the last. */
+async function turnInFile(loc: { rootKey: string; rel: string }, question: string) {
+  const { anyRunnerSessionConversation } = await import('../adapters');
+  const text = await window.desktopSessions!.read(loc.rootKey, loc.rel);
+  if (!text) return 'empty file';
+  const conv = await anyRunnerSessionConversation(text);
+  if (!conv?.sessionId) return 'no conversation recognized';
+  const qa = conv.build().nodes.filter((n) => n.data.importSource);
+  const q = question.trim();
+  let idx = -1;
+  for (let i = qa.length - 1; i >= 0; i--) {
+    const qq = qa[i].data.question.trim();
+    if (qq === q || qq.endsWith(q) || q.endsWith(qq)) { idx = i; break; }
+  }
+  if (idx < 0) idx = qa.length - 1;
+  if (idx < 0) return 'no turn in file yet';
+  return { sessionId: conv.sessionId, idx, turn: qa[idx] };
+}
+
+/** After an agent run: the node becomes the mirror of the turn the runtime just wrote —
  *  the turn's tool calls as attachments (footprints), provenance
  *  (runner, session, item ids, cwd), the source snapshot — and the canvas
  *  subscribes to the session so turns added later, from the terminal,
  *  append here. The live sweep never appends this turn a second time: the
  *  ledger records it as imported with this node as the tail. */
-export async function adoptAgentTurn(nodeId: string, session: { runtime: AgentRuntime; sessionFile: string | null; sessionId: string | null; cwd: string }, question: string): Promise<boolean> {
+export async function adoptAgentTurn(nodeId: string, session: AgentSessionRef, question: string): Promise<boolean> {
   const why = (reason: string): false => { console.warn('[agent] turn not adopted:', reason, session.runtime, session.sessionFile); return false; };
-  const bridge = window.desktopSessions;
-  if (!bridge || !session.sessionFile) return why(!bridge ? 'no sessions bridge' : 'no session file');
-  const rootKey = AGENT_RUNTIMES[session.runtime].rootKey;
+  if (!window.desktopSessions || !session.sessionFile) return why(!window.desktopSessions ? 'no sessions bridge' : 'no session file');
   try {
-    const roots = await bridge.roots();
-    const root = roots.find((x) => x.key === rootKey);
-    if (!root) return why('no root ' + rootKey);
-    const base = root.path.replace(/\/$/, '') + '/';
-    if (!session.sessionFile.startsWith(base)) return why('file outside root ' + base);
-    const rel = session.sessionFile.slice(base.length);
-    const { anyRunnerSessionConversation } = await import('../adapters');
-    const { useStore } = await import('../../store');
+    const loc = await sessionFileLocation(session.runtime, session.sessionFile);
+    if (typeof loc === 'string') return why(loc);
     const { useProjects, registerLedgerEntry, updateSourceSession, subscribedSessionIds } = await import('../../store/projects');
-    const text = await bridge.read(rootKey, rel);
-    if (!text) return why('empty file');
-    const conv = await anyRunnerSessionConversation(text);
-    if (!conv?.sessionId) return why('no conversation recognized');
-    const built = conv.build();
-    const qa = built.nodes.filter((n) => n.data.importSource);
-    const q = question.trim();
-    let idx = -1;
-    for (let i = qa.length - 1; i >= 0; i--) {
-      const qq = qa[i].data.question.trim();
-      if (qq === q || qq.endsWith(q) || q.endsWith(qq)) { idx = i; break; }
-    }
-    if (idx < 0) idx = qa.length - 1;
-    if (idx < 0) return why('no turn in file yet');
-    const turn = qa[idx];
+    const found = await turnInFile(loc, question);
+    if (typeof found === 'string') return why(found);
+    const { idx, turn } = found;
+    const conv = { sessionId: found.sessionId };
     const toolAtts = turn.data.attachments ?? [];
     // what the file system saw change, beyond what the tools declared:
     // a shell redirect, a script's output — one footprint attachment
@@ -494,6 +578,80 @@ export async function adoptAgentTurn(nodeId: string, session: { runtime: AgentRu
   } catch (e) {
     return why('threw: ' + (e instanceof Error ? e.message : String(e)));
   }
+}
+
+/** A session file quiet this long holds a finished turn. */
+const SETTLE_MS = 60_000;
+let recheck: ReturnType<typeof setTimeout> | null = null;
+let reconciling = false;
+
+/** Record an agent turn's final answer on its node the way a finished
+ *  generation does (one version, provenance, the context fingerprint). */
+function settleAgentNode(nodeId: string, response: string): void {
+  const { nodes, edges } = useStore.getState();
+  const contextHash = upstreamFingerprint(nodeId, nodes, edges);
+  const now = new Date().toISOString();
+  useStore.setState((st) => ({
+    nodes: st.nodes.map((n) => {
+      if (n.id !== nodeId) return n;
+      const s = n.data.agentSession;
+      return { ...n, data: {
+        ...n.data,
+        response, responses: [response], questions: [n.data.question],
+        generatedBy: [s?.model], generatedEfforts: [s?.effort], generatedAts: [now], editedAts: [undefined],
+        gatewaySearches: [undefined], reasonings: [undefined], responseIndex: 0,
+        isLoading: false, generationFailed: undefined, tokenCount: countTokens(n.data.question + response),
+        // the node now says what the session says
+        ...(n.data.source ? { source: { ...n.data.source, response } } : {}),
+        agentSession: s ? { ...s, pending: undefined } : s,
+        lastContextHash: contextHash, lastGeneratedAt: now,
+      } };
+    }),
+  }));
+}
+
+const clearPending = (nodeId: string): void => {
+  useStore.setState((st) => ({ nodes: st.nodes.map((n) => (n.id === nodeId && n.data.agentSession ? { ...n, data: { ...n.data, agentSession: { ...n.data.agentSession, pending: undefined } } } : n)) }));
+};
+
+/**
+ * Agent turns that were still running when their canvas was last saved: the
+ * page closed or reloaded mid-turn and the run went on without it. Each is
+ * read back from its session file — the answer so far while the file still
+ * moves, then, once it has been quiet for a minute, the turn adopted and the
+ * answer recorded as the node's version. Runs on arrival and whenever a
+ * session file changes; a turn still moving is looked at again later.
+ */
+export async function reconcilePendingAgentTurns(): Promise<void> {
+  const bridge = window.desktopSessions;
+  if (!bridge || reconciling) return;
+  reconciling = true;
+  let again = false;
+  try {
+    // a node generating in this page is its own run's business
+    const pending = useStore.getState().nodes.filter((n) => n.data.agentSession?.pending && !n.data.isLoading);
+    for (const n of pending) {
+      const s = n.data.agentSession!;
+      const loc = s.sessionFile ? await sessionFileLocation(s.runtime, s.sessionFile).catch(() => 'unreadable') : 'no session file';
+      if (typeof loc === 'string') { clearPending(n.id); continue; }
+      const listed = (await bridge.list(loc.rootKey).catch(() => [])).find((f) => f.rel === loc.rel);
+      const quiet = !listed || Date.now() - listed.mtime >= SETTLE_MS;
+      const found = await turnInFile(loc, n.data.question).catch(() => 'unreadable');
+      const response = typeof found === 'string' ? '' : found.turn.data.response;
+      if (!quiet) {
+        again = true;
+        if (response) useStore.setState((st) => ({ nodes: st.nodes.map((x) => (x.id === n.id && !x.data.isLoading ? { ...x, data: { ...x.data, response } } : x)) }));
+        continue;
+      }
+      if (!response) { clearPending(n.id); continue; }
+      if (await adoptAgentTurn(n.id, s, n.data.question).catch(() => false)) settleAgentNode(n.id, response);
+      else clearPending(n.id);
+    }
+  } finally {
+    reconciling = false;
+  }
+  if (recheck) clearTimeout(recheck);
+  recheck = again ? setTimeout(() => { recheck = null; void reconcilePendingAgentTurns(); }, SETTLE_MS / 2) : null;
 }
 
 /** The active canvas's guard tuning, as the guard file expects it. */

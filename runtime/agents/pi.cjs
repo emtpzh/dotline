@@ -185,6 +185,53 @@ const { snapshotDir, diffSnapshots } = require('./fs-diff.cjs');
 const textOf = (message) => (Array.isArray(message?.content) ? message.content : [])
   .filter((b) => b && b.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('');
 
+/**
+ * How to branch a Pi session file so the new session ends exactly with one
+ * turn (its entry ids, in file order): Pi's `fork` cuts BEFORE a user
+ * message, so the cut is the first user message hanging below the turn's
+ * last entry (settings entries in between ride along); a turn nothing
+ * follows yet is the active leaf, and `clone` copies it as it stands.
+ * Null when the file does not hold the turn that way — the caller opens a
+ * fresh session instead.
+ */
+function forkPlan(fileText, turnItemIds) {
+  const last = Array.isArray(turnItemIds) ? turnItemIds[turnItemIds.length - 1] : null;
+  if (typeof last !== 'string' || !last) return null;
+  const byId = new Map();
+  const children = new Map();
+  let leaf = null;
+  for (const raw of String(fileText || '').split('\n')) {
+    let e;
+    try { e = JSON.parse(raw); } catch { continue; }
+    if (!e || typeof e.id !== 'string' || e.type === 'session') continue;
+    byId.set(e.id, e);
+    leaf = e.id;
+    const p = typeof e.parentId === 'string' ? e.parentId : null;
+    if (p) { if (!children.has(p)) children.set(p, []); children.get(p).push(e); }
+  }
+  if (!byId.has(last)) return null;
+  // below the turn: settings entries pass, the first user message is the cut,
+  // any other message means the turn's ids were not the whole turn
+  const queue = [last];
+  const passed = new Set([last]);
+  while (queue.length) {
+    const id = queue.shift();
+    for (const c of children.get(id) ?? []) {
+      if (c.type === 'message') {
+        if (c.message?.role === 'user') return { kind: 'fork', entryId: c.id };
+        return null;
+      }
+      if (!passed.has(c.id)) { passed.add(c.id); queue.push(c.id); }
+    }
+  }
+  return leaf && passed.has(leaf) ? { kind: 'clone' } : null;
+}
+
+/** The prompt a fresh session gets: the canvas's context ahead of the question. */
+const freshPrompt = (req) => (typeof req.context === 'string' && req.context && typeof req.question === 'string'
+  ? `${req.context}\n\n---\n\n${req.question}`
+  : String(req.prompt ?? ''));
+
 function createPiRuntime({ log } = {}) {
   const say = log || (() => {});
   const procs = new Map();     // cwd → PiProcess
@@ -284,9 +331,26 @@ function createPiRuntime({ log } = {}) {
           if (event.type === 'agent_end') ended('end');
         };
         try {
-          if (req.sessionPath) await proc.send({ type: 'switch_session', sessionPath: String(req.sessionPath) });
-          if (req.forkEntryId) await proc.send({ type: 'fork', entryId: String(req.forkEntryId) });
-          else if (!req.sessionPath) await proc.send({ type: 'new_session' });
+          // the prompt as the canvas routed it; a branch that cannot be cut
+          // falls back to a fresh session carrying the canvas's context
+          let prompt = String(req.prompt ?? '');
+          if (req.sessionPath && Array.isArray(req.forkAfterTurn) && req.forkAfterTurn.length) {
+            const plan = forkPlan(await fsp.readFile(String(req.sessionPath), 'utf8').catch(() => ''), req.forkAfterTurn);
+            let cut = false;
+            if (plan) {
+              try {
+                await proc.send({ type: 'switch_session', sessionPath: String(req.sessionPath) });
+                const r = await proc.send(plan.kind === 'fork' ? { type: 'fork', entryId: plan.entryId } : { type: 'clone' });
+                cut = !r?.cancelled;
+              } catch (e) { say(`[pi] branch failed: ${e instanceof Error ? e.message : String(e)}`); }
+            }
+            if (!cut) { await proc.send({ type: 'new_session' }); prompt = freshPrompt(req); }
+          } else if (req.sessionPath) {
+            await proc.send({ type: 'switch_session', sessionPath: String(req.sessionPath) });
+            if (req.forkEntryId) await proc.send({ type: 'fork', entryId: String(req.forkEntryId) });
+          } else {
+            await proc.send({ type: 'new_session' });
+          }
           if (req.model && typeof req.model === 'object' && req.model.provider && req.model.id) await proc.send({ type: 'set_model', provider: req.model.provider, modelId: req.model.id });
           // only a level Pi itself lists; an explicit thinkingLevel still wins
           const level = req.thinkingLevel || (req.effort && (await levelsOf(await bin())).includes(req.effort) ? req.effort : null);
@@ -297,7 +361,7 @@ function createPiRuntime({ log } = {}) {
           if (aborter.aborted) { ended('aborted'); }
           else {
             // the prompt's response may follow the whole turn; the end is read from events
-            proc.send({ type: 'prompt', message: String(req.prompt ?? ''), ...(Array.isArray(req.images) && req.images.length ? { images: req.images } : {}) }, 24 * 60 * 60 * 1000).catch((e) => { emit({ type: 'run_error', message: e.message }); ended('error'); });
+            proc.send({ type: 'prompt', message: prompt, ...(Array.isArray(req.images) && req.images.length ? { images: req.images } : {}) }, 24 * 60 * 60 * 1000).catch((e) => { emit({ type: 'run_error', message: e.message }); ended('error'); });
           }
           const how = await finished;
           if (before) {
@@ -355,4 +419,4 @@ function createPiRuntime({ log } = {}) {
   };
 }
 
-module.exports = { createPiRuntime, findPi };
+module.exports = { createPiRuntime, findPi, forkPlan };

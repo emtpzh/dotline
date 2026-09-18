@@ -96,15 +96,24 @@ interface DesktopAgentModel {
 
 interface DesktopAgentRunRequest {
   /** which runtime runs the turn (default: pi) */
-  runtime?: 'pi' | 'codex' | 'claude-code';
-  /** absolute working directory the agent runs in */
+  runtime?: 'pi' | 'codex' | 'claude-code' | 'dsh';
+  /** absolute working directory the agent runs in ('' = the runtime's own default, where it has one) */
   cwd: string;
+  /** what the agent is sent, as the canvas routed the turn */
   prompt: string;
+  /** the prompt's two halves: the canvas's context (compiled, materials
+      noted) and the question — a runtime that falls back to a fresh session
+      sends both, one that injects context apart (the harness) splits them */
+  context?: string;
+  question?: string;
   images?: { type: 'image'; data: string; mimeType: string }[];
   /** continue this session file (absolute path) instead of opening a fresh one */
   sessionPath?: string;
   /** branch the current session at this entry (with sessionPath) */
   forkEntryId?: string;
+  /** with sessionPath: a new session holding the conversation up to and
+      including this turn (its item ids, as the canvas's mirror records them) */
+  forkAfterTurn?: string[];
   model?: { provider: string; id: string };
   /** an effort level in the runtime's own words (one it listed for the model); absent or unknown = the runtime's default */
   effort?: string;
@@ -118,7 +127,7 @@ interface DesktopAgentsBridge {
   capabilities?: { nativePicker: boolean };
   /** where the runtime's binary is, or null when not installed */
   available(): Promise<Record<string, string | null>>;
-  models(runtime?: 'pi' | 'codex' | 'claude-code'): Promise<{ installed: boolean; models: DesktopAgentModel[]; default: string | null; thinkingLevel?: string | null; error?: string }>;
+  models(runtime?: 'pi' | 'codex' | 'claude-code' | 'dsh'): Promise<{ installed: boolean; models: DesktopAgentModel[]; default: string | null; thinkingLevel?: string | null; error?: string }>;
   /** resolves with the run id at once; events follow through onEvent */
   run(request: DesktopAgentRunRequest): Promise<string>;
   abort(runId: string): Promise<boolean>;

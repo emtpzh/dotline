@@ -15,13 +15,21 @@ const RUNTIME_FACTORIES = {
   'claude-code': (log) => require('./claude.cjs').createClaudeRuntime({ log }),
 };
 
-function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag', 'workspaces'), log = () => {} } = {}) {
+/**
+ * `extraRuntimes` adds runtimes only the host can build — the harness
+ * plugin's own agent loop needs the harness's context — as factories of
+ * (log, host); `host.listening()` says whether any page is on the events
+ * feed right now, so a runtime can hand a question elsewhere when nobody is.
+ */
+function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag', 'workspaces'), log = () => {}, extraRuntimes = {} } = {}) {
+  const factories = { ...RUNTIME_FACTORIES, ...extraRuntimes };
   const runtimes = new Map();
   const owners = new Map();      // runId → runtime name
   const clients = new Set();     // SSE responses
+  const host = { listening: () => clients.size > 0 };
   const runtime = (name = 'pi') => {
-    const key = RUNTIME_FACTORIES[name] ? name : 'pi';
-    if (!runtimes.has(key)) runtimes.set(key, RUNTIME_FACTORIES[key](log));
+    const key = factories[name] ? name : 'pi';
+    if (!runtimes.has(key)) runtimes.set(key, factories[key](log, host));
     return runtimes.get(key);
   };
   const broadcast = (payload) => {
@@ -48,11 +56,14 @@ function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag
     try {
       if (p === '/agents/available' && method === 'GET') {
         const out = {};
-        for (const name of Object.keys(RUNTIME_FACTORIES)) out[name] = await runtime(name).available().catch(() => null);
+        for (const name of Object.keys(factories)) out[name] = await runtime(name).available().catch(() => null);
         return json(res, 200, out), true;
       }
       if (p === '/agents/models' && method === 'GET') {
-        try { return json(res, 200, await runtime(url.searchParams.get('runtime') ?? 'pi').models()), true; }
+        const name = url.searchParams.get('runtime') ?? 'pi';
+        // a runtime this host cannot run is not installed here — never another one's catalog
+        if (!factories[name]) return json(res, 200, { installed: false, models: [], default: null }), true;
+        try { return json(res, 200, await runtime(name).models()), true; }
         catch (e) { return json(res, 200, { installed: false, models: [], default: null, error: e instanceof Error ? e.message : String(e) }), true; }
       }
       if (p === '/agents/events' && method === 'GET') {
@@ -64,7 +75,8 @@ function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag
       }
       if (p === '/agents/run' && method === 'POST') {
         const r = body && typeof body === 'object' ? body : {};
-        const name = RUNTIME_FACTORIES[r.runtime] ? r.runtime : 'pi';
+        if (r.runtime && !factories[r.runtime]) return json(res, 400, { error: `no ${r.runtime} runtime on this host` }), true;
+        const name = r.runtime || 'pi';
         const runId = await runtime(name).run(r, broadcast);
         owners.set(runId, name);
         return json(res, 200, { runId }), true;

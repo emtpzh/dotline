@@ -37,7 +37,7 @@ export interface Highlight {
 
 /** A web source the model consulted while generating a response. */
 /** The agent runtimes the desktop shell can run a turn on. */
-export type AgentRuntime = 'pi' | 'codex' | 'claude-code';
+export type AgentRuntime = 'pi' | 'codex' | 'claude-code' | 'dsh';
 
 /** An agent runtime asking the person whether one action may proceed —
     shown on the node while the turn waits. */
@@ -133,6 +133,11 @@ export interface ThoughtData extends Record<string, unknown> {
     effort?: string;
     /** the turn continued the mirrored session instead of opening a fresh one */
     continued?: boolean;
+    /** the run was still going when this record was last written: a canvas
+        reopened meanwhile adopts the turn from the session file once it ends */
+    pending?: boolean;
+    /** the picker id the turn ran under, for the version it becomes */
+    model?: string;
     /** what changed on disk during the turn, by the file system's account */
     changes?: { changed: string[]; added: string[]; removed: string[]; truncated?: boolean };
   };

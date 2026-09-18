@@ -80,9 +80,7 @@ const AGENT_CACHE_KEY = 'thoughtdag.agentModels';
 const AGENT_NAMES_KEY = 'thoughtdag.agentModelNames';
 const hasAgentsBridge = () => typeof window !== 'undefined' && !!window.desktopAgents;
 /** The agent entries the runtimes bridge owns and may replace: the ones it
- *  reported itself (pi/ codex/ claude/ ids). A server can hand out agent
- *  entries of its own under the same group (the harness runs the agent loop
- *  on its models); those belong with the API list and are never replaced. */
+ *  reported itself (pi/ codex/ claude/ harness/agent/ ids). */
 const isRuntimeAgent = (m: ModelInfo) => m.provider === AGENT_PROVIDER && isAgentModel(m.id);
 
 /** Picker id → the model name the runtime actually ran under it (an alias

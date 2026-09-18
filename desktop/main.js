@@ -784,11 +784,14 @@ function setupAgents() {
     return out;
   });
   ipcMain.handle('agents:models', async (_e, runtime) => {
+    // a runtime the shell cannot run (the harness's own loop) is not installed here
+    if (runtime && !RUNTIME_FACTORIES[runtime]) return { installed: false, models: [], default: null };
     try { return await agentsRuntime(runtime).models(); } catch (e) { return { installed: false, models: [], default: null, error: e instanceof Error ? e.message : String(e) }; }
   });
   ipcMain.handle('agents:run', async (_e, req) => {
     const r = req && typeof req === 'object' ? req : {};
-    const name = RUNTIME_FACTORIES[r.runtime] ? r.runtime : 'pi';
+    if (r.runtime && !RUNTIME_FACTORIES[r.runtime]) throw new Error(`no ${r.runtime} runtime in the desktop app`);
+    const name = r.runtime || 'pi';
     const runId = await agentsRuntime(name).run(r, (payload) => { if (win && !win.isDestroyed()) win.webContents.send('agents:event', payload); });
     runOwners.set(runId, name);
     return runId;

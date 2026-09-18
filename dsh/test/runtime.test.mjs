@@ -1,0 +1,196 @@
+// The harness's agent loop as a runtime on the canvas's agent lane, against
+// a stand-in harness: which session a run opens, continues or forks, what
+// reaches the agent, the events that come back, approvals, abort.
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { internals } from '../lib/index.js'
+
+const { createDshRuntime, installApprovalAnswerer, sessionIdOfPath } = internals
+
+/** A harness with just what the runtime touches. `turn(id)` scripts what an
+ *  agent does after a prompt; sessions can be seeded with events. */
+function fakeHarness({ turn } = {}) {
+  const handlers = new Map()
+  const sessions = new Map()
+  const agents = new Map()
+  const log = { created: [], forks: [], injected: [], prompts: [], selected: [], cancelled: [] }
+  let n = 0
+  const fire = (id, event) => { for (const h of handlers.get('session/event') ?? []) h({ id }, event) }
+  const addSession = (id, cwd, events = []) => {
+    sessions.set(id, { id, header: { meta: { cwd } }, events, seq: events.length })
+    agents.set(id, {
+      inject: (m) => log.injected.push({ id, text: m.content[0].text, source: m.source }),
+      cancel: () => { log.cancelled.push(id); fire(id, { type: 'turn/end', data: { turn: 99 } }) },
+      whenIdle: () => new Promise(() => {}),
+    })
+    return id
+  }
+  const ctx = {
+    on(name, fn) {
+      if (!handlers.has(name)) handlers.set(name, [])
+      handlers.get(name).push(fn)
+      return () => handlers.set(name, handlers.get(name).filter(f => f !== fn))
+    },
+    sessions: { get: (id) => sessions.get(id) },
+    agents: { get: (id) => agents.get(id) },
+    llm: { listModels: async () => [{ id: 'v4', inputModalities: ['text', 'image'] }] },
+    sessionController: {
+      modelCatalog: async () => ({ groups: [{ id: 'ds', name: 'DS', models: [{ id: 'v4', name: 'V4' }, { id: 'lite', name: 'Lite' }] }], default: { provider: 'ds', model: 'v4' } }),
+      create: async ({ cwd } = {}) => { const id = addSession(`session-${++n}`, cwd ?? '/home'); log.created.push({ id, cwd: cwd ?? null }); return { sessionId: id } },
+      fork: async ({ sessionId, atSeq }) => { const id = addSession(`session-${++n}`, sessions.get(sessionId).header.meta.cwd); log.forks.push({ from: sessionId, atSeq, id }); return { sessionId: id } },
+      selectModel: async (x) => { log.selected.push(x) },
+      prompt: async ({ sessionId, content }) => {
+        log.prompts.push({ sessionId, text: content[0].text })
+        setImmediate(() => (turn ?? defaultTurn)(sessionId, fire))
+      },
+      resolveAgent: async (id) => (agents.has(id) ? { agent: agents.get(id) } : { error: { code: 'NOT_FOUND' } }),
+    },
+    handlers,
+  }
+  return { ctx, log, addSession }
+}
+
+function defaultTurn(id, fire) {
+  fire(id, { type: 'turn/start', data: { turn: 1 } })
+  fire(id, { type: 'user/message', data: { id: 'msg-q', source: { kind: 'user' } } })
+  fire(id, { type: 'tool/call', data: { callId: 'c1', name: 'read', arguments: '{"path":"/w/a.txt"}' } })
+  fire(id, { type: 'tool/result', data: { message: { source: { callId: 'c1' }, content: [] } } })
+  fire(id, { type: 'assistant/chunk', data: { chunk: { type: 'reasoning-delta', text: 'hm' } } })
+  fire(id, { type: 'assistant/chunk', data: { chunk: { type: 'text-delta', text: 'Hel' } } })
+  fire(id, { type: 'assistant/chunk', data: { chunk: { type: 'text-delta', text: 'lo' } } })
+  fire(id, { type: 'turn/end', data: { turn: 1 } })
+}
+
+/** Run one request to its end; the events in order. */
+async function runToEnd(runtime, req) {
+  const events = []
+  let runId
+  await new Promise((resolve) => {
+    void runtime.run(req, (p) => { events.push(p.event); if (p.event.type === 'run_end' || p.event.type === 'run_error') resolve() }).then((id) => { runId = id })
+  })
+  return { events, runId }
+}
+
+// a seeded session: two finished turns (seqs 1-4, 5-8)
+const twoTurns = [
+  { seq: 1, type: 'turn/start', data: { turn: 1 } },
+  { seq: 2, type: 'user/message', data: { id: 'm1', source: { kind: 'user' } } },
+  { seq: 3, type: 'assistant/message', data: {} },
+  { seq: 4, type: 'turn/end', data: { turn: 1 } },
+  { seq: 5, type: 'turn/start', data: { turn: 2 } },
+  { seq: 6, type: 'user/message', data: { id: 'm2', source: { kind: 'user' } } },
+  { seq: 7, type: 'assistant/message', data: {} },
+  { seq: 8, type: 'turn/end', data: { turn: 2 } },
+]
+
+test('lists one entry per harness model', async () => {
+  const { ctx } = fakeHarness()
+  const r = await createDshRuntime(ctx).models()
+  assert.equal(r.installed, true)
+  assert.deepEqual(r.models.map(m => `${m.provider}/${m.id}`), ['ds/v4', 'ds/lite'])
+  assert.equal(r.models[0].vision, true)
+  assert.equal(r.default, 'ds/v4')
+})
+
+test('a fresh run opens a session in the chosen folder, the context injected ahead of the question', async () => {
+  const { ctx, log } = fakeHarness()
+  const { events } = await runToEnd(createDshRuntime(ctx), { runtime: 'dsh', cwd: '/proj', prompt: 'CTX\n\n---\n\nQ?', context: 'CTX', question: 'Q?', model: { provider: 'ds', id: 'lite' } })
+  assert.deepEqual(log.created, [{ id: 'session-1', cwd: '/proj' }])
+  assert.deepEqual(log.injected.map(i => i.text), ['CTX'])
+  assert.equal(log.injected[0].source.kind, 'plugin')
+  assert.deepEqual(log.prompts, [{ sessionId: 'session-1', text: 'Q?' }])
+  assert.deepEqual(log.selected, [{ sessionId: 'session-1', provider: 'ds', model: 'lite' }])
+  const session = events.find(e => e.type === 'session')
+  assert.equal(session.sessionFile, '~/.dsh/sessions/session-1/session.jsonl.zstd')
+  assert.equal(session.cwd, '/proj')
+  assert.equal(session.continued, false)
+  assert.deepEqual(events.filter(e => e.type === 'message_update').map(e => [e.assistantMessageEvent.type, e.assistantMessageEvent.delta]), [['thinking_delta', 'hm'], ['text_delta', 'Hel'], ['text_delta', 'lo']])
+  assert.deepEqual(events.find(e => e.type === 'tool_execution_start'), { type: 'tool_execution_start', toolCallId: 'c1', toolName: 'read', args: { path: '/w/a.txt' } })
+  assert.deepEqual(events.find(e => e.type === 'tool_execution_end'), { type: 'tool_execution_end', toolCallId: 'c1', toolName: 'read', isError: false })
+  assert.deepEqual(events.at(-1), { type: 'run_end', text: 'Hello', how: 'end' })
+})
+
+test('a run on a session path continues that session with the question alone', async () => {
+  const { ctx, log, addSession } = fakeHarness()
+  addSession('session-a', '/proj', twoTurns)
+  const { events } = await runToEnd(createDshRuntime(ctx), { runtime: 'dsh', cwd: '', prompt: 'Q?', context: 'CTX', question: 'Q?', sessionPath: '~/.dsh/sessions/session-a/session.jsonl.zstd' })
+  assert.deepEqual(log.created, [])
+  assert.deepEqual(log.injected, [])
+  assert.deepEqual(log.prompts, [{ sessionId: 'session-a', text: 'Q?' }])
+  assert.equal(events.find(e => e.type === 'session').continued, true)
+})
+
+test('forking after a turn cuts at that turn\'s end and sends the question alone', async () => {
+  const { ctx, log, addSession } = fakeHarness()
+  addSession('session-a', '/proj', twoTurns)
+  const { events } = await runToEnd(createDshRuntime(ctx), { runtime: 'dsh', cwd: '', prompt: 'Q?', context: 'CTX', question: 'Q?', sessionPath: '~/.dsh/sessions/session-a/session.jsonl.zstd', forkAfterTurn: ['m1', 'x'] })
+  assert.deepEqual(log.forks.map(f => [f.from, f.atSeq]), [['session-a', 4]])
+  assert.deepEqual(log.injected, [])
+  const session = events.find(e => e.type === 'session')
+  assert.equal(session.forkedFrom, 'session-a')
+  assert.equal(session.cwd, '/proj')
+  assert.equal(session.continued, false)
+})
+
+test('a turn that cannot be cut falls back to a fresh session carrying the context', async () => {
+  const { ctx, log, addSession } = fakeHarness()
+  // turn 2 still open
+  addSession('session-a', '/proj', twoTurns.slice(0, 7))
+  await runToEnd(createDshRuntime(ctx), { runtime: 'dsh', cwd: '/proj', prompt: 'Q?', context: 'CTX', question: 'Q?', sessionPath: '~/.dsh/sessions/session-a/session.jsonl.zstd', forkAfterTurn: ['m2'] })
+  assert.deepEqual(log.forks, [])
+  assert.equal(log.created.length, 1)
+  assert.deepEqual(log.injected.map(i => i.text), ['CTX'])
+})
+
+test('an approval goes to the page on the feed, and to the harness panel when none is there', async () => {
+  let listening = true
+  let approve
+  const { ctx } = fakeHarness({
+    turn: (id, fire) => {
+      approve = ctx.handlers.get('approval/request')[0]({ agent: { id }, toolName: 'bash', callId: 'c1', reason: 'writes outside' }, () => 'panel')
+      void approve.then(() => fire(id, { type: 'turn/end', data: { turn: 1 } }))
+    },
+  })
+  installApprovalAnswerer(ctx)
+  const runtime = createDshRuntime(ctx, { host: { listening: () => listening } })
+  const events = []
+  const runId = await runtime.run({ runtime: 'dsh', cwd: '/p', prompt: 'Q', question: 'Q' }, (p) => {
+    events.push(p.event)
+    if (p.event.type === 'question') runtime.answer(p.runId, p.event.id, { confirmed: true })
+  })
+  assert.equal(await (async () => { while (!approve) await new Promise(r => setImmediate(r)); return approve })(), 'allowed-once')
+  const q = events.find(e => e.type === 'question')
+  assert.equal(q.kind, 'confirm')
+  assert.equal(q.title, 'bash')
+  assert.equal(q.message, 'writes outside')
+  assert.equal(events.find(e => e.type === 'question_answered').outcome, 'allowed-once')
+  assert.ok(runId.startsWith('dsh-'))
+
+  // nobody on the feed: the harness's own panel answers
+  listening = false
+  approve = null
+  await runToEnd(runtime, { runtime: 'dsh', cwd: '/p', prompt: 'Q', question: 'Q' })
+  assert.equal(await approve, 'panel')
+})
+
+test('abort cancels the agent and ends the run', async () => {
+  const { ctx, log } = fakeHarness({ turn: () => {} }) // a turn that never ends on its own
+  const runtime = createDshRuntime(ctx)
+  const events = []
+  const ended = new Promise((resolve) => {
+    void runtime.run({ runtime: 'dsh', cwd: '/p', prompt: 'Q', question: 'Q' }, (p) => {
+      events.push(p.event)
+      if (p.event.type === 'session') setImmediate(() => runtime.abort(p.runId))
+      if (p.event.type === 'run_end') resolve()
+    })
+  })
+  await ended
+  assert.deepEqual(log.cancelled, ['session-1'])
+  assert.equal(events.at(-1).how, 'aborted')
+})
+
+test('a session path names its session', () => {
+  assert.equal(sessionIdOfPath('~/.dsh/sessions/session-a/session.jsonl.zstd'), 'session-a')
+  assert.equal(sessionIdOfPath('/Users/x/.dsh/sessions/-Users-x-proj/session-b/session.jsonl.zstd'), 'session-b')
+  assert.equal(sessionIdOfPath('/tmp/other.jsonl'), null)
+})
