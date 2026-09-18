@@ -10,8 +10,64 @@ import { toast } from '../../lib/ui-store';
 import { t, fmt } from '../../i18n';
 import type { StoreState, NodeSlice } from '../types';
 import { condenseGuard } from '../../lib/condense-guard';
+import { isFactNode, factless } from '../../lib/facts';
 
-export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set, get) => ({
+export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set, get) => {
+  /** A session turn keeps its answer: the rewritten answer becomes a
+   *  revision beside it — same parent, same question, the canvas's own node
+   *  (no session identity, so what follows it compiles the canvas's context). */
+  const reviseFact = (fact: ThoughtNode, response: string): void => {
+    get().pushHistory();
+    const id = generateId();
+    const now = new Date().toISOString();
+    const i = Math.max(0, fact.data.responseIndex);
+    const attIdMap = new Map((fact.data.attachments ?? []).map((a) => [a.id, generateId()] as const));
+    const remap = (ids?: string[]) => (ids ?? []).map((x) => attIdMap.get(x) ?? x);
+    const revision: ThoughtNode = {
+      id,
+      type: 'thought',
+      position: { x: 0, y: 0 },
+      dragHandle: '.drag-handle',
+      data: {
+        ...fact.data,
+        ...factless,
+        revisionOf: fact.id,
+        response,
+        responses: [response],
+        responseIndex: 0,
+        questions: [fact.data.question],
+        generatedBy: [fact.data.generatedBy?.[i]],
+        generatedEfforts: [fact.data.generatedEfforts?.[i]],
+        generatedAts: [fact.data.generatedAts?.[i] ?? now],
+        editedAts: [now],
+        reasonings: [fact.data.reasonings?.[i]],
+        gatewaySearches: [fact.data.gatewaySearches?.[i]],
+        summaries: undefined,
+        summaryTypes: undefined,
+        approvals: undefined,
+        pendingApprovals: undefined,
+        agentTrace: undefined,
+        attachments: (fact.data.attachments ?? []).map((a) => ({ ...a, id: attIdMap.get(a.id)! })),
+        excludedAttachmentIds: remap(fact.data.excludedAttachmentIds),
+        includedAttachmentIds: remap(fact.data.includedAttachmentIds),
+        highlights: pruneHighlights(fact.data.highlights, response).map((h) => ({ ...h, id: generateId() })),
+        tokenCount: countTokens(fact.data.question + response),
+        isCollapsed: false,
+        isEditing: false,
+        isEditingResponse: false,
+        isLoading: false,
+      },
+    };
+    const parentEdge = get().edges.find((e) => e.target === fact.id && !e.data?.isCrossLink);
+    const edges = parentEdge ? [...get().edges, { ...parentEdge, id: `edge-${parentEdge.source}-${id}`, target: id }] : get().edges;
+    const nodes = get().nodes.map((n) => (n.id === fact.id ? { ...n, data: { ...n.data, isEditingResponse: false } } : n));
+    get().logEvent('edit-response', id, { revisionOf: fact.id, chars: response.length });
+    set({ nodes: placeNewNodes([...nodes, revision], edges, [id]), edges, selectedNodeId: id, selectedNodeIds: [id] });
+    get().pushHistory();
+    toast('info', t('fact.revised'), 6000);
+  };
+
+  return {
   nodes: [],
   edges: [],
   selectedNodeId: null,
@@ -50,6 +106,13 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
 
   editResponse: (nodeId: string, response: string) => {
     if (condenseGuard()) return;
+    const fact = get().nodes.find((n) => n.id === nodeId);
+    if (fact && isFactNode(fact)) {
+      // saved unchanged: nothing to revise
+      if (response === fact.data.response) get().setEditingResponse(nodeId, false);
+      else reviseFact(fact, response);
+      return;
+    }
     get().logEvent('edit-response', nodeId, { chars: response.length });
     get().pushHistory();
     const tokenCount = countTokens(get().nodes.find((n) => n.id === nodeId)?.data.question + response || response);
@@ -135,6 +198,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
       dragHandle: '.drag-handle',
       data: {
         ...node.data,
+        ...factless,
         isCollapsed: true,
         isEditing: false,
         isEditingResponse: false,
@@ -527,6 +591,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
       selected: true,
       data: {
         ...n.data,
+        ...factless,
         attachments: (n.data.attachments ?? []).map((a) => ({ ...a, id: attIdMap.get(a.id)! })),
         excludedAttachmentIds: remapAttIds(n.data.excludedAttachmentIds),
         includedAttachmentIds: remapAttIds(n.data.includedAttachmentIds),
@@ -560,4 +625,5 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
     }));
     get().pushHistory();
   },
-});
+};
+};

@@ -29,6 +29,8 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
     const n = s.nodes.find((x) => x.id === nodeId);
     return !!n?.data.source && (n.data.question !== n.data.source.question || n.data.response !== n.data.source.response);
   });
+  const revisionOf = useStore((s) => s.nodes.find((n) => n.id === nodeId)?.data.revisionOf);
+  const originalExists = useStore((s) => !!revisionOf && s.nodes.some((n) => n.id === revisionOf));
   const t = useT();
 
   const revertToSource = () => {
@@ -112,6 +114,12 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
             {diverged && (
               <button className={menuItem} onClick={() => { setMenuOpen(false); revertToSource(); }} data-revert-source>
                 <Undo2 size={15} strokeWidth={1.75} /> {t('panel.revertToSource')}
+              </button>
+            )}
+            {/* a revision leads back to the session turn it rewrote */}
+            {originalExists && (
+              <button className={menuItem} onClick={() => { setMenuOpen(false); setSelectedNodeId(revisionOf!); }} data-open-original>
+                <GitFork size={15} strokeWidth={1.75} /> {t('fact.openOriginal')}
               </button>
             )}
             <div className="border-t border-line my-1" />

@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { describeModel } from '../../lib/use-models';
 import { AlertTriangle, ChevronLeft, ChevronRight, Copy, GitBranch, Maximize2, RefreshCw, Star, Trash2, Pencil } from 'lucide-react';
 import { useStore } from '../../store';
+import { isFactNode } from '../../lib/facts';
 import { useUiStore } from '../../lib/ui-store';
 import { generateId } from '../../utils';
 import { copyText } from '../../lib/export';
@@ -194,6 +195,7 @@ export default function ResponseSection({
             rows={10}
             autoFocus
           />
+          {isFactNode({ data }) && <p className="text-2xs text-ink-faint mt-1.5" data-fact-note>{t('fact.editResponseNote')}</p>}
           <div className="flex justify-end gap-2 mt-2">
             <button onClick={() => setEditingResponse(nodeId, false)} className="text-xs text-ink-muted hover:text-ink px-3 py-1.5 rounded-lg hover:bg-wash transition-colors">{t('common.cancel')}</button>
             <button onClick={handleResponseEditSubmit} className="text-xs bg-accent hover:bg-accent-strong text-white px-4 py-1.5 rounded-lg transition-colors">{t('common.save')}</button>

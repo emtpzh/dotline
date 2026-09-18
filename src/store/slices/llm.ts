@@ -11,6 +11,7 @@ import { useUiStore, toast } from '../../lib/ui-store';
 import { t, fmt } from '../../i18n';
 import type { StoreState, LlmSlice, AddQuestionOptions } from '../types';
 import { condenseGuard } from '../../lib/condense-guard';
+import { isFactNode } from '../../lib/facts';
 
 export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, get) => ({
   addQuestion: async (question: string, opts: AddQuestionOptions = {}) => {
@@ -361,6 +362,14 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
 
   editQuestion: async (nodeId: string, question: string) => {
     if (condenseGuard()) return;
+    // a session turn keeps what it asked: the new wording is a sibling turn
+    const target = get().nodes.find((n) => n.id === nodeId);
+    if (isFactNode(target)) {
+      set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, isEditing: false } } : n)) }));
+      toast('info', t('fact.branched'), 6000);
+      await get().regenerate(nodeId, question);
+      return;
+    }
     get().pushHistory();
     get().logEvent('edit-question', nodeId, { chars: question.length });
     // Staleness seed: descendants keep answers written against the OLD
@@ -401,9 +410,11 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     await runNodeGeneration(set, get, nodeId, { question, messages: contextMessages, images: editCtx.images, versionMode: 'append', sources: editCtx.sources });
   },
 
-  regenerate: async (nodeId: string) => {
+  regenerate: async (nodeId: string, question?: string) => {
     const node = get().nodes.find((n) => n.id === nodeId);
     if (!node) return;
+    const q = question?.trim() || node.data.question;
+    get().pushHistory();
 
     // Find a structural parent (any incoming edge) for creating sibling
     const parentEdge = get().edges.find((e) => e.target === nodeId);
@@ -418,7 +429,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       position: { x: 0, y: 0 },
       dragHandle: '.drag-handle',
       data: {
-        question: node.data.question,
+        question: q,
         response: '',
         responses: [],
         responseIndex: -1,
@@ -453,10 +464,10 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     applyRoleOverride(contextMessages, resolveExplicitRole(regenSelf?.data, regenParent?.data, !!parentId));
 
     const appliedRole = contextMessages.find((m) => m.role === 'system')?.content || undefined;
-    contextMessages.push({ role: 'user', content: node.data.question });
+    contextMessages.push({ role: 'user', content: q });
     set((state) => ({ nodes: state.nodes.map((n) => n.id === id ? { ...n, data: { ...n.data, appliedRole } } : n) }));
 
-    await runNodeGeneration(set, get, id, { question: node.data.question, messages: contextMessages, images: regenCtx.images, sources: regenCtx.sources });
+    await runNodeGeneration(set, get, id, { question: q, messages: contextMessages, images: regenCtx.images, sources: regenCtx.sources });
   },
 
   batchMergeSummarize: async (nodeIds: string[], deleteAfter?: boolean, intent?: string) => {

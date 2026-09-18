@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Check, X } from 'lucide-react';
 import { useStore } from '../../store';
+import { isFactNode } from '../../lib/facts';
 import { isImeComposing } from '../../utils';
 import { useT } from '../../i18n';
 import { isViewerMode } from '../../lib/viewer';
@@ -29,6 +30,7 @@ export default function QuestionSection({
   const editQuestion = useStore((s) => s.editQuestion);
   const submitHumanTurn = useStore((s) => s.submitHumanTurn);
   const setEditing = useStore((s) => s.setEditing);
+  const isFact = useStore((s) => isFactNode(s.nodes.find((n) => n.id === nodeId)));
   const t = useT();
 
   const [editValue, setEditValue] = useState('');
@@ -99,6 +101,7 @@ export default function QuestionSection({
             rows={3}
             autoFocus
           />
+          {isFact && !awaiting && !isHuman && <p className="text-2xs text-ink-faint mt-1.5" data-fact-note>{t('fact.editQuestionNote')}</p>}
           {!awaiting && !isHuman && (
             <div className="flex items-center justify-end gap-2 mt-1.5">
               <button
