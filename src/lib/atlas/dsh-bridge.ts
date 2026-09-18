@@ -16,8 +16,6 @@
 // does in the desktop shell. Those files change on disk without a seq; the
 // poll compares their mtimes instead.
 
-import type { StoreApi } from 'zustand';
-import type { StoreState } from '../../store/types';
 
 type Bridge = NonNullable<Window['desktopSessions']>;
 type Root = Awaited<ReturnType<Bridge['roots']>>[number];
@@ -218,7 +216,11 @@ export function installDshSessionsBridge(apiBase: string): void {
     read: async (rootKey, rel) => {
       if (rootKey !== ROOT_KEY) return text(fileUrl(rootKey, 'read', rel)).catch(() => '');
       const id = idOf(rel);
-      return id ? textOf(id) : '';
+      if (!id) return '';
+      // a whole read is someone about to act on the session (a finished
+      // agent turn adopted from it): the live seq first, not the last poll's
+      if (index.get(id)?.live !== false) await refreshLive().catch(() => []);
+      return textOf(id);
     },
     // offsets address the decoded text; chunks cut on line boundaries — the
     // same contract as the desktop's read-range over a .zstd session
@@ -286,156 +288,4 @@ export function installDshSessionsBridge(apiBase: string): void {
     }
   });
   window.parent.postMessage({ source: 'dsh-thoughtdag', type: 'td:request-current' }, window.location.origin);
-}
-
-// ── outbound context for a question asked inside the harness ────────────
-// The one place the canvas tells the harness bridge WHERE and INTO WHICH
-// session a `harness/agent` question runs. Absent (returns undefined)
-// everywhere but inside the embedded harness, so the send path stays
-// byte-identical elsewhere.
-
-export const HARNESS_AGENT_MODEL = 'harness/agent';
-/** The bare entry or one of its per-model forms ('harness/agent/<provider>/<model>'). */
-export const isHarnessAgentModel = (id: string | undefined | null): boolean => !!id && (id === HARNESS_AGENT_MODEL || id.startsWith(HARNESS_AGENT_MODEL + '/'));
-
-/** The working directory a fresh agent turn should run in: the project the
- *  active canvas mirrors, else the session the harness chat currently shows. */
-async function activeCanvasCwd(): Promise<string | null> {
-  try {
-    const { useStore } = await import('../../store');
-    const counts = new Map<string, number>();
-    for (const n of useStore.getState().nodes) {
-      const c = n.data.importSource?.cwd;
-      if (c) counts.set(c, (counts.get(c) ?? 0) + 1);
-    }
-    let best: string | null = null; let bestN = 0;
-    for (const [c, n] of counts) if (n > bestN) { best = c; bestN = n; }
-    return best;
-  } catch { return null; }
-}
-
-type HarnessRoute = { cwd?: string; session?: string; forkSession?: string; forkAnchor?: string };
-
-/** For the node about to generate: the harness routing for its request, or
- *  undefined when not embedded / not a harness-agent question. A simple
- *  child continues when its parent is the tail of ANY dsh ledger entry
- *  (main, chapter or branch). A dsh mirror parent that is not a current tail
- *  forks at that parent's own turn, identified by its user-message id. Any
- *  richer wiring, or a parent without an exact turn anchor, gets a fresh
- *  session carrying the compiled canvas context. */
-export async function harnessOutbound(nodeId: string, model: string | undefined): Promise<HarnessRoute | undefined> {
-  if (!window.desktopSessions || !isHarnessAgentModel(model)) return undefined;
-  const cwd = (await activeCanvasCwd()) ?? currentSession?.cwd ?? undefined;
-  try {
-    const { useStore } = await import('../../store');
-    const { useProjects } = await import('../../store/projects');
-    const { projects, activeId } = useProjects.getState();
-    const ss = projects.find((p) => p.id === activeId)?.sourceSession;
-    const { nodes, edges } = useStore.getState();
-    const incoming = edges.filter((e) => e.target === nodeId);
-    if (incoming.length === 1) {
-      const parentId = incoming[0].source;
-      // The live mirror may file a harness-created session under chapters or
-      // branches rather than the placeholder main entry. Search the complete
-      // ledger exactly as agentOutbound does for Pi/Codex/Claude Code.
-      const entries = ss
-        ? [ss, ...(ss.chapters ?? []), ...(ss.branches ?? [])].filter((e) => e.runner === 'dsh' && e.sessionId)
-        : [];
-      const tailEntry = entries.find((e) => e.tailNodeId === parentId);
-      if (tailEntry) {
-        return { ...(cwd ? { cwd } : {}), session: tailEntry.sessionId };
-      }
-
-      // A historical/non-tail dsh mirror must fork at the parent's OWN turn,
-      // never at the session's latest turn: otherwise a sibling or later turn
-      // can leak into this branch. itemIds[0] is the user's message id for the
-      // mirrored turn and the host resolves it to that turn's endSeq.
-      const parent = nodes.find((n) => n.id === parentId);
-      const source = parent?.data.importSource;
-      if (source?.runner === 'dsh' && source.sessionId && source.itemIds?.[0]) {
-        return {
-          ...(cwd ? { cwd } : {}),
-          forkSession: source.sessionId,
-          forkAnchor: source.itemIds[0],
-        };
-      }
-    }
-  } catch { /* store not ready — fall through to a fresh session */ }
-  return cwd ? { cwd } : {};
-}
-
-type HarnessTurnRef = { session: string; turn: number | null; userMessageId: string | null; seq: number | null };
-
-/** Provenance for a node that IS a dsh turn: runner, session, the person's
- *  message id (the deep-link and dedup key), the project it ran in. */
-const stampProvenance = (
-  set: StoreApi<StoreState>['setState'], nodeId: string, sessionId: string, route: HarnessRoute,
-  userMessageId: string | null, source?: { question: string; response: string },
-): void => {
-  const itemIds = userMessageId ? [userMessageId] : [];
-  set((s) => ({
-    nodes: s.nodes.map((n) => (n.id === nodeId
-      ? { ...n, data: { ...n.data,
-          importSource: { runner: 'dsh', sessionId, itemIds, ...(route.cwd ? { cwd: route.cwd } : {}) },
-          ...(source ? { source } : {}) } }
-      : n)),
-  }));
-};
-
-/** A tail follow-up continued the canvas's mirrored session: the new turn is
- *  a live node AND, to the live sweep, an unimported appendix — advance the
- *  ledger so it is only the node. A fresh session (route.session absent) has
- *  no ledger entry and is not swept. Returns whether an entry was advanced. */
-async function advanceLedger(routeSession: string | undefined, nodeId: string): Promise<boolean> {
-  if (!routeSession) return false;
-  const { useProjects, patchLedgerEntry } = await import('../../store/projects');
-  const { projects, activeId } = useProjects.getState();
-  if (!activeId) return false;
-  const ss = projects.find((p) => p.id === activeId)?.sourceSession;
-  if (!ss) return false;
-  const entry = ss.sessionId === routeSession ? ss
-    : ss.chapters?.find((c) => c.sessionId === routeSession)
-    ?? ss.branches?.find((b) => b.sessionId === routeSession);
-  if (!entry) return false;
-  await patchLedgerEntry(activeId, routeSession, { importedCount: entry.importedCount + 1, tailNodeId: nodeId });
-  return true;
-}
-
-/** The moment the bridge names the dsh turn a question created, claim it:
- *  the node becomes that turn's mirror NOW — provenance stamped, ledger
- *  advanced — while the agent is still working. The live sweep polls every
- *  few seconds; a turn that runs longer than that would otherwise be seen
- *  as new and appended a second time before the completion stamp. Returns
- *  whether the ledger was advanced, so the completion stamp does not count
- *  the turn twice. No-op outside the harness. */
-export async function claimHarnessTurn(
-  set: StoreApi<StoreState>['setState'],
-  nodeId: string,
-  route: HarnessRoute,
-  turn: HarnessTurnRef,
-): Promise<boolean> {
-  if (!window.desktopSessions) return false;
-  stampProvenance(set, nodeId, route.session ?? turn.session, route, turn.userMessageId);
-  return advanceLedger(route.session, nodeId);
-}
-
-/** After a harness-agent generation completes: the final provenance and the
- *  source snapshot (question, response) on the node. The ledger was normally
- *  advanced by {@link claimHarnessTurn} when the turn was named; only when
- *  that frame never arrived is it advanced here. No-op outside the harness. */
-export async function stampHarnessTurn(
-  set: StoreApi<StoreState>['setState'],
-  _get: StoreApi<StoreState>['getState'],
-  nodeId: string,
-  turn: { question: string; response: string },
-  route: HarnessRoute,
-  harnessSession: string | undefined,
-  harnessTurn: HarnessTurnRef | null,
-  ledgerAdvanced = false,
-): Promise<void> {
-  if (!window.desktopSessions) return;
-  const sessionId = route.session ?? harnessTurn?.session ?? harnessSession;
-  if (!sessionId) return;
-  stampProvenance(set, nodeId, sessionId, route, harnessTurn?.userMessageId ?? null, { question: turn.question, response: turn.response });
-  if (!ledgerAdvanced) await advanceLedger(route.session, nodeId);
 }

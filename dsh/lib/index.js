@@ -60,12 +60,14 @@
 // not a mirrored session) — they run on the harness's models but do not
 // enter any session log; a mirrored session's turns go through /followup.
 //
-// One entry in that catalog is not a model: "harness/agent". Picking it
-// sends the question INTO the harness — a fresh session per call, the
-// canvas's wired context injected first, the harness running its own agent
-// loop with tools — and streams the agent's text, reasoning and tool calls
-// back as the same SSE frames. The session stays: the Chat lists it, the
-// atlas can open it, and the canvas gets its id in the first frame.
+// The harness's own agent loop is a runtime on the canvas's agent lane
+// (/agents, next to Pi, Codex and Claude Code), listed as
+// "harness/agent/<provider>/<model>": a question goes INTO the harness —
+// continuing a mirrored session, forking one at the end of the parent's
+// turn, or a fresh session with the canvas's wired context injected first —
+// and the agent's text, reasoning, tool calls and approvals come back as the
+// lane's events. The session stays: the Chat lists it, the atlas can open
+// it, and the canvas adopts the finished turn from it.
 
 import { randomUUID } from 'node:crypto'
 import { open, readFile, readdir, stat } from 'node:fs/promises'
@@ -97,14 +99,19 @@ async function latestPluginVersion() {
   } catch { /* offline, or the registry is slow: keep what we had */ }
   return latestLookup.value
 }
-// the shared runtime, copied under lib/runtime by the build (Node code, no harness dependency)
-let agentsHttpInstance = null
-function agentsHttp() {
-  if (!agentsHttpInstance) {
-    const { createAgentsHttp } = require(resolve(__dirname, 'runtime', 'agents', 'http.cjs'))
-    agentsHttpInstance = createAgentsHttp({ log: (line) => console.error(line) })
+// the shared runtime, copied under lib/runtime by the build (Node code, no
+// harness dependency); the harness's own agent loop joins it as the dsh runtime
+function createAgentsHost(ctx) {
+  const shared = require(resolve(__dirname, 'runtime', 'agents', 'http.cjs'))
+  const { createAgentsHttp } = shared
+  const log = (line) => console.error(line)
+  // lib/runtime is a build copy: one older than this file has no harness runtime
+  if (!shared.extraRuntimes) {
+    const msg = '[dsh-thoughtdag] lib/runtime predates this plugin build: the harness agent is unavailable until the plugin is rebuilt (npm run build in dsh/)'
+    ctx.logger.warn(msg)
+    log(msg)
   }
-  return agentsHttpInstance
+  return createAgentsHttp({ log, extraRuntimes: { dsh: (_log, host) => createDshRuntime(ctx, { log, host }) } })
 }
 
 const MAX_BODY_BYTES = 32 * 1024
@@ -501,9 +508,10 @@ function splitModelId(id) {
  *  seeing images: a model is marked vision when its adapter declares image
  *  input; those images then enter the attachment store and ride the call. */
 const AGENT_MODEL = 'harness/agent'
-/** One agent entry per catalog model: 'harness/agent/<provider>/<model>'.
- *  The bare 'harness/agent' stays accepted (older canvases) and means the
- *  session's current model. */
+/** The canvas names the harness's agent loop 'harness/agent/<provider>/<model>'
+ *  (the agent lane's dsh runtime lists those entries); the bare
+ *  'harness/agent' stays accepted (older canvases) and means the session's
+ *  current model. */
 const isAgentModelId = (id) => typeof id === 'string' && (id === AGENT_MODEL || id.startsWith(AGENT_MODEL + '/'))
 function agentTargetOf(id) {
   if (!isAgentModelId(id) || id === AGENT_MODEL) return null
@@ -511,9 +519,6 @@ function agentTargetOf(id) {
   const i = rest.indexOf('/')
   return i > 0 && i < rest.length - 1 ? { provider: rest.slice(0, i), model: rest.slice(i + 1) } : null
 }
-// the picker groups every agent-run entry under this key (the SPA's AGENT_PROVIDER)
-const AGENT_GROUP = '__agent__'
-
 /** Which of a provider's models take images: the adapter's declared input
  *  modalities; a name that says "vision" only when the adapter says nothing. */
 async function visionIdsOf(ctx, providerId, catalogModels) {
@@ -528,19 +533,13 @@ async function visionIdsOf(ctx, providerId, catalogModels) {
 
 async function modelsPayload(ctx) {
   const cat = await ctx.sessionController.modelCatalog()
-  // the harness itself, as an entry: the agent loop with tools, not a bare model
-  // the harness's agent loop with tools, once per model it can run on —
-  // grouped with the other agent runtimes; the bare models follow by provider
+  // the bare models by provider; the agent loop on each of them is the
+  // agent lane's dsh runtime, listed through /agents/models
   const models = []
-  const agents = []
   for (const g of cat.groups ?? []) {
     const vision = await visionIdsOf(ctx, g.id, g.models ?? [])
-    for (const m of g.models ?? []) {
-      models.push({ id: `${g.id}/${m.id}`, name: m.name ?? m.id, provider: g.name ?? g.id, vision: vision.has(m.id) })
-      agents.push({ id: `${AGENT_MODEL}/${g.id}/${m.id}`, name: `Harness · ${m.name ?? m.id}`, provider: AGENT_GROUP, vision: vision.has(m.id) })
-    }
+    for (const m of g.models ?? []) models.push({ id: `${g.id}/${m.id}`, name: m.name ?? m.id, provider: g.name ?? g.id, vision: vision.has(m.id) })
   }
-  models.push(...agents)
   const def = cat.default ? `${cat.default.provider}/${cat.default.model}` : null
   return {
     models,
@@ -621,143 +620,237 @@ function toolQuery(name, args) {
 // ── approvals from the canvas ──────────────────────────────────────────
 // A turn launched from the canvas runs behind the harness's own approval
 // panel, which the canvas view covers. So the plugin answers first: while a
-// canvas turn is running, its session is registered here; an approval the
-// harness asks for that session becomes an `approval` frame on the turn's
-// stream, the node shows the question, and the person's answer comes back
-// through POST /approvals/:id. When the canvas stream is gone, the request
-// is handed down the chain (`next()`) to the harness's panel instead.
+// canvas turn is running, its session is registered here with a way to put
+// the question to the person on the canvas. When nobody is there to ask (no
+// page on the events feed, or it left while the question stood), the
+// request is handed down the chain (`next()`) to the harness's panel.
 
-/** sessionId → the canvas turn running in it: its frame emitter, its
- *  close probe, and the tool calls seen so far (callId → name, arguments). */
+/** sessionId → the canvas turn running in it: `ask` (resolves with the
+ *  outcome, or null when nobody can answer) and the tool calls seen so far
+ *  (callId → name, arguments). */
 const canvasTurns = new Map()
-/** approval id → the resolver waiting for the person's decision */
-const pendingApprovals = new Map()
-
-const APPROVAL_OUTCOMES = new Set(['allowed-once', 'rejected'])
 
 function installApprovalAnswerer(ctx) {
   ctx.on('approval/request', async function (req, next) {
     const entry = canvasTurns.get(req?.agent?.id)
-    if (!entry) return next()
-    const id = 'td-' + randomUUID()
+    if (!entry?.ask) return next()
     const call = req.callId !== undefined ? entry.calls.get(req.callId) : undefined
     const name = call?.name ?? req.toolName
-    entry.emit({ approval: {
-      id, toolName: req.toolName, callId: req.callId ?? null, reason: req.reason ?? null,
-      name, query: call ? toolQuery(name, call.arguments) : '', arguments: typeof call?.arguments === 'string' ? call.arguments : (call?.arguments ? JSON.stringify(call.arguments) : null),
-    } })
-    let clear
-    const decision = new Promise(resolve => { pendingApprovals.set(id, { resolve, sessionId: req.agent.id }) })
-    const closed = new Promise(resolve => { const t = setInterval(() => { if (entry.isClosed()) { clearInterval(t); resolve('closed') } }, 500); clear = () => clearInterval(t) })
-    const aborted = new Promise(resolve => {
-      if (!req.signal) return
-      if (req.signal.aborted) resolve('aborted')
-      else req.signal.addEventListener('abort', () => resolve('aborted'), { once: true })
-    })
-    const r = await Promise.race([decision, closed, aborted])
-    pendingApprovals.delete(id)
-    clear?.()
-    if (r === 'closed') return next()
-    const outcome = r === 'aborted' ? 'cancelled' : r
-    entry.emit({ approvalDecided: { id, outcome } })
-    return outcome
+    const outcome = await entry.ask({ toolName: req.toolName, reason: req.reason ?? null, name, query: call ? toolQuery(name, call.arguments) : '' }, req.signal)
+    return outcome ?? next()
   }, true)
 }
 
-/** Run one question through the harness's agent loop, continuing a mirrored
- *  session, forking a dsh mirror at the parent's exact turn, or creating a
- *  fresh session. Report progress as SSE-style frames via `emit`; resolves
- *  when the turn ends. */
-async function runAgentTurn(ctx, body, emit, isClosed, { answerApprovals = true } = {}) {
-  const { question, context } = compileForAgent(body)
-  // A parent that is a current ledger tail continues in place. A historical
-  // dsh mirror forks at the exact turn named by its user-message id, so later
-  // turns (including sibling work) cannot leak into the branch. Otherwise a
-  // fresh session receives the compiled canvas context.
-  const continueId = typeof body?.harness?.session === 'string' && body.harness.session ? body.harness.session : null
-  const forkId = typeof body?.harness?.forkSession === 'string' && body.harness.forkSession ? body.harness.forkSession : null
-  const forkAnchor = typeof body?.harness?.forkAnchor === 'string' && body.harness.forkAnchor ? body.harness.forkAnchor : null
+/**
+ * One question through the harness's agent loop: continuing a session,
+ * forking one at the end of the turn a user-message id names, or in a
+ * fresh session that receives the canvas's context first (also the
+ * fallback when the named session or turn cannot be used). Progress goes to
+ * `sink` (session, text, reasoning, toolStart, toolEnd); `ask` answers this
+ * turn's approvals. Resolves with the session and the final text when the
+ * turn ends, `signal` aborts it, or twenty minutes pass.
+ *
+ * turn: { question, context, images, model: { provider, model } | null,
+ *         cwd, continueSession, fork: { session, anchor } }
+ */
+async function runHarnessTurn(ctx, turn, sink, { signal, ask } = {}) {
   let sessionId = null
   let forkedFrom = null
-  if (continueId && (liveSession(ctx, continueId) || (await eventsOfSession(ctx, continueId)) !== null)) {
-    sessionId = continueId
-  } else if (forkId && forkAnchor) {
-    const events = await eventsOfSession(ctx, forkId)
-    if (events !== null) {
-      const turn = turnsOf(events).find(t => t.userMessageId === forkAnchor)
-      if (!turn) throw new HttpError(400, 'no such fork anchor: ' + forkAnchor)
-      if (turn.endSeq === null) throw new HttpError(409, 'turn ' + turn.turn + ' is still open; a fork needs a completed turn')
-      sessionId = (await ctx.sessionController.fork({ sessionId: forkId, atSeq: turn.endSeq })).sessionId
-      forkedFrom = forkId
+  if (turn.continueSession && (liveSession(ctx, turn.continueSession) || (await eventsOfSession(ctx, turn.continueSession)) !== null)) {
+    sessionId = turn.continueSession
+  } else if (turn.fork?.session && turn.fork.anchor) {
+    const events = await eventsOfSession(ctx, turn.fork.session)
+    const t = events ? turnsOf(events).find(x => x.userMessageId === turn.fork.anchor) : null
+    // DSH cuts only at a completed turn's end
+    if (t && t.endSeq !== null) {
+      sessionId = (await ctx.sessionController.fork({ sessionId: turn.fork.session, atSeq: t.endSeq })).sessionId
+      forkedFrom = turn.fork.session
     }
   }
-  if (!sessionId) {
-    const cwd = typeof body?.harness?.cwd === 'string' && body.harness.cwd ? { cwd: body.harness.cwd } : {}
-    sessionId = (await ctx.sessionController.create({ ...cwd })).sessionId
-  }
-  emit({ harnessSession: sessionId, continued: sessionId === continueId, ...(forkedFrom ? { forkedFrom } : {}) })
-  // a streaming caller can show and answer approvals; a one-shot caller
-  // (/claude) cannot, so its requests fall through to the harness's own panel
-  const turnEntry = { emit, isClosed, calls: new Map() }
-  if (answerApprovals) canvasTurns.set(sessionId, turnEntry)
-  const hasImages = Array.isArray(body?.images) && body.images.length > 0
+  const inheritsHistory = sessionId !== null
+  if (!sessionId) sessionId = (await ctx.sessionController.create({ ...(turn.cwd ? { cwd: turn.cwd } : {}) })).sessionId
+  const hasImages = turn.images.length > 0
   if (hasImages) {
     const vm = await visionModel(ctx).catch(() => null)
     if (vm) await ctx.sessionController.selectModel({ sessionId, provider: vm.provider, model: vm.model }).catch(() => {})
   }
-  // the model the canvas picked for this agent turn, unless images already
-  // moved the session to a vision model
-  const picked = agentTargetOf(body?.model)
-  if (picked && !hasImages) await ctx.sessionController.selectModel({ sessionId, provider: picked.provider, model: picked.model }).catch(() => {})
+  // the model the canvas picked for this turn, unless images already moved
+  // the session to a vision model
+  if (turn.model && !hasImages) await ctx.sessionController.selectModel({ sessionId, provider: turn.model.provider, model: turn.model.model }).catch(() => {})
   const agent = await agentOf(ctx, sessionId)
+  sink.session({ sessionId, continued: sessionId === turn.continueSession, forkedFrom, cwd: cwdOfSession(liveSession(ctx, sessionId)) ?? turn.cwd ?? null })
+
+  const entry = { ask, calls: new Map() }
+  canvasTurns.set(sessionId, entry)
   let sawChunk = false
   let fullText = ''
   let done
   const finished = new Promise(resolve => { done = resolve })
-  let currentTurn = null
   const off = ctx.on('session/event', (session, event) => {
     if (session?.id !== sessionId || !event) return
-    if (event.type === 'turn/start') { currentTurn = event.data?.turn ?? null; return }
-    // the person's question entering the surface: THIS is the turn the
-    // canvas node stands for — with its id the canvas marks the node as the
-    // mirror of that turn, and the live mirror does not append it a second time
-    if (event.type === 'user/message' && (event.data?.source?.kind ?? 'user') === 'user') {
-      emit({ harnessTurn: { session: sessionId, turn: currentTurn, userMessageId: event.data?.id ?? null, seq: event.seq ?? null } })
-      return
-    }
     if (event.type === 'assistant/chunk') {
       const c = event.data?.chunk
-      if (c?.type === 'text-delta' && c.text) { sawChunk = true; fullText += c.text; emit({ text: c.text }) }
-      else if (c?.type === 'reasoning-delta' && c.text) emit({ reasoning: c.text })
+      if (c?.type === 'text-delta' && c.text) { sawChunk = true; fullText += c.text; sink.text(c.text) }
+      else if (c?.type === 'reasoning-delta' && c.text) sink.reasoning(c.text)
     } else if (event.type === 'assistant/message' && !sawChunk) {
       // chunks did not reach us live (e.g. a compacted row): the whole text at once
       const text = (event.data?.message?.content ?? []).filter(b => b.type === 'text').map(b => b.text).join('')
-      if (text) { fullText += text; emit({ text }) }
+      if (text) { fullText += text; sink.text(text) }
     } else if (event.type === 'tool/call' || event.type === 'tool/code-dispatch-start') {
-      if (event.data?.callId) turnEntry.calls.set(event.data.callId, { name: event.data?.name ?? 'tool', arguments: event.data?.arguments })
-      emit({ tool: { name: event.data?.name ?? 'tool', query: toolQuery(event.data?.name, event.data?.arguments) } })
+      const callId = event.data?.callId ?? null
+      if (callId) entry.calls.set(callId, { name: event.data?.name ?? 'tool', arguments: event.data?.arguments })
+      sink.toolStart({ callId, name: event.data?.name ?? 'tool', arguments: event.data?.arguments })
+    } else if (event.type === 'tool/result') {
+      const callId = event.data?.message?.source?.callId ?? null
+      if (callId) sink.toolEnd({ callId, name: entry.calls.get(callId)?.name ?? 'tool', isError: !!(event.data?.message?.isError ?? event.data?.isError) })
     } else if (event.type === 'turn/end') {
-      done()
+      done('end')
     }
   })
+  // marked first: cancelling may end the turn on the spot
+  const onAbort = () => { done('aborted'); try { agent.cancel({ kind: 'user' }) } catch { /* best effort */ } }
   try {
-    const inheritsSessionContext = (continueId && sessionId === continueId) || forkedFrom
-    const injectContext = inheritsSessionContext ? (typeof body?.harness?.extraContext === 'string' ? body.harness.extraContext : '') : context
-    if (injectContext) agent.inject({ id: 'td-' + randomUUID(), role: 'user', content: [{ type: 'text', text: injectContext }], source: SOURCE })
-    const promptContent = [{ type: 'text', text: question }]
-    for (const img of Array.isArray(body?.images) ? body.images : []) {
-      if (img && typeof img.data === 'string' && IMAGE_MEDIA.has(img.mimeType)) promptContent.push({ type: 'image', mediaType: img.mimeType, data: img.data })
-    }
+    if (signal?.aborted) return { sessionId, text: fullText, how: 'aborted' }
+    signal?.addEventListener('abort', onAbort, { once: true })
+    // a session that already holds the conversation gets only the question
+    if (!inheritsHistory && turn.context) agent.inject({ id: 'td-' + randomUUID(), role: 'user', content: [{ type: 'text', text: turn.context }], source: SOURCE })
+    const promptContent = [{ type: 'text', text: turn.question }]
+    for (const img of turn.images) promptContent.push({ type: 'image', mediaType: img.mimeType, data: img.data })
     await ctx.sessionController.prompt({ requestId: 'td-' + randomUUID(), sessionId, mode: 'queue', content: promptContent }, AbortSignal.timeout(30000))
-    const timeout = new Promise(resolve => setTimeout(resolve, 20 * 60 * 1000))
-    const closed = new Promise(resolve => { const t = setInterval(() => { if (isClosed()) { clearInterval(t); resolve() } }, 500); finished.then(() => clearInterval(t)) })
-    await Promise.race([finished, agent.whenIdle().then(() => finished), timeout, closed])
-    if (isClosed()) { try { agent.cancel({ kind: 'user' }) } catch { /* best effort */ } }
+    const timeout = new Promise(resolve => { const t = setTimeout(() => resolve('timeout'), 20 * 60 * 1000); t.unref?.(); finished.then(() => clearTimeout(t)) })
+    const how = await Promise.race([finished, agent.whenIdle().then(() => finished), timeout])
+    return { sessionId, text: fullText, how }
   } finally {
+    signal?.removeEventListener('abort', onAbort)
     if (typeof off === 'function') off()
-    if (canvasTurns.get(sessionId) === turnEntry) canvasTurns.delete(sessionId)
+    if (canvasTurns.get(sessionId) === entry) canvasTurns.delete(sessionId)
   }
-  return { sessionId, text: fullText }
+}
+
+/** The images of a request the harness can take (base64, a known type). */
+const imagesOf = (list) => (Array.isArray(list) ? list : []).filter(i => i && typeof i.data === 'string' && IMAGE_MEDIA.has(i.mimeType))
+
+/** The session id a session path names: `…/<session-id>/session.jsonl.zstd`. */
+function sessionIdOfPath(p) {
+  const parts = String(p ?? '').split(/[\\/]+/).filter(Boolean)
+  return parts.length >= 2 && parts[parts.length - 1] === 'session.jsonl.zstd' ? parts[parts.length - 2] : null
+}
+
+/** Where the canvas reads a harness session as a file: the root its
+ *  session bridge serves (src/lib/atlas/dsh-bridge.ts) plus the session's
+ *  own path under it. The finished turn is adopted from there. */
+const DSH_ROOT_PATH = '~/.dsh/sessions'
+const sessionFileOf = (id) => `${DSH_ROOT_PATH}/${id}/session.jsonl.zstd`
+
+/**
+ * The harness as an agent runtime on the canvas's agent lane — the same
+ * contract as Pi, Codex and Claude Code (runtime/agents): models, a run
+ * that opens, continues or forks a session, the eight event kinds, answer,
+ * abort. A run is not tied to the page that started it: it keeps going when
+ * the page closes, and its approvals then fall to the harness's own panel.
+ */
+function createDshRuntime(ctx, { log = () => {}, host = { listening: () => false } } = {}) {
+  const runs = new Map() // runId → { abort: AbortController, pending: Map<requestId, resolve> }
+  return {
+    available: async () => 'harness',
+
+    async models() {
+      const cat = await ctx.sessionController.modelCatalog()
+      const models = []
+      for (const g of cat.groups ?? []) {
+        const vision = await visionIdsOf(ctx, g.id, g.models ?? [])
+        for (const m of g.models ?? []) models.push({ provider: g.id, id: m.id, name: m.name ?? m.id, reasoning: false, vision: vision.has(m.id), efforts: [] })
+      }
+      const def = cat.default ? `${cat.default.provider}/${cat.default.model}` : null
+      return { installed: true, models, default: def && models.some(m => `${m.provider}/${m.id}` === def) ? def : null }
+    },
+
+    async run(req, onEvent) {
+      const runId = 'dsh-' + randomUUID()
+      const emit = (event) => { try { onEvent({ runId, event }) } catch { /* no listener */ } }
+      const run = { abort: new AbortController(), pending: new Map() }
+      runs.set(runId, run)
+      const question = typeof req.question === 'string' && req.question ? req.question : String(req.prompt ?? '')
+      const forkAnchor = Array.isArray(req.forkAfterTurn) && typeof req.forkAfterTurn[0] === 'string' ? req.forkAfterTurn[0] : null
+      const pathSession = sessionIdOfPath(req.sessionPath)
+      const turn = {
+        question,
+        context: typeof req.context === 'string' ? req.context : '',
+        images: imagesOf(req.images),
+        model: req.model && req.model.provider && req.model.id ? { provider: String(req.model.provider), model: String(req.model.id) } : null,
+        cwd: typeof req.cwd === 'string' && req.cwd ? req.cwd : null,
+        continueSession: pathSession && !forkAnchor ? pathSession : null,
+        fork: pathSession && forkAnchor ? { session: pathSession, anchor: forkAnchor } : null,
+      }
+      const ask = async (q, signal) => {
+        if (!host.listening()) return null
+        const id = 'td-' + randomUUID()
+        // waiting before asking: an answer may come back at once
+        const decision = new Promise(resolve => { run.pending.set(id, resolve) })
+        emit({ type: 'question', kind: 'confirm', id, title: q.name, message: [q.query, q.reason].filter(Boolean).join('\n'), options: [], placeholder: null, prefill: null, paths: [], suggest: null })
+        let stopPoll
+        const gone = new Promise(resolve => { const t = setInterval(() => { if (!host.listening()) resolve('gone') }, 500); stopPoll = () => clearInterval(t) })
+        const aborted = new Promise(resolve => {
+          for (const s of [signal, run.abort.signal]) {
+            if (!s) continue
+            if (s.aborted) resolve('aborted')
+            else s.addEventListener('abort', () => resolve('aborted'), { once: true })
+          }
+        })
+        const r = await Promise.race([decision, gone, aborted])
+        stopPoll()
+        run.pending.delete(id)
+        // the page left: the question moves to the harness's panel
+        if (r === 'gone') { emit({ type: 'question_answered', id, outcome: 'cancelled', value: null }); return null }
+        const outcome = r === 'aborted' ? 'cancelled' : r
+        emit({ type: 'question_answered', id, outcome, value: null })
+        return outcome
+      }
+      void (async () => {
+        try {
+          const r = await runHarnessTurn(ctx, turn, {
+            session: (s) => emit({ type: 'session', sessionId: s.sessionId, sessionFile: sessionFileOf(s.sessionId), model: turn.model ? { provider: turn.model.provider, id: turn.model.model, name: turn.model.model } : null, cwd: s.cwd ?? '', continued: s.continued, ...(s.forkedFrom ? { forkedFrom: s.forkedFrom } : {}) }),
+            text: (t) => emit({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: t } }),
+            reasoning: (t) => emit({ type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', delta: t } }),
+            toolStart: (c) => emit({ type: 'tool_execution_start', toolCallId: c.callId ?? '', toolName: c.name, args: argsObject(c.arguments) }),
+            toolEnd: (c) => emit({ type: 'tool_execution_end', toolCallId: c.callId, toolName: c.name, isError: c.isError }),
+          }, { signal: run.abort.signal, ask })
+          emit({ type: 'run_end', text: r.text, how: r.how })
+        } catch (e) {
+          log(`[dsh-thoughtdag] agent run failed: ${e instanceof Error ? e.message : String(e)}`)
+          emit({ type: 'run_error', message: e instanceof Error ? e.message : String(e) })
+        } finally {
+          runs.delete(runId)
+        }
+      })()
+      return runId
+    },
+
+    abort(runId) {
+      const r = runs.get(String(runId))
+      if (!r) return false
+      r.abort.abort()
+      return true
+    },
+
+    /** The person's answer to an approval: { confirmed } allows once or
+     *  rejects; a withdrawn question rejects. */
+    answer(runId, requestId, response) {
+      const resolve = runs.get(String(runId))?.pending.get(String(requestId))
+      if (!resolve) return false
+      resolve(response && typeof response === 'object' && response.confirmed ? 'allowed-once' : 'rejected')
+      return true
+    },
+
+    shutdown() { for (const r of runs.values()) r.abort.abort() },
+  }
+}
+
+/** Tool arguments as an object, whether the event carried JSON text or one. */
+function argsObject(a) {
+  if (a && typeof a === 'object') return a
+  if (typeof a === 'string') { try { const o = JSON.parse(a); return o && typeof o === 'object' ? o : { input: a } } catch { return { input: a } } }
+  return {}
 }
 
 /** A vision-capable model id ("provider/model") from the catalog, or null. */
@@ -868,11 +961,18 @@ async function installWhyLayer(ctx, config) {
   ctx.logger.info('[dsh-thoughtdag] why layer: ' + (wantTools ? 'why_check why_file why_find why_recall, /why' : 'no tools') + (wantPrompt && wantTools ? ', prompt section' : ''))
 }
 
+/** The agent lane's harness runtime and its approval hook, for the plugin's own tests. */
+export const internals = { createDshRuntime, installApprovalAnswerer, sessionIdOfPath }
+
 export async function apply(ctx, config) {
   const prefix = typeof config?.mountPrefix === 'string' && config.mountPrefix.startsWith('/') && config.mountPrefix.length > 1
     ? config.mountPrefix.replace(/\/+$/, '')
     : '/thoughtdag'
   const trustedHosts = new Set(['localhost', '127.0.0.1', ...[...(config?.trustedHosts ?? [])].map(h => String(h).trim().toLowerCase()).filter(Boolean)])
+  // the agent lane, built on first use; its runs stop when the plugin goes
+  let agents = null
+  const agentsHttp = () => (agents ??= createAgentsHost(ctx))
+  ctx.effect(() => () => { agents?.shutdown(); agents = null }, 'thoughtdag: agent runtimes')
 
   const api = async (req, res) => {
     try {
@@ -969,38 +1069,42 @@ export async function apply(ctx, config) {
           : String(r.body?.content ?? '')
         return sendJson(res, 200, { title, text, fetchedAt: new Date().toISOString(), ...(html ? { html } : {}), url: r.url ?? target, truncated: !!r.truncated })
       }
-      // ── agent runtimes on this machine (Pi today), the same surface the desktop shell has ──
+      // ── agent runtimes: the harness's own agent loop, and Pi, Codex and
+      //    Claude Code on this machine — the same surface the desktop shell has ──
       if (path.startsWith('/agents/')) {
-        const body = req.method === 'POST' ? await readJson(req, MAX_WRITE_BODY_BYTES).catch(() => null) : null
+        const body = req.method === 'POST' ? await readJson(req, MAX_CALL_BODY_BYTES).catch(() => null) : null
         if (await agentsHttp().handle(req, res, path, body)) return
       }
       // ── model connection (the SPA's proxy protocol, on the harness's providers) ──
       if (path === '/models' && req.method === 'GET') return sendJson(res, 200, await modelsPayload(ctx))
-      const approvalRoute = /^\/approvals\/([^/]+)$/.exec(path)
-      if (approvalRoute !== null && req.method === 'POST') {
-        const id = decodeURIComponent(approvalRoute[1])
-        const body = await readJson(req, MAX_WRITE_BODY_BYTES)
-        const pending = pendingApprovals.get(id)
-        if (!pending) return sendJson(res, 404, { error: 'no such pending approval' })
-        const outcome = APPROVAL_OUTCOMES.has(body?.outcome) ? body.outcome : 'rejected'
-        pending.resolve(outcome)
-        return sendJson(res, 200, { id, outcome })
-      }
       if ((path === '/stream' || path === '/claude') && req.method === 'POST') {
         const body = await readJson(req, MAX_CALL_BODY_BYTES)
         if (isAgentModelId(body?.model)) {
+          // Agent turns run on the agent lane (/agents). A plain model call
+          // that names an agent entry still gets one: a fresh session with
+          // the canvas's context, its approvals left to the harness's panel,
+          // the stream's end being the stop button
+          const { question, context } = compileForAgent(body)
+          const turn = { question, context, images: imagesOf(body?.images), model: agentTargetOf(body.model), cwd: null, continueSession: null, fork: null }
+          const quiet = { session() {}, text() {}, reasoning() {}, toolStart() {}, toolEnd() {} }
           if (path === '/claude') {
-            const r = await runAgentTurn(ctx, body, () => {}, () => false, { answerApprovals: false })
+            const r = await runHarnessTurn(ctx, turn, quiet)
             return sendJson(res, 200, { text: r.text, model: body.model, harnessSession: r.sessionId })
           }
           res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
-          let closed = false
-          req.on('close', () => { closed = true })
+          const stop = new AbortController()
+          req.on('close', () => stop.abort())
+          const frame = (f) => { if (!stop.signal.aborted) res.write(`data: ${JSON.stringify(f)}\n\n`) }
           try {
-            await runAgentTurn(ctx, body, frame => { if (!closed) res.write(`data: ${JSON.stringify(frame)}\n\n`) }, () => closed)
-            if (!closed) res.write('data: [DONE]\n\n')
+            await runHarnessTurn(ctx, turn, {
+              ...quiet,
+              text: (t) => frame({ text: t }),
+              reasoning: (t) => frame({ reasoning: t }),
+              toolStart: (c) => frame({ tool: { name: c.name, query: toolQuery(c.name, c.arguments) } }),
+            }, { signal: stop.signal })
+            if (!stop.signal.aborted) res.write('data: [DONE]\n\n')
           } catch (error) {
-            if (!closed) res.write(`data: ${JSON.stringify({ error: error instanceof Error ? error.message : String(error) })}\n\n`)
+            frame({ error: error instanceof Error ? error.message : String(error) })
           }
           res.end()
           return

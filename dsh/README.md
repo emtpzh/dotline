@@ -39,7 +39,7 @@ same-origin full-screen iframe.
   | `GET /thoughtdag/api/roots` · `GET /thoughtdag/api/roots/<key>/list\|head\|read\|range` | the other agents' session directories on this machine (`claude-projects` = `~/.claude/projects`, `codex-sessions` = `~/.codex/sessions`) with the desktop bridge's file primitives, so Session Atlas inside the harness lists all three sources and mirrors a Claude Code or Codex session as the desktop does; `rel` never escapes its root |
   | `GET /thoughtdag/api/models` | the harness's model catalog in the SPA's list shape (`<provider>/<model>` ids, the harness default) |
   | `POST /thoughtdag/api/stream` · `POST /thoughtdag/api/claude` | the SPA's own proxy protocol, answered on the harness's providers and credentials (`ctx.llm.stream`); the embedded SPA is built with `VITE_API_BASE=/thoughtdag`, so its model picker and every canvas-native generation (summaries, condensing, a canvas that is not a mirrored session) run on the harness's models. These calls do not enter a session log; a mirrored session's turns go through `/followup` |
-  | `harness/agent` (a catalog entry) | pick it in the picker and the question goes INTO the harness: a fresh session per call, the canvas's wired context injected first (`agent.inject`, source `dsh-thoughtdag`), the question as a user follow-up, the harness's own agent loop with tools; text, reasoning and tool calls stream back as the SPA's frames, the first frame names the session (`{ harnessSession }`) and, once the question enters the surface, the turn it created (`{ harnessTurn: { turn, userMessageId, seq } }`), so the canvas can mark its node as that turn's mirror instead of receiving it twice. The session stays in the Chat and the atlas. `harness: { cwd }` sets the session's working directory (the canvas passes the project it mirrors, else the current chat session's); `harness: { session }` continues a mirrored session instead of forking a fresh one (a tail follow-up); `images` (base64) are admitted through the controller's prompt and a vision model is selected for that turn, so a picture the canvas holds is read by the harness's own eyes |
+  | `/agents/*` runtime `dsh` (`harness/agent/<provider>/<model>` in the picker) | the harness's own agent loop as a runtime on the canvas's agent lane, beside Pi, Codex and Claude Code (same contract: `runtime/agents/README.md`). A question goes INTO the harness: a tail follow-up continues the mirrored session (`sessionPath`), a follow-up off an earlier turn forks the session at that turn's end (`forkAfterTurn`, the turn's user-message id), anything else opens a fresh session in the chosen working directory with the canvas's wired context injected first (`agent.inject`, source `dsh-thoughtdag`) and the question as a user follow-up. Text, reasoning, tool calls and approvals come back as the lane's events; the session stays in the Chat and the atlas, and the canvas adopts the finished turn from it. `images` (base64) are admitted through the controller's prompt and a vision model is selected for that turn. A run keeps going when the canvas closes. A plain model call (`/stream`, `/claude`) naming an agent entry still gets a fresh-session turn |
   | `POST /thoughtdag/api/fetch-url` | the SPA's link snapshot (`{ url }` → `{ title, text, fetchedAt, html? }`) through the harness's bounded, credential-free fetcher (`ctx.web.fetch`) |
 
   Disk logs are zstd *concatenated-frame* files; the bridge locates frame
@@ -71,11 +71,12 @@ When a turn launched from the canvas needs the person's approval (the
 harness's sandbox asking to escalate, a policy hook answering `ask`), the
 plugin answers first: it registers ahead of the harness's own panel on the
 `approval/request` waterfall for the sessions it is running, streams the
-question to the canvas as an `approval` frame, and the node shows it —
-tool, command, the harness's reason, allow once or reject. The decision
-returns through `POST /thoughtdag/api/approvals/:id` and stays on the node
-as part of the turn's record. If the canvas stream is gone, the request
-is handed down the chain to the harness's panel unchanged.
+question to the canvas as a `question` event on the agent lane, and the node
+shows it — tool, command, the harness's reason, allow once or reject. The
+decision returns through the lane's `answer` (`POST /thoughtdag/api/agents/answer`)
+and stays on the node as part of the turn's record. When no canvas is on the
+lane's events feed (or it leaves while the question stands), the request is
+handed down the chain to the harness's panel unchanged.
 
 Inside the iframe the canvas runs with this bridge as its session source
 (the SPA is built with `VITE_DSH_BRIDGE=/thoughtdag/api`): Session Atlas

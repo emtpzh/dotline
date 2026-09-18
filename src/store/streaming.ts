@@ -4,11 +4,10 @@ import { upstreamFingerprint, type MessageSource } from './context-builder';
 import { sha256Hex, canonicalStringify } from '../lib/context-bundle';
 import { pruneHighlights } from '../lib/highlight-match';
 import { llmCall, llmCallStream, type ContextMessage, type ImageAttachment } from '../lib/api';
-import { harnessOutbound, claimHarnessTurn, stampHarnessTurn } from '../lib/atlas/dsh-bridge';
 import { agentOutbound, adoptAgentTurn, claimAgentTurn, isAgentModel } from '../lib/agents/agent-runtime';
 import { countTokens, activeSummary } from '../utils';
 import { toast, useUiStore } from '../lib/ui-store';
-import { getModelsOnce, reconcileModelId } from '../lib/use-models';
+import { modelsWith, reconcileModelId } from '../lib/use-models';
 import { contextLengthFor } from '../lib/runtime-providers';
 import { memoryContextBlock, judgeMemory } from '../lib/memory';
 import { t, fmt } from '../i18n';
@@ -146,7 +145,7 @@ export async function runNodeGeneration(
   // never silently mismatched between execution and provenance.
   const pinnedRaw = get().nodes.find((n) => n.id === nodeId)?.data.model;
   let pinnedModel = pinnedRaw;
-  const modelData = await getModelsOnce();
+  const modelData = await modelsWith(pinnedRaw);
   const serverDefaultModel: string | null = modelData?.default ?? null;
   if (pinnedRaw && modelData && modelData.models.length > 0) {
     const r = reconcileModelId(pinnedRaw, modelData.models);
@@ -160,16 +159,10 @@ export async function runNodeGeneration(
   // what generatedBy must record (execution and provenance never diverge).
   let actualModel: string | undefined;
   let gatewaySearched = false;
-  // Inside DeepSeek Harness a generation runs as a real dsh turn: the bridge
-  // reports which session it ran in and the turn it created, so this node can
-  // become that turn's mirror (and the live mirror not append it again).
-  const harnessRoute = await harnessOutbound(nodeId, pinnedModel ?? useUiStore.getState().selectedModel ?? serverDefaultModel ?? undefined);
-  const agentRoute = harnessRoute ? undefined : await agentOutbound(pinnedModel ?? useUiStore.getState().selectedModel ?? serverDefaultModel ?? undefined, nodeId);
-  let harnessSession: string | undefined;
-  let harnessTurn: { session: string; turn: number | null; userMessageId: string | null; seq: number | null } | null = null;
-  // the turn is claimed the moment the bridge names it (mid-generation), so a
-  // live sweep firing while the agent works does not append it a second time
-  let harnessClaim: Promise<boolean> | null = null;
+  // An agent turn (a runtime on this machine, or the harness's own loop)
+  // continues, forks or opens a session; the node becomes that turn's mirror
+  const requestedModel = pinnedModel ?? useUiStore.getState().selectedModel ?? serverDefaultModel ?? undefined;
+  const agentRoute = await agentOutbound(requestedModel, nodeId);
 
   const writeFinal = (response: string, failed = false) => {
     if (!isCurrent()) return; // superseded: a newer generation owns this node
@@ -203,7 +196,9 @@ export async function runNodeGeneration(
         const reasonings = [...kept.map(({ rs }) => rs), n.data.reasoning || undefined];
         const generatedAts = [...kept.map(({ at }) => at), now];
         const editedAts = [...kept.map(({ ed }) => ed), undefined];
-        return { ...n, data: { ...n.data, response, responses, questions, generatedBy, gatewaySearches, generatedEfforts, reasonings, generatedAts, editedAts, reasoning: undefined, restreaming: undefined, pendingApprovals: undefined, agentTrace: undefined, responseIndex: responses.length - 1, isLoading: false, tokenCount, generationFailed: failed || undefined, references, highlights: pruneHighlights(n.data.highlights, response), lastContextHash: contextHash, lastGeneratedAt: now } };
+        // the run is over here, whatever its outcome: nothing left to reconcile
+        const agentSession = n.data.agentSession?.pending ? { ...n.data.agentSession, pending: undefined } : n.data.agentSession;
+        return { ...n, data: { ...n.data, agentSession, response, responses, questions, generatedBy, gatewaySearches, generatedEfforts, reasonings, generatedAts, editedAts, reasoning: undefined, restreaming: undefined, pendingApprovals: undefined, agentTrace: undefined, responseIndex: responses.length - 1, isLoading: false, tokenCount, generationFailed: failed || undefined, references, highlights: pruneHighlights(n.data.highlights, response), lastContextHash: contextHash, lastGeneratedAt: now } };
       }),
     }));
   };
@@ -319,7 +314,6 @@ export async function runNodeGeneration(
         }));
       },
       onSources: (sources) => { references = sources; },
-      onHarnessSession: (session) => { harnessSession = session; },
       onAgentTool: (call) => {
         if (!isCurrent()) return;
         const now = new Date().toISOString();
@@ -336,17 +330,15 @@ export async function runNodeGeneration(
       onAgentSession: (session) => {
         if (!isCurrent()) return;
         const continued = !!agentRoute?.continue;
-        // a later session event (the file found, the effort read) adds to the record, never wipes it
-        set((state) => ({ nodes: state.nodes.map((n) => n.id === nodeId ? { ...n, data: { ...n.data, agentSession: { ...n.data.agentSession, ...session, continued } } } : n) }));
+        // a later session event (the file found, the effort read) adds to the
+        // record, never wipes it; pending until the run ends here, so a page
+        // reopened meanwhile knows to read the turn back from the session
+        set((state) => ({ nodes: state.nodes.map((n) => n.id === nodeId ? { ...n, data: { ...n.data, agentSession: { ...n.data.agentSession, ...session, continued, pending: true, ...(requestedModel ? { model: requestedModel } : {}) } } } : n) }));
         if (continued && session.sessionId) void claimAgentTurn(session.runtime, nodeId, session.sessionId, session.cwd);
       },
       onAgentChanges: (changes) => {
         if (!isCurrent()) return;
         set((state) => ({ nodes: state.nodes.map((n) => n.id === nodeId && n.data.agentSession ? { ...n, data: { ...n.data, agentSession: { ...n.data.agentSession, changes } } } : n) }));
-      },
-      onHarnessTurn: (turn) => {
-        harnessTurn = turn;
-        if (harnessRoute && !harnessClaim) harnessClaim = claimHarnessTurn(set, nodeId, harnessRoute, turn).catch(() => false);
       },
       onApproval: (request) => {
         if (!isCurrent()) return;
@@ -397,7 +389,7 @@ export async function runNodeGeneration(
         scholar: selfData?.scholarSearch ?? useUiStore.getState().scholarSearchEnabled,
         mcp: useUiStore.getState().mcpEnabled,
       };
-    })(), pinnedModel, harnessRoute ?? (agentRoute ? { ...agentRoute, nodeId } : undefined));
+    })(), pinnedModel, agentRoute ? { ...agentRoute, nodeId } : undefined);
     flushStream();
     if (!isCurrent()) return; // superseded while finishing: drop everything
     activeAbortControllers.delete(nodeId);
@@ -411,18 +403,15 @@ export async function runNodeGeneration(
     // an agent turn is adopted from its session file BEFORE the node is marked
     // done: footprints, provenance and the ledger land in the same step as the
     // answer, so a follow-up asked right away already continues the session
+    let adopted = false;
     if (agentRoute) {
       const session = get().nodes.find((n) => n.id === nodeId)?.data.agentSession;
-      if (session) await adoptAgentTurn(nodeId, session, question).catch(() => false);
+      if (session) adopted = await adoptAgentTurn(nodeId, session, question).catch(() => false);
     }
     writeFinal(response);
-    // this node is the mirror of the dsh turn it just ran: stamp provenance,
-    // and on a tail follow-up advance the mirror's ledger so the live sweep
-    // does not append the same turn a second time
-    if (harnessRoute) {
-      const ledgerAdvanced = harnessClaim ? await harnessClaim : false;
-      await stampHarnessTurn(set, get, nodeId, { question, response }, harnessRoute, harnessSession, harnessTurn, ledgerAdvanced);
-    }
+    // the node now says what the session says: the answer as shown is the
+    // snapshot an edit is measured against (a follow-up continues only an unedited chain)
+    if (adopted) set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId && n.data.source ? { ...n, data: { ...n.data, source: { ...n.data.source, response } } } : n)) }));
     onSuccess?.(response);
     get().pushHistory();
     generateSummary(nodeId, question, response, get().setSummary, collectMapLines(nodeId, get().nodes, get().edges));

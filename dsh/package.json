@@ -31,7 +31,8 @@
   "scripts": {
     "build": "node scripts/build.mjs ..",
     "prepack": "npm run build",
-    "verify": "node scripts/verify-write-bridge.mjs"
+    "verify": "node scripts/verify-write-bridge.mjs",
+    "test": "node --test test/*.test.mjs"
   },
   "dsh": {
     "bundle": {

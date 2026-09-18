@@ -94,7 +94,10 @@ export function startLiveMirror(): void {
     }
   };
 
-  bridge.onSessionsChanged((ev) => { void handle(ev); });
+  // agent turns that ran on while no page was there to finish them read
+  // their answers back from the same files
+  const reconcile = (): void => { void import('../agents/agent-runtime').then((m) => m.reconcilePendingAgentTurns()).catch(() => {}); };
+  bridge.onSessionsChanged((ev) => { void handle(ev); reconcile(); });
 
   // thoughtdag://open?session=<id> — the /thoughtdag command's front
   // door. Locate the file (filename fast path: cc files are named by
@@ -206,6 +209,7 @@ export function startLiveMirror(): void {
     for (const f of todo) await handle({ rootKey: f.rootKey, rel: f.rel });
     for (const f of files) mark[`${f.rootKey}|${f.rel}`] = `${f.mtime}|${f.size}`;
     localStorage.setItem(MARK_KEY, JSON.stringify(mark));
+    reconcile();
   };
   void sweep();
 }
