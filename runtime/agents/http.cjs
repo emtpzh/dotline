@@ -1,13 +1,15 @@
 // The agents surface over HTTP, for hosts that are not the desktop shell:
 // the harness plugin's host and the local server. Same calls as
-// window.desktopAgents, one endpoint each, and one server-sent-events feed
-// carrying every run's events (the renderer's shim turns it back into
-// onEvent). Runtimes are created on first use, as in the shell.
+// window.desktopAgents, one endpoint each, and one feed carrying every run's
+// events (the renderer's shim turns it back into onEvent): a WebSocket where
+// the host can upgrade (`upgrade`), server-sent events otherwise. Runtimes
+// are created on first use, as in the shell.
 'use strict';
 const path = require('node:path');
 const os = require('node:os');
 const ops = require('./ops.cjs');
 const terminal = require('../terminal.cjs');
+const { acceptWebSocket } = require('./ws-feed.cjs');
 
 const RUNTIME_FACTORIES = {
   pi: (log) => require('./pi.cjs').createPiRuntime({ log }),
@@ -25,7 +27,7 @@ function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag
   const factories = { ...RUNTIME_FACTORIES, ...extraRuntimes };
   const runtimes = new Map();
   const owners = new Map();      // runId → runtime name
-  const clients = new Set();     // SSE responses
+  const clients = new Set();     // pages on the feed: { send(text), ping(), close() }
   const host = { listening: () => clients.size > 0 };
   const runtime = (name = 'pi') => {
     const key = factories[name] ? name : 'pi';
@@ -33,10 +35,10 @@ function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag
     return runtimes.get(key);
   };
   const broadcast = (payload) => {
-    const line = `data: ${JSON.stringify(payload)}\n\n`;
-    for (const res of clients) { try { res.write(line); } catch { clients.delete(res); } }
+    const text = JSON.stringify(payload);
+    for (const c of clients) { try { c.send(text); } catch { clients.delete(c); } }
   };
-  const heartbeat = setInterval(() => { for (const res of clients) { try { res.write(': hb\n\n'); } catch { clients.delete(res); } } }, 20000);
+  const heartbeat = setInterval(() => { for (const c of clients) { try { c.ping(); } catch { clients.delete(c); } } }, 20000);
   heartbeat.unref?.();
 
   const json = (res, status, body) => {
@@ -69,8 +71,9 @@ function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag
       if (p === '/agents/events' && method === 'GET') {
         res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
         res.write(': connected\n\n');
-        clients.add(res);
-        req.on('close', () => clients.delete(res));
+        const client = { send: (text) => res.write(`data: ${text}\n\n`), ping: () => res.write(': hb\n\n'), close: () => res.end() };
+        clients.add(client);
+        req.on('close', () => clients.delete(client));
         return true;
       }
       if (p === '/agents/run' && method === 'POST') {
@@ -100,8 +103,17 @@ function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag
     }
   }
 
-  const shutdown = () => { clearInterval(heartbeat); for (const r of runtimes.values()) r.shutdown(); for (const res of clients) { try { res.end(); } catch { /* gone */ } } };
-  return { handle, shutdown };
+  /** The same feed over a WebSocket: the host calls this from its upgrade
+   *  route (after its own Host / Origin checks). */
+  function upgrade(req, socket, head) {
+    const client = acceptWebSocket(req, socket, head);
+    if (!client) return;
+    clients.add(client);
+    client.onClose(() => clients.delete(client));
+  }
+
+  const shutdown = () => { clearInterval(heartbeat); for (const r of runtimes.values()) r.shutdown(); for (const c of clients) { try { c.close(); } catch { /* gone */ } } };
+  return { handle, upgrade, shutdown };
 }
 
 // hosts that bring runtimes of their own check for this before relying on it

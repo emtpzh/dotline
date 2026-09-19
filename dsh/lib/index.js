@@ -1203,6 +1203,22 @@ export async function apply(ctx, config) {
 
   ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: prefix, handler: (_req, res) => { res.writeHead(302, { location: prefix + '/' }); res.end() } }), 'thoughtdag: redirect')
   ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: prefix + '/api', handler: api }), 'thoughtdag: api')
+  // The agent lane's events over a WebSocket (the page falls back to the SSE
+  // feed at /api/agents/events where this is missing): an SSE stream holds one
+  // of the browser's six connections per host for as long as the page is open,
+  // and with a few harness tabs the short requests a turn needs queue behind
+  // them. The same Host fence as the api; and since any page may open a socket
+  // here, the Origin — when the browser sends one — must be a trusted host too.
+  if (typeof ctx.webServer.registerUpgrade === 'function') {
+    const upgrade = (req, socket, head) => {
+      const hostname = (typeof req.headers.host === 'string' ? req.headers.host : '').replace(/:\d+$/, '').toLowerCase()
+      let originHost = null
+      try { originHost = req.headers.origin ? new URL(req.headers.origin).hostname.toLowerCase() : null } catch { originHost = '' }
+      if (!trustedHosts.has(hostname) || (originHost !== null && !trustedHosts.has(originHost))) { socket.destroy(); return }
+      agentsHttp().upgrade(req, socket, head)
+    }
+    ctx.effect(() => ctx.webServer.registerUpgrade({ path: prefix + '/api/agents/ws', handler: upgrade }), 'thoughtdag: agent events socket')
+  }
   ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: prefix, handler: staticHandler }), 'thoughtdag: static')
   ctx.logger.info('[dsh-thoughtdag] ThoughtDAG mounted at ' + prefix + '/')
   installApprovalAnswerer(ctx)

@@ -219,6 +219,8 @@ export const en = {
   'agent.trace': 'The agent is doing',
   'agent.openInTerminal': 'Open this session in the terminal',
   'agent.cwd': 'Working directory',
+  'agent.hostBusy': 'Requests to the harness are queuing — this happens with many harness tabs open. Close the extra tabs and the stuck turn finishes on its own',
+  'agent.adoptLate': 'The answer is in; linking this turn to its session is taking longer and will follow',
   'agent.cwdScope': 'Where new lines start; existing nodes and what grows off them keep their own directory',
   'agent.cwdWorkspace': 'Canvas workspace',
   'agent.cwdWorkspaceHint': 'Default: this canvas\'s own folder',

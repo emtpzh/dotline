@@ -22,6 +22,8 @@ type Root = Awaited<ReturnType<Bridge['roots']>>[number];
 type Listed = Awaited<ReturnType<Bridge['list']>>[number];
 
 const ROOT_KEY = 'dsh-sessions';
+import { hostFetch } from '../agents/host-fetch';
+
 const REL_SUFFIX = '/session.jsonl.zstd';
 const CACHE_MS = 1500;
 const POLL_MS = 2500;
@@ -46,12 +48,12 @@ export function installDshSessionsBridge(apiBase: string): void {
   if (window.desktopSessions) return;
   const api = apiBase.replace(/\/+$/, '');
   const json = async <T,>(path: string): Promise<T> => {
-    const r = await fetch(api + path, { credentials: 'same-origin' });
+    const r = await hostFetch(api + path, { credentials: 'same-origin' });
     if (!r.ok) throw new Error(`${path}: ${r.status}`);
     return r.json() as Promise<T>;
   };
   const text = async (path: string): Promise<string> => {
-    const r = await fetch(api + path, { credentials: 'same-origin' });
+    const r = await hostFetch(api + path, { credentials: 'same-origin' });
     if (!r.ok) throw new Error(`${path}: ${r.status}`);
     return r.text();
   };
@@ -250,7 +252,7 @@ export function installDshSessionsBridge(apiBase: string): void {
       if (runner === 'dsh') { select(sessionId); return { opened: true, via: 'app' as const, command: '' }; }
       // another runner's session opens in a terminal on the host's machine
       try {
-        const r = await fetch(api + '/agents/open-in-cli', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ runner, cwd, sessionId }) });
+        const r = await hostFetch(api + '/agents/open-in-cli', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ runner, cwd, sessionId }) });
         if (r.ok) { const j = await r.json() as { opened: boolean; command: string }; return { opened: !!j.opened, via: 'terminal' as const, command: j.command ?? '' }; }
       } catch { /* no host for it */ }
       return { opened: false, via: 'app' as const, command: '' };

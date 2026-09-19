@@ -77,6 +77,10 @@ export const activeAbortControllers = new Map<string, AbortController>();
 // same node — alternating reasoning, clobbered answers.
 const generationSeq = new Map<string, number>();
 
+// How long a finished agent turn waits to be adopted from its session file
+// before the node is marked done anyway (adoption then lands late).
+const ADOPT_WAIT_MS = 6000;
+
 // Auto-chain budget: how many times each autoRerun node has fired since the
 // last MANUAL action. A fresh user action resets all counters, so budgets
 // mean "auto rounds per user action" — and loops (writer->critic->writer)
@@ -405,15 +409,20 @@ export async function runNodeGeneration(
     // an agent turn is adopted from its session file BEFORE the node is marked
     // done: footprints, provenance and the ledger land in the same step as the
     // answer, so a follow-up asked right away already continues the session
-    let adopted = false;
-    if (agentRoute) {
-      const session = get().nodes.find((n) => n.id === nodeId)?.data.agentSession;
-      if (session) adopted = await adoptAgentTurn(nodeId, session, question).catch(() => false);
-    }
+    // — but only for a while: the answer is already here, and adoption reads
+    // the session file through the host, which can stall (every connection
+    // the browser keeps to it taken). Past the wait the node is done and the
+    // adoption lands when it can.
+    const session = agentRoute ? get().nodes.find((n) => n.id === nodeId)?.data.agentSession : undefined;
+    const adoption = session ? adoptAgentTurn(nodeId, session, question).catch(() => false) : null;
+    const adopted = adoption ? await Promise.race([adoption, new Promise<null>((r) => setTimeout(() => r(null), ADOPT_WAIT_MS))]) : false;
+    if (adopted === null) toast('info', t('agent.adoptLate'), 8000);
     writeFinal(response);
     // the node now says what the session says: the answer as shown is the
     // snapshot an edit is measured against (a follow-up continues only an unedited chain)
-    if (adopted) set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId && n.data.source ? { ...n, data: { ...n.data, source: { ...n.data.source, response } } } : n)) }));
+    const markAdopted = () => set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId && n.data.source ? { ...n, data: { ...n.data, source: { ...n.data.source, response } } } : n)) }));
+    if (adopted) markAdopted();
+    else if (adopted === null) void adoption!.then((ok) => { if (ok) markAdopted(); });
     onSuccess?.(response);
     get().pushHistory();
     generateSummary(nodeId, question, response, get().setSummary, collectMapLines(nodeId, get().nodes, get().edges));

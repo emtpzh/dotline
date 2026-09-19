@@ -1161,10 +1161,22 @@ if (process.env.SERVE_DIST) {
 // never be reachable from the network. Opt into LAN exposure explicitly with
 // HOST=0.0.0.0 (understanding the risk) — the default keeps it on 127.0.0.1.
 const HOST = process.env.HOST || '127.0.0.1';
-app.listen(PORT, HOST, () => {
+const httpServer = app.listen(PORT, HOST, () => {
   console.log(`ThoughtDAG proxy (Vercel AI SDK) running on http://localhost:${PORT}`);
   console.log(`Models: ${Object.keys(modelRegistry).join(', ')}`);
   if (!Object.values(modelRegistry).some((m) => m.vision)) {
     console.warn('⚠ No vision model configured — image understanding & auto-extraction are disabled. Add a vision-capable key (free tier: ZHIPU_API_KEY → glm-4v-flash).');
   }
+});
+
+// The agents feed over a WebSocket (the page falls back to /api/agents/events
+// when this fails): it leaves the browser's six connections per host to the
+// short requests. A browser lets any page open a socket here, so the page's
+// Origin must be one of the local ones the CORS rule admits.
+httpServer.on('upgrade', (req, socket, head) => {
+  const path = new URL(req.url ?? '/', 'http://local').pathname;
+  const origin = req.headers.origin;
+  if (path !== '/api/agents/ws' || (origin && !ALLOWED_ORIGIN.test(origin))) { socket.destroy(); return; }
+  if (!agentsHttp) agentsHttp = localRequire('./runtime/agents/http.cjs').createAgentsHttp({ log: (line) => console.log(line) });
+  agentsHttp.upgrade(req, socket, head);
 });
