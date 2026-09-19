@@ -8,6 +8,7 @@ import {
 import { useUiStore, toast } from '../ui-store';
 import { t, fmt } from '../../i18n';
 import { generateId } from '../../utils';
+import { runtimeOf } from '../agents/agent-runtime';
 import type { ThoughtNode, ThoughtEdge } from '../../types';
 
 // The canonical-canvas contract, chapter edition. One canvas = one line
@@ -414,11 +415,32 @@ async function appendPastLedger(
     ];
   }
 
+  // Model follows the LINE: a turn added to the session outside the canvas
+  // (the harness chat, the CLI) was written by the runtime that runs this
+  // session, so it carries that runtime's entry — without it, a rerun or a
+  // follow-up off the turn would run on whatever the global picker holds.
+  const pin = sessionLineModel(anchor ? [anchor, ...survivors.slice().reverse()] : [], conv.source);
+  if (pin) moved = moved.map((n) => (n.data.importSource && !n.data.model ? { ...n, data: { ...n.data, model: pin } } : n));
+
   store.pushHistory();
   useStore.setState((s) => ({ nodes: [...s.nodes, ...moved], edges: [...s.edges, ...extraEdges] }));
   await patchLedgerEntry(hit.project.id, conv.sessionId!, { importedCount: qa.length, tailNodeId: tailQaId });
   useUiStore.getState().setArrivalFocusNodeId(moved[anchor ? 0 : 1].id);
   return { kind: 'appended', turns: qa.length - hit.entry.importedCount };
+}
+
+/** The agent entry a session's canvas line runs on: the first of these
+ *  nodes whose pin, run or answer names the session's own runtime. A pin
+ *  on another runtime (or a plain model) is not the session's, and a
+ *  session no canvas turn ever ran on has none. */
+function sessionLineModel(nodes: ThoughtNode[], runner: string): string | null {
+  for (const n of nodes) {
+    const d = n.data;
+    const ids = [d.model, d.agentSession?.model, d.generatedBy?.[d.responseIndex]];
+    const hit = ids.find((id) => runtimeOf(id) === runner);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 function orphanNoteText(n: number): string {
