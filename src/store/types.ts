@@ -52,7 +52,8 @@ export interface NodeSlice {
   /** Stack the selected nodes into one vertical column, in conversation order (undoable). */
   alignSelection: (nodeIds: string[]) => void;
   /** Set/clear a per-node LLM override (undefined = follow the global picker). */
-  setNodeModel: (nodeId: string, model: string | undefined) => void;
+  /** Change what a node runs on next (its intent); only this node — what grew off it keeps its own. */
+  setNodeIntent: (nodeId: string, intent: { model?: string; effort?: string; cwd?: string }) => void;
   /** Archive/unarchive nodes: dimmed on canvas, excluded from every context walk (undoable). */
   setArchived: (nodeIds: string[], archived: boolean) => void;
   /** Nodes whose answers predate upstream changes (derived, not persisted). */
@@ -82,18 +83,19 @@ export interface LlmSlice {
   /** A paradigm human turn: record the question WITHOUT generating (the
    *  answers belong to downstream prompt nodes), then advance the cascade. */
   submitHumanTurn: (nodeId: string, question: string) => void;
-  /** Multi-select explore: new node with a REAL edge from every selected node. */
-  exploreFrom: (nodeIds: string[], question: string) => Promise<void>;
+  /** Converge a selection into one new node, UNASKED, with a REAL edge from
+   *  each of the selection's sinks: explore (a plain question), merge (a
+   *  synthesis of the content) or weave (the person's own highlights, cited;
+   *  `highlightIds` narrows them). The question is typed on the node — for
+   *  merge / weave an optional extra request. Returns the new node's id. */
+  convergeFrom: (nodeIds: string[], kind: 'explore' | 'merge' | 'weave', highlightIds?: string[]) => string | null;
   /** Fan out N perspectives: once = blind candidate branches; follow = reviewers that auto-rerun with the thread. */
   fanOut: (parentId: string, question: string, roles: { name: string; prompt: string }[], opts?: { follow?: boolean; rounds?: number }) => Promise<void>;
   /** A sibling turn under the same parent: the same question, or a new wording. */
   regenerate: (nodeId: string, question?: string) => Promise<void>;
-  batchMergeSummarize: (nodeIds: string[], deleteAfter?: boolean, intent?: string) => void;
-  /** Weave the highlights of the selected nodes into one cited passage.
-   *  Input = the user's OWN marks (already-human-curated), so context stays
-   *  small even for whole-canvas selections; the passage cites [n] back to
-   *  its source highlights. Optional intent steers angle/purpose. */
-  weaveHighlights: (nodeIds: string[], intent?: string, highlightIds?: string[]) => Promise<void>;
+  /** After a merge has answered: delete the nodes it merged (and their
+   *  descendants), rewiring it to their parents. */
+  deleteConvergeSources: (nodeId: string) => void;
   stopGeneration: (nodeId: string) => void;
 }
 

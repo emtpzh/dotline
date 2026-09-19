@@ -14,6 +14,7 @@ export default function QuestionSection({
   isHuman,
   awaiting,
   placeholder,
+  optional,
   branchContext,
 }: {
   nodeId: string;
@@ -25,6 +26,8 @@ export default function QuestionSection({
       (same rule as the canvas card) and click-away keeps the draft. */
   awaiting?: boolean;
   placeholder?: string;
+  /** An unasked merge / weave: submitting with nothing typed is the default run. */
+  optional?: boolean;
   branchContext?: string;
 }) {
   const editQuestion = useStore((s) => s.editQuestion);
@@ -47,9 +50,9 @@ export default function QuestionSection({
   };
 
   const handleEditSubmit = () => {
-    if (!editValue.trim()) return;
+    if (!editValue.trim() && !(awaiting && optional)) return;
     // Unchanged question: close the editor, never regenerate
-    if (editValue.trim() === question) { setEditing(nodeId, false); return; }
+    if (editValue.trim() === question && !awaiting) { setEditing(nodeId, false); return; }
     if (isHuman) submitHumanTurn(nodeId, editValue.trim());
     else editQuestion(nodeId, editValue.trim());
   };

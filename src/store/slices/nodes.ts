@@ -469,10 +469,10 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
     get().pushHistory();
   },
 
-  setNodeModel: (nodeId: string, model: string | undefined) => {
+  setNodeIntent: (nodeId: string, intent: { model?: string; effort?: string; cwd?: string }) => {
     set((state) => ({
       nodes: state.nodes.map((n) =>
-        n.id === nodeId ? { ...n, data: { ...n.data, model } } : n
+        n.id === nodeId ? { ...n, data: { ...n.data, ...intent } } : n
       ),
     }));
   },

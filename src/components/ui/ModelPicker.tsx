@@ -8,18 +8,23 @@ import { fmt } from '../../i18n';
 import { useT } from '../../i18n';
 
 interface PickerProps {
-  /** Node mode: controlled value (undefined = inherit global) + change handler. */
+  /** Node mode: the node's intent (what it runs on next) + change handler. */
   value?: string;
-  onChange?: (id: string | undefined) => void;
+  onChange?: (id: string) => void;
+  /** Node mode: the node's agent effort ('' = the runtime's default) + its handler. */
+  effort?: string;
+  onEffortChange?: (level: string) => void;
+  /** Node mode: a caution about where the value came from (shown as the tooltip). */
+  hint?: string;
   /** Compact styling for embedding in panel rows. */
   compact?: boolean;
 }
 
 // Dropdown listing every model the server registered (driven by which API
 // keys exist in .env), grouped by provider. Without props it edits the
-// GLOBAL selection; with value/onChange it edits a per-node override and
-// offers an "inherit" entry.
-export default function ModelPicker({ value, onChange, compact }: PickerProps) {
+// GLOBAL selection (where a new root starts); with value/onChange it edits
+// one node's intent — model and effort — and nothing else.
+export default function ModelPicker({ value, onChange, effort, onEffortChange, hint, compact }: PickerProps) {
   const t = useT();
   const nodeMode = !!onChange;
   const selectedModel = useUiStore((s) => s.selectedModel);
@@ -79,8 +84,8 @@ export default function ModelPicker({ value, onChange, compact }: PickerProps) {
   // Picking an agent model that reports effort levels keeps the menu open and
   // unfolds the effort step right under the entry: the level is a decision the
   // person should see being made, not a row to discover later. OK closes.
-  const pick = (id: string | null) => {
-    if (nodeMode) onChange!(id ?? undefined);
+  const pick = (id: string) => {
+    if (nodeMode) onChange!(id);
     else setSelectedModel(id === data?.default ? null : id);
     const m = id ? models.find((x) => x.id === id) : null;
     if (m && isAgentModel(m.id) && (m.efforts?.length ?? 0) > 0) { setEffortStepFor(m.id); return; }
@@ -89,15 +94,16 @@ export default function ModelPicker({ value, onChange, compact }: PickerProps) {
   // the level the next turn will run at, as far as the runtime told us
   const effortWord = (m: ModelInfo | null | undefined): string => {
     if (!m || !isAgentModel(m.id) || !m.efforts?.length) return '';
-    return m.efforts.includes(agentEffort) ? agentEffort : (m.defaultEffort ?? '');
+    const level = nodeMode ? (effort ?? '') : agentEffort;
+    return m.efforts.includes(level) ? level : (m.defaultEffort ?? '');
   };
   const withEffort = (m: ModelInfo) => (effortWord(m) ? `${m.name} · ${effortWord(m)}` : m.name);
 
-  // a node without its own choice follows the global one: the button still
-  // names that model in full (agent · model · effort), the tint says it is inherited
+  // a node's model not in the list (a revoked key, another machine's
+  // runtime) still names itself; the run reconciles it out loud
   const globalActive = globalId ? models.find((m) => m.id === globalId) : null;
   const label = nodeMode
-    ? (active ? withEffort(active) : (globalActive ? withEffort(globalActive) : t('model.inherit')))
+    ? (active ? withEffort(active) : (value ?? (globalActive ? withEffort(globalActive) : t('model.none'))))
     : (active ? withEffort(active) : (activeId ?? (models.length === 0 ? t('model.none') : null)));
 
   return (
@@ -109,16 +115,16 @@ export default function ModelPicker({ value, onChange, compact }: PickerProps) {
           else { setEffortStepFor(null); setOpen((v) => !v); }
         }}
         className={compact
-          ? `text-xs px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 max-w-[200px] ${value ? 'bg-accent/10 text-accent' : 'bg-wash hover:bg-line text-ink-muted'}`
+          ? `text-xs px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 max-w-[200px] ${hint ? 'bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/40' : 'bg-accent/10 text-accent'}`
           : noModels
             ? 'bg-accent/10 backdrop-blur border border-accent/40 rounded-lg h-8 px-2.5 flex items-center gap-1.5 shadow-sm hover:bg-accent/20 transition-colors text-accent max-w-[190px]'
             : 'bg-card/90 backdrop-blur border border-line rounded-lg h-8 px-2.5 flex items-center gap-1.5 shadow-sm hover:bg-wash transition-colors text-ink-muted max-w-[190px]'}
-        title={noModels ? t('apikey.entryTitle') : nodeMode && !value ? t('model.inherit') : t('toolbar.model')}
+        title={noModels ? t('apikey.entryTitle') : nodeMode ? (hint ?? t('model.nodeTitle')) : t('toolbar.model')}
         data-apikey-entry={noModels || undefined}
       >
         {noModels
           ? <KeyRound size={14} strokeWidth={1.75} className="shrink-0" />
-          : <Cpu size={14} strokeWidth={1.75} className={`shrink-0 ${compact && !value ? '' : 'text-accent'}`} />}
+          : <Cpu size={14} strokeWidth={1.75} className={`shrink-0 ${compact && hint ? '' : 'text-accent'}`} />}
         <span className="text-xs truncate font-medium">{noModels ? t('model.connectCta') : label}</span>
         {!noModels && <ChevronDown size={12} strokeWidth={1.75} className="shrink-0" />}
       </button>
@@ -127,15 +133,6 @@ export default function ModelPicker({ value, onChange, compact }: PickerProps) {
         // Both placements drop DOWN: the compact picker lives in the panel
         // header now (an upward menu would fly off the viewport top)
         <div className="absolute top-9 right-0 bg-card border border-line rounded-xl shadow-xl py-1.5 w-64 max-h-[60vh] overflow-y-auto z-30">
-          {nodeMode && (
-            <button
-              onClick={() => pick(null)}
-              className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors hover:bg-wash ${!value ? 'text-accent font-medium' : 'text-ink'}`}
-            >
-              <span className="truncate flex-1">{t('model.inherit')}</span>
-              {!value && <Check size={13} strokeWidth={2} className="shrink-0" />}
-            </button>
-          )}
           {providers.map((provider) => (
             <div key={provider}>
               <p className="text-2xs text-ink-faint uppercase tracking-wider font-medium px-3 pt-2 pb-1 flex items-center gap-1.5" title={provider === AGENT_PROVIDER ? t('model.agentGroupHint') : undefined}>
@@ -158,7 +155,7 @@ export default function ModelPicker({ value, onChange, compact }: PickerProps) {
                   {m.vision && <span className="text-2xs text-ink-faint shrink-0">{t('model.vision')}</span>}
                   {m.id === activeId && <Check size={13} strokeWidth={2} className="shrink-0" />}
                 </button>
-                {effortStepFor === m.id && <EffortStep model={m} onDone={() => { setEffortStepFor(null); setOpen(false); }} />}
+                {effortStepFor === m.id && <EffortStep model={m} {...(nodeMode ? { level: effort ?? '', onChange: onEffortChange } : {})} onDone={() => { setEffortStepFor(null); setOpen(false); }} />}
               </div>
               ))}
             </div>
@@ -199,12 +196,15 @@ export default function ModelPicker({ value, onChange, compact }: PickerProps) {
 
 // ── Effort step: unfolds under the agent model just picked ──
 // The runtime's own levels, in its own words (read from the CLI, never
-// translated). The first option is its default, named when it says. The
-// choice is global like the model choice; OK closes the menu.
-function EffortStep({ model, onDone }: { model: ModelInfo; onDone: () => void }) {
+// translated). The first option is its default, named when it says. Global
+// like the model choice, or the node's when a node's picker opened it; OK
+// closes the menu.
+function EffortStep({ model, level, onChange, onDone }: { model: ModelInfo; level?: string; onChange?: (level: string) => void; onDone: () => void }) {
   const t = useT();
-  const effort = useUiStore((s) => s.agentEffort);
-  const setEffort = useUiStore((s) => s.setAgentEffort);
+  const globalEffort = useUiStore((s) => s.agentEffort);
+  const setGlobalEffort = useUiStore((s) => s.setAgentEffort);
+  const effort = onChange ? (level ?? '') : globalEffort;
+  const setEffort = onChange ?? setGlobalEffort;
   const levels = model.efforts ?? [];
   const value = levels.includes(effort) ? effort : '';
   return (

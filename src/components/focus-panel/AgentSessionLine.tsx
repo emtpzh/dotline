@@ -3,11 +3,12 @@ import { useT } from '../../i18n';
 import { useProjects, setProjectAgentCwd } from '../../store/projects';
 import { toast } from '../../lib/ui-store';
 import type { ThoughtData } from '../../types';
+import { runtimeOf } from '../../lib/agents/runtimes';
 
 // Where an agent turn ran, kept in view: the runtime, the working directory,
 // whether the turn continued a session. The directory is a fact of the turn
-// and is not edited here; one click makes it the canvas's working directory
-// for the next turns (then regenerate, if that is the intent), one opens it.
+// — before its first run, the one the node will run in — and is not edited
+// here; one click makes it the canvas's default for new lines, one opens it.
 
 const RUNTIME_LABEL: Record<string, string> = { pi: 'Pi', dsh: 'DeepSeek Harness', 'claude-code': 'Claude Code', codex: 'Codex' };
 
@@ -15,8 +16,8 @@ export default function AgentSessionLine({ data }: { data: ThoughtData }) {
   const t = useT();
   const activeId = useProjects((s) => s.activeId);
   const chosen = useProjects((s) => s.projects.find((p) => p.id === s.activeId)?.agentCwd);
-  const runner = data.agentSession?.runtime ?? data.importSource?.runner;
-  const cwd = data.agentSession?.cwd ?? data.importSource?.cwd ?? null;
+  const runner = data.agentSession?.runtime ?? data.importSource?.runner ?? runtimeOf(data.model);
+  const cwd = data.agentSession?.cwd ?? data.importSource?.cwd ?? data.cwd ?? null;
   if (!runner || !cwd) return null;
   const sessionId = data.agentSession?.sessionId ?? data.importSource?.sessionId ?? null;
   // the pin is offered only when this directory is not already the canvas's:

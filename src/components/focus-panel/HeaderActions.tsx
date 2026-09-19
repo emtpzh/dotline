@@ -3,9 +3,12 @@ import { Archive, ArchiveRestore, ClipboardCopy, Copy, Ellipsis, FileDown, GitFo
 import { useStore } from '../../store';
 import { contextChainMarkdown, downloadMarkdown, copyText } from '../../lib/export';
 import ModelPicker from '../ui/ModelPicker';
+import { inheritIntent } from '../../lib/run-intent';
+import { isAgentModel, runtimeOf } from '../../lib/agents/runtimes';
+import { globalIntent, nodeIntent, parentsOf } from '../../store/intent';
 import FanOutModal from '../FanOutModal';
-import { toast } from '../../lib/ui-store';
-import { useT } from '../../i18n';
+import { toast, confirmDialog, useUiStore } from '../../lib/ui-store';
+import { useT, fmt } from '../../i18n';
 
 // Compact action strip: the two actions you actually reach for (regenerate,
 // archive) plus the model chip, everything else behind "…". Perspectives
@@ -18,8 +21,24 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
   const duplicateNode = useStore((s) => s.duplicateNode);
   const deleteNode = useStore((s) => s.deleteNode);
   const setSelectedNodeId = useStore((s) => s.setSelectedNodeId);
-  const setNodeModel = useStore((s) => s.setNodeModel);
-  const nodeModel = useStore((s) => s.nodes.find((n) => n.id === nodeId)?.data.model);
+  const setNodeIntent = useStore((s) => s.setNodeIntent);
+  const deleteConvergeSources = useStore((s) => s.deleteConvergeSources);
+  // what this node runs on next: its own intent, or — not asked yet — the
+  // line's (the global pick only for a root; the picker re-reads it)
+  useUiStore((s) => s.selectedModel);
+  const intentModel = useStore((s) => nodeIntent(nodeId, s.nodes, s.edges).model);
+  const intentEffort = useStore((s) => nodeIntent(nodeId, s.nodes, s.edges).effort);
+  // an unasked node whose sources disagree started from the global pick: say so until it is asked
+  const mixedSources = useStore((s) => {
+    const n = s.nodes.find((x) => x.id === nodeId);
+    if (!n || n.data.responses.length > 0 || n.data.isLoading) return false;
+    return !!inheritIntent(parentsOf(nodeId, s.nodes, s.edges), globalIntent()).mixed && n.data.model === globalIntent().model;
+  });
+  // a merge that has answered can take its sources off the canvas
+  const mergedSources = useStore((s) => {
+    const d = s.nodes.find((x) => x.id === nodeId)?.data;
+    return d?.converge?.kind === 'merge' && d.response ? d.converge.sources.filter((id) => s.nodes.some((n) => n.id === id)).length : 0;
+  });
   const setArchived = useStore((s) => s.setArchived);
   const isArchived = useStore((s) => !!s.nodes.find((n) => n.id === nodeId)?.data.archived);
   const nodeQuestion = useStore((s) => s.nodes.find((n) => n.id === nodeId)?.data.question ?? '');
@@ -88,7 +107,20 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
       >
         {isArchived ? <ArchiveRestore size={16} strokeWidth={1.75} /> : <Archive size={16} strokeWidth={1.75} />}
       </button>
-      <ModelPicker compact value={nodeModel} onChange={(m) => setNodeModel(nodeId, m)} />
+      <ModelPicker
+        compact
+        value={intentModel}
+        // another model starts at its runtime's default level (the same one
+        // keeps its level); another runtime settles its own directory at its first run
+        onChange={(m) => setNodeIntent(nodeId, {
+          model: m,
+          effort: isAgentModel(m) ? (m === intentModel ? intentEffort ?? '' : '') : undefined,
+          ...(runtimeOf(m) !== runtimeOf(intentModel) ? { cwd: undefined } : {}),
+        })}
+        effort={intentEffort}
+        onEffortChange={(level) => setNodeIntent(nodeId, { model: intentModel, effort: level })}
+        hint={mixedSources ? t('model.mixedSources') : undefined}
+      />
 
       <div ref={menuRef} className="relative">
         <button onClick={() => setMenuOpen((v) => !v)} title={t('panel.more')} className={`${iconBtn} ${menuOpen ? 'bg-line/50 text-ink' : ''}`}>
@@ -123,6 +155,23 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
               </button>
             )}
             <div className="border-t border-line my-1" />
+            {mergedSources > 0 && (
+              <button
+                className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 transition-colors flex items-center gap-2"
+                onClick={() => {
+                  setMenuOpen(false);
+                  void confirmDialog({
+                    title: t('converge.deleteSourcesTitle'),
+                    message: fmt(t('converge.deleteSourcesMsg'), { n: mergedSources }),
+                    confirmLabel: t('common.delete'),
+                    danger: true,
+                  }).then((ok) => { if (ok) deleteConvergeSources(nodeId); });
+                }}
+                data-delete-merged-sources
+              >
+                <Trash2 size={15} strokeWidth={1.75} /> {t('converge.deleteSources')}
+              </button>
+            )}
             <button
               className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 transition-colors flex items-center gap-2"
               onClick={() => { setMenuOpen(false); deleteNode(nodeId); setSelectedNodeId(null); }}

@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "smoke": "node scripts/smoke.mjs",
     "test:layout": "node scripts/test-layout.mjs",
-    "test:agents": "node --test runtime/test/*.test.mjs dsh/test/*.test.mjs scripts/test-agent-route.mjs",
+    "test:agents": "node --test runtime/test/*.test.mjs dsh/test/*.test.mjs scripts/test-agent-route.mjs scripts/test-run-intent.mjs",
     "preview": "vite preview",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",

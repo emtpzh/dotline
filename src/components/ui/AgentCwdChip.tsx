@@ -85,7 +85,8 @@ export default function AgentCwdChip() {
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1.5 w-[320px] bg-card border border-line rounded-xl shadow-lg py-1.5 z-50 animate-fade-in" onClick={(e) => e.stopPropagation()}>
-          <p className="text-2xs text-ink-faint uppercase tracking-wider font-medium px-3 pt-1 pb-1">{t('agent.cwd')}</p>
+          <p className="text-2xs text-ink-faint uppercase tracking-wider font-medium px-3 pt-1">{t('agent.cwd')}</p>
+          <p className="text-2xs text-ink-faint px-3 pb-1.5" data-agent-cwd-scope>{t('agent.cwdScope')}</p>
           <button onClick={() => void choose(undefined)} className="w-full text-left px-3 py-2 text-xs hover:bg-wash flex items-center gap-2">
             <span className="flex-1 min-w-0">
               <span className="block text-ink">{defaultLabel}</span>

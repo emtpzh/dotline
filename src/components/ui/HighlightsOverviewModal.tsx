@@ -4,7 +4,6 @@ import { Download, Highlighter, Trash2, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { useUiStore } from '../../lib/ui-store';
 import { downloadMarkdown } from '../../lib/export';
-import { isImeComposing } from '../../utils';
 import { useT, fmt } from '../../i18n';
 
 // Every highlight on the canvas, in one place: the essence the reading
@@ -28,11 +27,10 @@ export default function HighlightsOverviewModal({ onLocate }: { onLocate: (nodeI
   const setOpen = useUiStore((s) => s.setHighlightsOverviewOpen);
   const nodes = useStore((s) => s.nodes);
   const removeHighlight = useStore((s) => s.removeHighlight);
-  const weaveHighlights = useStore((s) => s.weaveHighlights);
+  const convergeFrom = useStore((s) => s.convergeFrom);
   const t = useT();
   const [sort, setSort] = useState<'time' | 'node'>('time');
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [intent, setIntent] = useState('');
 
   const entries = useMemo<Entry[]>(() => {
     const out: Entry[] = [];
@@ -56,14 +54,16 @@ export default function HighlightsOverviewModal({ onLocate }: { onLocate: (nodeI
     setPicked(next);
   };
 
-  const close = () => { setOpen(false); setPicked(new Set()); setIntent(''); };
+  const close = () => { setOpen(false); setPicked(new Set()); };
 
   const weavePicked = () => {
     const ids = [...picked].filter((id) => entries.some((e) => e.hlId === id));
     if (ids.length === 0) return;
     const nodeIds = [...new Set(entries.filter((e) => ids.includes(e.hlId)).map((e) => e.nodeId))];
     close();
-    void weaveHighlights(nodeIds, intent.trim() || undefined, ids);
+    // the weave lands unasked on the canvas: an extra request, the model, then Enter
+    const id = convergeFrom(nodeIds, 'weave', ids);
+    if (id) useUiStore.getState().setArrivalFocusNodeId(id);
   };
 
   const exportMd = () => {
@@ -140,15 +140,7 @@ export default function HighlightsOverviewModal({ onLocate }: { onLocate: (nodeI
 
         <div className="px-5 py-3 border-t border-line shrink-0 space-y-2">
           {picked.size > 0 && (
-            <div className="flex gap-1.5">
-              <input
-                type="text"
-                value={intent}
-                onChange={(e) => setIntent(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !isImeComposing(e)) weavePicked(); }}
-                placeholder={t('toolbar.intentPlaceholder')}
-                className="flex-1 text-xs border border-amber-500/30 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-amber-500/5"
-              />
+            <div className="flex justify-end">
               <button onClick={weavePicked} className="text-xs bg-amber-500 hover:bg-amber-400 text-white px-3 py-2 rounded-lg transition-colors shrink-0">
                 {fmt(t('hlov.weavePicked'), { n: picked.size })}
               </button>

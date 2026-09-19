@@ -27,55 +27,9 @@ import { pristineChain } from './pristine';
 import { upstreamFingerprint } from '../../store/context-builder';
 import { countTokens } from '../../utils';
 
-/** What a runtime does beyond the contract's minimum. */
-export interface RuntimeCaps {
-  /** honors the boundary guard file the canvas writes into the working directory */
-  guard: boolean;
-  /** opens a new session holding a conversation up to one of its earlier turns */
-  forkAt: boolean;
-  /** runs in the canvas's own workspace when nothing else is chosen; without
-      one the runtime's own default applies, and a directory binds a turn
-      only when the person chose it */
-  workspace: boolean;
-}
-
-/** The runtimes the shell can run, keyed by the prefix of their picker ids. */
-export const AGENT_RUNTIMES: Record<AgentRuntime, { prefix: string; label: string; rootKey: string; caps: RuntimeCaps }> = {
-  pi: { prefix: 'pi/', label: 'Pi', rootKey: 'pi-sessions', caps: { guard: true, forkAt: true, workspace: true } },
-  codex: { prefix: 'codex/', label: 'Codex', rootKey: 'codex-sessions', caps: { guard: true, forkAt: false, workspace: true } },
-  'claude-code': { prefix: 'claude/', label: 'Claude Code', rootKey: 'claude-projects', caps: { guard: true, forkAt: false, workspace: true } },
-  // the harness's agent loop, served by the harness itself (nowhere else answers for it)
-  dsh: { prefix: 'harness/agent/', label: 'Harness', rootKey: 'dsh-sessions', caps: { guard: false, forkAt: true, workspace: false } },
-};
-/** The runtimes the shell implements today. */
-export const LIVE_RUNTIMES: AgentRuntime[] = ['pi', 'codex', 'claude-code', 'dsh'];
-/** The harness's agent entry from before it listed one per model: the session's current model. */
-const BARE_HARNESS_AGENT = 'harness/agent';
-
-
-/** The provider key the picker groups every agent-run model under. */
-export const AGENT_PROVIDER = '__agent__';
-
-export const runtimeOf = (id: string | undefined | null): AgentRuntime | null => {
-  if (!id) return null;
-  if (id === BARE_HARNESS_AGENT) return 'dsh';
-  for (const [rt, def] of Object.entries(AGENT_RUNTIMES)) if (id.startsWith(def.prefix)) return rt as AgentRuntime;
-  return null;
-};
-export const isAgentModel = (id: string | undefined | null): boolean => runtimeOf(id) !== null;
-
-/** `<runtime prefix><provider>/<model>` → the runtime and its own coordinates, or null. */
-export function agentTarget(id: string): { runtime: AgentRuntime; provider: string; id: string } | null {
-  const runtime = runtimeOf(id);
-  if (!runtime) return null;
-  if (id === BARE_HARNESS_AGENT) return { runtime, provider: 'dsh', id: '' };
-  const rest = id.slice(AGENT_RUNTIMES[runtime].prefix.length);
-  if (!rest) return null;
-  const i = rest.indexOf('/');
-  // a runtime with one provider (Codex) names models without a provider segment
-  if (i <= 0 || i === rest.length - 1) return { runtime, provider: runtime, id: rest };
-  return { runtime, provider: rest.slice(0, i), id: rest.slice(i + 1) };
-}
+export { AGENT_RUNTIMES, LIVE_RUNTIMES, AGENT_PROVIDER, runtimeOf, isAgentModel, agentTarget, type RuntimeCaps } from './runtimes';
+import { AGENT_RUNTIMES, LIVE_RUNTIMES, AGENT_PROVIDER, runtimeOf, agentTarget } from './runtimes';
+import { intentOf, lineCwd, inheritCwd } from '../run-intent';
 
 /** Every live runtime's configured models as picker entries; a runtime
  *  that is not installed contributes nothing. */
@@ -173,23 +127,45 @@ async function agentSessionFile(runtime: AgentRuntime, sessionId: string, tail: 
 }
 
 /**
- * The route for the node about to generate. A question asked DIRECTLY off
- * a session's tail, with nothing else wired in and nothing above it edited
- * on the canvas, continues that session: the session already holds the
- * conversation, so only the question travels. The same question off an
- * earlier turn of a session opens a new session holding the conversation
- * up to that turn, where the runtime can cut one. Anything else — other
- * wiring, an edit, a working directory the person chose elsewhere — opens a
- * fresh session carrying the compiled context.
+ * The directory a node's agent turn runs in, settled on the node the first
+ * time it runs on this runtime: its own (intent, or what its turn ran in),
+ * else its one parent's session directory on the same runtime, else the
+ * canvas's default. From then on it is the node's — the canvas's default
+ * moving on does not move it. undefined = no agents bridge.
+ */
+export async function nodeCwd(nodeId: string, runtime: AgentRuntime): Promise<string | undefined> {
+  const { nodes, edges } = useStore.getState();
+  const node = nodes.find((n) => n.id === nodeId);
+  const { parentsOf } = await import('../../store/intent');
+  let cwd = lineCwd(node?.data, runtime) ?? inheritCwd(parentsOf(nodeId, nodes, edges), runtime);
+  if (cwd === undefined) cwd = (await resolveAgentCwd(runtime))?.cwd;
+  if (cwd !== undefined && node && node.data.cwd !== cwd) {
+    useStore.setState((st) => ({ nodes: st.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, cwd } } : n)) }));
+  }
+  return cwd;
+}
+
+/**
+ * The route for the node about to generate, in the node's own directory. A
+ * question asked DIRECTLY off a session's tail, with nothing else wired in,
+ * nothing above it edited on the canvas and the same directory, continues
+ * that session: the session already holds the conversation, so only the
+ * question travels. The same question off an earlier turn of a session
+ * opens a new session holding the conversation up to that turn, where the
+ * runtime can cut one. Anything else — other wiring, an edit, another
+ * directory — opens a fresh session carrying the compiled context.
  */
 export async function agentOutbound(model: string | undefined, nodeId?: string): Promise<AgentRoute | undefined> {
   const runtime = runtimeOf(model);
   if (!window.desktopAgents || !runtime) return undefined;
   const { caps } = AGENT_RUNTIMES[runtime];
-  const choice = await resolveAgentCwd(runtime);
-  if (!choice) return undefined;
-  const fresh: AgentRoute = { cwd: choice.cwd };
-  if (!nodeId) return fresh;
+  if (!nodeId) {
+    const choice = await resolveAgentCwd(runtime);
+    return choice ? { cwd: choice.cwd } : undefined;
+  }
+  const cwd = await nodeCwd(nodeId, runtime);
+  if (cwd === undefined) return undefined;
+  const fresh: AgentRoute = { cwd };
   try {
     const { useProjects } = await import('../../store/projects');
     const { nodes, edges } = useStore.getState();
@@ -198,10 +174,9 @@ export async function agentOutbound(model: string | undefined, nodeId?: string):
     if (!pristineChain(nodeId, nodes, edges)) return fresh;
     const parent = nodes.find((n) => n.id === incoming[0].source);
     if (!parent) return fresh;
+    // a session lives in one directory: a turn meant for another opens its own
     const sessionCwd = parent.data.agentSession?.cwd || parent.data.importSource?.cwd || null;
-    // a directory binds the turn where the runtime works in one, or where the person chose it
-    if ((caps.workspace || choice.kind === 'chosen') && sessionCwd && sessionCwd !== choice.cwd) return fresh;
-    const cwd = sessionCwd ?? choice.cwd;
+    if (sessionCwd && sessionCwd !== cwd) return fresh;
     const { projects, activeId } = useProjects.getState();
     const ss = projects.find((p) => p.id === activeId)?.sourceSession;
     const entries = ss ? [ss, ...(ss.chapters ?? []), ...(ss.branches ?? [])].filter((e) => e.runner === runtime && e.sessionId) : [];
@@ -380,7 +355,11 @@ export async function agentCallStream(
   const materials = inherits || !cwd ? '' : await materialsToDisk(nodeId, cwd);
   const ahead = [context, materials].filter(Boolean).join('\n\n');
   const prompt = !inherits && ahead ? `${ahead}\n\n---\n\n${question}` : question;
-  const effort = useUiStore.getState().agentEffort || undefined;
+  // the node's own level (its intent, or what its last turn ran at), the
+  // global one only for a node that has neither
+  const data = nodeId ? useStore.getState().nodes.find((n) => n.id === nodeId)?.data : undefined;
+  const intent = intentOf(data);
+  const effort = data?.effort !== undefined || intent.model ? intent.effort : (useUiStore.getState().agentEffort || undefined);
   // what this conversation already allowed for good: every 'allowed-session'
   // decision on this canvas whose rule belongs to this runtime
   const allowRules = [...new Set(useStore.getState().nodes.flatMap((n) => (n.data.approvals ?? []).filter((a) => a.outcome === 'allowed-session' && typeof a.rule === 'string' && a.rule.startsWith(target.runtime === 'claude-code' ? 'claude:' : target.runtime + ':')).map((a) => a.rule as string)))];

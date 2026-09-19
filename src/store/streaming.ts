@@ -5,6 +5,7 @@ import { sha256Hex, canonicalStringify } from '../lib/context-bundle';
 import { pruneHighlights } from '../lib/highlight-match';
 import { llmCall, llmCallStream, type ContextMessage, type ImageAttachment } from '../lib/api';
 import { agentOutbound, adoptAgentTurn, claimAgentTurn, isAgentModel } from '../lib/agents/agent-runtime';
+import { lineModel } from '../lib/run-intent';
 import { countTokens, activeSummary } from '../utils';
 import { toast, useUiStore } from '../lib/ui-store';
 import { modelsWith, reconcileModelId } from '../lib/use-models';
@@ -138,12 +139,13 @@ export async function runNodeGeneration(
 
   let references: Reference[] | undefined;
 
-  // Model provenance: pinned override, else the global pick, else the
-  // server default. A pin that isn't reachable here (imported canvas,
+  // Model provenance: the node's intent (lib/run-intent — written when it
+  // was asked; a node from before intents reads its record), else the
+  // global pick, else the server default. A model that isn't reachable here (imported canvas,
   // revoked key) reconciles to the same family locally, or falls back to
   // the global pick — SAID OUT LOUD and recorded as what actually ran,
   // never silently mismatched between execution and provenance.
-  const pinnedRaw = get().nodes.find((n) => n.id === nodeId)?.data.model;
+  const pinnedRaw = lineModel(get().nodes.find((n) => n.id === nodeId)?.data);
   let pinnedModel = pinnedRaw;
   const modelData = await modelsWith(pinnedRaw);
   const serverDefaultModel: string | null = modelData?.default ?? null;

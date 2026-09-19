@@ -5,7 +5,7 @@ import { zh } from './zh';
 // Minimal i18n: two flat dictionaries, a zustand lang store persisted to
 // localStorage, and a hook that re-renders consumers on language change.
 // LLM prompts are NOT translated here — they already adapt to content
-// language (see store/streaming.ts and batchMergeSummarize).
+// language (see store/streaming.ts and store/converge.ts).
 
 export type Lang = 'en' | 'zh';
 export type MessageKey = keyof typeof en;

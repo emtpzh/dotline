@@ -226,10 +226,11 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   };
 
   const handleEditSubmit = () => {
-    if (!editValue.trim()) return;
+    // an unasked merge / weave may go with no request of its own: the default run
+    if (!editValue.trim() && !(isAwaitingAsk && data.converge)) return;
     // Unchanged question = the user opened the editor to read or copy, not
     // to regenerate — closing must never cost them their answer.
-    if (editValue.trim() === data.question) { setEditing(id, false); return; }
+    if (editValue.trim() === data.question && !isAwaitingAsk) { setEditing(id, false); return; }
     if (isHuman) {
       // Human turn: record the question only — no generation on this node;
       // downstream prompt steps answer (and the cascade advances).
@@ -645,7 +646,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                 onBlur={isHuman || isAwaitingAsk ? undefined : handleEditBlur} // click-away keeps the draft, never generates
                 onInput={(e) => autoGrowTa(e.currentTarget)}
                 ref={(el) => { questionTaRef.current = el; autoGrowTa(el); }}
-                placeholder={data.instruction || (isAwaitingAsk ? t('node.askPlaceholder') : undefined)}
+                placeholder={data.instruction || (isAwaitingAsk ? t(data.converge ? (data.converge.kind === 'merge' ? 'converge.mergePlaceholder' : 'converge.weavePlaceholder') : 'node.askPlaceholder') : undefined)}
                 className={`w-full bg-wash border rounded-xl p-3 text-sm text-ink resize-none focus:outline-none focus:ring-2 ${
                   isHuman ? 'border-warm focus:ring-warm/20' : 'border-accent focus:ring-accent/20'
                 }`}

@@ -12,6 +12,10 @@ import { t, fmt } from '../../i18n';
 import type { StoreState, LlmSlice, AddQuestionOptions } from '../types';
 import { condenseGuard } from '../../lib/condense-guard';
 import { isFactNode } from '../../lib/facts';
+import { lineModel, lineCwd, intentOf, inheritIntent, intentFields } from '../../lib/run-intent';
+import { runtimeOf } from '../../lib/agents/runtimes';
+import { globalIntent, nodeIntent } from '../intent';
+import { convergeRun } from '../converge';
 
 export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, get) => ({
   addQuestion: async (question: string, opts: AddQuestionOptions = {}) => {
@@ -20,11 +24,10 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     const id = generateId();
     get().logEvent('ask', id, { chars: question.length, ...(parentId ? {} : { root: true }), ...(branchContext ? { branch: true } : {}) });
     const isRoot = !parentId;
-    // Model follows the LINE, not the toolbar: a child inherits its parent's
-    // pinned model, so a deepseek thread stays deepseek even while the
-    // global picker sits on something else. No pin on the parent = keep
-    // following the global pick (undefined), as before.
-    const inheritedModel = parentId ? get().nodes.find((n) => n.id === parentId)?.data.model : undefined;
+    // Model follows the LINE, not the toolbar: a child takes its parent's
+    // intent (model and effort), so a Pi thread stays Pi even while the
+    // global picker sits on something else; only a root starts from the pick.
+    const intent = intentFields(parentId ? inheritIntent([get().nodes.find((n) => n.id === parentId)?.data], globalIntent()) : globalIntent());
     const newNode: ThoughtNode = {
       id,
       type: 'thought',
@@ -34,7 +37,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
         question,
         createdAt: new Date().toISOString(),
         askedAt: new Date().toISOString(),
-        model: inheritedModel,
+        ...intent,
         response: '',
         responses: [],
         responseIndex: -1,
@@ -175,6 +178,8 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     const parent = get().nodes.find((n) => n.id === parentId);
     if (!parent || roles.length === 0) return;
     const follow = !!opts.follow;
+    // every perspective runs on the line it fans out from
+    const intent = intentFields(inheritIntent([parent.data], globalIntent()));
     // Bounded loops, declared not emergent: how many auto re-critiques a
     // reviewer fires per wave (writer↔critic iteration budget).
     const rounds = follow && opts.rounds && opts.rounds > 1 ? Math.min(opts.rounds, 5) : undefined;
@@ -218,6 +223,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
           isEvaluator: follow || undefined, // red styling + rerun affordance
           autoRerun: follow || undefined,
           autoRerunRounds: rounds,
+          ...intent,
           webSearch: useUiStore.getState().webSearchEnabled,
           scholarSearch: useUiStore.getState().scholarSearchEnabled,
         },
@@ -274,40 +280,37 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
   },
 
   /**
-   * One-Rule-honest multi-select explore: the new node hangs from EVERY
-   * selected node with a real edge — the wiring IS the context, nothing is
-   * smuggled in as invisible text.
+   * One-Rule-honest converge: the new node hangs from the selection's SINKS
+   * with real edges — the wiring IS the context, ancestors flow in along
+   * their chains (transitive reduction: no residual edges, no scrambled
+   * conversation order). It lands UNASKED: the person types the question on
+   * it (explore) or an optional extra request (merge / weave), and can pick
+   * the model first — the one the sources agree on, else the global pick.
    */
-  exploreFrom: async (nodeIds: string[], question: string) => {
+  convergeFrom: (nodeIds: string[], kind: 'explore' | 'merge' | 'weave', highlightIds?: string[]) => {
     const { nodes, edges } = get();
-    // Transitive reduction: selecting a chain means its CONTENT — ancestors
-    // flow through their descendants, so only the selection's sinks get a
-    // wire (no residual edges, no scrambled conversation order).
-    const parents = selectionSinks(
-      nodeIds.filter((nid) => nodes.some((n) => n.id === nid)),
-      edges,
-    );
-    if (parents.length === 0 || !question.trim()) return;
+    const sources = nodeIds.filter((nid) => nodes.some((n) => n.id === nid));
+    const parents = selectionSinks(sources, edges);
+    if (parents.length === 0) return null;
     get().pushHistory();
     const id = generateId();
-    get().logEvent('explore', id, { sources: parents.length });
-    // Single-parent explore stays on that line's model; multi-parent is
-    // ambiguous — follow the global pick.
-    const exploreModel = parents.length === 1 ? nodes.find((n) => n.id === parents[0])?.data.model : undefined;
+    get().logEvent(kind, id, { sources: sources.length });
+    const intent = inheritIntent(parents.map((pid) => nodes.find((n) => n.id === pid)?.data), globalIntent());
     const newNode: ThoughtNode = {
       id, type: 'thought', position: { x: 0, y: 0 }, dragHandle: '.drag-handle',
       data: {
-        question,
-        model: exploreModel,
+        question: '',
+        ...intentFields(intent),
+        ...(kind === 'explore' ? {} : { converge: { kind, sources, ...(highlightIds ? { highlightIds } : {}) } }),
         createdAt: new Date().toISOString(),
-        askedAt: new Date().toISOString(),
         response: '', responses: [], responseIndex: -1,
-        isCollapsed: false, isEditing: false, isEditingResponse: false, isLoading: true,
+        isCollapsed: false, isEditing: false, isEditingResponse: false, isLoading: false,
         tokenCount: 0, highlights: [], highlightMode: 'tag',
         attachments: [], excludedAttachmentIds: [], includedAttachmentIds: [],
         roleMode: 'inherit', isRoot: false, isBranch: false,
-        webSearch: useUiStore.getState().webSearchEnabled,
-        scholarSearch: useUiStore.getState().scholarSearchEnabled,
+        // weave is an editorial task on the person's own marks: no search
+        webSearch: kind === 'weave' ? false : useUiStore.getState().webSearchEnabled,
+        scholarSearch: kind === 'weave' ? false : useUiStore.getState().scholarSearchEnabled,
       },
     };
     const newEdges: ThoughtEdge[] = parents.map((pid) => ({
@@ -323,17 +326,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     }));
     const allEdges = [...edges, ...newEdges];
     set({ nodes: placeNewNodes([...nodes, newNode], allEdges, [newNode.id]), edges: allEdges, selectedNodeId: id, selectedNodeIds: [] });
-
-    // Standard context walk through the fresh fan-in edges (self blanked)
-    const ctx = buildContext(
-      id,
-      get().nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, question: '', response: '' } } : n)),
-      get().edges,
-      undefined, undefined, undefined, get().staleIds,
-    );
-    const messages = ctx.messages;
-    messages.push({ role: 'user', content: question });
-    await runNodeGeneration(set, get, id, { question, messages, images: ctx.images, sources: ctx.sources });
+    return id;
   },
 
   submitHumanTurn: (nodeId: string, question: string) => {
@@ -360,17 +353,38 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     triggerParadigmCascade(get, nodeId);
   },
 
-  editQuestion: async (nodeId: string, question: string) => {
+  editQuestion: async (nodeId: string, asked: string) => {
     if (condenseGuard()) return;
     // a session turn keeps what it asked: the new wording is a sibling turn
     const target = get().nodes.find((n) => n.id === nodeId);
+    if (!target) return;
     if (isFactNode(target)) {
       set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, isEditing: false } } : n)) }));
       toast('info', t('fact.branched'), 6000);
-      await get().regenerate(nodeId, question);
+      await get().regenerate(nodeId, asked);
       return;
     }
+    // A converge node answers through its own prompt; what was typed is the
+    // extra request ('' = none, the default question shows)
+    const conv = target.data.converge ? convergeRun(nodeId, asked, get().nodes, get().edges, get().staleIds) : null;
+    if (target.data.converge && !conv) {
+      toast('info', t('converge.nothingLeft'), 6000);
+      return;
+    }
+    const question = conv ? conv.question : asked;
+    if (!question.trim()) return;
     get().pushHistory();
+    // Asked for the first time: the node takes its intent now — from the
+    // line it hangs off, the global pick only for a root — unless the
+    // person already picked one on it
+    if (!lineModel(target.data)) {
+      const intent = intentFields(nodeIntent(nodeId, get().nodes, get().edges));
+      set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...intent } } : n)) }));
+    }
+    if (target.data.converge) {
+      const request = asked.trim() || undefined;
+      set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId && n.data.converge ? { ...n, data: { ...n.data, converge: { ...n.data.converge, request } } } : n)) }));
+    }
     get().logEvent('edit-question', nodeId, { chars: question.length });
     // Staleness seed: descendants keep answers written against the OLD
     // content — surface the blast radius now, replay stays manual.
@@ -394,6 +408,10 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
         } } : n
       ),
     }));
+    if (conv) {
+      await runNodeGeneration(set, get, nodeId, { question, messages: conv.messages, images: conv.images, versionMode: 'append', sources: conv.sources });
+      return;
+    }
     // Rebuild context with this node's own Q&A blanked out
     const editNode = get().nodes.find((n) => n.id === nodeId);
     const editCtx = buildContext(nodeId, get().nodes.map(n =>
@@ -413,6 +431,9 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
   regenerate: async (nodeId: string, question?: string) => {
     const node = get().nodes.find((n) => n.id === nodeId);
     if (!node) return;
+    const converge = node.data.converge;
+    // a converge sibling asks with the original's request unless given a new one
+    const request = question?.trim() ?? converge?.request ?? '';
     const q = question?.trim() || node.data.question;
     get().pushHistory();
 
@@ -444,16 +465,30 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
         rolePrompt: node.data.rolePrompt,
         isRoot: !parentId,
         isBranch: node.data.isBranch,
-        model: node.data.model, // sibling keeps the original's model override
+        // the sibling runs on what the original runs on, where it runs
+        ...intentFields(intentOf(node.data)),
+        ...(() => { const rt = runtimeOf(lineModel(node.data)); return rt ? { cwd: lineCwd(node.data, rt) } : {}; })(),
+        ...(converge ? { converge: { ...converge, request: request || undefined } } : {}),
       },
     };
 
-    const newEdges = parentId
-      ? [...get().edges, { id: `edge-${parentId}-${id}`, source: parentId, target: id, type: 'smoothstep' }]
-      : get().edges;
+    // a converge node hangs off every source it converged, so does its sibling
+    const newEdges = converge
+      ? [...get().edges, ...get().edges.filter((e) => e.target === nodeId && !e.data?.isCrossLink).map((e) => ({ ...e, id: `edge-${e.source}-${id}`, target: id }))]
+      : parentId
+        ? [...get().edges, { id: `edge-${parentId}-${id}`, source: parentId, target: id, type: 'smoothstep' }]
+        : get().edges;
 
     const newNodes = placeNewNodes([...get().nodes, newNode], newEdges, [newNode.id]);
     set({ nodes: newNodes, edges: newEdges, selectedNodeId: id });
+
+    if (converge) {
+      const conv = convergeRun(id, request, get().nodes, get().edges, get().staleIds);
+      if (!conv) { toast('info', t('converge.nothingLeft'), 6000); return; }
+      set((state) => ({ nodes: state.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, question: conv.question } } : n)) }));
+      await runNodeGeneration(set, get, id, { question: conv.question, messages: conv.messages, images: conv.images, sources: conv.sources });
+      return;
+    }
 
     const regenSelf = get().nodes.find((n) => n.id === id);
     const regenCtx = parentId
@@ -470,188 +505,32 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     await runNodeGeneration(set, get, id, { question: q, messages: contextMessages, images: regenCtx.images, sources: regenCtx.sources });
   },
 
-  batchMergeSummarize: async (nodeIds: string[], deleteAfter?: boolean, intent?: string) => {
-    // One-Rule honest converge: the synthesis node hangs from the selection's
-    // SINKS with real edges — ancestors flow in along the chains (transitive
-    // reduction, same as exploreFrom), nothing embedded as invisible text.
-    const { nodes, edges } = get();
-    const selected = nodeIds
-      .map((id) => nodes.find((n) => n.id === id))
-      .filter(Boolean) as ThoughtNode[];
-    if (selected.length === 0) return;
-    const sinkIds = selectionSinks(selected.map((n) => n.id), edges);
-
-    // Create summary node — the user's intent (if any) becomes the visible
-    // question, so the card says what this synthesis is FOR
-    const id = generateId();
-    get().logEvent('merge', id, { n: selected.length, intent: !!intent?.trim() });
-    const summaryQuestion = intent?.trim() || `Merge summary of ${selected.length} nodes`;
-    const newNode: ThoughtNode = {
-      id,
-      type: 'thought',
-      position: { x: selected[0].position.x, y: selected[0].position.y },
-      dragHandle: '.drag-handle',
-      data: {
-        question: summaryQuestion,
-        response: '',
-        responses: [''],
-        responseIndex: 0,
-        isCollapsed: false,
-        isEditing: false,
-        isEditingResponse: false,
-        isLoading: true,
-        tokenCount: 0,
-        highlights: [],
-        highlightMode: 'tag',
-        attachments: [],
-        excludedAttachmentIds: [], includedAttachmentIds: [],
-        roleMode: 'inherit' as const,
-        isRoot: false,
-        isBranch: false,
-        webSearch: useUiStore.getState().webSearchEnabled,
-        scholarSearch: useUiStore.getState().scholarSearchEnabled,
-      },
-    };
-
-    // Fan-in edges from every selected node
-    const fanIn: ThoughtEdge[] = sinkIds.map((nid) => ({
-      id: `edge-${nid}-${id}`,
-      source: nid,
-      target: id,
-      sourceHandle: 'continue',
-      targetHandle: 'top',
-      type: 'smoothstep',
-      style: { stroke: COLORS.accent, strokeWidth: 2 },
-      markerEnd: { type: 'arrowclosed' as const, color: COLORS.accent, width: 18, height: 18 },
-      data: {},
-    }));
-
+  /**
+   * After a merge has answered: remove the nodes it merged (and their
+   * descendants), rewiring the synthesis to the boundary parents so it
+   * keeps its ancestry instead of becoming an orphan root.
+   */
+  deleteConvergeSources: (nodeId: string) => {
+    const node = get().nodes.find((n) => n.id === nodeId);
+    const c = node?.data.converge;
+    if (!node || !c || !node.data.response) return;
     get().pushHistory();
-    const newEdges = [...edges, ...fanIn];
-    const newNodes = placeNewNodes([...nodes, newNode], newEdges, [newNode.id]);
-    set({ nodes: newNodes, edges: newEdges, selectedNodeId: id, selectedNodeIds: [] });
-
-    // Context arrives via the fan-in edges; the prompt is instruction only
-    const ctx = buildContext(
-      id,
-      get().nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, question: '', response: '' } } : n)),
-      get().edges,
-      undefined, undefined, undefined, get().staleIds,
-    );
-    const messages: ContextMessage[] = [
-      { role: 'system', content: `You merge conversation nodes. CRITICAL: Your output language MUST match the primary language of the user content. If the content is in Chinese, respond in Chinese. If English, respond in English. Never use German or any other language unless the content is in that language. Do not translate — use the same language as the source.` },
-      ...ctx.messages,
-      { role: 'user', content: `将以上讨论综合为一份完整文档。(Synthesize the discussion above into one comprehensive document.)
-
-规则 / Rules:
-1. 输出语言必须与上面内容的主要语言一致。(Output language must match the primary language of the content above.)
-2. 这是综合(synthesis)，不是流水摘要：提炼出经过这些讨论后「我们现在知道什么」。(This is a SYNTHESIS, not a running summary: distill what we NOW KNOW after these discussions.)
-3. 按此结构组织 / Structure:
-   - **结论 (Conclusions)** — 立得住的要点，合并重复表述 (consolidated takeaways, dedup repeated points)
-   - **依据 (Key evidence)** — 支撑结论的关键论据/数据/引用 (the arguments, data or citations that carry the conclusions)
-   - **分歧与未决 (Open questions)** — 节点间的矛盾之处与尚未回答的问题 (contradictions between nodes and what remains unanswered)
-4. 保留所有独特洞见与引用标注，丢弃寒暄和重复。(Keep every unique insight and citation marker; drop filler and repetition.)
-5. 只输出综合后的内容，不要元评论。(Output ONLY the synthesis.)${intent?.trim() ? `
-
-用户对这次综合的额外要求（优先满足，可覆盖上面的结构）/ The user's specific request for this synthesis (takes priority, may override the structure above):
-${intent.trim()}` : ''}` },
-    ];
-
-    await runNodeGeneration(set, get, id, {
-      question: summaryQuestion,
-      messages,
-      images: ctx.images,
-      // the fan-in parents ARE the members, plus whatever the compiler drew
-      sources: [...selected.map((n) => ({ layer: 'chain' as const, nodeId: n.id, part: 'response' as const })), ...ctx.sources],
-      onSuccess: () => {
-        // Optionally delete the merged originals (and their descendants),
-        // rewiring the synthesis to the boundary parents so it keeps its
-        // ancestry instead of becoming an orphan root
-        if (deleteAfter) {
-          const allRemove = new Set<string>();
-          for (const nid of nodeIds) {
-            allRemove.add(nid);
-            for (const d of getDescendantIds(nid, get().edges)) {
-              allRemove.add(d);
-            }
-          }
-          // Don't delete the newly created merge node
-          allRemove.delete(id);
-          const boundaryParents = [...new Set(
-            get().edges
-              .filter((e) => allRemove.has(e.target) && !allRemove.has(e.source) && e.source !== id && !e.data?.isCrossLink)
-              .map((e) => e.source)
-          )];
-          const rewired: ThoughtEdge[] = boundaryParents.map((pid) => ({
-            id: `edge-${pid}-${id}`,
-            source: pid,
-            target: id,
-            sourceHandle: 'continue',
-            targetHandle: 'top',
-            type: 'smoothstep',
-            style: { stroke: COLORS.accent, strokeWidth: 2 },
-            markerEnd: { type: 'arrowclosed' as const, color: COLORS.accent, width: 18, height: 18 },
-            data: {},
-          }));
-          set((state) => ({
-            nodes: state.nodes.filter((n) => !allRemove.has(n.id)),
-            edges: [
-              ...state.edges.filter((e) => !allRemove.has(e.source) && !allRemove.has(e.target)),
-              ...rewired,
-            ],
-          }));
-        }
-        set((state) => ({ nodes: autoLayout(state.nodes, state.edges) }));
-      },
-    });
-  },
-
-  weaveHighlights: async (nodeIds: string[], intent?: string, highlightIds?: string[]) => {
-    // The other converge action. Merge compresses RAW content; weave works
-    // on the user's OWN marks — highlights are already human-curated, so
-    // the model's job is editorial (thread the judged pieces together), the
-    // context stays small even canvas-wide, and every sentence can cite [n]
-    // back to a specific mark. Human decides first, machine writes second.
-    const { nodes, edges } = get();
-    const selected = nodeIds
-      .map((id) => nodes.find((n) => n.id === id))
-      .filter(Boolean) as ThoughtNode[];
-    // Stable numbering: canvas order (nodes array), then mark order per node
-    const wanted = highlightIds ? new Set(highlightIds) : null;
-    const entries: { n: number; text: string; from: string }[] = [];
-    for (const node of nodes) {
-      if (!selected.some((s) => s.id === node.id)) continue;
-      const title = node.data.question.replace(/\s+/g, ' ').trim().slice(0, 60);
-      for (const h of node.data.highlights || []) {
-        if (wanted && !wanted.has(h.id)) continue;
-        entries.push({ n: entries.length + 1, text: h.text, from: title });
-      }
+    const allRemove = new Set<string>();
+    for (const nid of c.sources) {
+      allRemove.add(nid);
+      for (const d of getDescendantIds(nid, get().edges)) allRemove.add(d);
     }
-    if (entries.length === 0) return;
-    const sinkIds = selectionSinks(selected.map((n) => n.id), edges);
-
-    const id = generateId();
-    get().logEvent('weave', id, { marks: entries.length, n: selected.length, intent: !!intent?.trim() });
-    const weaveQuestion = intent?.trim() || fmt(t('weave.defaultQuestion'), { n: entries.length });
-    const newNode: ThoughtNode = {
-      id,
-      type: 'thought',
-      position: { x: selected[0].position.x, y: selected[0].position.y },
-      dragHandle: '.drag-handle',
-      data: {
-        question: weaveQuestion,
-        response: '', responses: [''], responseIndex: 0,
-        isCollapsed: false, isEditing: false, isEditingResponse: false, isLoading: true,
-        tokenCount: 0, highlights: [], highlightMode: 'tag',
-        attachments: [], excludedAttachmentIds: [], includedAttachmentIds: [],
-        roleMode: 'inherit' as const, isRoot: false, isBranch: false,
-        webSearch: false, scholarSearch: false, // editorial task: no search
-      },
-    };
-    const fanIn: ThoughtEdge[] = sinkIds.map((nid) => ({
-      id: `edge-${nid}-${id}`,
-      source: nid,
-      target: id,
+    allRemove.delete(nodeId);
+    for (const d of getDescendantIds(nodeId, get().edges)) allRemove.delete(d);
+    const boundaryParents = [...new Set(
+      get().edges
+        .filter((e) => allRemove.has(e.target) && !allRemove.has(e.source) && e.source !== nodeId && !e.data?.isCrossLink)
+        .map((e) => e.source)
+    )];
+    const rewired: ThoughtEdge[] = boundaryParents.map((pid) => ({
+      id: `edge-${pid}-${nodeId}`,
+      source: pid,
+      target: nodeId,
       sourceHandle: 'continue',
       targetHandle: 'top',
       type: 'smoothstep',
@@ -659,34 +538,13 @@ ${intent.trim()}` : ''}` },
       markerEnd: { type: 'arrowclosed' as const, color: COLORS.accent, width: 18, height: 18 },
       data: {},
     }));
-
-    get().pushHistory();
-    const newEdges = [...edges, ...fanIn];
-    set({ nodes: placeNewNodes([...nodes, newNode], newEdges, [newNode.id]), edges: newEdges, selectedNodeId: id, selectedNodeIds: [] });
-
-    // First generation feeds ONLY the marks (the whole point: human-curated
-    // input). The fan-in edges carry provenance and the full upstream for
-    // any follow-up question asked on this node later.
-    const list = entries.map((e) => `${fmt(t('weave.entry'), { n: String(e.n), from: e.from })}\n${e.text}`).join('\n\n');
-    const messages: ContextMessage[] = [
-      { role: 'system', content: 'You weave a user\'s own highlighted passages into one coherent text. CRITICAL: Your output language MUST match the primary language of the highlights. Do not translate.' },
-      { role: 'user', content: `以下是我在一次探索中亲手标记的 ${entries.length} 条高光，按画布顺序编号，每条注明出处节点。(Below are the ${entries.length} passages I highlighted myself during an exploration, numbered in canvas order, each with its source node.)
-
-${list}` },
-      { role: 'user', content: `把这些高光串联成一段连贯的文字。(Weave these highlights into one coherent passage.)
-
-规则 / Rules:
-1. 输出语言与高光的主要语言一致。(Match the highlights' primary language.)
-2. 这些是我自己判断过的重点：忠实串联与衔接，不要引入高光之外的新论断。(These are MY judged marks: thread and connect them faithfully; introduce no claims beyond the highlights.)
-3. 每个来自高光的表述标注 [n] 引用其编号，方便我回溯。(Cite [n] for every statement drawn from a highlight.)
-4. 高光之间的矛盾要点明，不要抹平。(Name contradictions between highlights; do not smooth them over.)
-5. 只输出串联后的文字。(Output only the woven passage.)${intent?.trim() ? `
-
-用户对这次串联的额外要求（优先满足）/ The user's specific request (takes priority):
-${intent.trim()}` : ''}` },
-    ];
-
-    await runNodeGeneration(set, get, id, { question: weaveQuestion, messages, sources: nodeIds.map((nid) => ({ layer: 'chain' as const, nodeId: nid, part: 'response' as const })) });
+    set((state) => {
+      const edges = [...state.edges.filter((e) => !allRemove.has(e.source) && !allRemove.has(e.target)), ...rewired];
+      const nodes = state.nodes
+        .filter((n) => !allRemove.has(n.id))
+        .map((n) => (n.id === nodeId && n.data.converge ? { ...n, data: { ...n.data, converge: { ...n.data.converge, sources: [] } } } : n));
+      return { nodes: autoLayout(nodes, edges), edges };
+    });
   },
 
   stopGeneration: (nodeId: string) => {

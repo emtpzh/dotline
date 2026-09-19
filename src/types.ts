@@ -118,7 +118,25 @@ export interface ThoughtData extends Record<string, unknown> {
   isLoading: boolean;
   generationFailed?: boolean; // set on LLM failure; cleared on retry/success (persisted so Retry survives refresh)
   references?: Reference[]; // web sources cited by the current response ([n] markers)
-  model?: string; // per-node LLM override; undefined = follow the global picker
+  /** The model this node runs on next (its intent, written when it is asked:
+      inherited from the line, the global pick only for a root). undefined =
+      a node from before intents — its record stands in (lib/run-intent). */
+  model?: string;
+  /** The agent effort this node runs at next, in the runtime's own words;
+      '' = the runtime's default. Only for agent entries. */
+  effort?: string;
+  /** The working directory this node's agent turn runs in next (its intent),
+      settled at its first agent run: the directory of the session its
+      parent's turn lives in when the line stays on that runtime, else the
+      canvas's default. '' = the runtime's own default. Only for agent entries;
+      another runtime picked on the node clears it. */
+  cwd?: string;
+  /** A converge node (merge / weave), created unasked off a selection: its
+      first ask and every rerun use the converge prompt, the question being
+      the person's extra request (`request`, absent = none, the default
+      question shows). `sources` is the selection it converged; a weave
+      without `highlightIds` threads every mark on them. */
+  converge?: { kind: 'merge' | 'weave'; sources: string[]; highlightIds?: string[]; request?: string };
   webSearch?: boolean; // may this node's generation use web search? (snapshotted at ask time; undefined = legacy, follow global)
   scholarSearch?: boolean; // same for arXiv / Semantic Scholar tools
   autoRerun?: boolean; // regenerate in place whenever an upstream ancestor finishes (generic primitive)

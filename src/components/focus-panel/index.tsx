@@ -137,7 +137,8 @@ export default function FocusPanel({ onFocusNode }: { onFocusNode?: (id: string)
           isEditing={data.isEditing}
           isHuman={data.stepKind === 'human'}
           awaiting={!!awaiting}
-          placeholder={awaiting ? (data.instruction || t('node.askPlaceholder')) : undefined}
+          placeholder={awaiting ? (data.instruction || t(data.converge ? (data.converge.kind === 'merge' ? 'converge.mergePlaceholder' : 'converge.weavePlaceholder') : 'node.askPlaceholder')) : undefined}
+          optional={!!data.converge}
           branchContext={data.branchContext}
         />
 

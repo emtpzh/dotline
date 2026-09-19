@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand';
 import type { ThoughtData } from '../../types';
 import { buildContext } from '../context-builder';
+import { convergeRun } from '../converge';
 import { runNodeGeneration, autoRunCounts } from '../streaming';
 import { toast, updateToast, useUiStore } from '../../lib/ui-store';
 import { t, fmt } from '../../i18n';
@@ -71,6 +72,19 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
         sources: material ? [{ layer: 'material', nodeId: material.id, attachmentId: att.id, part: 'attachment' }] : [],
         autoChain: opts?.auto,
       });
+      return;
+    }
+
+    // A merge / weave reruns through its own prompt, with the request it was asked with
+    if (node.data.converge) {
+      const conv = convergeRun(nodeId, node.data.converge.request ?? '', nodes, edges, get().staleIds);
+      if (!conv) { if (!opts?.auto) toast('info', t('converge.nothingLeft'), 6000); return; }
+      set((state) => ({
+        nodes: state.nodes.map((n) =>
+          n.id === nodeId ? { ...n, data: { ...n.data, isLoading: true, isCollapsed: false, response: '' } } : n
+        ),
+      }));
+      await runNodeGeneration(set, get, nodeId, { question: conv.question, messages: conv.messages, images: conv.images, versionMode: 'append', sources: conv.sources, autoChain: opts?.auto });
       return;
     }
 
