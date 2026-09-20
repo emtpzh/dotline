@@ -606,14 +606,6 @@ function Canvas() {
     []
   );
 
-  // Close menu on click anywhere
-  useEffect(() => {
-    if (!edgeMenu) return;
-    const handler = () => setEdgeMenu(null);
-    window.addEventListener('click', handler);
-    return () => window.removeEventListener('click', handler);
-  }, [edgeMenu]);
-
   const deleteEdges = useStore((s) => s.deleteEdges);
 
   const deleteEdge = useCallback(
@@ -1922,18 +1914,18 @@ function Canvas() {
         }
       }} />
       {edgeMenu && (
-        <div
-          className="fixed z-50 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[120px]"
-          style={{ left: edgeMenu.x, top: edgeMenu.y }}
-        >
-          <Button variant="destructive"
-            onClick={() => deleteEdge(edgeMenu.edgeId)}
-            className="w-full text-left"
+        <DropdownMenu open onOpenChange={(next: boolean) => { if (!next) setEdgeMenu(null); }}>
+          <DropdownMenuContent
+            anchor={{ getBoundingClientRect: () => new DOMRect(edgeMenu.x, edgeMenu.y, 0, 0) }}
+            align="start"
+            className="min-w-[120px]"
           >
-            <Trash2 size={14} strokeWidth={1.75} />
-            {t('canvas.deleteEdge')}
-          </Button>
-        </div>
+            <DropdownMenuItem variant="destructive" onClick={() => deleteEdge(edgeMenu.edgeId)}>
+              <Trash2 size={14} strokeWidth={1.75} />
+              {t('canvas.deleteEdge')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
       </div>
 

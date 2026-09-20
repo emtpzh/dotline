@@ -26,8 +26,8 @@ const PALETTE = import.meta.env.VITE_DSH_BRIDGE ? 'harness' : 'thoughtdag';
 function apply(lighting: Lighting, paper: Paper): 'light' | 'dark' {
   const resolved = resolve(lighting);
   // `.dark` is what the tokens and every `dark:` utility key on (shadcn's
-  // convention, wired as @custom-variant in index.css); data-theme stays for
-  // the handful of selectors and tests that still read it.
+  // convention, wired as @custom-variant in index.css). data-theme stays
+  // beside it as the readable state for tests and screenshots.
   document.documentElement.classList.toggle('dark', resolved === 'dark');
   document.documentElement.dataset.theme = resolved;
   document.documentElement.dataset.paper = paper;

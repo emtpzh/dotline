@@ -1030,8 +1030,11 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
 
       {/* floating ask bar under the selection */}
       {ask && (
+        // a popover anchored to a live text selection would re-anchor on
+        // every character the reader drags over; this bar is placed once,
+        // and its layer lives in styles/base.css
         <div
-          className="fixed z-[95] bg-card border border-border rounded-xl shadow-xl p-2.5 w-[360px] animate-fade-in"
+          className="tdag-ask-bar bg-card border border-border rounded-xl shadow-xl p-2.5 w-[360px] animate-fade-in"
           style={{ left: askLeft - 180, top: askTop }}
           data-reader-askbar
         >

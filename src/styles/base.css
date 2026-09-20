@@ -107,3 +107,11 @@ body.tdag-connecting, body.tdag-connecting * {
   white-space: pre-line;
 }
 
+
+/* ── The three floating layers that are not shadcn's ───────────────
+   Their z sits above the app chrome (z-30) and below or beside the
+   dialog layer (z-50) on purpose; each has a reason it cannot be a
+   Dialog or a Popover, noted at its component. ── */
+.tdag-condense-window { position: fixed; z-index: 70; }
+.tdag-ask-bar { position: fixed; z-index: 95; }
+.tdag-tour { position: fixed; inset: 0; z-index: 95; }

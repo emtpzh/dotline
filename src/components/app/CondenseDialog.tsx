@@ -87,9 +87,11 @@ export default function CondenseDialog({ onFocusSegment }: { onFocusSegment?: (n
   };
 
   return createPortal((
+    // A window the user drags around the canvas, not a popover: a popover
+    // re-anchors to its trigger on every move. Its layer is in base.css.
     <div
       ref={winRef}
-      className="fixed z-[70] bg-background border border-border rounded-2xl shadow-2xl w-[400px] max-h-[72vh] flex flex-col p-4 animate-fade-in"
+      className="tdag-condense-window bg-background border border-border rounded-2xl shadow-2xl w-[400px] max-h-[72vh] flex flex-col p-4 animate-fade-in"
       style={pos ? { left: pos.x, top: pos.y } : { left: 80, bottom: 16 }}
       data-condense-dialog
       onClick={(e) => e.stopPropagation()}

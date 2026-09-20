@@ -2,8 +2,39 @@ import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
+import betterTailwind from 'eslint-plugin-better-tailwindcss'
 import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
+
+// Classes the design system owns. A raw palette shade or a literal color
+// means the token table was bypassed, and both read wrong under one of the
+// three palettes (light, dark, the harness plugin's).
+const RESTRICTED_CLASSES = [
+  {
+    pattern: '^([\\w:/\\[\\]=.-]*:)?(text|bg|border|ring|fill|stroke|divide)-(red|rose)-\\d+(/[\\d.\\[\\]]+)?$',
+    message: 'Use the destructive token, not a raw red.',
+  },
+  {
+    pattern: '^([\\w:/\\[\\]=.-]*:)?(text|bg|border|ring|fill|stroke|divide)-(amber|yellow|orange)-\\d+(/[\\d.\\[\\]]+)?$',
+    message: 'Use the warning token, not a raw amber. (Frame colors are the one exception — they live in constants.ts.)',
+  },
+  {
+    pattern: '^([\\w:/\\[\\]=.-]*:)?(text|bg|border|ring|fill|stroke|divide)-(green|emerald)-\\d+(/[\\d.\\[\\]]+)?$',
+    message: 'Use the success token, not a raw green.',
+  },
+  {
+    pattern: '\\[#[0-9a-fA-F]{3,8}\\]',
+    message: 'No literal colors: use a semantic token.',
+  },
+  {
+    pattern: '^(text|bg|border|ring|divide|placeholder)-(ink|ink-muted|ink-faint|wash|line|line-strong|surface|warm|trace|watch)(/[\\d.]+)?$',
+    message: 'That is a pre-shadcn token name; see the token table in index.css.',
+  },
+  {
+    pattern: '^z-(\\[.*\\]|5\\d|[6-9]\\d|100)$',
+    message: 'Floating layers come from components/ui; app chrome stops at z-30.',
+  },
+]
 
 export default defineConfig([
   // the Remotion video project and the docs build cache are not app code
@@ -27,5 +58,46 @@ export default defineConfig([
     // variant definition is one of them.
     files: ['src/components/ui/**/*.{ts,tsx}'],
     rules: { 'react-refresh/only-export-components': 'off' },
+  },
+  {
+    // The design-system guard rails, for app code only: components/ui is
+    // where the primitives are allowed to spell colors and layers out.
+    files: ['src/**/*.tsx'],
+    ignores: ['src/components/ui/**'],
+    plugins: { 'better-tailwindcss': betterTailwind },
+    settings: { 'better-tailwindcss': { entryPoint: 'src/index.css' } },
+    rules: {
+      'better-tailwindcss/no-restricted-classes': ['error', { restrict: RESTRICTED_CLASSES }],
+      'no-restricted-syntax': ['error',
+        {
+          selector: 'JSXOpeningElement[name.name=/^(button|select)$/]',
+          message: 'Use Button / Select from components/ui.',
+        },
+        {
+          selector: 'JSXAttribute[name.name="className"] Literal[value=/fixed inset-0/]',
+          message: 'A modal is a Dialog; an overlay of its own is not.',
+        },
+        {
+          selector: 'JSXAttribute[name.name="asChild"]',
+          message: 'Base UI composes through `render`, not `asChild`.',
+        },
+      ],
+    },
+  },
+  {
+    // The frame palette is identity, not status: a frame's amber means
+    // "this chapter", so these stay on the raw scale by design.
+    files: ['src/lib/constants.ts'],
+    rules: { 'better-tailwindcss/no-restricted-classes': 'off' },
+  },
+  {
+    // src/lib is imported by the CLI bundle and by plain node scripts, which
+    // resolve neither `@/` nor the vite alias.
+    files: ['src/lib/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{ group: ['@/*'], message: 'src/lib is built outside vite too — use a relative path.' }],
+      }],
+    },
   },
 ])

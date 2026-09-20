@@ -1,15 +1,15 @@
 /* markdown: answer body, highlight.js dark, KaTeX, pdf text layer — split out of index.css; the tokens stay there */
 
 /* code highlighting flips with the theme (github.css is light-only) */
-:root[data-theme='dark'] .hljs { color: #D4CEC2; background: transparent; }
-:root[data-theme='dark'] .hljs-comment, :root[data-theme='dark'] .hljs-quote { color: #8A8170; }
-:root[data-theme='dark'] .hljs-keyword, :root[data-theme='dark'] .hljs-selector-tag, :root[data-theme='dark'] .hljs-subst { color: #C9A1F0; }
-:root[data-theme='dark'] .hljs-string, :root[data-theme='dark'] .hljs-regexp, :root[data-theme='dark'] .hljs-addition { color: #9FD0A5; }
-:root[data-theme='dark'] .hljs-number, :root[data-theme='dark'] .hljs-literal { color: #E3A45E; }
-:root[data-theme='dark'] .hljs-title, :root[data-theme='dark'] .hljs-name { color: #A7C7F2; }
-:root[data-theme='dark'] .hljs-attr, :root[data-theme='dark'] .hljs-attribute, :root[data-theme='dark'] .hljs-variable, :root[data-theme='dark'] .hljs-template-variable { color: #E0B070; }
-:root[data-theme='dark'] .hljs-built_in, :root[data-theme='dark'] .hljs-type { color: #7FBFB2; }
-:root[data-theme='dark'] .hljs-deletion { color: #E0796F; }
+.dark .hljs { color: #D4CEC2; background: transparent; }
+.dark .hljs-comment, .dark .hljs-quote { color: #8A8170; }
+.dark .hljs-keyword, .dark .hljs-selector-tag, .dark .hljs-subst { color: #C9A1F0; }
+.dark .hljs-string, .dark .hljs-regexp, .dark .hljs-addition { color: #9FD0A5; }
+.dark .hljs-number, .dark .hljs-literal { color: #E3A45E; }
+.dark .hljs-title, .dark .hljs-name { color: #A7C7F2; }
+.dark .hljs-attr, .dark .hljs-attribute, .dark .hljs-variable, .dark .hljs-template-variable { color: #E0B070; }
+.dark .hljs-built_in, .dark .hljs-type { color: #7FBFB2; }
+.dark .hljs-deletion { color: #E0796F; }
 /* Markdown body styles */
 .markdown-body {
   line-height: 1.7;

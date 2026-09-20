@@ -189,8 +189,11 @@ export default function Tutorial() {
   const slide = SLIDES[page];
 
   return (
+    // The tour keeps its own overlay by decision: it is read alongside the
+    // canvas rather than on top of it, and a modal dialog would take the
+    // focus the tour is pointing at. Its layer lives in styles/base.css.
     <div
-      className="fixed inset-0 z-[95] bg-black/25 flex items-center justify-center animate-fade-in p-6"
+      className="tdag-tour bg-black/25 flex items-center justify-center animate-fade-in p-6"
       onClick={() => setOpen(false)}
     >
       <div
