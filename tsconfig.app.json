@@ -6,6 +6,11 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "types": ["vite/client"],
+
+    /* shadcn's import convention — its components reach for `@/lib/utils`
+       and each other by this alias. vite.config.ts mirrors it. */
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"] },
     "skipLibCheck": true,
 
     /* Bundler mode */

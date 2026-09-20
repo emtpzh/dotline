@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Archive, ArchiveRestore, ClipboardCopy, Copy, Ellipsis, FileDown, GitFork, RefreshCw, Split, Square, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { contextChainMarkdown, downloadMarkdown, copyText } from '../../lib/export';
-import ModelPicker from '../ui/ModelPicker';
+import ModelPicker from '../app/ModelPicker';
 import { inheritIntent } from '../../lib/run-intent';
 import { isAgentModel, runtimeOf } from '../../lib/agents/runtimes';
 import { globalIntent, nodeIntent, parentsOf } from '../../store/intent';

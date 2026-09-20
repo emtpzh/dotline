@@ -4,7 +4,7 @@ import { useStore } from '../../store';
 import { isImeComposing } from '../../utils';
 import { useT } from '../../i18n';
 import { isViewerMode } from '../../lib/viewer';
-import RoleTemplateChips from '../ui/RoleTemplateChips';
+import RoleTemplateChips from '../app/RoleTemplateChips';
 import type { ThoughtData } from '../../types';
 
 // The panel's summary kicker: role · tokens · materials, in one quiet line

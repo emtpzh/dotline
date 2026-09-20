@@ -10,9 +10,9 @@ import { Markdown, HighlightedMarkdown } from '../Markdown';
 import { useT } from '../../i18n';
 import { isViewerMode } from '../../lib/viewer';
 import { collectExploreMarksKey, type ExploreMark } from '../../lib/explore-marks';
-import ReasoningDisclosure from '../ui/ReasoningDisclosure';
-import { ApprovalCard, DecisionsDisclosure } from '../ui/ApprovalCard';
-import { AgentTrace } from '../ui/AgentTrace';
+import ReasoningDisclosure from '../app/ReasoningDisclosure';
+import { ApprovalCard, DecisionsDisclosure } from '../app/ApprovalCard';
+import { AgentTrace } from '../app/AgentTrace';
 import type { ThoughtData } from '../../types';
 
 export default function ResponseSection({

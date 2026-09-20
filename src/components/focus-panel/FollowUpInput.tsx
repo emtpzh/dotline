@@ -5,11 +5,11 @@ import { isImeComposing } from '../../utils';
 import { useUiStore } from '../../lib/ui-store';
 import { buildContext } from '../../store/context-builder';
 import { processFile, FILE_INPUT_ACCEPT } from '../../lib/attachments';
-import SearchToggles from '../ui/SearchToggles';
+import SearchToggles from '../app/SearchToggles';
 import type { Attachment } from '../../types';
 import { countTokens } from '../../utils';
 import { useT, fmt } from '../../i18n';
-import MentionSurface from '../ui/NodeMention';
+import MentionSurface from '../app/NodeMention';
 import { useMentions } from '../../lib/mentions';
 
 const ROLE_STYLES: Record<string, string> = {

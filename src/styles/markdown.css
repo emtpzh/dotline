@@ -1,0 +1,173 @@
+/* markdown: answer body, highlight.js dark, KaTeX, pdf text layer — split out of index.css; the tokens stay there */
+
+/* code highlighting flips with the theme (github.css is light-only) */
+:root[data-theme='dark'] .hljs { color: #D4CEC2; background: transparent; }
+:root[data-theme='dark'] .hljs-comment, :root[data-theme='dark'] .hljs-quote { color: #8A8170; }
+:root[data-theme='dark'] .hljs-keyword, :root[data-theme='dark'] .hljs-selector-tag, :root[data-theme='dark'] .hljs-subst { color: #C9A1F0; }
+:root[data-theme='dark'] .hljs-string, :root[data-theme='dark'] .hljs-regexp, :root[data-theme='dark'] .hljs-addition { color: #9FD0A5; }
+:root[data-theme='dark'] .hljs-number, :root[data-theme='dark'] .hljs-literal { color: #E3A45E; }
+:root[data-theme='dark'] .hljs-title, :root[data-theme='dark'] .hljs-name { color: #A7C7F2; }
+:root[data-theme='dark'] .hljs-attr, :root[data-theme='dark'] .hljs-attribute, :root[data-theme='dark'] .hljs-variable, :root[data-theme='dark'] .hljs-template-variable { color: #E0B070; }
+:root[data-theme='dark'] .hljs-built_in, :root[data-theme='dark'] .hljs-type { color: #7FBFB2; }
+:root[data-theme='dark'] .hljs-deletion { color: #E0796F; }
+/* Markdown body styles */
+.markdown-body {
+  line-height: 1.7;
+}
+
+/* Explore marks: the passages child branches were born from. A warm dotted
+   underline (structural trace), never a fill — fills belong to the user's
+   own highlights. Clickable where the host delegates to the child node. */
+.markdown-body mark.explore-mark {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  border-bottom: 2px dotted color-mix(in srgb, var(--color-warm) 65%, transparent);
+  cursor: pointer;
+}
+.markdown-body mark.explore-mark:hover {
+  background: color-mix(in srgb, var(--color-warm) 12%, transparent);
+}
+
+.markdown-body h1, .markdown-body h2, .markdown-body h3,
+.markdown-body h4, .markdown-body h5, .markdown-body h6 {
+  color: var(--color-ink);
+  font-weight: 600;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+
+.markdown-body h1 { font-size: 1.25em; }
+.markdown-body h2 { font-size: 1.15em; }
+.markdown-body h3 { font-size: 1.05em; }
+
+.markdown-body p {
+  margin-bottom: 0.75em;
+}
+
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body ul, .markdown-body ol {
+  padding-left: 1.5em;
+  margin-bottom: 0.75em;
+}
+
+/* Tailwind preflight strips list markers globally; restore them here */
+.markdown-body ul { list-style: disc; }
+.markdown-body ol { list-style: decimal; }
+
+.markdown-body li {
+  margin-bottom: 0.25em;
+}
+
+.markdown-body strong {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.markdown-body em {
+  color: var(--color-ink-muted);
+}
+
+.markdown-body a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdown-body a:hover {
+  color: var(--color-accent-strong);
+}
+
+.markdown-body code {
+  background: var(--color-wash);
+  color: var(--color-ink);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-size: 0.85em;
+  border: 1px solid var(--color-line);
+}
+
+.markdown-body pre {
+  background: var(--color-wash) !important;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  padding: 0.75em 1em;
+  margin: 0.75em 0;
+  overflow-x: auto;
+}
+
+.markdown-body pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.85em;
+  line-height: 1.5;
+  border: none;
+}
+
+.markdown-body blockquote {
+  border-left: 3px solid var(--color-accent);
+  padding-left: 1em;
+  color: var(--color-ink-muted);
+  margin: 0.75em 0;
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75em 0;
+  font-size: 0.85em;
+}
+
+.markdown-body th, .markdown-body td {
+  border: 1px solid var(--color-line);
+  padding: 0.4em 0.6em;
+  text-align: left;
+}
+
+.markdown-body th {
+  background: var(--color-wash);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--color-line);
+  margin: 1em 0;
+}
+
+/* ── MaterialReader: pdf.js text layer ─────────────────────────────
+   Invisible glyph boxes positioned over the canvas render — this is what
+   makes the ORIGINAL page selectable. pdf.js sets per-span inline geometry;
+   we only make the glyphs transparent and style the selection. */
+.tdag-textlayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  line-height: 1;
+  text-align: initial;
+  forced-color-adjust: none;
+  caret-color: transparent;
+  z-index: 2;
+}
+.tdag-textlayer span,
+.tdag-textlayer br {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+}
+.tdag-textlayer ::selection {
+  background: color-mix(in srgb, var(--color-accent) 32%, transparent);
+}
+
+/* KaTeX renders MathML (a11y) plus HTML glyphs; without this, selecting a
+   passage across a formula copies BOTH — the visible glyphs are enough. */
+.katex .katex-mathml {
+  user-select: none;
+}
+

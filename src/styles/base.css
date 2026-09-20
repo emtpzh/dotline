@@ -1,0 +1,109 @@
+/* base: document, scrollbars, focus rings, animations, tooltip — split out of index.css; the tokens stay there */
+
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  overflow: hidden;
+}
+
+code, pre {
+  font-family: var(--font-mono);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-line-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-ink-faint); }
+
+/* Selection highlight */
+::selection { background: rgba(var(--accent-rgb), 0.2); }
+
+/* Consistent keyboard-focus ring on buttons and disclosure controls.
+   Text inputs are embedded borderless fields — their containers carry the
+   focus styling and the caret itself marks focus, so no ring (it would
+   hug the text with no padding). */
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+  outline-offset: 2px;
+}
+
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in { animation: fadeIn 0.3s ease-out; }
+
+/* Landing logo: nodes and edges light up in sequence */
+@keyframes dag-pop {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.dag-pop { animation: dag-pop 0.45s ease-out backwards; }
+
+@keyframes pulse-border {
+  0%, 100% { border-color: var(--color-line); }
+  50% { border-color: var(--color-accent); }
+}
+
+.loading-border { animation: pulse-border 1.5s ease-in-out infinite; }
+
+@keyframes pulse-selected {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.25); }
+  50% { box-shadow: 0 0 0 5px rgba(var(--accent-rgb), 0.12); }
+}
+.selected-glow { animation: pulse-selected 2s ease-in-out infinite; }
+/* Focus panel: sections are white cards floating on the wash ground —
+   depth does the grouping, not divider lines. */
+.panel-card {
+  background: var(--color-card);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* Line clamp utility */
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* While dragging a connection, the gesture must never start a text
+   selection in the cards it sweeps across (in-node selection stays normal
+   otherwise — it powers highlights and explore). */
+body.tdag-connecting, body.tdag-connecting * {
+  user-select: none !important;
+}
+
+/* Global fast tooltip (replaces the browser's sluggish native title) */
+.tdag-tooltip {
+  position: fixed;
+  z-index: 120;
+  max-width: 340px;
+  background: var(--color-card);
+  color: var(--color-ink-muted);
+  border: 1px solid var(--color-line-strong);
+  font-size: 11px;
+  line-height: 1.55;
+  padding: 6px 10px;
+  border-radius: 10px;
+  pointer-events: none;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.10);
+  animation: fade-in 0.12s ease;
+  white-space: pre-line;
+}
+

@@ -47,3 +47,6 @@ docs/.vitepress/cache/
 # report live). In-capture run dirs join as they complete.
 # npm pack output (the publish workflow packs in CI)
 dsh/*.tgz
+
+# visual baselines from scripts/screens.mjs
+.screens/
