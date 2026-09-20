@@ -36,12 +36,12 @@ export default function AgentSessionLine({ data }: { data: ThoughtData }) {
       {data.agentSession?.continued && <span className="text-2xs text-muted-foreground shrink-0" title={t('agent.continuedTitle')}>↩ {t('agent.continued')}</span>}
       {window.desktopLocal && (
         <Button variant="ghost" onClick={() => void window.desktopLocal!.open(cwd)} className="text-muted-foreground hover:text-primary shrink-0" title={t('agent.openDir')}>
-          <FolderOpen size={14} strokeWidth={1.75} />
+          <FolderOpen strokeWidth={1.75} />
         </Button>
       )}
       {sessionId && window.desktopSessions && (
         <Button variant="ghost" onClick={() => void window.desktopSessions!.openInCli(runner, cwd, sessionId, 'terminal')} className="text-muted-foreground hover:text-primary shrink-0" title={t('agent.openInTerminal')}>
-          <SquareTerminal size={14} strokeWidth={1.75} />
+          <SquareTerminal strokeWidth={1.75} />
         </Button>
       )}
       {canPin && (
@@ -51,7 +51,7 @@ export default function AgentSessionLine({ data }: { data: ThoughtData }) {
           title={t('agent.useAsCwd')}
           data-agent-session-pin
         >
-          <Pin size={14} strokeWidth={1.75} />
+          <Pin strokeWidth={1.75} />
         </Button>
       )}
     </div>

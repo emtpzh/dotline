@@ -69,7 +69,7 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
           onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
           className="text-muted-foreground hover:text-destructive/90"
         >
-          <Trash2 size={13} strokeWidth={1.75} />
+          <Trash2 strokeWidth={1.75} />
         </Button>
       </div>
 
@@ -120,7 +120,7 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
                 data.webSearch ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground hover:bg-border'
               }`}
             >
-              <Globe size={12} strokeWidth={1.75} /> {t('paradigm.webSearch')}
+              <Globe strokeWidth={1.75} /> {t('paradigm.webSearch')}
             </Button>
             <Button variant="ghost"
               onClick={() => patch({ scholarSearch: !data.scholarSearch })}
@@ -129,7 +129,7 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
                 data.scholarSearch ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground hover:bg-border'
               }`}
             >
-              <GraduationCap size={12} strokeWidth={1.75} /> {t('paradigm.scholarSearch')}
+              <GraduationCap strokeWidth={1.75} /> {t('paradigm.scholarSearch')}
             </Button>
           </div>
         )}

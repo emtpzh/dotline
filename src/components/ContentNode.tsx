@@ -178,7 +178,7 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
             title={t('reader.open')}
             className="text-muted-foreground hover:text-primary"
           >
-            <BookOpen size={13} strokeWidth={1.75} />
+            <BookOpen strokeWidth={1.75} />
           </Button>
           {kind === 'link' && data.linkUrl && (
             <a
@@ -196,7 +196,7 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
             onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
             className="text-muted-foreground hover:text-destructive/90"
           >
-            <Trash2 size={13} strokeWidth={1.75} />
+            <Trash2 strokeWidth={1.75} />
           </Button>}
         </div>
       </div>
@@ -244,7 +244,7 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
                   onClick={(e) => { e.stopPropagation(); void fetchLinkIntoNode(id, data.linkUrl!); }}
                   className="text-xs bg-muted hover:bg-border text-muted-foreground"
                 >
-                  <RefreshCw size={13} strokeWidth={1.75} /> {t('common.retry')}
+                  <RefreshCw strokeWidth={1.75} /> {t('common.retry')}
                 </Button>
               )}
               {data.question && (
@@ -292,14 +292,14 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
                       title={t('content.reExtractTitle')}
                       className="absolute bottom-1.5 left-1.5 text-2xs bg-foreground/60 hover:bg-foreground/80 text-white opacity-0 group-hover:opacity-100"
                     >
-                      <RefreshCw size={11} strokeWidth={1.75} /> {t('content.reExtract')}
+                      <RefreshCw strokeWidth={1.75} /> {t('content.reExtract')}
                     </Button>
                   )}
                   <Button variant="ghost" size="icon-sm"
                     onClick={(e) => { e.stopPropagation(); removeAttachment(id, att.id); }}
                     className="absolute top-1.5 right-1.5 bg-foreground/60 text-white opacity-0 group-hover:opacity-100"
                   >
-                    <X size={13} strokeWidth={2} />
+                    <X strokeWidth={2} />
                   </Button>
                   {/* Extraction panel: SEE what the model read, fix it, or redo it —
                       this text is what downstream context receives as the image's index */}
@@ -322,7 +322,7 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
                           onClick={() => { setOpenExtract(null); void extractImage(id, att.id); }}
                           className="text-2xs bg-muted hover:bg-border text-muted-foreground"
                         >
-                          <RefreshCw size={11} strokeWidth={1.75} /> {t('content.reExtractAgain')}
+                          <RefreshCw strokeWidth={1.75} /> {t('content.reExtractAgain')}
                         </Button>
                       </div>
                     </div>
@@ -346,7 +346,7 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
                     onClick={(e) => { e.stopPropagation(); removeAttachment(id, att.id); }}
                     className="absolute top-1.5 right-1.5 bg-foreground/60 text-white opacity-0 group-hover:opacity-100"
                   >
-                    <X size={13} strokeWidth={2} />
+                    <X strokeWidth={2} />
                   </Button>
                 </div>
               ) : (
@@ -359,7 +359,7 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
                     onClick={(e) => { e.stopPropagation(); removeAttachment(id, att.id); }}
                     className="text-muted-foreground hover:text-destructive/90 opacity-0 group-hover:opacity-100 shrink-0"
                   >
-                    <X size={13} strokeWidth={1.75} />
+                    <X strokeWidth={1.75} />
                   </Button>
                 </div>
               )

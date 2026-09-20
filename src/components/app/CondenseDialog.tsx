@@ -101,7 +101,7 @@ export default function CondenseDialog({ onFocusSegment }: { onFocusSegment?: (n
           <Minimize2 size={15} strokeWidth={1.75} className="text-primary" /> {t('condense.title')}
         </div>
         <Button variant="ghost" size="icon-sm" onClick={close} title={run.status === 'building' ? t('condense.runningBg') : undefined}
-          className="text-muted-foreground hover:text-foreground hover:bg-accent"><X size={15} /></Button>
+          className="text-muted-foreground hover:text-foreground hover:bg-accent"><X /></Button>
       </div>
 
       {run.status === 'idle' && (
@@ -182,7 +182,7 @@ export default function CondenseDialog({ onFocusSegment }: { onFocusSegment?: (n
                 data-condense-build
                 className="shrink-0"
               >
-                <Copy size={13} strokeWidth={1.75} />
+                <Copy strokeWidth={1.75} />
                 {fmt(t('condense.buildCopy'), { n: String(picked.length), tok: String(pickedSaving) })}
               </Button>
             </div>
@@ -230,7 +230,7 @@ export default function CondenseDialog({ onFocusSegment }: { onFocusSegment?: (n
               {t('condense.viewCopy')}
             </Button>
             <Button variant="outline" size="sm" onClick={archiveOriginal} data-condense-archive-original>
-              <Archive size={13} strokeWidth={1.75} /> {t('condense.archiveOriginal')}
+              <Archive strokeWidth={1.75} /> {t('condense.archiveOriginal')}
             </Button>
           </div>
           <Button variant="ghost" size="sm" onClick={() => { useUiStore.getState().setCondenseRun({ status: 'idle' }); close(); }}

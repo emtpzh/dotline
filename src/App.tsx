@@ -1181,13 +1181,13 @@ function Canvas() {
                 onClick={() => addStep('human')}
                 className="text-sm border-2 border-dashed border-edge-explore/60 text-edge-explore hover:bg-edge-explore/10"
               >
-                <MessageCircleQuestion size={15} strokeWidth={1.75} /> {t('paradigm.addHuman')}
+                <MessageCircleQuestion strokeWidth={1.75} /> {t('paradigm.addHuman')}
               </Button>
               <Button variant="ghost"
                 onClick={() => addStep('prompt')}
                 className="text-sm border-2 border-dashed border-primary/50 text-primary hover:bg-primary/10"
               >
-                <SquareTerminal size={15} strokeWidth={1.75} /> {t('paradigm.addPrompt')}
+                <SquareTerminal strokeWidth={1.75} /> {t('paradigm.addPrompt')}
               </Button>
             </div>
           </div>
@@ -1279,7 +1279,7 @@ function Canvas() {
                       <Button variant="ghost" size="sm"
                         onClick={() => setPendingAttachments((p) => p.filter((a) => a.id !== att.id))}
                         className="text-muted-foreground hover:text-destructive/90 text-xs opacity-0 group-hover:opacity-100"
-                      ><X size={14} strokeWidth={1.75} /></Button>
+                      ><X strokeWidth={1.75} /></Button>
                     </div>
                   ))}
                 </div>
@@ -1290,7 +1290,7 @@ function Canvas() {
                 <div className="space-y-1 mt-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground font-medium">{t('landing.roleLabel')}</span>
-                    <Button variant="ghost" size="sm" onClick={() => { setShowRootRole(false); setRootRole(''); }} className="text-xs text-muted-foreground hover:text-muted-foreground"><X size={14} strokeWidth={1.75} /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => { setShowRootRole(false); setRootRole(''); }} className="text-xs text-muted-foreground hover:text-muted-foreground"><X strokeWidth={1.75} /></Button>
                   </div>
                   <Textarea
                     value={rootRole}
@@ -1313,14 +1313,14 @@ function Canvas() {
                     showRootRole || rootRole ? 'text-primary bg-primary/10 hover:bg-primary/20' : 'text-muted-foreground hover:text-muted-foreground hover:bg-border'
                   }`}
                 >
-                  <Drama size={16} strokeWidth={1.75} />
+                  <Drama strokeWidth={1.75} />
                 </Button>
                 <Button variant="ghost"
                   onClick={() => landingFileRef.current?.click()}
                   className="text-muted-foreground hover:text-primary hover:bg-accent text-sm"
                   title={t('landing.attach')}
                 >
-                  <Paperclip size={16} strokeWidth={1.75} />
+                  <Paperclip strokeWidth={1.75} />
                 </Button>
                 <input
                   ref={landingFileRef}
@@ -1365,9 +1365,9 @@ function Canvas() {
                 data-landing-atlas
               >
                 <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground font-medium">
-                  <Bot size={15} strokeWidth={1.75} className="text-primary shrink-0" />
+                  <Bot strokeWidth={1.75} className="text-primary shrink-0" />
                   <span>{t('landing.atlasStart')}</span>
-                  <ArrowRight size={13} strokeWidth={1.75} className="text-primary shrink-0" />
+                  <ArrowRight strokeWidth={1.75} className="text-primary shrink-0" />
                 </div>
                 <p className="text-2xs text-muted-foreground mt-1.5">{t('landing.atlasDesc')}</p>
               </Button>
@@ -1449,13 +1449,13 @@ function Canvas() {
                 onClick={loadExample}
                 className="text-xs text-primary hover:text-primary/90"
               >
-                <Workflow size={14} strokeWidth={1.75} /> {t('landing.loadExample')}
+                <Workflow strokeWidth={1.75} /> {t('landing.loadExample')}
               </Button>
               <Button variant="ghost" size="sm"
                 onClick={() => setTutorialOpen(true)}
                 className="text-xs text-muted-foreground hover:text-primary"
               >
-                <CircleHelp size={14} strokeWidth={1.75} /> {t('landing.howItWorks')}
+                <CircleHelp strokeWidth={1.75} /> {t('landing.howItWorks')}
               </Button>
             </div>
           </div>
@@ -1478,7 +1478,7 @@ function Canvas() {
               title={t('palette.askTitle')}
               className="text-primary hover:bg-primary/10 cursor-grab"
             >
-              <MessageCircleQuestion size={15} strokeWidth={1.75} />
+              <MessageCircleQuestion strokeWidth={1.75} />
             </Button>
           )}
           <Button variant="ghost" size="icon"
@@ -1486,21 +1486,21 @@ function Canvas() {
             title={t('palette.noteTitle')}
             className="text-warning hover:bg-warning/10"
           >
-            <StickyNote size={15} strokeWidth={1.75} />
+            <StickyNote strokeWidth={1.75} />
           </Button>
           <Button variant="ghost" size="icon"
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnContentNode('file', flowPosAt(screen)))}
             title={t('palette.fileTitle')}
             className="text-muted-foreground hover:bg-accent"
           >
-            <Paperclip size={15} strokeWidth={1.75} />
+            <Paperclip strokeWidth={1.75} />
           </Button>
           <Button variant="ghost" size="icon"
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnFrame(flowPosAt(screen)))}
             title={t('palette.frameTitle')}
             className="text-muted-foreground hover:bg-accent"
           >
-            <Frame size={15} strokeWidth={1.75} />
+            <Frame strokeWidth={1.75} />
           </Button>
         </div>
       )}
@@ -1520,14 +1520,14 @@ function Canvas() {
             title={t('search.entryTitle')}
             data-search-entry
           >
-            <Search size={15} strokeWidth={1.75} />
+            <Search strokeWidth={1.75} />
           </Button>
           <LangSwitch />
           <Button variant="chrome" size="icon"
             onClick={() => exportActiveProjectJson()}
             title={t('viewer.downloadJson')}
           >
-            <Download size={15} strokeWidth={1.75} />
+            <Download strokeWidth={1.75} />
           </Button>
           <a
             href="https://github.com/chenxiachan/thoughtdag"
@@ -1554,13 +1554,13 @@ function Canvas() {
               onClick={() => addStep('human')}
               className="bg-card/90 backdrop-blur border-edge-explore/40 hover:bg-edge-explore/10 text-edge-explore text-xs"
             >
-              <MessageCircleQuestion size={14} strokeWidth={1.75} /> {t('paradigm.addHuman')}
+              <MessageCircleQuestion strokeWidth={1.75} /> {t('paradigm.addHuman')}
             </Button>
             <Button variant="ghost" size="sm"
               onClick={() => addStep('prompt')}
               className="bg-card/90 backdrop-blur border-primary/40 hover:bg-primary/10 text-primary text-xs"
             >
-              <SquareTerminal size={14} strokeWidth={1.75} /> {t('paradigm.addPrompt')}
+              <SquareTerminal strokeWidth={1.75} /> {t('paradigm.addPrompt')}
             </Button>
             <Button variant="ghost" size="sm"
               onClick={() => void instantiate()}
@@ -1581,7 +1581,7 @@ function Canvas() {
             title={t('apikey.entryTitle')}
             data-apikey-entry
           >
-            <KeyRound size={15} strokeWidth={1.75} />
+            <KeyRound strokeWidth={1.75} />
           </Button>
         )}
         {/* Batch replay: visible only when something is stale. Price at the
@@ -1640,7 +1640,7 @@ function Canvas() {
             title={t('search.entryTitle')}
             data-search-entry
           >
-            <Search size={15} strokeWidth={1.75} />
+            <Search strokeWidth={1.75} />
           </Button>
         )}
         <LangSwitch />
@@ -1662,7 +1662,7 @@ function Canvas() {
             title={fmt(t('condense.entryBuilding'), { i: String(condenseRunState.current), n: String(condenseRunState.total) })}
             data-condense-entry
           >
-            <Loader2 size={14} strokeWidth={1.75} className="animate-spin" /><span className="text-2xs font-mono">{condenseRunState.current}/{condenseRunState.total}</span>
+            <Loader2 strokeWidth={1.75} className="animate-spin" /><span className="text-2xs font-mono">{condenseRunState.current}/{condenseRunState.total}</span>
           </Button>
         )}
         {backupSupported && (
@@ -1671,7 +1671,7 @@ function Canvas() {
             title={t('backup.dialogTitle')}
             data-backup-entry
           >
-            <FolderSync size={15} strokeWidth={1.75} />
+            <FolderSync strokeWidth={1.75} />
           </Button>
         )}
         {/* ⋯ overflow: share, memory, annotations, relayout, tutorial —
@@ -1846,14 +1846,14 @@ function Canvas() {
           disabled={historyIndex <= 0}
           title={t('canvas.undo')}
         >
-          <Undo2 size={16} strokeWidth={1.75} />
+          <Undo2 strokeWidth={1.75} />
         </Button>
         <Button variant="chrome" size="icon"
           onClick={redo}
           disabled={historyIndex >= history.length - 1}
           title={t('canvas.redo')}
         >
-          <Redo2 size={16} strokeWidth={1.75} />
+          <Redo2 strokeWidth={1.75} />
         </Button>
       </div>
       )}
@@ -2013,7 +2013,7 @@ function ThoughtMapPill({ panelShiftWidth }: { panelShiftWidth: number }) {
         // the dock floats further off the board than the toolbar does
         className="text-sm text-foreground shadow-lg hover:border-primary/40 hover:text-primary"
       >
-        <ImageDown size={16} strokeWidth={1.75} /> {t('tmap.export')}
+        <ImageDown strokeWidth={1.75} /> {t('tmap.export')}
       </Button>
       {lastActive && (
         <Button
@@ -2024,7 +2024,7 @@ function ThoughtMapPill({ panelShiftWidth }: { panelShiftWidth: number }) {
           data-continue-pill
           className="shadow-lg"
         >
-          <Rewind size={16} strokeWidth={1.75} /> {t('continue.button')}
+          <Rewind strokeWidth={1.75} /> {t('continue.button')}
         </Button>
       )}
     </div>

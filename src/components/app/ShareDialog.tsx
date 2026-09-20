@@ -51,7 +51,7 @@ export default function ShareDialog() {
             className={copied ? 'shrink-0 bg-success text-success-foreground hover:bg-success/90' : 'shrink-0'}
             data-share-copy
           >
-            {copied ? <Check size={13} strokeWidth={2} /> : <Copy size={13} strokeWidth={1.75} />}
+            {copied ? <Check strokeWidth={2} /> : <Copy strokeWidth={1.75} />}
             {copied ? t('viewer.copied') : t('viewer.copyLink')}
           </Button>
         </div>
@@ -62,7 +62,7 @@ export default function ShareDialog() {
         )}
         <div className="flex items-center gap-3 mb-4">
           <Button variant="outline" size="sm" onClick={() => void exportActiveProjectJson({ sharedReadonly: readonlyMark })} data-share-fullfile>
-            <FileJson size={13} strokeWidth={1.75} />
+            <FileJson strokeWidth={1.75} />
             {t('share.fullFile')}
           </Button>
           <label className="flex items-center gap-1.5 text-2xs text-muted-foreground cursor-pointer select-none">
@@ -81,7 +81,7 @@ export default function ShareDialog() {
               onClick={() => { close(); useUiStore.getState().setThoughtMapOpen(true); }}
               data-share-thought-map
             >
-              <ImageDown size={13} strokeWidth={1.75} />
+              <ImageDown strokeWidth={1.75} />
               {t('tmap.export')}
             </Button>
           </div>

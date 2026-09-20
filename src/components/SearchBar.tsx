@@ -117,7 +117,7 @@ export default function SearchBar({
             </span>
           )}
           <Button variant="ghost" onClick={onClose} className="text-muted-foreground hover:text-foreground shrink-0">
-            <X size={14} strokeWidth={1.75} />
+            <X strokeWidth={1.75} />
           </Button>
         </div>
 
@@ -138,7 +138,7 @@ export default function SearchBar({
                     <p className={`text-xs font-medium truncate flex items-center gap-1.5 ${i === cursor ? 'text-primary' : 'text-foreground'}`}>
                       <Icon size={12} strokeWidth={1.75} className="text-muted-foreground shrink-0" />
                       <span className="truncate flex-1 min-w-0">{title}</span>
-                      {m.archived && <Archive size={11} strokeWidth={1.75} className="text-muted-foreground shrink-0" />}
+                      {m.archived && <Archive strokeWidth={1.75} className="text-muted-foreground shrink-0" />}
                       {m.count > 1 && <span className="text-2xs text-muted-foreground font-normal shrink-0">×{m.count}</span>}
                     </p>
                     <p className="text-2xs text-muted-foreground mt-0.5 break-all leading-relaxed">

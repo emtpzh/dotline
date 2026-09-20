@@ -134,7 +134,7 @@ export default function MaterialsOverviewModal({ onLocate }: { onLocate: (nodeId
                       title={t('attach.openReader')}
                       className="text-muted-foreground hover:text-primary hover:bg-accent shrink-0"
                     >
-                      <BookOpen size={14} strokeWidth={1.75} />
+                      <BookOpen strokeWidth={1.75} />
                     </Button>
                   )}
                 </div>

@@ -37,7 +37,7 @@ function Row({ role, onCommit, onRemove }: {
           title={t('common.delete')}
           className="text-muted-foreground hover:text-destructive/90 shrink-0"
         >
-          <Trash2 size={13} strokeWidth={1.75} />
+          <Trash2 strokeWidth={1.75} />
         </Button>
       </div>
       <textarea
@@ -93,7 +93,7 @@ export default function RoleManagerModal() {
             onClick={add}
             className="text-xs text-primary hover:bg-primary/10"
           >
-            <Plus size={14} strokeWidth={1.75} /> {t('roles.add')}
+            <Plus strokeWidth={1.75} /> {t('roles.add')}
           </Button>
           <div className="flex-1" />
           {lib.hidden.length > 0 && (

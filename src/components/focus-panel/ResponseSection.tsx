@@ -125,7 +125,7 @@ export default function ResponseSection({
             className="text-muted-foreground hover:text-primary hover:bg-accent"
             data-response-expand
           >
-            <Maximize2 size={13} strokeWidth={1.75} />
+            <Maximize2 strokeWidth={1.75} />
           </Button>
         )}
       </div>
@@ -202,14 +202,14 @@ export default function ResponseSection({
             className="hover:text-primary hover:bg-accent"
             title={t('common.regenerate')}
           >
-            <RefreshCw size={15} strokeWidth={1.75} />
+            <RefreshCw strokeWidth={1.75} />
           </Button>}
           <Button variant="ghost" size="icon-sm"
             onClick={() => void copyText(data.response)}
             className="hover:text-primary hover:bg-accent"
             title={t('actions.copyResponse')}
           >
-            <Copy size={14} strokeWidth={1.75} />
+            <Copy strokeWidth={1.75} />
           </Button>
           {!isViewerMode && (
             <Button variant="ghost" size="icon-sm"
@@ -218,7 +218,7 @@ export default function ResponseSection({
               title={t('actions.editResponse')}
               data-edit-response
             >
-              <Pencil size={14} strokeWidth={1.75} />
+              <Pencil strokeWidth={1.75} />
             </Button>
           )}
           {(data.generatedBy?.[data.responseIndex]) && (
@@ -231,15 +231,15 @@ export default function ResponseSection({
           )}
           {hasMultipleVersions && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground ml-1">
-              <Button variant="ghost" size="icon-sm" onClick={() => navigateVersion(nodeId, 'prev')} className="hover:text-primary hover:bg-accent"><ChevronLeft size={14} strokeWidth={1.75} /></Button>
+              <Button variant="ghost" size="icon-sm" onClick={() => navigateVersion(nodeId, 'prev')} className="hover:text-primary hover:bg-accent"><ChevronLeft strokeWidth={1.75} /></Button>
               <span className="text-primary font-medium">v{data.responseIndex + 1}/{data.responses.length}</span>
-              <Button variant="ghost" size="icon-sm" onClick={() => navigateVersion(nodeId, 'next')} className="hover:text-primary hover:bg-accent"><ChevronRight size={14} strokeWidth={1.75} /></Button>
+              <Button variant="ghost" size="icon-sm" onClick={() => navigateVersion(nodeId, 'next')} className="hover:text-primary hover:bg-accent"><ChevronRight strokeWidth={1.75} /></Button>
               {!isViewerMode && <Button variant="ghost" size="icon-sm"
                 onClick={() => deleteVersion(nodeId, data.responseIndex)}
                 className="text-muted-foreground hover:text-destructive/90 hover:bg-destructive/10"
                 title={t('common.deleteVersion')}
               >
-                <Trash2 size={13} strokeWidth={1.75} />
+                <Trash2 strokeWidth={1.75} />
               </Button>}
             </div>
           )}
@@ -279,7 +279,7 @@ export default function ResponseSection({
             onClick={() => editQuestion(nodeId, data.question)}
             className="ml-auto border-destructive/30"
           >
-            <RefreshCw size={12} strokeWidth={1.75} /> {t('common.retry')}
+            <RefreshCw strokeWidth={1.75} /> {t('common.retry')}
           </Button>}
         </div>
       )}

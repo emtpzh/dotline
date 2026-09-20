@@ -46,7 +46,7 @@ function Pre(props: React.HTMLAttributes<HTMLPreElement>) {
         title={t('common.copyCode')}
         className="absolute top-1.5 right-1.5 opacity-0 group-hover/pre:opacity-100 nodrag nopan"
       >
-        {copied ? <Check size={12} strokeWidth={2} className="text-success" /> : <Copy size={12} strokeWidth={1.75} />}
+        {copied ? <Check strokeWidth={2} className="text-success" /> : <Copy strokeWidth={1.75} />}
       </Button>
     </div>
   );

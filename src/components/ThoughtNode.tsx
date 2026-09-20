@@ -491,7 +491,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
       <div className="flex items-center justify-between px-6 py-3 border-b border-border cursor-grab active:cursor-grabbing drag-handle">
         <div className="flex items-center gap-2">
           <Button variant="ghost" onClick={() => toggleCollapse(id)} size="icon-sm" className={`hover:bg-accent flex items-center justify-center transition-all text-sm font-bold ${data.isCollapsed ? 'text-primary bg-primary/10' : 'text-muted-foreground'}`}>
-            {data.isCollapsed ? <ChevronRight size={18} strokeWidth={1.75} /> : <ChevronDown size={18} strokeWidth={1.75} />}
+            {data.isCollapsed ? <ChevronRight strokeWidth={1.75} /> : <ChevronDown strokeWidth={1.75} />}
           </Button>
           <span className="text-xs text-muted-foreground font-mono">{data.tokenCount} tok</span>
           {toolMarks.length > 0 && (
@@ -515,7 +515,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               data-condensed-from
               className="text-2xs bg-primary/10 text-primary hover:bg-primary/20"
             >
-              <Minimize2 size={11} strokeWidth={1.75} /> {fmt(t('node.condensedFrom'), { n: String(data.condensedFrom.length) })}
+              <Minimize2 strokeWidth={1.75} /> {fmt(t('node.condensedFrom'), { n: String(data.condensedFrom.length) })}
             </Button>
           )}
           {isStale && !data.isLoading && (
@@ -524,7 +524,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               title={t('node.staleTitle')}
               className="text-2xs bg-warning/10 text-warning hover:bg-warning/25"
             >
-              <RefreshCw size={11} strokeWidth={1.75} /> {t('node.staleBadge')}
+              <RefreshCw strokeWidth={1.75} /> {t('node.staleBadge')}
             </Button>
           )}
           {data.archived && (
@@ -577,12 +577,12 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               title={t('actions.stop')}
               className="text-white bg-destructive hover:bg-destructive/90"
             >
-              <Square size={10} strokeWidth={1.75} fill="currentColor" />
+              <Square strokeWidth={1.75} fill="currentColor" />
             </Button>
           )}
           {!(isParadigmNode && runLocked) && !isViewerMode && (
             <Button variant="ghost" size="icon-sm" onClick={() => deleteNode(id)} className="text-muted-foreground hover:text-destructive/90 hover:bg-destructive/10" title={t('common.delete')}>
-              <X size={16} strokeWidth={1.75} />
+              <X strokeWidth={1.75} />
             </Button>
           )}
         </div>
@@ -640,7 +640,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                     className="text-xs text-muted-foreground hover:text-destructive/90 hover:bg-accent"
                     data-edit-cancel
                   >
-                    <X size={12} strokeWidth={2} /> {t('question.editCancel')}
+                    <X strokeWidth={2} /> {t('question.editCancel')}
                   </Button>
                   <Button size="sm"
                     onMouseDown={(e) => e.preventDefault()}
@@ -648,7 +648,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                     disabled={!editValue.trim()}
                     
                     data-edit-submit>
-                    <Check size={12} strokeWidth={2.25} /> {t('question.editSubmit')}
+                    <Check strokeWidth={2.25} /> {t('question.editSubmit')}
                   </Button>
                 </div>
               )}
@@ -659,7 +659,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                     disabled={!editValue.trim()}
                     className="text-xs bg-edge-explore hover:opacity-85 text-white"
                   >
-                    <Send size={12} strokeWidth={1.75} /> {t('paradigm.start')}
+                    <Send strokeWidth={1.75} /> {t('paradigm.start')}
                   </Button>
                 </div>
               )}
@@ -779,7 +779,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                 title={t('paradigm.expandTitle')}
                 className="w-full border-2 border-dashed border-edge-explore/50 hover:border-edge-explore hover:bg-edge-explore/5 text-edge-explore text-sm"
               >
-                <Split size={16} strokeWidth={1.75} />
+                <Split strokeWidth={1.75} />
                 {fmt(t('paradigm.expand'), { n: data.fanoutRoles?.length ?? 0 })}
               </Button>
               {fanoutOpen && (
@@ -822,7 +822,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                   className={`rounded-full ${data.isEvaluator ? 'hover:text-edge-watch hover:bg-destructive/10' : 'hover:text-primary hover:bg-accent'}`}
                   title={data.isEvaluator ? t('evaluator.rerun') : t('common.regenerate')}
                 >
-                  <RefreshCw size={14} strokeWidth={1.75} />
+                  <RefreshCw strokeWidth={1.75} />
                 </Button>
               )}
               <Button variant="ghost" size="icon-sm"
@@ -830,7 +830,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                 className="hover:text-primary hover:bg-accent"
                 title={t('actions.copyResponse')}
               >
-                <Copy size={13} strokeWidth={1.75} />
+                <Copy strokeWidth={1.75} />
               </Button>
               {!isViewerMode && (
                 <Button variant="ghost" size="icon-sm"
@@ -839,7 +839,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                   title={t('actions.editResponse')}
                   data-edit-response
                 >
-                  <Pencil size={13} strokeWidth={1.75} />
+                  <Pencil strokeWidth={1.75} />
                 </Button>
               )}
               {data.focusRole === 'ctx' && (
@@ -863,7 +863,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                   title={t('agent.openInTerminal')}
                   data-open-in-terminal
                 >
-                  <SquareTerminal size={13} strokeWidth={1.75} />
+                  <SquareTerminal strokeWidth={1.75} />
                 </Button>
               )}
               {data.gatewaySearches?.[data.responseIndex] && (
@@ -878,16 +878,16 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               )}
               {hasMultipleVersions && (
                 <div className="flex items-center gap-1 text-xs text-muted-foreground ml-1">
-                  <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'prev'); }} className="hover:text-primary hover:bg-accent"><ChevronLeft size={14} strokeWidth={1.75} /></Button>
+                  <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'prev'); }} className="hover:text-primary hover:bg-accent"><ChevronLeft strokeWidth={1.75} /></Button>
                   <span className="text-primary font-medium">v{data.responseIndex + 1}/{data.responses.length}</span>
-                  <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'next'); }} className="hover:text-primary hover:bg-accent"><ChevronRight size={14} strokeWidth={1.75} /></Button>
+                  <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'next'); }} className="hover:text-primary hover:bg-accent"><ChevronRight strokeWidth={1.75} /></Button>
                   {!isViewerMode && (
                     <Button variant="ghost" size="icon-sm"
                       onClick={(e) => { e.stopPropagation(); deleteVersion(id, data.responseIndex); }}
                       className="text-muted-foreground hover:text-destructive/90 hover:bg-destructive/10"
                       title={t('common.deleteVersion')}
                     >
-                      <Trash2 size={13} strokeWidth={1.75} />
+                      <Trash2 strokeWidth={1.75} />
                     </Button>
                   )}
                 </div>
@@ -902,9 +902,9 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               {t('common.generationFailed')}
               {hasMultipleVersions && (
                 <span className="flex items-center gap-1 text-muted-foreground shrink-0" title={t('node.backToVersionTitle')}>
-                  <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'prev'); }} className="hover:text-primary"><ChevronLeft size={14} strokeWidth={1.75} /></Button>
+                  <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'prev'); }} className="hover:text-primary"><ChevronLeft strokeWidth={1.75} /></Button>
                   v{data.responseIndex + 1}/{data.responses.length}
-                  <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'next'); }} className="hover:text-primary"><ChevronRight size={14} strokeWidth={1.75} /></Button>
+                  <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'next'); }} className="hover:text-primary"><ChevronRight strokeWidth={1.75} /></Button>
                 </span>
               )}
               {!isViewerMode && (
@@ -912,7 +912,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                   onClick={(e) => { e.stopPropagation(); editQuestion(id, data.question); }}
                   className="ml-auto border-destructive/30"
                 >
-                  <RefreshCw size={12} strokeWidth={1.75} /> {t('common.retry')}
+                  <RefreshCw strokeWidth={1.75} /> {t('common.retry')}
                 </Button>
               )}
             </div>
@@ -952,7 +952,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                   disabled={!inputValue.trim()}
                   className="text-muted-foreground hover:text-primary shrink-0 hover:bg-border"
                 >
-                  <Send size={18} strokeWidth={1.75} />
+                  <Send strokeWidth={1.75} />
                 </Button>
               </div>
             </div>

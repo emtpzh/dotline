@@ -80,7 +80,7 @@ export default function MemoryManagerModal() {
                   title={t('common.delete')}
                   className="text-muted-foreground hover:text-destructive/90 shrink-0 opacity-0 group-hover:opacity-100"
                 >
-                  <Trash2 size={13} strokeWidth={1.75} />
+                  <Trash2 strokeWidth={1.75} />
                 </Button>
               </div>
               <p className="text-2xs text-muted-foreground mt-1 font-mono flex items-center gap-1.5 flex-wrap">
@@ -109,7 +109,7 @@ export default function MemoryManagerModal() {
 
         <div className="flex items-center gap-2 px-5 py-3 border-t border-border shrink-0">
           <Button variant="ghost" size="sm" onClick={add} className="text-xs text-primary hover:bg-primary/10">
-            <Plus size={14} strokeWidth={1.75} /> {t('memory.add')}
+            <Plus strokeWidth={1.75} /> {t('memory.add')}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setImporting(true)} className="text-xs text-muted-foreground hover:text-foreground hover:bg-accent">
             {t('memory.import')}
@@ -117,7 +117,7 @@ export default function MemoryManagerModal() {
           <div className="flex-1" />
           {memories.length > 0 && (
             <Button variant="ghost" size="xs" onClick={doExport} className="text-2xs text-muted-foreground hover:text-muted-foreground" title={t('memory.exportTitle')}>
-              <Download size={12} strokeWidth={1.75} /> {t('memory.export')}
+              <Download strokeWidth={1.75} /> {t('memory.export')}
             </Button>
           )}
         </div>

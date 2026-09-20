@@ -47,7 +47,7 @@ export default function SelectionActions({
           onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onExplore(text); }}
           className="whitespace-nowrap"
         >
-          <GitBranch size={14} strokeWidth={1.75} /> {t('common.explore')}
+          <GitBranch strokeWidth={1.75} /> {t('common.explore')}
         </Button>
         <Button
           variant="ghost"
@@ -55,7 +55,7 @@ export default function SelectionActions({
           onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onHighlight(text); }}
           className="bg-warning text-warning-foreground hover:bg-warning/90 hover:text-warning-foreground whitespace-nowrap"
         >
-          <Star size={14} strokeWidth={1.75} /> {t('common.highlight')}
+          <Star strokeWidth={1.75} /> {t('common.highlight')}
         </Button>
       </PopoverContent>
     </Popover>

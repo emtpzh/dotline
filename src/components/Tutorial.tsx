@@ -206,7 +206,7 @@ export default function Tutorial() {
             <p className="text-xs text-muted-foreground truncate">{t('tutorial.subtitle')}</p>
           </div>
           <Button variant="ghost" onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground mt-1">
-            <X size={18} strokeWidth={1.75} />
+            <X strokeWidth={1.75} />
           </Button>
         </div>
 
@@ -232,7 +232,7 @@ export default function Tutorial() {
           <Button variant="outline" size="icon"
             onClick={() => setPage((p) => Math.max(p - 1, 0))}
             disabled={page === 0}>
-            <ChevronLeft size={16} strokeWidth={1.75} />
+            <ChevronLeft strokeWidth={1.75} />
           </Button>
           <div className="flex items-center gap-2">
             {SLIDES.map((_, i) => (
@@ -255,7 +255,7 @@ export default function Tutorial() {
           ) : (
             <Button variant="outline" size="icon"
               onClick={() => setPage((p) => p + 1)}>
-              <ChevronRight size={16} strokeWidth={1.75} />
+              <ChevronRight strokeWidth={1.75} />
             </Button>
           )}
         </div>

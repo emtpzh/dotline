@@ -73,9 +73,9 @@ export default function AgentCwdChip() {
         title={`${t('agent.cwd')} · ${choice.cwd || t('agent.cwdSessionHint')}`}
         data-agent-cwd={choice.kind}
       >
-        <FolderOpen size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" />
+        <FolderOpen strokeWidth={1.75} className="text-muted-foreground shrink-0" />
         <span className="truncate">{chipLabel}</span>
-        <ChevronDown size={12} strokeWidth={1.75} className="text-muted-foreground shrink-0" />
+        <ChevronDown strokeWidth={1.75} className="text-muted-foreground shrink-0" />
       </Button>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverContent anchor={rootRef} align="end" sideOffset={6} className="w-[320px] gap-0 p-0 py-1.5" onClick={(e) => e.stopPropagation()}>
@@ -86,12 +86,12 @@ export default function AgentCwdChip() {
               <span className="block text-foreground">{defaultLabel}</span>
               <span className="block text-2xs text-muted-foreground truncate">{defaultHint}</span>
             </span>
-            {!meta?.agentCwd && <Check size={13} strokeWidth={2} className="shrink-0 text-primary" />}
+            {!meta?.agentCwd && <Check strokeWidth={2} className="shrink-0 text-primary" />}
           </Button>
           {meta?.agentCwd && (
             <Button variant="ghost" size="sm" onClick={() => void choose(meta.agentCwd)} className="w-full text-left text-xs hover:bg-accent">
               <span className="flex-1 min-w-0"><span className="block text-foreground">{tail(meta.agentCwd)}</span><span className="block text-2xs text-muted-foreground truncate">{meta.agentCwd}</span></span>
-              <Check size={13} strokeWidth={2} className="shrink-0 text-primary" />
+              <Check strokeWidth={2} className="shrink-0 text-primary" />
             </Button>
           )}
           {recent.length > 0 && <p className="text-2xs text-muted-foreground uppercase tracking-wider font-medium px-3 pt-2 pb-1">{t('agent.cwdRecent')}</p>}
@@ -103,7 +103,7 @@ export default function AgentCwdChip() {
           <div className="border-t border-border/60 my-1" />
           {nativePicker ? (
             <Button variant="ghost" size="sm" onClick={() => void pick()} className="w-full text-left text-xs text-foreground hover:bg-accent" data-agent-cwd-pick>
-              <FolderOpen size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('agent.cwdPick')}
+              <FolderOpen strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('agent.cwdPick')}
             </Button>
           ) : (
             <div className="px-3 py-2 flex items-center gap-2">
@@ -124,14 +124,14 @@ export default function AgentCwdChip() {
               <div className="border-t border-border/60 my-1" />
               <p className="text-2xs text-muted-foreground uppercase tracking-wider font-medium px-3 pt-1 pb-1">{t('agent.guard')}</p>
               <Button variant="ghost" size="sm" onClick={() => { void setGuardMode('ask'); setOpen(false); }} className="w-full text-left text-xs hover:bg-accent" data-agent-guard="ask">
-                <ShieldCheck size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" />
+                <ShieldCheck strokeWidth={1.75} className="text-muted-foreground shrink-0" />
                 <span className="flex-1 min-w-0"><span className="block text-foreground">{t('agent.guardAsk')}</span><span className="block text-2xs text-muted-foreground">{t('agent.guardAskHint')}</span></span>
-                {(meta?.agentGuard?.mode ?? 'ask') === 'ask' && <Check size={13} strokeWidth={2} className="shrink-0 text-primary" />}
+                {(meta?.agentGuard?.mode ?? 'ask') === 'ask' && <Check strokeWidth={2} className="shrink-0 text-primary" />}
               </Button>
               <Button variant="ghost" size="sm" onClick={() => { void setGuardMode('allow'); setOpen(false); }} className="w-full text-left text-xs hover:bg-accent" data-agent-guard="allow">
-                <ShieldOff size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" />
+                <ShieldOff strokeWidth={1.75} className="text-muted-foreground shrink-0" />
                 <span className="flex-1 min-w-0"><span className="block text-foreground">{t('agent.guardAllow')}</span><span className="block text-2xs text-muted-foreground">{t('agent.guardAllowHint')}</span></span>
-                {meta?.agentGuard?.mode === 'allow' && <Check size={13} strokeWidth={2} className="shrink-0 text-primary" />}
+                {meta?.agentGuard?.mode === 'allow' && <Check strokeWidth={2} className="shrink-0 text-primary" />}
               </Button>
               {(meta?.agentGuard?.allow?.length ?? 0) > 0 && (
                 <>
@@ -140,7 +140,7 @@ export default function AgentCwdChip() {
                     <div key={a} className="px-3 py-1 text-xs flex items-center gap-2 min-w-0" data-agent-guard-allowed={a}>
                       <span className="flex-1 min-w-0 truncate text-muted-foreground font-mono" title={a}>{a}</span>
                       <Button variant="ghost" onClick={() => void allowLocation(a, true)} className="text-muted-foreground hover:text-destructive/90 shrink-0" title={t('agent.guardRemove')}>
-                        <X size={12} strokeWidth={2} />
+                        <X strokeWidth={2} />
                       </Button>
                     </div>
                   ))}

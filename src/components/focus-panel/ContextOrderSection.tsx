@@ -54,7 +54,7 @@ export default function ContextOrderSection({ nodeId }: { nodeId: string }) {
               title={t('panel.ctxOrderUp')}
               data-ctx-up
             >
-              <ArrowUp size={13} strokeWidth={1.75} />
+              <ArrowUp strokeWidth={1.75} />
             </Button>
             <Button variant="ghost"
               className="text-muted-foreground hover:text-foreground"
@@ -63,7 +63,7 @@ export default function ContextOrderSection({ nodeId }: { nodeId: string }) {
               title={t('panel.ctxOrderDown')}
               data-ctx-down
             >
-              <ArrowDown size={13} strokeWidth={1.75} />
+              <ArrowDown strokeWidth={1.75} />
             </Button>
           </div>
         ))}

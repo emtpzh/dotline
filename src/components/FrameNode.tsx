@@ -93,7 +93,7 @@ export default function FrameNode({ id, data, selected }: NodeProps<ThoughtNodeT
             carry ? 'text-muted-foreground hover:text-foreground' : 'text-muted-foreground/60 hover:text-muted-foreground'
           }`}
         >
-          {carry ? <Link2 size={13} strokeWidth={1.75} /> : <Link2Off size={13} strokeWidth={1.75} />}
+          {carry ? <Link2 strokeWidth={1.75} /> : <Link2Off strokeWidth={1.75} />}
         </Button>}
         {selected && !isViewerMode && (
           <>
@@ -117,7 +117,7 @@ export default function FrameNode({ id, data, selected }: NodeProps<ThoughtNodeT
               onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
               className="text-muted-foreground hover:text-destructive/90 shrink-0 nodrag"
             >
-              <Trash2 size={13} strokeWidth={1.75} />
+              <Trash2 strokeWidth={1.75} />
             </Button>
           </>
         )}

@@ -52,7 +52,7 @@ export default function SelectionToolbar() {
             className={`${actionBtn} bg-primary/10 hover:bg-primary/15 text-primary`}
             title={t('toolbar.mergeSummaryTitle')}
           >
-            <ClipboardList size={14} strokeWidth={1.75} className="inline" /> {t('toolbar.mergeSummary')}
+            <ClipboardList strokeWidth={1.75} className="inline" /> {t('toolbar.mergeSummary')}
           </Button>
 
           {allHighlights.length > 0 && (
@@ -61,7 +61,7 @@ export default function SelectionToolbar() {
               className={`${actionBtn} bg-warning/10 hover:bg-warning/20 text-warning`}
               title={t('toolbar.weaveTitle')}
             >
-              <Highlighter size={14} strokeWidth={1.75} className="inline" /> {t('toolbar.weave')}
+              <Highlighter strokeWidth={1.75} className="inline" /> {t('toolbar.weave')}
             </Button>
           )}
 
@@ -70,7 +70,7 @@ export default function SelectionToolbar() {
             className={`${actionBtn} bg-primary/10 hover:bg-primary/20 text-primary`}
             title={t('toolbar.exploreTitle')}
           >
-            <GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('common.explore')}
+            <GitBranch strokeWidth={1.75} className="inline" /> {t('common.explore')}
           </Button>
 
           {/* Low-frequency actions: icon-only so the row stays one line in
@@ -80,7 +80,7 @@ export default function SelectionToolbar() {
             className="bg-muted hover:bg-border text-muted-foreground"
             title={`${t('archive.label')} — ${t('archive.batchTitle')}`}
           >
-            <Archive size={14} strokeWidth={1.75} />
+            <Archive strokeWidth={1.75} />
           </Button>
 
           <Button variant="ghost" size="icon"
@@ -88,7 +88,7 @@ export default function SelectionToolbar() {
             className="bg-muted hover:bg-border text-muted-foreground"
             title={`${t('toolbar.duplicate')} — ${t('toolbar.duplicateTitle')}`}
           >
-            <Copy size={14} strokeWidth={1.75} />
+            <Copy strokeWidth={1.75} />
           </Button>
 
           <Button variant="ghost" size="icon"
@@ -102,7 +102,7 @@ export default function SelectionToolbar() {
             className="bg-muted hover:bg-border text-muted-foreground"
             title={`${t('toolbar.align')} — ${t('confirm.alignTitle')}`}
           >
-            <AlignVerticalJustifyStart size={14} strokeWidth={1.75} />
+            <AlignVerticalJustifyStart strokeWidth={1.75} />
           </Button>
 
           <Button variant="ghost" size="icon"
@@ -110,7 +110,7 @@ export default function SelectionToolbar() {
             className="bg-muted hover:bg-border text-muted-foreground"
             title={`${t('common.exportMd')} — ${t('toolbar.exportTitle')}`}
           >
-            <FileDown size={14} strokeWidth={1.75} />
+            <FileDown strokeWidth={1.75} />
           </Button>
 
           <div className="w-px h-5 bg-border" />
@@ -124,7 +124,7 @@ export default function SelectionToolbar() {
                 danger: true,
               }).then((ok) => { if (ok) batchDelete(selectedNodeIds); });
             }}>
-            <Trash2 size={14} strokeWidth={1.75} className="inline" /> {t('toolbar.deleteAll')}
+            <Trash2 strokeWidth={1.75} className="inline" /> {t('toolbar.deleteAll')}
           </Button>
         </div>
 

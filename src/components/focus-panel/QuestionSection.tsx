@@ -115,7 +115,7 @@ export default function QuestionSection({
                 className="text-xs text-muted-foreground hover:text-destructive/90 hover:bg-accent"
                 data-edit-cancel
               >
-                <X size={12} strokeWidth={2} /> {t('question.editCancel')}
+                <X strokeWidth={2} /> {t('question.editCancel')}
               </Button>
               <Button size="sm"
                 onMouseDown={(e) => e.preventDefault()}
@@ -123,7 +123,7 @@ export default function QuestionSection({
                 disabled={!editValue.trim()}
                 
                 data-edit-submit>
-                <Check size={12} strokeWidth={2.25} /> {t('question.editSubmit')}
+                <Check strokeWidth={2.25} /> {t('question.editSubmit')}
               </Button>
             </div>
           )}

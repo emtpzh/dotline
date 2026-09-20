@@ -148,14 +148,14 @@ export default function AttachmentsSection({
                       title={t('attach.openReader')}
                       className="text-muted-foreground hover:text-primary shrink-0"
                     >
-                      <BookOpen size={14} strokeWidth={1.75} />
+                      <BookOpen strokeWidth={1.75} />
                     </Button>
                   )}
                   {!isViewerMode && <Button variant="ghost"
                     onClick={() => removeAttachment(nodeId, att.id)}
                     className="text-muted-foreground hover:text-destructive/90 shrink-0 opacity-0 group-hover:opacity-100"
                   >
-                    <X size={14} strokeWidth={1.75} />
+                    <X strokeWidth={1.75} />
                   </Button>}
                 </div>
               ))}
@@ -192,7 +192,7 @@ export default function AttachmentsSection({
                         title={t('attach.openReader')}
                         className="text-muted-foreground hover:text-primary shrink-0"
                       >
-                        <BookOpen size={14} strokeWidth={1.75} />
+                        <BookOpen strokeWidth={1.75} />
                       </Button>
                     )}
                     <Button variant="ghost"

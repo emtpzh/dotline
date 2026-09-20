@@ -80,7 +80,7 @@ export default function ContextChainSection({
         onClick={() => setContextOpen(!contextOpen)}
         className="text-2xs text-muted-foreground mb-1 hover:text-foreground w-full"
       >
-        <span>{contextOpen ? <ChevronDown size={14} strokeWidth={1.75} /> : <ChevronRight size={14} strokeWidth={1.75} />}</span>
+        <span>{contextOpen ? <ChevronDown strokeWidth={1.75} /> : <ChevronRight strokeWidth={1.75} />}</span>
         <span>{t('chain.title')}</span>
         <span className="text-muted-foreground font-normal ml-auto">{totalContextTokens} tok</span>
       </Button>
@@ -112,7 +112,7 @@ export default function ContextChainSection({
               <p className={groupCls}>{t('chain.references')}</p>
               {partition.references.map((ref) => (
                 <Button variant="ghost" key={ref.edge.id} onClick={() => jump(ref.source.id)} className={rowCls}>
-                  <span className="text-muted-foreground shrink-0"><Quote size={13} strokeWidth={1.75} /></span>
+                  <span className="text-muted-foreground shrink-0"><Quote strokeWidth={1.75} /></span>
                   <span className="text-muted-foreground group-hover:text-primary transition-colors truncate flex-1">
                     {ref.source.data.question.slice(0, 60)}{ref.source.data.question.length > 60 ? '…' : ''}
                   </span>
@@ -143,7 +143,7 @@ export default function ContextChainSection({
             {ancestors.map((ancestor, i) => (
               <Button variant="ghost" key={ancestor.id} onClick={() => jump(ancestor.id)} className={rowCls}>
                 <span className="text-muted-foreground shrink-0">
-                  {i === 0 ? <Sprout size={14} strokeWidth={1.75} /> : <CornerDownRight size={14} strokeWidth={1.75} />}
+                  {i === 0 ? <Sprout strokeWidth={1.75} /> : <CornerDownRight strokeWidth={1.75} />}
                 </span>
                 <span className="text-muted-foreground group-hover:text-primary transition-colors truncate flex-1">
                   {ancestor.data.question.slice(0, 70)}{ancestor.data.question.length > 70 ? '…' : ''}

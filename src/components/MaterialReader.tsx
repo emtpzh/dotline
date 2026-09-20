@@ -704,7 +704,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
               data-reader-clip-toggle
               className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors shrink-0 ${clipMode ? 'border-edge-explore bg-edge-explore/10 text-edge-explore font-medium' : 'border-border text-muted-foreground hover:bg-accent'}`}
             >
-              <Crosshair size={13} strokeWidth={1.75} />
+              <Crosshair strokeWidth={1.75} />
               {clipMode ? t('reader.clipActive') : t('reader.clip')}
             </Button>
           )}
@@ -717,8 +717,8 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
               className="shrink-0"
             >
               {imageAtts.some((a) => a.isExtracting)
-                ? <Loader2 size={13} strokeWidth={1.75} className="animate-spin" />
-                : <ScanText size={13} strokeWidth={1.75} />}
+                ? <Loader2 strokeWidth={1.75} className="animate-spin" />
+                : <ScanText strokeWidth={1.75} />}
               {t(imageAtts.every((a) => a.extractedText?.trim()) ? 'reader.imageReRecognize' : 'reader.imageRecognize')}
             </Button>
           )}
@@ -728,7 +728,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
               title={t('reader.digestTitle')}
               className="shrink-0"
             >
-              <Sparkles size={13} strokeWidth={1.75} />
+              <Sparkles strokeWidth={1.75} />
               {t('reader.digest')}
             </Button>
           )}
@@ -751,7 +751,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                   recog === 'confirm' ? 'border-warning bg-warning/10 text-warning' : 'border-border text-muted-foreground hover:bg-accent'
                 }`}
               >
-                <ScanText size={13} strokeWidth={1.75} />
+                <ScanText strokeWidth={1.75} />
                 {recog === 'confirm' ? fmt(t('reader.recognizeConfirm'), { n: pdfAtt.pageImages?.length ?? 0 }) : t('reader.recognize')}
               </Button>
             )
@@ -763,11 +763,11 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
               size="icon-sm"
               className={`shrink-0 ${editing ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`}
             >
-              <Pencil size={13} strokeWidth={1.75} />
+              <Pencil strokeWidth={1.75} />
             </Button>
           )}
           <Button variant="ghost" size="icon-sm" onClick={close} title={t('panel.close')} className="text-muted-foreground hover:bg-accent hover:text-foreground shrink-0">
-            <X size={16} strokeWidth={1.75} />
+            <X strokeWidth={1.75} />
           </Button>
         </div>
 
@@ -805,11 +805,11 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
               <div className="sticky top-3 z-10 flex items-start justify-end pr-4 h-0">
                 <div className="flex items-center gap-1 bg-card/95 backdrop-blur border border-border rounded-xl shadow-md px-1.5 py-1" data-image-zoom>
                   <Button variant="ghost" size="icon-sm" onClick={() => setImgZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))} title={t('reader.imageZoomOut')} data-zoom-out
-                    className="hover:bg-accent text-muted-foreground hover:text-foreground"><ZoomOut size={14} strokeWidth={1.75} /></Button>
+                    className="hover:bg-accent text-muted-foreground hover:text-foreground"><ZoomOut strokeWidth={1.75} /></Button>
                   <Button variant="ghost" size="sm" onClick={() => setImgZoom(1)} title={t('reader.imageZoomFit')} data-zoom-fit
                     className="hover:bg-accent font-mono text-xs text-muted-foreground hover:text-foreground min-w-[52px]">{Math.round(imgZoom * 100)}%</Button>
                   <Button variant="ghost" size="icon-sm" onClick={() => setImgZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)))} title={t('reader.imageZoomIn')} data-zoom-in
-                    className="hover:bg-accent text-muted-foreground hover:text-foreground"><ZoomIn size={14} strokeWidth={1.75} /></Button>
+                    className="hover:bg-accent text-muted-foreground hover:text-foreground"><ZoomIn strokeWidth={1.75} /></Button>
                 </div>
               </div>
               <div
@@ -848,11 +848,11 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                 <div className="mt-6 pt-4 border-t border-border flex items-center gap-3 text-2xs text-muted-foreground">
                   <span className="font-mono">{digestModel ? digestModel.split('/').pop() : ''}</span>
                   <Button variant="ghost" onClick={() => void startDigest()} className="hover:text-muted-foreground">
-                    <RefreshCw size={11} strokeWidth={1.75} /> {t('reader.redigest')}
+                    <RefreshCw strokeWidth={1.75} /> {t('reader.redigest')}
                   </Button>
                   {digestNode && (
                     <Button variant="ghost" onClick={() => { close(); onLocate(digestNode.id); }} className="hover:text-primary" title={t('reader.locate')}>
-                      <Crosshair size={11} strokeWidth={1.75} /> {t('reader.digestOnCanvas')}
+                      <Crosshair strokeWidth={1.75} /> {t('reader.digestOnCanvas')}
                     </Button>
                   )}
                 </div>
@@ -922,14 +922,14 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                 title={t('reader.locate')}
                 className="text-muted-foreground hover:text-primary hover:bg-accent shrink-0"
               >
-                <Crosshair size={13} strokeWidth={1.75} />
+                <Crosshair strokeWidth={1.75} />
               </Button>
               <Button variant="ghost" size="icon-sm"
                 onClick={() => setThreadId(null)}
                 title={t('reader.threadClose')}
                 className="text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
               >
-                <X size={14} strokeWidth={1.75} />
+                <X strokeWidth={1.75} />
               </Button>
             </div>
             <div ref={railRef} onMouseUp={handleRailMouseUp} className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-4">
@@ -972,7 +972,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                 disabled={!followDraft.trim()}
                 className="shrink-0"
               >
-                <Send size={14} strokeWidth={1.75} />
+                <Send strokeWidth={1.75} />
               </Button>
             </div>
           </div>
@@ -994,7 +994,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
             disabled={!wholeDraft.trim()}
             className="shrink-0"
           >
-            <Send size={14} strokeWidth={1.75} />
+            <Send strokeWidth={1.75} />
           </Button>
           {grownChildren.length > 0 && (
             <div className="flex flex-wrap items-center content-start gap-1.5 max-w-[45%] shrink-0 max-h-[3.75rem] overflow-y-auto" data-grown-chips>
@@ -1007,7 +1007,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                   }`}
                 >
                   <Button variant="ghost" onClick={() => setThreadId(c.id)} className="min-w-0">
-                    {c.data.isLoading && <Loader2 size={10} strokeWidth={2} className="animate-spin text-primary shrink-0" />}
+                    {c.data.isLoading && <Loader2 strokeWidth={2} className="animate-spin text-primary shrink-0" />}
                     {/* provenance at a glance: page-anchored vs whole-material */}
                     {(c.data.anchor || !c.data.branchContext) && (
                       <span className={`font-mono shrink-0 ${threadId === c.id ? 'text-primary' : 'text-muted-foreground'}`}>
@@ -1021,7 +1021,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                     title={t('reader.locate')}
                     className="w-4.5 h-4.5 text-muted-foreground hover:text-primary shrink-0"
                   >
-                    <Crosshair size={11} strokeWidth={1.75} />
+                    <Crosshair strokeWidth={1.75} />
                   </Button>
                 </span>
               ))}
@@ -1068,7 +1068,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                 title={t('common.highlight')}
                 className="bg-muted text-muted-foreground hover:text-primary hover:bg-primary/10 shrink-0"
               >
-                <Highlighter size={14} strokeWidth={1.75} />
+                <Highlighter strokeWidth={1.75} />
               </Button>
             )}
             {!ask.targetNodeId && (
@@ -1083,7 +1083,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                 data-reader-highlight
                 className="bg-muted text-muted-foreground hover:text-warning/90 hover:bg-warning/10 shrink-0"
               >
-                <Highlighter size={14} strokeWidth={1.75} />
+                <Highlighter strokeWidth={1.75} />
               </Button>
             )}
             {!ask.targetNodeId && (
@@ -1093,7 +1093,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                 data-reader-clip-note
                 className="bg-muted text-muted-foreground hover:text-edge-explore hover:bg-edge-explore/10 shrink-0"
               >
-                <StickyNote size={14} strokeWidth={1.75} />
+                <StickyNote strokeWidth={1.75} />
               </Button>
             )}
             <Button size="icon"
@@ -1101,7 +1101,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
               disabled={!draft.trim()}
               className="shrink-0"
             >
-              <Send size={14} strokeWidth={1.75} />
+              <Send strokeWidth={1.75} />
             </Button>
           </div>
         </div>

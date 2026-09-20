@@ -163,7 +163,7 @@ export function DecisionsDisclosure({ records }: { records: ApprovalRecord[] }) 
         className="text-2xs text-muted-foreground hover:text-muted-foreground"
         data-decisions-toggle
       >
-        {open ? <ChevronDown size={12} strokeWidth={1.75} /> : <ChevronRight size={12} strokeWidth={1.75} />}
+        {open ? <ChevronDown strokeWidth={1.75} /> : <ChevronRight strokeWidth={1.75} />}
         <span>🛡 {t('approval.decisions')} · {good}/{records.length}</span>
       </Button>
       {open && <div className="mt-1 px-3 py-1.5 bg-muted/70 rounded-xl"><ApprovalRecords records={records} /></div>}

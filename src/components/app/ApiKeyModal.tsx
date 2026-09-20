@@ -242,10 +242,10 @@ export default function ApiKeyModal() {
                   </div>
                 </div>
                 <Button variant="ghost" size="icon-sm" onClick={() => void refresh(p)} disabled={busy} title={t('provider.refreshTitle')} className="text-muted-foreground hover:text-primary shrink-0" data-provider-refresh>
-                  <Pencil size={13} strokeWidth={1.75} />
+                  <Pencil strokeWidth={1.75} />
                 </Button>
                 <Button variant="ghost" size="icon-sm" onClick={() => void remove(p.baseURL)} disabled={busy} title={t('common.delete')} className="text-muted-foreground hover:text-destructive/90 shrink-0">
-                  <Trash2 size={13} strokeWidth={1.75} />
+                  <Trash2 strokeWidth={1.75} />
                 </Button>
               </div>
             ))}
@@ -258,7 +258,7 @@ export default function ApiKeyModal() {
             )}
 
             <Button variant="ghost" size="sm" onClick={() => setAdding(true)} className="text-xs text-primary hover:bg-primary/10" data-provider-add>
-              <Plus size={14} strokeWidth={1.75} /> {t('provider.add')}
+              <Plus strokeWidth={1.75} /> {t('provider.add')}
             </Button>
           </>)}
 
@@ -305,7 +305,7 @@ export default function ApiKeyModal() {
                 <p className="text-2xs text-muted-foreground leading-relaxed flex-1 min-w-0">{t('provider.oauthHint')}</p>
                 <Button size="sm" onClick={() => void startOpenRouterOAuth()} data-provider-oauth
                   className="shrink-0">
-                  <ExternalLink size={12} strokeWidth={1.75} /> {t('provider.oauthButton')}
+                  <ExternalLink strokeWidth={1.75} /> {t('provider.oauthButton')}
                 </Button>
               </div>
             )}
@@ -332,7 +332,7 @@ export default function ApiKeyModal() {
             {!probed && (
               <Button size="sm" onClick={() => void doProbe()} disabled={busy || hostedBridgeBlocked || (preset.id === 'custom' ? !customURL.trim() : !preset.noKey && !key.trim())}
                  data-provider-probe>
-                {busy && <Loader2 size={12} className="animate-spin" />}
+                {busy && <Loader2 className="animate-spin" />}
                 {busy ? t('provider.probing') : t('provider.probe')}
               </Button>
             )}
@@ -378,7 +378,7 @@ export default function ApiKeyModal() {
                           title={t('provider.visionToggle')}
                           className={`flex items-center gap-0.5 text-2xs px-1.5 py-0.5 rounded-full transition-colors ${picked.get(m.id) ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}
                         >
-                          <Camera size={11} strokeWidth={1.75} />
+                          <Camera strokeWidth={1.75} />
                         </Button>
                       )}
                     </label>
@@ -400,7 +400,7 @@ export default function ApiKeyModal() {
             <Button variant="ghost" size="sm" onClick={resetAdd} className="text-xs text-muted-foreground hover:text-foreground hover:bg-accent">{t('common.cancel')}</Button>
             <Button size="sm" onClick={() => void doAdd()} disabled={busy || picked.size === 0}
                data-provider-save>
-              {busy && <Loader2 size={12} className="animate-spin" />}
+              {busy && <Loader2 className="animate-spin" />}
               {t('provider.save')}
             </Button>
           </>) : (

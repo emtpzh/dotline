@@ -71,7 +71,7 @@ export default function DiagnosticsPanel({ onLocate, openPing = 0, showTrigger =
             title={t('diag.locate')}
             className="text-muted-foreground hover:text-primary hover:bg-accent"
           >
-            <Crosshair size={13} strokeWidth={1.75} />
+            <Crosshair strokeWidth={1.75} />
           </Button>
         )}
         {f.fixable && (
@@ -80,7 +80,7 @@ export default function DiagnosticsPanel({ onLocate, openPing = 0, showTrigger =
             title={t('diag.fix')}
             className="text-muted-foreground hover:text-destructive/90 hover:bg-destructive/10"
           >
-            <Trash2 size={13} strokeWidth={1.75} />
+            <Trash2 strokeWidth={1.75} />
           </Button>
         )}
       </div>
@@ -95,7 +95,7 @@ export default function DiagnosticsPanel({ onLocate, openPing = 0, showTrigger =
           className={open ? 'border-primary/40 text-primary' : ''}
           title={t('toolbar.diagnose')}
         >
-          <Stethoscope size={15} strokeWidth={1.75} />
+          <Stethoscope strokeWidth={1.75} />
         </Button>
       )}
       <Popover open={open} onOpenChange={setOpen}>

@@ -135,7 +135,7 @@ export default function ThoughtEdgeView({
                 className="shadow-md hover:border-destructive/40"
                 title={t('canvas.deleteEdgeTitle')}
               >
-                <X size={13} strokeWidth={2} />
+                <X strokeWidth={2} />
               </Button>
             </div>
           </div>

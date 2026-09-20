@@ -402,7 +402,7 @@ export default function ThoughtMapDialog() {
                   <span>{t('tmap.publicTitle')}</span>
                   <Button variant="ghost" size="xs" onClick={() => void draft()} disabled={drafting} data-tmap-draft
                     className="text-2xs text-primary hover:bg-primary/10">
-                    {drafting ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} strokeWidth={1.75} />}
+                    {drafting ? <Loader2 className="animate-spin" /> : <Sparkles strokeWidth={1.75} />}
                     {drafting ? t('tmap.drafting') : t('tmap.draft')}
                   </Button>
                 </div>
@@ -480,7 +480,7 @@ export default function ThoughtMapDialog() {
               ))}
               <div className="flex-1" />
               <Button size="sm" onClick={() => { void downloadPng().then((ok) => { if (ok) setStep('share'); }); }} disabled={busy} data-tmap-download>
-                {busy ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} strokeWidth={1.75} />}
+                {busy ? <Loader2 className="animate-spin" /> : <Download strokeWidth={1.75} />}
                 {t('tmap.download')}
               </Button>
             </div>
@@ -496,7 +496,7 @@ export default function ThoughtMapDialog() {
                 </div>
               </div>
               <Button variant="outline" size="sm" onClick={() => setStep('image')} data-tmap-back>
-                <ArrowLeft size={13} strokeWidth={1.75} /> {t('tmap.backToImage')}
+                <ArrowLeft strokeWidth={1.75} /> {t('tmap.backToImage')}
               </Button>
             </div>
             <div className="flex-1 min-w-[320px] flex flex-col gap-3">
@@ -514,7 +514,7 @@ export default function ThoughtMapDialog() {
                     </span>
                     <Button variant="ghost" size="xs" onClick={() => void draft()} disabled={drafting}
                       className="text-2xs text-primary hover:bg-primary/10">
-                      {drafting ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} strokeWidth={1.75} />}
+                      {drafting ? <Loader2 className="animate-spin" /> : <Sparkles strokeWidth={1.75} />}
                       {drafting ? t('tmap.drafting') : t('tmap.draft')}
                     </Button>
                   </span>
@@ -525,7 +525,7 @@ export default function ThoughtMapDialog() {
               <div className="flex flex-wrap gap-2">
                 <Button variant="ghost" size="sm" onClick={() => { void navigator.clipboard.writeText(caption); toast('success', t('tmap.captionCopied')); }}
                   className="text-xs bg-primary/10 text-primary hover:bg-primary/20 border-primary/30">
-                  <Copy size={13} strokeWidth={1.75} /> {t('tmap.copyCaption')}
+                  <Copy strokeWidth={1.75} /> {t('tmap.copyCaption')}
                 </Button>
                 {PLATFORMS.map(([name, kind]) => (
                   <Button variant="outline" size="sm" key={name} onClick={() => share(kind, name)}>

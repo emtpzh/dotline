@@ -142,7 +142,7 @@ export default function ResponseViewer() {
                   <GitBranch size={13} strokeWidth={1.75} className="text-edge-explore shrink-0 mt-0.5" />
                   <span className="italic leading-relaxed min-w-0 flex-1">“{branchFrom.slice(0, 160)}{branchFrom.length > 160 ? '…' : ''}”</span>
                   <Button variant="ghost" onClick={() => setBranchFrom('')} className="text-muted-foreground hover:text-foreground shrink-0" title={t('common.cancel')}>
-                    <X size={13} strokeWidth={1.75} />
+                    <X strokeWidth={1.75} />
                   </Button>
                 </div>
               )}
@@ -164,7 +164,7 @@ export default function ResponseViewer() {
                   title={t('viewerqa.askTitle')}
                   className="shrink-0"
                 >
-                  <Send size={15} strokeWidth={1.75} />
+                  <Send strokeWidth={1.75} />
                 </Button>
               </div>
             </div>

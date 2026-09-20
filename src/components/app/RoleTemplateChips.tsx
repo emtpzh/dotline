@@ -31,7 +31,7 @@ export default function RoleTemplateChips({ onPick }: { onPick: (prompt: string)
         title={t('roles.manageTitle')}
         className="border-dashed hover:border-primary/40"
       >
-        <Pencil size={10} strokeWidth={1.75} /> {t('roles.manage')}
+        <Pencil strokeWidth={1.75} /> {t('roles.manage')}
       </Button>
     </div>
   );

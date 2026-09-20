@@ -159,7 +159,7 @@ export default function FollowUpInput({
           <span className="text-edge-explore font-medium shrink-0"><GitBranch size={13} strokeWidth={1.75} className="inline" /> {t('node.exploringFrom')}</span>
           <span className="flex-1 min-w-0 truncate">&ldquo;{branchContext.slice(0, 90)}{branchContext.length > 90 ? '…' : ''}&rdquo;</span>
           <Button variant="ghost" onClick={onClearBranchContext} className="text-muted-foreground hover:text-destructive/90 shrink-0">
-            <X size={13} strokeWidth={2} />
+            <X strokeWidth={2} />
           </Button>
         </div>
       )}
@@ -173,7 +173,7 @@ export default function FollowUpInput({
               <span className="max-w-[140px] truncate">{att.name}</span>
               {att.isExtracting && <span className="text-muted-foreground">…</span>}
               <Button variant="ghost" onClick={() => setPendingAttachments((prev) => prev.filter((a) => a.id !== att.id))} className="text-muted-foreground hover:text-destructive/90">
-                <X size={11} strokeWidth={2} />
+                <X strokeWidth={2} />
               </Button>
             </span>
           ))}
@@ -218,14 +218,14 @@ export default function FollowUpInput({
           title={t('followup.attach')}
           className="text-muted-foreground hover:text-primary shrink-0 hover:bg-border"
         >
-          <Paperclip size={16} strokeWidth={1.75} />
+          <Paperclip strokeWidth={1.75} />
         </Button>
         <Button variant="ghost" size="icon-sm"
           onClick={submit}
           disabled={!continueInput.trim()}
           className="text-muted-foreground hover:text-primary shrink-0 hover:bg-border"
         >
-          <Send size={18} strokeWidth={1.75} />
+          <Send strokeWidth={1.75} />
         </Button>
       </div>
       <div className="flex gap-4 mt-1.5 px-1">

@@ -83,7 +83,7 @@ export default function MentionSurface({ m, text, setText }: {
                 onMouseDown={(e) => { e.preventDefault(); m.remove(x.nodeId); }}
                 className="w-3.5 h-3.5 hover:bg-primary/20 shrink-0"
               >
-                <X size={9} strokeWidth={2.5} />
+                <X strokeWidth={2.5} />
               </Button>
             </span>
           ))}

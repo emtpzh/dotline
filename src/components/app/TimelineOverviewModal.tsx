@@ -64,7 +64,7 @@ export default function TimelineOverviewModal({ onLocate }: { onLocate: (nodeId:
             data-tmap-from-timeline
             className="text-2xs text-muted-foreground hover:text-primary hover:bg-primary/10"
           >
-            <ImageDown size={13} strokeWidth={1.75} />
+            <ImageDown strokeWidth={1.75} />
             {t('tmap.export')}
           </Button>
         </div>
@@ -75,7 +75,7 @@ export default function TimelineOverviewModal({ onLocate }: { onLocate: (nodeId:
               onClick={writeJourney}
               className="text-2xs text-primary bg-primary/10 hover:bg-primary/20"
             >
-              <Sparkles size={12} strokeWidth={1.75} />
+              <Sparkles strokeWidth={1.75} />
               {t('tlov.gedankenGenerate')}
             </Button>
           )}

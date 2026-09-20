@@ -69,7 +69,7 @@ export default function HighlightsSection({
                       onClick={() => removeHighlight(nodeId, h.id)}
                       className="text-warning hover:text-destructive/90 shrink-0 opacity-0 group-hover/hl:opacity-100"
                     >
-                      <X size={14} strokeWidth={1.75} />
+                      <X strokeWidth={1.75} />
                     </Button>}
                   </div>
                 ))}
@@ -100,7 +100,7 @@ export default function HighlightsSection({
                   className="text-xs bg-primary/10 hover:bg-primary/20 text-primary"
                   title={t('highlight.exploreTitle')}
                 >
-                  <GitBranch size={14} strokeWidth={1.75} />
+                  <GitBranch strokeWidth={1.75} />
                   {t('common.explore')}
                 </Button>
               </div>
@@ -129,7 +129,7 @@ export default function HighlightsSection({
                     onClick={() => { setHighlightExploreContext(''); setHighlightExploreInput(''); }}
                     className="text-xs text-muted-foreground hover:text-muted-foreground shrink-0"
                   >
-                    <X size={14} strokeWidth={1.75} />
+                    <X strokeWidth={1.75} />
                   </Button>
                 </div>
               )}

@@ -79,7 +79,7 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
           title={t('actions.stop')}
           className="text-white bg-destructive hover:bg-destructive/90"
         >
-          <Square size={12} strokeWidth={1.75} fill="currentColor" />
+          <Square strokeWidth={1.75} fill="currentColor" />
         </Button>
       ) : (
         <Button variant="ghost"
@@ -88,7 +88,7 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
           title={isLoading ? t('node.generatingTitle') : t('common.regenerate')}
           className={`${iconBtn} disabled:opacity-25 disabled:cursor-not-allowed`}
         >
-          <RefreshCw size={16} strokeWidth={1.75} className={isLoading ? 'animate-spin' : ''} />
+          <RefreshCw strokeWidth={1.75} className={isLoading ? 'animate-spin' : ''} />
         </Button>
       )}
       <Button variant="ghost"
@@ -96,7 +96,7 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
         title={isArchived ? t('archive.restoreTitle') : t('archive.title')}
         className={isArchived ? 'text-warning bg-warning/10' : iconBtn}
       >
-        {isArchived ? <ArchiveRestore size={16} strokeWidth={1.75} /> : <Archive size={16} strokeWidth={1.75} />}
+        {isArchived ? <ArchiveRestore strokeWidth={1.75} /> : <Archive strokeWidth={1.75} />}
       </Button>
       <ModelPicker
         compact

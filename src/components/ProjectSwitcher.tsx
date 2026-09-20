@@ -159,14 +159,14 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
                       className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0"
                       onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenameValue(p.name); }}
                     >
-                      <Pencil size={14} strokeWidth={1.75} />
+                      <Pencil strokeWidth={1.75} />
                     </Button>
                     <Button variant="ghost"
                       title={t('common.delete')}
                       className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive/90 shrink-0"
                       onClick={(e) => { e.stopPropagation(); void confirmDelete(p); }}
                     >
-                      <Trash2 size={14} strokeWidth={1.75} />
+                      <Trash2 strokeWidth={1.75} />
                     </Button>
                     <Button variant="ghost"
                       title={t('switcher.archive')}
@@ -174,7 +174,7 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
                       onClick={(e) => { e.stopPropagation(); void setProjectArchived(p.id, true).then(onSwitched); }}
                       data-archive-canvas
                     >
-                      <Archive size={14} strokeWidth={1.75} />
+                      <Archive strokeWidth={1.75} />
                     </Button>
                   </>
                 )}
@@ -187,20 +187,20 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
               onClick={() => { setOpen(false); void createProject().then(onSwitched); }}
               className="w-full text-left text-xs text-primary hover:bg-accent"
             >
-              <Plus size={15} strokeWidth={1.75} /> {t('switcher.newCanvas')}
+              <Plus strokeWidth={1.75} /> {t('switcher.newCanvas')}
             </Button>
             <Button variant="ghost" size="sm"
               onClick={() => importFileRef.current?.click()}
               className="w-full text-left text-xs text-muted-foreground hover:bg-accent"
             >
-              <Upload size={15} strokeWidth={1.75} /> {t('switcher.importBackup')}
+              <Upload strokeWidth={1.75} /> {t('switcher.importBackup')}
             </Button>
             <Button variant="ghost" size="sm"
               onClick={() => { setOpen(false); setAtlasOpen(true); }}
               className="w-full text-left text-xs text-muted-foreground hover:bg-accent"
               data-open-atlas
             >
-              <MapIcon size={15} strokeWidth={1.75} /> {t('switcher.allCanvases')}
+              <MapIcon strokeWidth={1.75} /> {t('switcher.allCanvases')}
             </Button>
             {window.desktop && (
               <Button variant="ghost" size="sm"
@@ -208,7 +208,7 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
                 className="w-full text-left text-xs text-muted-foreground hover:bg-accent"
                 data-check-updates
               >
-                <RefreshCw size={15} strokeWidth={1.75} /> {t('update.checkMenu')}
+                <RefreshCw strokeWidth={1.75} /> {t('update.checkMenu')}
                 {/* the one place that answers "which version am I on" at a glance */}
                 <span className="ml-auto text-2xs text-muted-foreground">
                   v{new URLSearchParams(window.location.search).get('dv')}

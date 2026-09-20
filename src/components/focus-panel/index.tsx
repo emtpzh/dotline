@@ -123,7 +123,7 @@ export default function FocusPanel({ onFocusNode }: { onFocusNode?: (id: string)
             title={t('panel.close')}
             className="text-muted-foreground hover:text-foreground shrink-0 ml-1"
           >
-            <X size={16} strokeWidth={1.75} />
+            <X strokeWidth={1.75} />
           </Button>
         </div>
       </div>
