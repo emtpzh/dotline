@@ -77,8 +77,8 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
     return () => window.removeEventListener('mousedown', handler);
   }, [menuOpen]);
 
-  const iconBtn = 'text-ink-faint hover:text-ink hover:bg-line/50 rounded-lg w-8 h-8 flex items-center justify-center transition-colors';
-  const menuItem = 'w-full text-left px-3 py-2 text-xs text-ink-muted hover:bg-wash transition-colors flex items-center gap-2';
+  const iconBtn = 'text-muted-foreground hover:text-foreground hover:bg-border/50 rounded-lg w-8 h-8 flex items-center justify-center transition-colors';
+  const menuItem = 'w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-accent transition-colors flex items-center gap-2';
 
   return (
     <div className="relative flex items-center gap-1 shrink-0">
@@ -86,7 +86,7 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
         <button
           onClick={() => stopGeneration(nodeId)}
           title={t('actions.stop')}
-          className="text-white bg-red-500 hover:bg-red-600 rounded-lg w-8 h-8 flex items-center justify-center transition-colors"
+          className="text-white bg-destructive hover:bg-destructive/90 rounded-lg w-8 h-8 flex items-center justify-center transition-colors"
         >
           <Square size={12} strokeWidth={1.75} fill="currentColor" />
         </button>
@@ -103,7 +103,7 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
       <button
         onClick={() => setArchived([nodeId], !isArchived)}
         title={isArchived ? t('archive.restoreTitle') : t('archive.title')}
-        className={isArchived ? 'text-amber-600 bg-amber-500/10 rounded-lg w-8 h-8 flex items-center justify-center' : iconBtn}
+        className={isArchived ? 'text-warning bg-warning/10 rounded-lg w-8 h-8 flex items-center justify-center' : iconBtn}
       >
         {isArchived ? <ArchiveRestore size={16} strokeWidth={1.75} /> : <Archive size={16} strokeWidth={1.75} />}
       </button>
@@ -123,11 +123,11 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
       />
 
       <div ref={menuRef} className="relative">
-        <button onClick={() => setMenuOpen((v) => !v)} title={t('panel.more')} className={`${iconBtn} ${menuOpen ? 'bg-line/50 text-ink' : ''}`}>
+        <button onClick={() => setMenuOpen((v) => !v)} title={t('panel.more')} className={`${iconBtn} ${menuOpen ? 'bg-border/50 text-foreground' : ''}`}>
           <Ellipsis size={17} strokeWidth={1.75} />
         </button>
         {menuOpen && (
-          <div className="absolute right-0 top-full mt-1 bg-card border border-line rounded-xl shadow-lg py-1 w-[210px] z-30 animate-fade-in">
+          <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-lg py-1 w-[210px] z-30 animate-fade-in">
             <button className={menuItem} onClick={() => { setMenuOpen(false); setFanOutOpen(true); }} title={t('fanout.entryTitle')}>
               <Split size={15} strokeWidth={1.75} /> {t('fanout.entry')}
             </button>
@@ -154,10 +154,10 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
                 <GitFork size={15} strokeWidth={1.75} /> {t('fact.openOriginal')}
               </button>
             )}
-            <div className="border-t border-line my-1" />
+            <div className="border-t border-border my-1" />
             {mergedSources > 0 && (
               <button
-                className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 transition-colors flex items-center gap-2"
+                className="w-full text-left px-3 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-2"
                 onClick={() => {
                   setMenuOpen(false);
                   void confirmDialog({
@@ -173,7 +173,7 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
               </button>
             )}
             <button
-              className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 transition-colors flex items-center gap-2"
+              className="w-full text-left px-3 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-2"
               onClick={() => { setMenuOpen(false); deleteNode(nodeId); setSelectedNodeId(null); }}
             >
               <Trash2 size={15} strokeWidth={1.75} /> {t('common.delete')}

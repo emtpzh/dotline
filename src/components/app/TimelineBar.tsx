@@ -82,27 +82,27 @@ export function TimelineBar() {
     >
       {hovered && hover && (
         <div
-          className="fixed left-[108px] max-w-[320px] bg-card border border-line rounded-lg shadow-md px-3 py-2 text-xs pointer-events-none z-20"
+          className="fixed left-[108px] max-w-[320px] bg-card border border-border rounded-lg shadow-md px-3 py-2 text-xs pointer-events-none z-20"
           style={{ top: hover.y - 14 }}
         >
-          <div className="font-medium text-ink truncate">
-            {hovered.topic && <span className="text-accent">{hovered.topic} · </span>}
+          <div className="font-medium text-foreground truncate">
+            {hovered.topic && <span className="text-primary">{hovered.topic} · </span>}
             {hovered.label || '…'}
           </div>
           {hovered.createdAt && (
-            <div className="text-ink-faint mt-0.5">{t('timeline.created')} {fmtTime(hovered.createdAt)}</div>
+            <div className="text-muted-foreground mt-0.5">{t('timeline.created')} {fmtTime(hovered.createdAt)}</div>
           )}
           {hovered.modifiedAt && hovered.modifiedAt !== hovered.createdAt && (
-            <div className="text-ink-faint">{t('timeline.modified')} {fmtTime(hovered.modifiedAt)}</div>
+            <div className="text-muted-foreground">{t('timeline.modified')} {fmtTime(hovered.modifiedAt)}</div>
           )}
-          <div className="text-[10px] text-ink-faint/80 mt-1">{t('timeline.clickHint')}</div>
+          <div className="text-[10px] text-muted-foreground/80 mt-1">{t('timeline.clickHint')}</div>
         </div>
       )}
       <button
         onClick={() => setOverviewOpen(true)}
         title={t('timeline.openOverview')}
         data-timeline-overview-btn
-        className="pointer-events-auto self-start ml-[25px] w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint/70 hover:text-accent hover:bg-accent/10 transition-colors"
+        className="pointer-events-auto self-start ml-[25px] w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/70 hover:text-primary hover:bg-primary/10 transition-colors"
       >
         <History size={14} strokeWidth={1.75} />
       </button>
@@ -151,7 +151,7 @@ export function TimelineBar() {
                   }}
                 />
                 {newDay && (
-                  <span className="absolute left-[67px] top-1/2 -translate-y-1/2 text-[10px] leading-none text-ink-faint select-none whitespace-nowrap">
+                  <span className="absolute left-[67px] top-1/2 -translate-y-1/2 text-[10px] leading-none text-muted-foreground select-none whitespace-nowrap">
                     {fmtDay(day)}
                   </span>
                 )}

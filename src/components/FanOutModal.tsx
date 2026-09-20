@@ -70,16 +70,16 @@ export default function FanOutModal({
   };
 
   return createPortal((
-    <div className="fixed inset-0 z-50 bg-ink/30 backdrop-blur-sm flex items-center justify-center p-6" onClick={onClose}>
-      <div className="bg-card border border-line rounded-2xl shadow-2xl w-full max-w-lg flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="px-6 py-4 border-b border-line flex items-start justify-between gap-4">
+    <div className="fixed inset-0 z-50 bg-foreground/30 backdrop-blur-sm flex items-center justify-center p-6" onClick={onClose}>
+      <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-border flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-base font-semibold text-ink flex items-center gap-2">
-              <Split size={16} strokeWidth={1.75} className="text-warm" /> {t('fanout.title')}
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+              <Split size={16} strokeWidth={1.75} className="text-edge-explore" /> {t('fanout.title')}
             </h2>
-            <p className="text-xs text-ink-muted mt-1 leading-relaxed">{t('fanout.subtitle')}</p>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t('fanout.subtitle')}</p>
           </div>
-          <button onClick={onClose} className="text-ink-faint hover:text-ink transition-colors shrink-0 mt-0.5">
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors shrink-0 mt-0.5">
             <X size={16} strokeWidth={1.75} />
           </button>
         </div>
@@ -97,48 +97,48 @@ export default function FanOutModal({
                   onClick={() => switchMode(m)}
                   className={`text-xs px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 ${
                     mode === m
-                      ? (m === 'follow' ? 'bg-watch/10 text-watch font-medium ring-1 ring-watch/30' : 'bg-warm/15 text-warm font-medium ring-1 ring-warm/30')
-                      : 'bg-wash text-ink-muted hover:bg-line'
+                      ? (m === 'follow' ? 'bg-edge-watch/10 text-edge-watch font-medium ring-1 ring-edge-watch/30' : 'bg-edge-explore/15 text-edge-explore font-medium ring-1 ring-edge-explore/30')
+                      : 'bg-muted text-muted-foreground hover:bg-border'
                   }`}
                 >
                   {icon} {label}
                 </button>
               ))}
             </div>
-            <p className="text-2xs text-ink-faint mt-1.5 leading-relaxed">
+            <p className="text-2xs text-muted-foreground mt-1.5 leading-relaxed">
               {mode === 'once' ? t('fanout.modeOnceHint') : t('fanout.modeFollowHint')}
             </p>
             {mode === 'follow' && (
               <div className="mt-2 flex items-center gap-2">
-                <span className="text-2xs text-ink-muted">{t('fanout.rounds')}</span>
+                <span className="text-2xs text-muted-foreground">{t('fanout.rounds')}</span>
                 {[1, 2, 3].map((r) => (
                   <button
                     key={r}
                     onClick={() => setRounds(r)}
                     className={`text-2xs w-7 h-6 rounded-md transition-colors ${
-                      rounds === r ? 'bg-watch/10 text-watch font-medium ring-1 ring-watch/30' : 'bg-wash text-ink-muted hover:bg-line'
+                      rounds === r ? 'bg-edge-watch/10 text-edge-watch font-medium ring-1 ring-edge-watch/30' : 'bg-muted text-muted-foreground hover:bg-border'
                     }`}
                   >
                     {r}×
                   </button>
                 ))}
-                <span className="text-2xs text-ink-faint">{t('fanout.roundsHint')}</span>
+                <span className="text-2xs text-muted-foreground">{t('fanout.roundsHint')}</span>
               </div>
             )}
           </div>
 
           <div>
-            <label className="text-2xs text-ink-faint uppercase tracking-wider font-medium block mb-1.5">{t(mode === 'follow' ? 'fanout.instruction' : 'fanout.question')}</label>
+            <label className="text-2xs text-muted-foreground uppercase tracking-wider font-medium block mb-1.5">{t(mode === 'follow' ? 'fanout.instruction' : 'fanout.question')}</label>
             <textarea
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               rows={2}
-              className="w-full text-sm border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent bg-surface resize-none leading-relaxed"
+              className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring bg-background resize-none leading-relaxed"
             />
           </div>
 
           <div>
-            <label className="text-2xs text-ink-faint uppercase tracking-wider font-medium block mb-1.5">{t('fanout.templates')}</label>
+            <label className="text-2xs text-muted-foreground uppercase tracking-wider font-medium block mb-1.5">{t('fanout.templates')}</label>
             <div className="flex flex-wrap gap-1.5">
               {library.map((tpl) => (
                 <button
@@ -150,7 +150,7 @@ export default function FanOutModal({
                     return next;
                   })}
                   className={`text-2xs px-2.5 py-1.5 rounded-full transition-colors ${
-                    picked.has(tpl.id) ? 'bg-warm/15 text-warm font-medium' : 'bg-wash hover:bg-line text-ink-muted'
+                    picked.has(tpl.id) ? 'bg-edge-explore/15 text-edge-explore font-medium' : 'bg-muted hover:bg-border text-muted-foreground'
                   }`}
                 >
                   {tpl.name}
@@ -160,26 +160,26 @@ export default function FanOutModal({
           </div>
 
           <div>
-            <label className="text-2xs text-ink-faint uppercase tracking-wider font-medium block mb-1.5">{t('fanout.custom')}</label>
+            <label className="text-2xs text-muted-foreground uppercase tracking-wider font-medium block mb-1.5">{t('fanout.custom')}</label>
             <textarea
               value={customText}
               onChange={(e) => setCustomText(e.target.value)}
               rows={4}
               placeholder={t('fanout.customPlaceholder')}
-              className="w-full text-xs border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent bg-surface resize-y leading-relaxed font-mono"
+              className="w-full text-xs border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring bg-background resize-y leading-relaxed font-mono"
             />
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-line flex justify-end gap-2">
-          <button onClick={onClose} className="text-xs text-ink-muted hover:text-ink px-4 py-2 rounded-lg hover:bg-wash transition-colors">
+        <div className="px-6 py-4 border-t border-border flex justify-end gap-2">
+          <button onClick={onClose} className="text-xs text-muted-foreground hover:text-foreground px-4 py-2 rounded-lg hover:bg-accent transition-colors">
             {t('common.cancel')}
           </button>
           <button
             onClick={run}
             disabled={!question.trim() || roles.length === 0}
             className={`text-xs text-white px-5 py-2 rounded-lg transition-colors disabled:opacity-30 ${
-              mode === 'follow' ? 'bg-watch/90 hover:bg-watch' : 'bg-warm hover:bg-warm/90'
+              mode === 'follow' ? 'bg-edge-watch/90 hover:bg-edge-watch' : 'bg-edge-explore hover:bg-edge-explore/90'
             }`}
           >
             {fmt(t(mode === 'follow' ? 'fanout.confirmFollow' : 'fanout.confirm'), { n: roles.length })}

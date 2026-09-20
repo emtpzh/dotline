@@ -110,11 +110,11 @@ export default function ResponseViewer() {
   };
 
   return createPortal((
-    <div className="fixed inset-0 z-[75] bg-ink/25 backdrop-blur-[2px] flex items-center justify-center animate-fade-in" onClick={close} data-response-viewer>
-      <div ref={shellRef} className="relative bg-surface rounded-2xl shadow-2xl border border-line w-[min(920px,92vw)] h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start gap-3 px-6 py-4 border-b border-line bg-card shrink-0">
-          <div className="flex-1 min-w-0 text-sm font-semibold text-ink leading-snug line-clamp-2">{data.question}</div>
-          <button onClick={close} title={t('panel.close')} className="w-7 h-7 rounded-lg text-ink-faint hover:bg-wash hover:text-ink flex items-center justify-center transition-colors shrink-0">
+    <div className="fixed inset-0 z-[75] bg-foreground/25 backdrop-blur-[2px] flex items-center justify-center animate-fade-in" onClick={close} data-response-viewer>
+      <div ref={shellRef} className="relative bg-background rounded-2xl shadow-2xl border border-border w-[min(920px,92vw)] h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start gap-3 px-6 py-4 border-b border-border bg-card shrink-0">
+          <div className="flex-1 min-w-0 text-sm font-semibold text-foreground leading-snug line-clamp-2">{data.question}</div>
+          <button onClick={close} title={t('panel.close')} className="w-7 h-7 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground flex items-center justify-center transition-colors shrink-0">
             <X size={16} strokeWidth={1.75} />
           </button>
         </div>
@@ -124,22 +124,22 @@ export default function ResponseViewer() {
             {data.isLoading && (!data.response || data.restreaming) ? (
               data.reasoning ? (
                 <div>
-                  <div className="text-2xs text-ink-faint mb-1">💭 {t('node.reasoningLive')}</div>
-                  <div className="text-xs text-ink-faint italic leading-relaxed whitespace-pre-wrap break-words">{data.reasoning}</div>
+                  <div className="text-2xs text-muted-foreground mb-1">💭 {t('node.reasoningLive')}</div>
+                  <div className="text-xs text-muted-foreground italic leading-relaxed whitespace-pre-wrap break-words">{data.reasoning}</div>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 text-sm text-ink-muted py-10 justify-center">
-                  <Loader2 size={16} strokeWidth={1.75} className="animate-spin text-accent" /> {t('common.thinking')}
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-10 justify-center">
+                  <Loader2 size={16} strokeWidth={1.75} className="animate-spin text-primary" /> {t('common.thinking')}
                 </div>
               )
             ) : (
-              <div className="markdown-body text-[15px] text-ink leading-relaxed cursor-text">
+              <div className="markdown-body text-[15px] text-foreground leading-relaxed cursor-text">
                 {data.highlights.length > 0 && !data.isLoading ? (
                   <HighlightedMarkdown content={data.response} highlights={new Set(data.highlights.map((h) => h.text))} />
                 ) : (
                   <Markdown base={data.importSource?.cwd}>{data.response}</Markdown>
                 )}
-                {data.isLoading && <span className="inline-block w-2 h-4 bg-accent animate-pulse rounded-sm ml-0.5" />}
+                {data.isLoading && <span className="inline-block w-2 h-4 bg-primary animate-pulse rounded-sm ml-0.5" />}
               </div>
             )}
           </div>
@@ -148,19 +148,19 @@ export default function ResponseViewer() {
         {/* Selection bar: the card's grammar, in reading size */}
         {canInteract && selectedText && selectionPos && (
           <div
-            className="absolute z-10 flex gap-1 bg-card border border-line rounded-xl shadow-lg p-1 animate-fade-in"
+            className="absolute z-10 flex gap-1 bg-card border border-border rounded-xl shadow-lg p-1 animate-fade-in"
             style={{ left: selectionPos.x, top: selectionPos.y, transform: 'translateX(-50%)' }}
             onMouseDown={(e) => e.preventDefault()}
           >
             <button
               onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); branchFromSelection(); }}
-              className="bg-accent hover:bg-accent-strong text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
+              className="bg-primary hover:bg-primary/90 text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
             >
               <GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('common.explore')}
             </button>
             <button
               onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); highlightSelection(); }}
-              className="bg-amber-500 hover:bg-amber-400 text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
+              className="bg-warning hover:bg-warning text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
             >
               <Star size={14} strokeWidth={1.75} className="inline" /> {t('common.highlight')}
             </button>
@@ -170,13 +170,13 @@ export default function ResponseViewer() {
         {/* Follow-up right where you read — the answer streams back into
             this same viewer (the divergence loop never leaves the text) */}
         {canInteract && (
-          <div className="border-t border-line bg-card px-6 py-3 shrink-0">
+          <div className="border-t border-border bg-card px-6 py-3 shrink-0">
             <div className="max-w-[760px] mx-auto">
               {branchFrom && (
-                <div className="mb-2 text-xs pl-3 py-1.5 pr-2 border-l-2 border-warm bg-warm/10 rounded-r text-ink-muted flex items-start gap-1.5">
-                  <GitBranch size={13} strokeWidth={1.75} className="text-warm shrink-0 mt-0.5" />
+                <div className="mb-2 text-xs pl-3 py-1.5 pr-2 border-l-2 border-edge-explore bg-edge-explore/10 rounded-r text-muted-foreground flex items-start gap-1.5">
+                  <GitBranch size={13} strokeWidth={1.75} className="text-edge-explore shrink-0 mt-0.5" />
                   <span className="italic leading-relaxed min-w-0 flex-1">“{branchFrom.slice(0, 160)}{branchFrom.length > 160 ? '…' : ''}”</span>
-                  <button onClick={() => setBranchFrom('')} className="text-ink-faint hover:text-ink shrink-0" title={t('common.cancel')}>
+                  <button onClick={() => setBranchFrom('')} className="text-muted-foreground hover:text-foreground shrink-0" title={t('common.cancel')}>
                     <X size={13} strokeWidth={1.75} />
                   </button>
                 </div>
@@ -191,13 +191,13 @@ export default function ResponseViewer() {
                   }}
                   placeholder={branchFrom ? t('viewerqa.placeholderBranch') : t('viewerqa.placeholder')}
                   rows={1}
-                  className="flex-1 text-sm bg-wash border border-line rounded-xl px-3.5 py-2.5 resize-none focus:outline-none focus:ring-1 focus:ring-accent leading-relaxed"
+                  className="flex-1 text-sm bg-muted border border-border rounded-xl px-3.5 py-2.5 resize-none focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed"
                 />
                 <button
                   onClick={ask}
                   disabled={!input.trim() || data.isLoading}
                   title={t('viewerqa.askTitle')}
-                  className="w-9 h-9 rounded-xl bg-accent text-white flex items-center justify-center hover:bg-accent-strong transition-colors disabled:opacity-30 shrink-0"
+                  className="w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-30 shrink-0"
                 >
                   <Send size={15} strokeWidth={1.75} />
                 </button>

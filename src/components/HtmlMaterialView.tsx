@@ -46,12 +46,12 @@ export function HtmlMaterialView({ att, onSelect, clipMode, onClipped, baseUrl }
   }, []);
 
   if (failed) {
-    return <p className="text-sm text-ink-faint italic py-10 text-center">{t('reader.htmlNoText')}</p>;
+    return <p className="text-sm text-muted-foreground italic py-10 text-center">{t('reader.htmlNoText')}</p>;
   }
   if (!pages) {
     return (
-      <div className="flex items-center justify-center gap-2 h-full min-h-[200px] text-sm text-ink-muted">
-        <Loader2 size={16} strokeWidth={1.75} className="animate-spin text-accent" /> {t('reader.loading')}
+      <div className="flex items-center justify-center gap-2 h-full min-h-[200px] text-sm text-muted-foreground">
+        <Loader2 size={16} strokeWidth={1.75} className="animate-spin text-primary" /> {t('reader.loading')}
       </div>
     );
   }
@@ -60,7 +60,7 @@ export function HtmlMaterialView({ att, onSelect, clipMode, onClipped, baseUrl }
       {pages.map((p) => (
         <div key={p.page ?? 0} data-page={p.page ?? undefined} className="w-full max-w-[860px]">
           {p.page != null && (
-            <div className="text-2xs text-ink-faint font-mono text-center select-none pt-4 pb-2">— p.{p.page} —</div>
+            <div className="text-2xs text-muted-foreground font-mono text-center select-none pt-4 pb-2">— p.{p.page} —</div>
           )}
           <PageFrame srcdoc={p.srcdoc} page={p.page} onSelect={onSelect} clipMode={clipMode} onClipped={onClipped} clipFailedText={t('reader.clipFailed')} />
         </div>
@@ -164,13 +164,13 @@ function PageFrame({ srcdoc, page, onSelect, clipMode, onClipped, clipFailedText
           onMouseLeave={() => { if (band) finishClip(); }}
         >
           {clipping && (
-            <div className="absolute top-2 right-2 flex items-center gap-1.5 text-2xs text-warm bg-card/95 border border-line rounded-lg px-2 py-1 shadow-sm">
+            <div className="absolute top-2 right-2 flex items-center gap-1.5 text-2xs text-edge-explore bg-card/95 border border-border rounded-lg px-2 py-1 shadow-sm">
               <Loader2 size={11} strokeWidth={1.75} className="animate-spin" />
             </div>
           )}
           {band && (
             <div
-              className="absolute border-2 border-warm bg-warm/10 rounded-sm pointer-events-none"
+              className="absolute border-2 border-edge-explore bg-edge-explore/10 rounded-sm pointer-events-none"
               style={{
                 left: `${Math.min(band.x0, band.x1) * 100}%`,
                 top: `${Math.min(band.y0, band.y1) * 100}%`,

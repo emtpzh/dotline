@@ -8,9 +8,9 @@ import { useT, useI18n } from '../i18n';
 function Card({ x, y, w = 34, h = 20, tone = 'plain' }: { x: number; y: number; w?: number; h?: number; tone?: 'plain' | 'accent' | 'warm' }) {
   return (
     <g>
-      <rect x={x} y={y} width={w} height={h} rx={4} fill="var(--color-card)" stroke={"var(--color-line)"} strokeWidth={1} />
+      <rect x={x} y={y} width={w} height={h} rx={4} fill="var(--card)" stroke={"var(--border)"} strokeWidth={1} />
       {tone !== 'plain' && (
-        <rect x={x} y={y} width={2.5} height={h} rx={1.25} fill={tone === 'accent' ? "var(--color-accent)" : "var(--color-warm)"} />
+        <rect x={x} y={y} width={2.5} height={h} rx={1.25} fill={tone === 'accent' ? "var(--primary)" : "var(--edge-explore)"} />
       )}
     </g>
   );
@@ -20,34 +20,34 @@ const DIAGRAMS: Record<number, React.ReactNode> = {
   1: (
     <svg viewBox="0 0 120 84" className="w-full h-full">
       <Card x={43} y={32} tone="accent" />
-      <circle cx={60} cy={28} r={2.5} fill={"var(--color-accent)"} />
+      <circle cx={60} cy={28} r={2.5} fill={"var(--primary)"} />
     </svg>
   ),
   2: (
     <svg viewBox="0 0 120 84" className="w-full h-full">
       <Card x={43} y={12} tone="accent" />
-      <line x1={60} y1={32} x2={60} y2={50} stroke={"var(--color-accent)"} strokeWidth={1.75} />
-      <path d={`M 57 47 L 60 52 L 63 47 Z`} fill={"var(--color-accent)"} />
+      <line x1={60} y1={32} x2={60} y2={50} stroke={"var(--primary)"} strokeWidth={1.75} />
+      <path d={`M 57 47 L 60 52 L 63 47 Z`} fill={"var(--primary)"} />
       <Card x={43} y={52} />
     </svg>
   ),
   3: (
     <svg viewBox="0 0 120 84" className="w-full h-full">
       <Card x={20} y={12} tone="accent" />
-      <line x1={37} y1={32} x2={37} y2={50} stroke={"var(--color-accent)"} strokeWidth={1.75} />
-      <path d={`M 34 47 L 37 52 L 40 47 Z`} fill={"var(--color-accent)"} />
+      <line x1={37} y1={32} x2={37} y2={50} stroke={"var(--primary)"} strokeWidth={1.75} />
+      <path d={`M 34 47 L 37 52 L 40 47 Z`} fill={"var(--primary)"} />
       <Card x={20} y={52} />
-      <rect x={26} y={58} width={14} height={3} rx={1.5} fill={"var(--color-trace)"} opacity={0.6} />
-      <path d="M 54 62 C 64 62, 62 40, 72 38" stroke={"var(--color-warm)"} strokeWidth={1.75} fill="none" strokeDasharray="4 3" />
-      <path d={`M 69 35.5 L 74 38 L 70 41 Z`} fill={"var(--color-warm)"} />
+      <rect x={26} y={58} width={14} height={3} rx={1.5} fill={"var(--edge-trace)"} opacity={0.6} />
+      <path d="M 54 62 C 64 62, 62 40, 72 38" stroke={"var(--edge-explore)"} strokeWidth={1.75} fill="none" strokeDasharray="4 3" />
+      <path d={`M 69 35.5 L 74 38 L 70 41 Z`} fill={"var(--edge-explore)"} />
       <Card x={74} y={28} tone="warm" />
     </svg>
   ),
   4: (
     <svg viewBox="0 0 120 84" className="w-full h-full">
       <Card x={43} y={10} tone="accent" />
-      <line x1={60} y1={30} x2={60} y2={52} stroke={"var(--color-line)"} strokeWidth={1.75} strokeDasharray="3 3" />
-      <circle cx={60} cy={41} r={7} fill="var(--color-card)" stroke="#FCA5A5" strokeWidth={1} />
+      <line x1={60} y1={30} x2={60} y2={52} stroke={"var(--border)"} strokeWidth={1.75} strokeDasharray="3 3" />
+      <circle cx={60} cy={41} r={7} fill="var(--card)" stroke="#FCA5A5" strokeWidth={1} />
       <line x1={57} y1={38} x2={63} y2={44} stroke="#EF4444" strokeWidth={1.5} strokeLinecap="round" />
       <line x1={63} y1={38} x2={57} y2={44} stroke="#EF4444" strokeWidth={1.5} strokeLinecap="round" />
       <Card x={43} y={54} />
@@ -60,17 +60,17 @@ const DIAGRAMS: Record<number, React.ReactNode> = {
       <circle cx={14} cy={16} r={4.5} fill="#D64533" />
       <text x={14} y={18.4} textAnchor="middle" fontSize={6} fontWeight={700} fill="white">✕</text>
       <Card x={12} y={35} w={40} h={15} />
-      <circle cx={14} cy={37} r={4.5} fill={"var(--color-accent)"} />
+      <circle cx={14} cy={37} r={4.5} fill={"var(--primary)"} />
       <text x={14} y={39.4} textAnchor="middle" fontSize={6} fontWeight={700} fill="white">⚖</text>
       <Card x={12} y={56} w={40} h={15} />
       <circle cx={14} cy={58} r={4.5} fill="#C9A227" />
       <text x={14} y={60.4} textAnchor="middle" fontSize={6} fontWeight={700} fill="white">?</text>
-      <path d="M 62 42 L 74 42" stroke={"var(--color-ink-muted)"} strokeWidth={1.2} />
-      <path d="M 71.5 39.5 L 76 42 L 71.5 44.5 Z" fill={"var(--color-ink-muted)"} />
+      <path d="M 62 42 L 74 42" stroke={"var(--muted-foreground)"} strokeWidth={1.2} />
+      <path d="M 71.5 39.5 L 76 42 L 71.5 44.5 Z" fill={"var(--muted-foreground)"} />
       <rect x={86} y={14} width={13} height={13} rx={4.5} fill="#D64533" />
-      <line x1={92.5} y1={27} x2={92.5} y2={35} stroke={"var(--color-accent)"} strokeWidth={1.4} />
-      <rect x={86} y={35} width={13} height={13} rx={4.5} fill={"var(--color-accent)"} />
-      <line x1={92.5} y1={48} x2={92.5} y2={56} stroke={"var(--color-accent)"} strokeWidth={1.4} />
+      <line x1={92.5} y1={27} x2={92.5} y2={35} stroke={"var(--primary)"} strokeWidth={1.4} />
+      <rect x={86} y={35} width={13} height={13} rx={4.5} fill={"var(--primary)"} />
+      <line x1={92.5} y1={48} x2={92.5} y2={56} stroke={"var(--primary)"} strokeWidth={1.4} />
       <rect x={86} y={56} width={13} height={13} rx={4.5} fill="#C9A227" />
     </svg>
   ),
@@ -78,49 +78,49 @@ const DIAGRAMS: Record<number, React.ReactNode> = {
     <svg viewBox="0 0 120 84" className="w-full h-full">
       {/* a note (amber) wired solid + a reference arriving dashed from the side */}
       <rect x={14} y={12} width={30} height={22} rx={3} fill="#FEF3C7" stroke="#F59E0B" strokeWidth={0.8} />
-      <line x1={29} y1={34} x2={29} y2={50} stroke={"var(--color-accent)"} strokeWidth={1.75} />
-      <path d="M 26 47 L 29 52 L 32 47 Z" fill={"var(--color-accent)"} />
+      <line x1={29} y1={34} x2={29} y2={50} stroke={"var(--primary)"} strokeWidth={1.75} />
+      <path d="M 26 47 L 29 52 L 32 47 Z" fill={"var(--primary)"} />
       <Card x={12} y={52} tone="accent" />
-      <path d="M 100 22 C 80 22, 70 55, 50 60" stroke={"var(--color-accent)"} strokeWidth={1.75} fill="none" strokeDasharray="5 3" />
-      <path d="M 52 57 L 47 61 L 52 64 Z" fill={"var(--color-accent)"} />
+      <path d="M 100 22 C 80 22, 70 55, 50 60" stroke={"var(--primary)"} strokeWidth={1.75} fill="none" strokeDasharray="5 3" />
+      <path d="M 52 57 L 47 61 L 52 64 Z" fill={"var(--primary)"} />
       <Card x={82} y={12} />
     </svg>
   ),
   9: (
     <svg viewBox="0 0 120 84" className="w-full h-full">
       <Card x={43} y={10} tone="accent" />
-      <line x1={60} y1={30} x2={60} y2={48} stroke={"var(--color-accent)"} strokeWidth={1.75} />
-      <path d="M 57 45 L 60 50 L 63 45 Z" fill={"var(--color-accent)"} />
+      <line x1={60} y1={30} x2={60} y2={48} stroke={"var(--primary)"} strokeWidth={1.75} />
+      <path d="M 57 45 L 60 50 L 63 45 Z" fill={"var(--primary)"} />
       <Card x={43} y={50} />
       <circle cx={75} cy={53} r={4} fill="#F59E0B" />
       <path d="M 73.5 53 a 1.5 1.5 0 1 1 3 0" stroke="white" strokeWidth={0.9} fill="none" />
-      <text x={60} y={80} textAnchor="middle" fontSize={7} fill={"var(--color-ink-muted)"} fontFamily="JetBrains Mono Variable, monospace">v2/2 · replay</text>
+      <text x={60} y={80} textAnchor="middle" fontSize={7} fill={"var(--muted-foreground)"} fontFamily="JetBrains Mono Variable, monospace">v2/2 · replay</text>
     </svg>
   ),
   6: (
     <svg viewBox="0 0 120 84" className="w-full h-full">
       {/* palette strip + a note and an image card */}
-      <rect x={8} y={18} width={14} height={48} rx={4} fill="var(--color-card)" stroke={"var(--color-line)"} strokeWidth={1} />
-      <circle cx={15} cy={27} r={3} fill={"var(--color-accent)"} opacity={0.7} />
+      <rect x={8} y={18} width={14} height={48} rx={4} fill="var(--card)" stroke={"var(--border)"} strokeWidth={1} />
+      <circle cx={15} cy={27} r={3} fill={"var(--primary)"} opacity={0.7} />
       <rect x={12} y={37} width={6} height={6} rx={1} fill="#F59E0B" opacity={0.8} />
-      <rect x={12} y={49} width={6} height={6} rx={1} fill={"var(--color-ink-muted)"} opacity={0.5} />
+      <rect x={12} y={49} width={6} height={6} rx={1} fill={"var(--muted-foreground)"} opacity={0.5} />
       <rect x={38} y={14} width={32} height={24} rx={3} fill="#FEF3C7" stroke="#F59E0B" strokeWidth={0.8} />
-      <rect x={80} y={14} width={32} height={24} rx={3} fill="var(--color-card)" stroke={"var(--color-line)"} strokeWidth={1} />
-      <circle cx={88} cy={22} r={3} fill={"var(--color-line)"} />
-      <path d="M 82 34 L 92 26 L 100 32 L 108 24" stroke={"var(--color-ink-muted)"} strokeWidth={1.2} fill="none" />
-      <text x={72} y={62} textAnchor="middle" fontSize={7} fill={"var(--color-ink-muted)"} fontFamily="JetBrains Mono Variable, monospace">⌘V paste anything</text>
+      <rect x={80} y={14} width={32} height={24} rx={3} fill="var(--card)" stroke={"var(--border)"} strokeWidth={1} />
+      <circle cx={88} cy={22} r={3} fill={"var(--border)"} />
+      <path d="M 82 34 L 92 26 L 100 32 L 108 24" stroke={"var(--muted-foreground)"} strokeWidth={1.2} fill="none" />
+      <text x={72} y={62} textAnchor="middle" fontSize={7} fill={"var(--muted-foreground)"} fontFamily="JetBrains Mono Variable, monospace">⌘V paste anything</text>
     </svg>
   ),
   8: (
     <svg viewBox="0 0 120 84" className="w-full h-full">
       {/* selection box around three cards, fan-in to one */}
-      <rect x={8} y={8} width={70} height={52} rx={3} fill={"var(--color-accent)"} opacity={0.06} stroke={"var(--color-accent)"} strokeWidth={0.8} strokeDasharray="3 2" />
+      <rect x={8} y={8} width={70} height={52} rx={3} fill={"var(--primary)"} opacity={0.06} stroke={"var(--primary)"} strokeWidth={0.8} strokeDasharray="3 2" />
       <Card x={14} y={14} w={26} h={16} />
       <Card x={46} y={14} w={26} h={16} />
       <Card x={30} y={38} w={26} h={16} />
-      <path d="M 40 46 C 60 50, 70 50, 84 48" stroke={"var(--color-accent)"} strokeWidth={1.4} fill="none" />
-      <path d="M 59 30 C 70 36, 76 42, 84 46" stroke={"var(--color-accent)"} strokeWidth={1.4} fill="none" />
-      <path d="M 43 22 C 66 24, 76 38, 84 44" stroke={"var(--color-accent)"} strokeWidth={1.4} fill="none" />
+      <path d="M 40 46 C 60 50, 70 50, 84 48" stroke={"var(--primary)"} strokeWidth={1.4} fill="none" />
+      <path d="M 59 30 C 70 36, 76 42, 84 46" stroke={"var(--primary)"} strokeWidth={1.4} fill="none" />
+      <path d="M 43 22 C 66 24, 76 38, 84 44" stroke={"var(--primary)"} strokeWidth={1.4} fill="none" />
       <Card x={84} y={40} w={28} h={18} tone="accent" />
     </svg>
   ),
@@ -128,19 +128,19 @@ const DIAGRAMS: Record<number, React.ReactNode> = {
     <svg viewBox="0 0 120 84" className="w-full h-full">
       {/* canvas → read-only link → viewer with an eye badge */}
       <Card x={10} y={18} w={30} h={17} tone="accent" />
-      <line x1={25} y1={35} x2={25} y2={48} stroke={"var(--color-accent)"} strokeWidth={1.5} />
-      <path d="M 22.5 45.5 L 25 50 L 27.5 45.5 Z" fill={"var(--color-accent)"} />
+      <line x1={25} y1={35} x2={25} y2={48} stroke={"var(--primary)"} strokeWidth={1.5} />
+      <path d="M 22.5 45.5 L 25 50 L 27.5 45.5 Z" fill={"var(--primary)"} />
       <Card x={10} y={50} w={30} h={17} />
-      <path d="M 46 42 L 60 42" stroke={"var(--color-ink-muted)"} strokeWidth={1.2} />
-      <path d="M 57.5 39.5 L 62 42 L 57.5 44.5 Z" fill={"var(--color-ink-muted)"} />
-      <rect x={68} y={20} width={44} height={44} rx={5} fill="var(--color-card)" stroke={"var(--color-line)"} strokeWidth={1} />
+      <path d="M 46 42 L 60 42" stroke={"var(--muted-foreground)"} strokeWidth={1.2} />
+      <path d="M 57.5 39.5 L 62 42 L 57.5 44.5 Z" fill={"var(--muted-foreground)"} />
+      <rect x={68} y={20} width={44} height={44} rx={5} fill="var(--card)" stroke={"var(--border)"} strokeWidth={1} />
       <Card x={74} y={30} w={20} h={11} tone="accent" />
       <Card x={88} y={46} w={20} h={11} />
       <rect x={76} y={14} width={28} height={11} rx={5.5} fill="#2B2A28" />
       <circle cx={84} cy={19.5} r={2.6} fill="none" stroke="white" strokeWidth={1} />
       <circle cx={84} cy={19.5} r={0.9} fill="white" />
       <text x={90} y={22} fontSize={6} fill="white" fontFamily="JetBrains Mono Variable, monospace">view</text>
-      <text x={60} y={78} textAnchor="middle" fontSize={7} fill={"var(--color-ink-muted)"} fontFamily="JetBrains Mono Variable, monospace">#view= · read-only</text>
+      <text x={60} y={78} textAnchor="middle" fontSize={7} fill={"var(--muted-foreground)"} fontFamily="JetBrains Mono Variable, monospace">#view= · read-only</text>
     </svg>
   ),
 };
@@ -193,31 +193,31 @@ export default function Tutorial() {
       onClick={() => setOpen(false)}
     >
       <div
-        className="bg-card border border-line rounded-2xl shadow-2xl w-[min(980px,94vw)] flex flex-col"
+        className="bg-card border border-border rounded-2xl shadow-2xl w-[min(980px,94vw)] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between px-7 pt-5 pb-1 shrink-0">
           <div className="flex items-baseline gap-3 min-w-0">
-            <h2 className="text-lg font-semibold text-ink tracking-tight shrink-0">{t('tutorial.title')}</h2>
-            <p className="text-xs text-ink-faint truncate">{t('tutorial.subtitle')}</p>
+            <h2 className="text-lg font-semibold text-foreground tracking-tight shrink-0">{t('tutorial.title')}</h2>
+            <p className="text-xs text-muted-foreground truncate">{t('tutorial.subtitle')}</p>
           </div>
-          <button onClick={() => setOpen(false)} className="text-ink-faint hover:text-ink transition-colors mt-1">
+          <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors mt-1">
             <X size={18} strokeWidth={1.75} />
           </button>
         </div>
 
         <div className="px-7 pt-3 pb-1 min-h-[380px]">
-          <p className="text-2xs font-semibold text-accent mb-3 uppercase tracking-wider">{slide.label}</p>
+          <p className="text-2xs font-semibold text-primary mb-3 uppercase tracking-wider">{slide.label}</p>
           <div className={`grid gap-4 ${slide.steps.length === 3 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
             {slide.steps.map((n) => (
-              <div key={n} className="bg-surface border border-line/70 rounded-xl p-4 flex flex-col animate-fade-in">
-                <div className="w-full aspect-[120/72] bg-card rounded-lg border border-line/60 mb-3 overflow-hidden">
+              <div key={n} className="bg-background border border-border/70 rounded-xl p-4 flex flex-col animate-fade-in">
+                <div className="w-full aspect-[120/72] bg-card rounded-lg border border-border/60 mb-3 overflow-hidden">
                   {GIF_STEPS[n]
                     ? <img src={`${import.meta.env.BASE_URL}tutorial/${GIF_STEPS[n]}-${lang}.gif`} loading="lazy" alt="" className="w-full h-full object-cover" />
                     : DIAGRAMS[n]}
                 </div>
-                <h3 className="text-[13px] font-semibold text-ink leading-snug">{t(`tutorial.step${n}.title` as Parameters<typeof t>[0])}</h3>
-                <p className="text-xs text-ink-muted leading-relaxed mt-1.5">{t(`tutorial.step${n}.desc` as Parameters<typeof t>[0])}</p>
+                <h3 className="text-[13px] font-semibold text-foreground leading-snug">{t(`tutorial.step${n}.title` as Parameters<typeof t>[0])}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed mt-1.5">{t(`tutorial.step${n}.desc` as Parameters<typeof t>[0])}</p>
               </div>
             ))}
           </div>
@@ -228,7 +228,7 @@ export default function Tutorial() {
           <button
             onClick={() => setPage((p) => Math.max(p - 1, 0))}
             disabled={page === 0}
-            className="w-8 h-8 rounded-lg border border-line text-ink-muted hover:bg-wash transition-colors flex items-center justify-center disabled:opacity-25 disabled:cursor-not-allowed"
+            className="w-8 h-8 rounded-lg border border-border text-muted-foreground hover:bg-accent transition-colors flex items-center justify-center disabled:opacity-25 disabled:cursor-not-allowed"
           >
             <ChevronLeft size={16} strokeWidth={1.75} />
           </button>
@@ -237,7 +237,7 @@ export default function Tutorial() {
               <button
                 key={i}
                 onClick={() => setPage(i)}
-                className={`h-2 rounded-full transition-all ${i === page ? 'w-6 bg-accent' : 'w-2 bg-line hover:bg-line-strong'}`}
+                className={`h-2 rounded-full transition-all ${i === page ? 'w-6 bg-primary' : 'w-2 bg-border hover:bg-input'}`}
                 aria-label={`${i + 1}/${SLIDES.length}`}
               />
             ))}
@@ -245,21 +245,21 @@ export default function Tutorial() {
           {last ? (
             <button
               onClick={() => setOpen(false)}
-              className="text-xs bg-accent hover:bg-accent-strong text-white px-5 py-2 rounded-lg transition-colors"
+              className="text-xs bg-primary hover:bg-primary/90 text-white px-5 py-2 rounded-lg transition-colors"
             >
               {t('tutorial.close')}
             </button>
           ) : (
             <button
               onClick={() => setPage((p) => p + 1)}
-              className="w-8 h-8 rounded-lg border border-line text-ink-muted hover:bg-wash transition-colors flex items-center justify-center"
+              className="w-8 h-8 rounded-lg border border-border text-muted-foreground hover:bg-accent transition-colors flex items-center justify-center"
             >
               <ChevronRight size={16} strokeWidth={1.75} />
             </button>
           )}
         </div>
 
-        <div className="px-7 py-2.5 border-t border-line/60 shrink-0 flex flex-wrap gap-x-4 gap-y-1 text-2xs text-ink-faint font-mono">
+        <div className="px-7 py-2.5 border-t border-border/60 shrink-0 flex flex-wrap gap-x-4 gap-y-1 text-2xs text-muted-foreground font-mono">
           <span>{t('shortcut.panKeys')} {t('shortcut.pan')}</span>
           <span>{t('shortcut.marqueeKeys')} {t('shortcut.marquee')}</span>
           <span>{'\u2318'}F {t('shortcut.search')}</span>

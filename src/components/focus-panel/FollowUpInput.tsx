@@ -13,9 +13,9 @@ import MentionSurface from '../app/NodeMention';
 import { useMentions } from '../../lib/mentions';
 
 const ROLE_STYLES: Record<string, string> = {
-  system: 'bg-accent/10 text-accent',
-  user: 'bg-wash text-ink-muted',
-  assistant: 'bg-line/60 text-ink-muted',
+  system: 'bg-primary/10 text-primary',
+  user: 'bg-muted text-muted-foreground',
+  assistant: 'bg-border/60 text-muted-foreground',
 };
 
 export default function FollowUpInput({
@@ -116,26 +116,26 @@ export default function FollowUpInput({
     <div className="relative shrink-0 px-3 pb-3 pt-1">
       {/* Context preview popover */}
       {previewOpen && (
-        <div className="absolute bottom-full left-3 right-3 mb-1.5 bg-card border border-line rounded-xl shadow-lg max-h-72 overflow-y-auto py-1.5 animate-fade-in z-30">
-          <div className="px-3 py-1.5 border-b border-line">
-            <span className="text-2xs text-ink-faint font-medium">{t('followup.contextTitle')}</span>
-            <span className={`text-2xs ml-2 ${preview.backgroundHeavy ? 'text-amber-600' : 'text-ink-faint'}`}>
+        <div className="absolute bottom-full left-3 right-3 mb-1.5 bg-card border border-border rounded-xl shadow-lg max-h-72 overflow-y-auto py-1.5 animate-fade-in z-30">
+          <div className="px-3 py-1.5 border-b border-border">
+            <span className="text-2xs text-muted-foreground font-medium">{t('followup.contextTitle')}</span>
+            <span className={`text-2xs ml-2 ${preview.backgroundHeavy ? 'text-warning' : 'text-muted-foreground'}`}>
               {fmt(t('followup.layerSummary'), { a: preview.layerTokens.material, b: preview.layerTokens.reference, c: preview.layerTokens.chain })}
             </span>
             {preview.backgroundHeavy && (
-              <p className="text-2xs text-amber-600 mt-0.5">{t('followup.layerWarning')}</p>
+              <p className="text-2xs text-warning mt-0.5">{t('followup.layerWarning')}</p>
             )}
           </div>
           {preview.items.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-ink-faint italic">{t('followup.empty')}</p>
+            <p className="px-3 py-2 text-xs text-muted-foreground italic">{t('followup.empty')}</p>
           ) : (
             preview.items.map((m, i) => (
-              <div key={i} className="flex items-start gap-2 px-3 py-1.5 text-xs border-b border-line/50 last:border-0">
-                <span className={`shrink-0 px-1.5 py-0.5 rounded font-mono text-2xs ${ROLE_STYLES[m.role] ?? 'bg-wash text-ink-muted'}`}>
+              <div key={i} className="flex items-start gap-2 px-3 py-1.5 text-xs border-b border-border/50 last:border-0">
+                <span className={`shrink-0 px-1.5 py-0.5 rounded font-mono text-2xs ${ROLE_STYLES[m.role] ?? 'bg-muted text-muted-foreground'}`}>
                   {m.role}
                 </span>
-                <span className="flex-1 text-ink-muted leading-snug break-words">{m.head}…</span>
-                <span className="shrink-0 text-2xs text-ink-faint font-mono">{m.tokens}</span>
+                <span className="flex-1 text-muted-foreground leading-snug break-words">{m.head}…</span>
+                <span className="shrink-0 text-2xs text-muted-foreground font-mono">{m.tokens}</span>
               </div>
             ))
           )}
@@ -146,7 +146,7 @@ export default function FollowUpInput({
       {/* Context summary line */}
       <button
         onClick={() => setPreviewOpen((v) => !v)}
-        className="flex items-center gap-1 text-2xs text-ink-faint hover:text-ink-muted transition-colors mb-1.5"
+        className="flex items-center gap-1 text-2xs text-muted-foreground hover:text-muted-foreground transition-colors mb-1.5"
         title={t('followup.previewTitle')}
       >
         <ChevronUp size={12} strokeWidth={1.75} className={`transition-transform ${previewOpen ? 'rotate-180' : ''}`} />
@@ -155,10 +155,10 @@ export default function FollowUpInput({
 
       {/* Selected text staged as branch context — submit explores from it */}
       {branchContext && (
-        <div className="text-xs pl-3 py-1.5 pr-2 mb-1.5 border-l-2 border-warm bg-warm/10 rounded-r text-ink-muted flex items-start gap-1.5">
-          <span className="text-warm font-medium shrink-0"><GitBranch size={13} strokeWidth={1.75} className="inline" /> {t('node.exploringFrom')}</span>
+        <div className="text-xs pl-3 py-1.5 pr-2 mb-1.5 border-l-2 border-edge-explore bg-edge-explore/10 rounded-r text-muted-foreground flex items-start gap-1.5">
+          <span className="text-edge-explore font-medium shrink-0"><GitBranch size={13} strokeWidth={1.75} className="inline" /> {t('node.exploringFrom')}</span>
           <span className="flex-1 min-w-0 truncate">&ldquo;{branchContext.slice(0, 90)}{branchContext.length > 90 ? '…' : ''}&rdquo;</span>
-          <button onClick={onClearBranchContext} className="text-ink-faint hover:text-red-500 transition-colors shrink-0">
+          <button onClick={onClearBranchContext} className="text-muted-foreground hover:text-destructive/90 transition-colors shrink-0">
             <X size={13} strokeWidth={2} />
           </button>
         </div>
@@ -168,11 +168,11 @@ export default function FollowUpInput({
       {pendingAttachments.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-1.5">
           {pendingAttachments.map((att) => (
-            <span key={att.id} className="inline-flex items-center gap-1 text-2xs bg-wash text-ink-muted px-2 py-1 rounded-full">
+            <span key={att.id} className="inline-flex items-center gap-1 text-2xs bg-muted text-muted-foreground px-2 py-1 rounded-full">
               <Paperclip size={11} strokeWidth={1.75} />
               <span className="max-w-[140px] truncate">{att.name}</span>
-              {att.isExtracting && <span className="text-ink-faint">…</span>}
-              <button onClick={() => setPendingAttachments((prev) => prev.filter((a) => a.id !== att.id))} className="text-ink-faint hover:text-red-500 transition-colors">
+              {att.isExtracting && <span className="text-muted-foreground">…</span>}
+              <button onClick={() => setPendingAttachments((prev) => prev.filter((a) => a.id !== att.id))} className="text-muted-foreground hover:text-destructive/90 transition-colors">
                 <X size={11} strokeWidth={2} />
               </button>
             </span>
@@ -182,7 +182,7 @@ export default function FollowUpInput({
 
       <MentionSurface m={mention} text={continueInput} setText={setContinueInput} />
       <div
-        className="flex items-end gap-2 bg-wash rounded-xl px-4 py-2.5 transition-shadow focus-within:ring-1 focus-within:ring-accent/40"
+        className="flex items-end gap-2 bg-muted rounded-xl px-4 py-2.5 transition-shadow focus-within:ring-1 focus-within:ring-ring/40"
         onDrop={(e) => { e.preventDefault(); e.stopPropagation(); void addFiles(e.dataTransfer.files); }}
         onDragOver={(e) => e.preventDefault()}
       >
@@ -201,7 +201,7 @@ export default function FollowUpInput({
             }
           }}
           placeholder={t('common.followUp')}
-          className="flex-1 bg-transparent text-sm text-ink placeholder-ink-faint focus:outline-none resize-none leading-relaxed max-h-[160px] overflow-y-auto"
+          className="flex-1 bg-transparent text-sm text-foreground placeholder-muted-foreground focus:outline-none resize-none leading-relaxed max-h-[160px] overflow-y-auto"
           onPaste={(e) => {
             // TEXT WINS: Office copies carry text plus a bitmap of the
             // selection — only image-only clipboards become attachments.
@@ -216,21 +216,21 @@ export default function FollowUpInput({
         <button
           onClick={() => fileRef.current?.click()}
           title={t('followup.attach')}
-          className="text-ink-faint hover:text-accent transition-colors shrink-0 rounded-full w-8 h-8 flex items-center justify-center hover:bg-line"
+          className="text-muted-foreground hover:text-primary transition-colors shrink-0 rounded-full w-8 h-8 flex items-center justify-center hover:bg-border"
         >
           <Paperclip size={16} strokeWidth={1.75} />
         </button>
         <button
           onClick={submit}
           disabled={!continueInput.trim()}
-          className="text-ink-faint hover:text-accent disabled:opacity-30 disabled:hover:text-ink-faint transition-colors shrink-0 rounded-full w-7 h-7 flex items-center justify-center hover:bg-line"
+          className="text-muted-foreground hover:text-primary disabled:opacity-30 disabled:hover:text-muted-foreground transition-colors shrink-0 rounded-full w-7 h-7 flex items-center justify-center hover:bg-border"
         >
           <Send size={18} strokeWidth={1.75} />
         </button>
       </div>
       <div className="flex gap-4 mt-1.5 px-1">
-        <label className="flex items-center gap-2 text-xs text-ink-muted cursor-pointer select-none">
-          <input type="checkbox" checked={continueInheritAttachments} onChange={(e) => setContinueInheritAttachments(e.target.checked)} className="rounded border-line text-accent focus:ring-accent w-3 h-3" />
+        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+          <input type="checkbox" checked={continueInheritAttachments} onChange={(e) => setContinueInheritAttachments(e.target.checked)} className="rounded border-border text-primary focus:ring-ring w-3 h-3" />
           {t('followup.inheritAttachments')}
         </label>
       </div>

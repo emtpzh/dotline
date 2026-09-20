@@ -36,31 +36,31 @@ export default function ShareDialog() {
   };
 
   return createPortal((
-    <div className="fixed inset-0 z-[80] bg-ink/25 backdrop-blur-[2px] flex items-center justify-center animate-fade-in" onClick={close} data-share-dialog>
-      <div className="bg-surface rounded-2xl shadow-2xl border border-line w-[min(480px,92vw)] p-5" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[80] bg-foreground/25 backdrop-blur-[2px] flex items-center justify-center animate-fade-in" onClick={close} data-share-dialog>
+      <div className="bg-background rounded-2xl shadow-2xl border border-border w-[min(480px,92vw)] p-5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-3">
-          <div className="text-sm font-semibold text-ink flex items-center gap-2">
-            <Eye size={15} strokeWidth={1.75} className="text-accent" /> {t('viewer.shareDialogTitle')}
+          <div className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Eye size={15} strokeWidth={1.75} className="text-primary" /> {t('viewer.shareDialogTitle')}
           </div>
-          <button onClick={close} className="w-7 h-7 rounded-lg text-ink-faint hover:bg-wash hover:text-ink flex items-center justify-center transition-colors">
+          <button onClick={close} className="w-7 h-7 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground flex items-center justify-center transition-colors">
             <X size={15} strokeWidth={1.75} />
           </button>
         </div>
 
         {/* Lane 1: hand the graph to someone who will open it */}
-        <div className="text-2xs font-semibold text-accent mb-1">{t('share.directLane')}</div>
-        <p className="text-xs text-ink-muted mb-2">{t('share.directNote')}</p>
+        <div className="text-2xs font-semibold text-primary mb-1">{t('share.directLane')}</div>
+        <p className="text-xs text-muted-foreground mb-2">{t('share.directNote')}</p>
         <div className="flex gap-1.5 mb-4">
           <input
             readOnly
             value={url}
             onFocus={(e) => e.target.select()}
-            className="flex-1 min-w-0 text-xs font-mono text-ink-muted bg-wash border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent/40 truncate"
+            className="flex-1 min-w-0 text-xs font-mono text-muted-foreground bg-muted border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring/40 truncate"
           />
           <button
             onClick={() => void copy()}
             className={`shrink-0 text-xs px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors ${
-              copied ? 'bg-green-600 text-white' : 'bg-accent text-white hover:bg-accent-strong'
+              copied ? 'bg-success text-white' : 'bg-primary text-white hover:bg-primary/90'
             }`}
             data-share-copy
           >
@@ -69,7 +69,7 @@ export default function ShareDialog() {
           </button>
         </div>
         {url.length > 30000 && (
-          <p className="text-2xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed mb-3" data-share-toolong>
+          <p className="text-2xs text-warning bg-warning/10 border border-warning/30 rounded-lg px-3 py-2 leading-relaxed mb-3" data-share-toolong>
             {t('share.linkTooLong')}
           </p>
         )}
@@ -77,25 +77,25 @@ export default function ShareDialog() {
           <button
             onClick={() => void exportActiveProjectJson({ sharedReadonly: readonlyMark })}
             data-share-fullfile
-            className="text-xs px-3 py-1.5 rounded-lg border border-line text-ink-muted hover:bg-wash hover:text-ink transition-colors flex items-center gap-1.5"
+            className="text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:bg-accent hover:text-foreground transition-colors flex items-center gap-1.5"
           >
             <FileJson size={13} strokeWidth={1.75} />
             {t('share.fullFile')}
           </button>
-          <label className="flex items-center gap-1.5 text-2xs text-ink-muted cursor-pointer select-none">
+          <label className="flex items-center gap-1.5 text-2xs text-muted-foreground cursor-pointer select-none">
             <input type="checkbox" checked={readonlyMark} onChange={(e) => setReadonlyMark(e.target.checked)}
-              className="accent-[color:var(--color-accent)]" />
+              className="accent-[color:var(--primary)]" />
             {t('share.readonlyMark')}
           </label>
         </div>
 
         {/* Lane 2: post to a feed — picture + permanent repo link */}
-        <div className="border-t border-line pt-3">
+        <div className="border-t border-border pt-3">
           <div className="flex items-center gap-2">
             <button
               onClick={() => { close(); useUiStore.getState().setThoughtMapOpen(true); }}
               data-share-thought-map
-              className="text-xs px-3 py-1.5 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors flex items-center gap-1.5 font-medium"
+              className="text-xs px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors flex items-center gap-1.5 font-medium"
             >
               <ImageDown size={13} strokeWidth={1.75} />
               {t('tmap.export')}

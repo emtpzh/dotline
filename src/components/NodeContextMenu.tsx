@@ -34,8 +34,8 @@ export default function NodeContextMenu({ x, y, nodeId, onClose }: {
     ? (kind === 'note' || kind === 'link' ? node.data.question : '')
     : node.data.response;
 
-  const item = 'w-full text-left px-3 py-2 text-xs text-ink hover:bg-wash transition-colors flex items-center gap-2.5';
-  const icon = 'text-ink-faint shrink-0';
+  const item = 'w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5';
+  const icon = 'text-muted-foreground shrink-0';
 
   // Keep the menu inside the viewport (it renders at the pointer)
   const MENU_W = 200;
@@ -46,7 +46,7 @@ export default function NodeContextMenu({ x, y, nodeId, onClose }: {
   const run = (fn: () => void) => () => { onClose(); fn(); };
 
   return createPortal((
-    <div ref={ref} className="fixed z-[70] bg-card border border-line rounded-xl shadow-lg py-1 w-[200px] animate-fade-in" style={{ left, top }}>
+    <div ref={ref} className="fixed z-[70] bg-card border border-border rounded-xl shadow-lg py-1 w-[200px] animate-fade-in" style={{ left, top }}>
       {!isContent && (
         <button className={item} onClick={run(() => {
           useStore.getState().setSelectedNodeId(nodeId);
@@ -105,9 +105,9 @@ export default function NodeContextMenu({ x, y, nodeId, onClose }: {
           : <Archive size={14} strokeWidth={1.75} className={icon} />}
         {node.data.archived ? t('ctx.unarchive') : t('archive.label')}
       </button>
-      <div className="h-px bg-line my-1" />
+      <div className="h-px bg-border my-1" />
       <button
-        className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2.5"
+        className="w-full text-left px-3 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-2.5"
         onClick={run(() => {
           void confirmDialog({
             title: ti('confirm.deleteNodesTitle'),

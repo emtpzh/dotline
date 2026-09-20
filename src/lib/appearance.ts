@@ -25,6 +25,10 @@ const PALETTE = import.meta.env.VITE_DSH_BRIDGE ? 'harness' : 'thoughtdag';
 
 function apply(lighting: Lighting, paper: Paper): 'light' | 'dark' {
   const resolved = resolve(lighting);
+  // `.dark` is what the tokens and every `dark:` utility key on (shadcn's
+  // convention, wired as @custom-variant in index.css); data-theme stays for
+  // the handful of selectors and tests that still read it.
+  document.documentElement.classList.toggle('dark', resolved === 'dark');
   document.documentElement.dataset.theme = resolved;
   document.documentElement.dataset.paper = paper;
   document.documentElement.dataset.palette = PALETTE;
@@ -77,10 +81,10 @@ export function edgePalette(): { accent: string; warm: string; trace: string; wa
   const cs = getComputedStyle(document.documentElement);
   const read = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback;
   return {
-    accent: read('--color-accent', '#6B5CE7'),
-    warm: read('--color-warm', '#E08A3C'),
-    trace: read('--color-trace', '#F59E0B'),
-    watch: read('--color-watch', '#DC2626'),
+    accent: read('--edge-continue', 'var(--primary)'),
+    warm: read('--edge-explore', 'oklch(0.710 0.139 59.4)'),
+    trace: read('--edge-trace', 'oklch(0.769 0.165 70.1)'),
+    watch: read('--edge-watch', 'oklch(0.577 0.215 27.3)'),
   };
 }
 

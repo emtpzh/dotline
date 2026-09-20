@@ -81,7 +81,7 @@ export default function SearchBar({
           const el = tn.parentElement;
           el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
           el?.animate(
-            [{ backgroundColor: `rgba(${getComputedStyle(document.documentElement).getPropertyValue('--accent-rgb').trim() || '107, 92, 231'}, 0.22)` }, { backgroundColor: 'transparent' }],
+            [{ backgroundColor: 'color-mix(in oklch, var(--primary) 22%, transparent)' }, { backgroundColor: 'transparent' }],
             { duration: 1800, easing: 'ease-out' },
           );
           break;
@@ -92,9 +92,9 @@ export default function SearchBar({
 
   return (
     <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 w-[460px]" data-canvas-search>
-      <div className="bg-card border border-line rounded-xl shadow-xl overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-2.5 transition-shadow focus-within:ring-1 focus-within:ring-accent/40">
-          <Search size={15} strokeWidth={1.75} className="text-ink-faint shrink-0" />
+      <div className="bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-2.5 transition-shadow focus-within:ring-1 focus-within:ring-ring/40">
+          <Search size={15} strokeWidth={1.75} className="text-muted-foreground shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -107,21 +107,21 @@ export default function SearchBar({
               if (e.key === 'Enter' && !isImeComposing(e) && matches[cursor]) { e.preventDefault(); locate(matches[cursor]); }
             }}
             placeholder={t('search.placeholder')}
-            className="flex-1 bg-transparent text-sm text-ink placeholder-ink-faint focus:outline-none"
+            className="flex-1 bg-transparent text-sm text-foreground placeholder-muted-foreground focus:outline-none"
             data-search-input
           />
           {query && (
-            <span className="text-2xs text-ink-faint shrink-0">
+            <span className="text-2xs text-muted-foreground shrink-0">
               {fmt(t('search.count'), { n: matches.length })}
             </span>
           )}
-          <button onClick={onClose} className="text-ink-faint hover:text-ink transition-colors shrink-0">
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
             <X size={14} strokeWidth={1.75} />
           </button>
         </div>
 
         {matches.length > 0 && (
-          <ul className="border-t border-line/60 max-h-72 overflow-y-auto py-1">
+          <ul className="border-t border-border/60 max-h-72 overflow-y-auto py-1">
             {matches.slice(0, SHOW_LIMIT).map((m, i) => {
               const Icon = KIND_ICON[m.kind];
               const node = nodes.find((n) => n.id === m.nodeId);
@@ -131,18 +131,18 @@ export default function SearchBar({
                   <button
                     onClick={() => locate(m)}
                     onMouseEnter={() => setCursor(i)}
-                    className={`w-full text-left px-4 py-2 transition-colors ${i === cursor ? 'bg-accent/8' : ''} ${m.archived ? 'opacity-55' : ''}`}
+                    className={`w-full text-left px-4 py-2 transition-colors ${i === cursor ? 'bg-primary/8' : ''} ${m.archived ? 'opacity-55' : ''}`}
                     data-search-hit-row
                   >
-                    <p className={`text-xs font-medium truncate flex items-center gap-1.5 ${i === cursor ? 'text-accent' : 'text-ink'}`}>
-                      <Icon size={12} strokeWidth={1.75} className="text-ink-faint shrink-0" />
+                    <p className={`text-xs font-medium truncate flex items-center gap-1.5 ${i === cursor ? 'text-primary' : 'text-foreground'}`}>
+                      <Icon size={12} strokeWidth={1.75} className="text-muted-foreground shrink-0" />
                       <span className="truncate flex-1 min-w-0">{title}</span>
-                      {m.archived && <Archive size={11} strokeWidth={1.75} className="text-ink-faint shrink-0" />}
-                      {m.count > 1 && <span className="text-2xs text-ink-faint font-normal shrink-0">×{m.count}</span>}
+                      {m.archived && <Archive size={11} strokeWidth={1.75} className="text-muted-foreground shrink-0" />}
+                      {m.count > 1 && <span className="text-2xs text-muted-foreground font-normal shrink-0">×{m.count}</span>}
                     </p>
-                    <p className="text-2xs text-ink-faint mt-0.5 break-all leading-relaxed">
+                    <p className="text-2xs text-muted-foreground mt-0.5 break-all leading-relaxed">
                       {m.snippet.slice(0, m.matchStart)}
-                      <mark className="bg-accent/20 text-accent rounded-sm px-px">
+                      <mark className="bg-primary/20 text-primary rounded-sm px-px">
                         {m.snippet.slice(m.matchStart, m.matchStart + m.matchLen)}
                       </mark>
                       {m.snippet.slice(m.matchStart + m.matchLen)}
@@ -152,7 +152,7 @@ export default function SearchBar({
               );
             })}
             {matches.length > SHOW_LIMIT && (
-              <li className="px-4 py-2 text-2xs text-ink-faint">{fmt(t('search.more'), { n: matches.length - SHOW_LIMIT })}</li>
+              <li className="px-4 py-2 text-2xs text-muted-foreground">{fmt(t('search.more'), { n: matches.length - SHOW_LIMIT })}</li>
             )}
           </ul>
         )}

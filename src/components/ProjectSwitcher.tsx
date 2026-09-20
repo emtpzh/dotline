@@ -87,15 +87,15 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
         <button
           onClick={() => setOpen(!open)}
           disabled={switching}
-          className="bg-card/90 backdrop-blur border border-line rounded-lg h-8 px-3 shadow-sm hover:bg-wash transition-colors flex items-center gap-2 text-xs text-ink max-w-[220px] disabled:opacity-60"
+          className="bg-card/90 backdrop-blur border border-border rounded-lg h-8 px-3 shadow-sm hover:bg-accent transition-colors flex items-center gap-2 text-xs text-foreground max-w-[220px] disabled:opacity-60"
         >
           {switching
-            ? <Loader2 size={15} strokeWidth={1.75} className="animate-spin shrink-0 text-accent" />
+            ? <Loader2 size={15} strokeWidth={1.75} className="animate-spin shrink-0 text-primary" />
             : activeIsParadigm
-              ? <Dna size={15} strokeWidth={1.75} className="shrink-0 text-accent" />
-              : <FolderOpen size={15} strokeWidth={1.75} className="shrink-0 text-ink-muted" />}
+              ? <Dna size={15} strokeWidth={1.75} className="shrink-0 text-primary" />
+              : <FolderOpen size={15} strokeWidth={1.75} className="shrink-0 text-muted-foreground" />}
           <span className="truncate font-medium">{active?.name ?? '…'}</span>
-          <ChevronDown size={14} strokeWidth={1.75} className="shrink-0 text-ink-faint" />
+          <ChevronDown size={14} strokeWidth={1.75} className="shrink-0 text-muted-foreground" />
         </button>
         {/* the twin badge: this canvas is one face of a session — the
             other face is one click away on the map */}
@@ -112,7 +112,7 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
                 ? ti('switcher.mirrorBadgeGone')
                 : fmt(ti('switcher.mirrorBadge'), { runner: active.sourceSession!.runner })}
               onClick={() => { setAtlasFocus(active.sourceSession!.sessionId); setAtlasOpen(true); }}
-              className={`bg-card/90 backdrop-blur border border-line rounded-lg h-8 px-2 shadow-sm hover:bg-wash transition-colors text-2xs font-mono flex items-center gap-1 ${unreachable ? 'text-ink-faint/50 line-through decoration-1' : 'text-ink-faint hover:text-accent'}`}
+              className={`bg-card/90 backdrop-blur border border-border rounded-lg h-8 px-2 shadow-sm hover:bg-accent transition-colors text-2xs font-mono flex items-center gap-1 ${unreachable ? 'text-muted-foreground/50 line-through decoration-1' : 'text-muted-foreground hover:text-primary'}`}
               data-twin-badge={unreachable ? 'unreachable' : 'live'}
             >
               ⇄ {active.sourceSession!.runner}
@@ -122,12 +122,12 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
       </div>
 
       {open && (
-        <div className="mt-1.5 bg-card border border-line rounded-xl shadow-lg py-1.5 w-[280px] animate-fade-in">
+        <div className="mt-1.5 bg-card border border-border rounded-xl shadow-lg py-1.5 w-[280px] animate-fade-in">
           <div className="max-h-[320px] overflow-y-auto">
             {sorted.map((p) => (
               <div
                 key={p.id}
-                className={`group flex items-center gap-1 px-3 py-2 hover:bg-wash cursor-pointer transition-colors ${p.id === activeId ? 'bg-accent/5' : ''}`}
+                className={`group flex items-center gap-1 px-3 py-2 hover:bg-accent cursor-pointer transition-colors ${p.id === activeId ? 'bg-primary/5' : ''}`}
                 onClick={() => { if (renamingId !== p.id && p.id !== activeId) void doSwitch(p.id); }}
               >
                 {renamingId === p.id ? (
@@ -144,19 +144,19 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
                       if (e.key === 'Escape') setRenamingId(null);
                     }}
                     onBlur={() => setRenamingId(null)}
-                    className="flex-1 text-xs text-ink border border-accent/40 rounded-lg px-2 py-1 bg-surface focus:outline-none"
+                    className="flex-1 text-xs text-foreground border border-primary/40 rounded-lg px-2 py-1 bg-background focus:outline-none"
                   />
                 ) : (
                   <>
                     <div className="flex-1 min-w-0">
                       {/* the name owns its line; provenance rides below with the time */}
-                      <div className={`text-xs truncate ${p.id === activeId ? 'text-accent font-medium' : 'text-ink'}`}>
+                      <div className={`text-xs truncate ${p.id === activeId ? 'text-primary font-medium' : 'text-foreground'}`}>
                         {p.name}
                       </div>
-                      <div className="text-2xs text-ink-faint flex items-center gap-1.5">
+                      <div className="text-2xs text-muted-foreground flex items-center gap-1.5">
                         <span>{relativeTime(p.updatedAt)}</span>
                         {!!p.sourceSession?.sessionId && (
-                          <span className="font-mono border border-line rounded px-1 py-px" data-mirror-mark>
+                          <span className="font-mono border border-border rounded px-1 py-px" data-mirror-mark>
                             {p.sourceSession.runner}
                           </span>
                         )}
@@ -164,21 +164,21 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
                     </div>
                     <button
                       title={t('switcher.rename')}
-                      className="opacity-0 group-hover:opacity-100 text-ink-faint hover:text-ink p-1 rounded transition-all shrink-0"
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground p-1 rounded transition-all shrink-0"
                       onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenameValue(p.name); }}
                     >
                       <Pencil size={14} strokeWidth={1.75} />
                     </button>
                     <button
                       title={t('common.delete')}
-                      className="opacity-0 group-hover:opacity-100 text-ink-faint hover:text-red-500 p-1 rounded transition-all shrink-0"
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive/90 p-1 rounded transition-all shrink-0"
                       onClick={(e) => { e.stopPropagation(); void confirmDelete(p); }}
                     >
                       <Trash2 size={14} strokeWidth={1.75} />
                     </button>
                     <button
                       title={t('switcher.archive')}
-                      className="opacity-0 group-hover:opacity-100 text-ink-faint hover:text-amber-600 p-1 rounded transition-all shrink-0"
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-warning/90 p-1 rounded transition-all shrink-0"
                       onClick={(e) => { e.stopPropagation(); void setProjectArchived(p.id, true).then(onSwitched); }}
                       data-archive-canvas
                     >
@@ -190,22 +190,22 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
             ))}
           </div>
 
-          <div className="border-t border-line mt-1 pt-1">
+          <div className="border-t border-border mt-1 pt-1">
             <button
               onClick={() => { setOpen(false); void createProject().then(onSwitched); }}
-              className="w-full text-left px-3 py-2 text-xs text-accent hover:bg-wash transition-colors flex items-center gap-2"
+              className="w-full text-left px-3 py-2 text-xs text-primary hover:bg-accent transition-colors flex items-center gap-2"
             >
               <Plus size={15} strokeWidth={1.75} /> {t('switcher.newCanvas')}
             </button>
             <button
               onClick={() => importFileRef.current?.click()}
-              className="w-full text-left px-3 py-2 text-xs text-ink-muted hover:bg-wash transition-colors flex items-center gap-2"
+              className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-accent transition-colors flex items-center gap-2"
             >
               <Upload size={15} strokeWidth={1.75} /> {t('switcher.importBackup')}
             </button>
             <button
               onClick={() => { setOpen(false); setAtlasOpen(true); }}
-              className="w-full text-left px-3 py-2 text-xs text-ink-muted hover:bg-wash transition-colors flex items-center gap-2"
+              className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-accent transition-colors flex items-center gap-2"
               data-open-atlas
             >
               <MapIcon size={15} strokeWidth={1.75} /> {t('switcher.allCanvases')}
@@ -213,12 +213,12 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
             {window.desktop && (
               <button
                 onClick={() => { setOpen(false); void window.desktop!.checkForUpdates(); }}
-                className="w-full text-left px-3 py-2 text-xs text-ink-muted hover:bg-wash transition-colors flex items-center gap-2"
+                className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-accent transition-colors flex items-center gap-2"
                 data-check-updates
               >
                 <RefreshCw size={15} strokeWidth={1.75} /> {t('update.checkMenu')}
                 {/* the one place that answers "which version am I on" at a glance */}
-                <span className="ml-auto text-2xs text-ink-faint">
+                <span className="ml-auto text-2xs text-muted-foreground">
                   v{new URLSearchParams(window.location.search).get('dv')}
                 </span>
               </button>

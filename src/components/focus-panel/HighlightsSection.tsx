@@ -45,27 +45,27 @@ export default function HighlightsSection({
   return (
     <div className="panel-card px-4 py-3">
       <details className="group">
-        <summary className="text-2xs font-semibold text-amber-600 cursor-pointer hover:text-amber-500 transition-colors flex items-center gap-1.5 select-none">
+        <summary className="text-2xs font-semibold text-warning cursor-pointer hover:text-warning/90 transition-colors flex items-center gap-1.5 select-none">
           <ChevronRight size={12} strokeWidth={1.75} className="transition-transform group-open:rotate-90" />
           {t('highlight.title')}
           {highlights.length > 0 && (
-            <span className="text-ink-faint font-normal">({highlights.length})</span>
+            <span className="text-muted-foreground font-normal">({highlights.length})</span>
           )}
         </summary>
         <div className="mt-2">
           {highlights.length === 0 ? (
-            <p className="text-xs text-ink-faint italic">{t('highlight.empty')}</p>
+            <p className="text-xs text-muted-foreground italic">{t('highlight.empty')}</p>
           ) : (
             <>
               <div className="space-y-1.5 mb-3">
                 {highlights.map((h) => (
-                  <div key={h.id} className="flex items-start gap-2 bg-amber-50 rounded-lg px-3 py-2 group/hl">
-                    <span className="text-xs text-amber-700 flex-1 leading-relaxed">
+                  <div key={h.id} className="flex items-start gap-2 bg-warning/10 rounded-lg px-3 py-2 group/hl">
+                    <span className="text-xs text-warning flex-1 leading-relaxed">
                       <Star size={14} strokeWidth={1.75} className="inline" /> {h.text.slice(0, 80)}{h.text.length > 80 ? '…' : ''}
                     </span>
                     {!isViewerMode && <button
                       onClick={() => removeHighlight(nodeId, h.id)}
-                      className="text-amber-300 hover:text-red-500 transition-colors shrink-0 opacity-0 group-hover/hl:opacity-100"
+                      className="text-warning hover:text-destructive/90 transition-colors shrink-0 opacity-0 group-hover/hl:opacity-100"
                     >
                       <X size={14} strokeWidth={1.75} />
                     </button>}
@@ -85,8 +85,8 @@ export default function HighlightsSection({
                       title={mode === 'tag' ? t('highlight.hintTag') : t('highlight.hintFilter')}
                       className={`text-xs px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1 ${
                         highlightMode === mode
-                          ? 'bg-accent text-white'
-                          : 'bg-wash text-ink-muted hover:bg-line'
+                          ? 'bg-primary text-white'
+                          : 'bg-muted text-muted-foreground hover:bg-border'
                       }`}
                     >
                       <span>{icon}</span> {label}
@@ -95,7 +95,7 @@ export default function HighlightsSection({
                 </div>
                 <button
                   onClick={() => setHighlightExploreContext(highlights.map((h) => h.text).join('\n\n'))}
-                  className="text-xs bg-accent/10 hover:bg-accent/20 text-accent px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                  className="text-xs bg-primary/10 hover:bg-primary/20 text-primary px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1"
                   title={t('highlight.exploreTitle')}
                 >
                   <GitBranch size={14} strokeWidth={1.75} />
@@ -115,17 +115,17 @@ export default function HighlightsSection({
                       if (e.key === 'Escape') { setHighlightExploreContext(''); setHighlightExploreInput(''); }
                     }}
                     placeholder={t('highlight.explorePlaceholder')}
-                    className="flex-1 text-xs border border-accent/30 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent bg-accent/5"
+                    className="flex-1 text-xs border border-primary/30 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring bg-primary/5"
                   />
                   <button
                     onClick={submitExplore}
-                    className="text-xs bg-accent text-white px-3 py-2 rounded-lg hover:bg-accent-strong transition-colors shrink-0"
+                    className="text-xs bg-primary text-white px-3 py-2 rounded-lg hover:bg-primary/90 transition-colors shrink-0"
                   >
                     {t('common.go')}
                   </button>
                   <button
                     onClick={() => { setHighlightExploreContext(''); setHighlightExploreInput(''); }}
-                    className="text-xs text-ink-faint hover:text-ink-muted px-1.5 py-2 transition-colors shrink-0"
+                    className="text-xs text-muted-foreground hover:text-muted-foreground px-1.5 py-2 transition-colors shrink-0"
                   >
                     <X size={14} strokeWidth={1.75} />
                   </button>

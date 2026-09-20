@@ -22,8 +22,8 @@ const KINDS: { kind: 'human' | 'prompt'; icon: typeof SquareTerminal; labelKey: 
 ];
 
 const KIND_STYLES: Record<'human' | 'prompt', string> = {
-  human: 'border-warm/70',
-  prompt: 'border-accent/50',
+  human: 'border-edge-explore/70',
+  prompt: 'border-primary/50',
 };
 
 export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
@@ -39,13 +39,13 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
 
   return (
     <div className={`bg-card border-2 border-dashed rounded-xl w-[440px] shadow-sm ${KIND_STYLES[kind]}`}>
-      <Handle type="target" position={Position.Top} id="top" className="!bg-ink-faint !w-3.5 !h-3.5 !border-2 !border-white tdag-handle" />
+      <Handle type="target" position={Position.Top} id="top" className="!bg-muted-foreground !w-3.5 !h-3.5 !border-2 !border-white tdag-handle" />
       {/* Invisible side anchors: watch/reference edges route through these */}
       <Handle type="target" position={Position.Left} id="left" isConnectable={false} className="!bg-transparent !w-0 !h-0 !border-0 !pointer-events-none" style={{ top: '40%' }} />
       <Handle type="source" position={Position.Right} id="branch" isConnectable={false} className="!bg-transparent !w-0 !h-0 !border-0 !pointer-events-none" style={{ top: '50%' }} />
 
       {/* header: drag handle + kind switcher + delete */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-line/60 cursor-grab active:cursor-grabbing drag-handle">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border/60 cursor-grab active:cursor-grabbing drag-handle">
         <div className="flex gap-1">
           {KINDS.map(({ kind: k, icon: Icon, labelKey }) => (
             <button
@@ -53,19 +53,19 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
               onClick={(e) => { e.stopPropagation(); patch({ stepKind: k }); }}
               title={t(labelKey as Parameters<typeof t>[0])}
               className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
-                kind === k ? (k === 'human' ? 'bg-warm/15 text-warm' : 'bg-accent/10 text-accent') : 'text-ink-faint hover:bg-wash'
+                kind === k ? (k === 'human' ? 'bg-edge-explore/15 text-edge-explore' : 'bg-primary/10 text-primary') : 'text-muted-foreground hover:bg-accent'
               }`}
             >
               <Icon size={14} strokeWidth={1.75} />
             </button>
           ))}
-          <span className={`text-2xs self-center ml-1 uppercase tracking-wider font-medium ${kind === 'human' ? 'text-warm' : 'text-accent/80'}`}>
+          <span className={`text-2xs self-center ml-1 uppercase tracking-wider font-medium ${kind === 'human' ? 'text-edge-explore' : 'text-primary/80'}`}>
             {t(`paradigm.kind.${kind}` as Parameters<typeof t>[0])}
           </span>
         </div>
         <button
           onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
-          className="text-ink-faint hover:text-red-500 rounded-full w-6 h-6 flex items-center justify-center transition-colors"
+          className="text-muted-foreground hover:text-destructive/90 rounded-full w-6 h-6 flex items-center justify-center transition-colors"
         >
           <Trash2 size={13} strokeWidth={1.75} />
         </button>
@@ -78,7 +78,7 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
           value={data.question}
           onChange={(e) => patch({ question: e.target.value })}
           placeholder={t('paradigm.titlePlaceholder')}
-          className="w-full text-sm font-semibold text-ink bg-transparent focus:outline-none placeholder-ink-faint"
+          className="w-full text-sm font-semibold text-foreground bg-transparent focus:outline-none placeholder-muted-foreground"
         />
 
         {/* body: THE prompt (machine) or operator guidance (human) — one
@@ -88,8 +88,8 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
           onChange={(e) => patch({ instruction: e.target.value })}
           placeholder={t(kind === 'human' ? 'paradigm.humanHintPlaceholder' : 'paradigm.promptPlaceholder')}
           rows={kind === 'human' ? 3 : 4}
-          className={`w-full text-xs text-ink bg-surface border border-line rounded-lg px-2.5 py-2 focus:outline-none focus:ring-1 resize-y leading-relaxed nowheel ${
-            kind === 'human' ? 'focus:ring-warm/40' : 'focus:ring-accent/40'
+          className={`w-full text-xs text-foreground bg-background border border-border rounded-lg px-2.5 py-2 focus:outline-none focus:ring-1 resize-y leading-relaxed nowheel ${
+            kind === 'human' ? 'focus:ring-edge-explore/40' : 'focus:ring-ring/40'
           }`}
         />
 
@@ -100,7 +100,7 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
               <button
                 key={tpl.id}
                 onClick={() => patch({ instruction: `${tpl.prompt}\n${data.instruction ?? ''}` })}
-                className="text-2xs bg-wash hover:bg-accent/10 hover:text-accent text-ink-muted px-1.5 py-0.5 rounded-full transition-colors"
+                className="text-2xs bg-muted hover:bg-primary/10 hover:text-primary text-muted-foreground px-1.5 py-0.5 rounded-full transition-colors"
               >
                 + {tpl.name}
               </button>
@@ -115,7 +115,7 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
               onClick={() => patch({ webSearch: !data.webSearch })}
               title={data.webSearch ? t('toolbar.webSearch') : t('toolbar.webSearchOff')}
               className={`text-2xs px-2 py-1 rounded-full transition-colors flex items-center gap-1 ${
-                data.webSearch ? 'bg-accent/10 text-accent' : 'bg-wash text-ink-faint hover:bg-line'
+                data.webSearch ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground hover:bg-border'
               }`}
             >
               <Globe size={12} strokeWidth={1.75} /> {t('paradigm.webSearch')}
@@ -124,7 +124,7 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
               onClick={() => patch({ scholarSearch: !data.scholarSearch })}
               title={data.scholarSearch ? t('toolbar.scholarSearch') : t('toolbar.scholarSearchOff')}
               className={`text-2xs px-2 py-1 rounded-full transition-colors flex items-center gap-1 ${
-                data.scholarSearch ? 'bg-accent/10 text-accent' : 'bg-wash text-ink-faint hover:bg-line'
+                data.scholarSearch ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground hover:bg-border'
               }`}
             >
               <GraduationCap size={12} strokeWidth={1.75} /> {t('paradigm.scholarSearch')}
@@ -133,7 +133,7 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
         )}
       </div>
 
-      <Handle type="source" position={Position.Bottom} id="continue" className="!bg-ink-faint !w-3.5 !h-3.5 !border-2 !border-white tdag-handle" />
+      <Handle type="source" position={Position.Bottom} id="continue" className="!bg-muted-foreground !w-3.5 !h-3.5 !border-2 !border-white tdag-handle" />
     </div>
   );
 }

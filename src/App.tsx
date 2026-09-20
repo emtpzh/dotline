@@ -103,6 +103,14 @@ const edgeTypes = { smoothstep: memo(ThoughtEdgeView) };
 // Gate on rehydration: the store loads asynchronously from IndexedDB, and
 // mounting the canvas only after hydration lets ReactFlow's fitView see the
 // restored graph (and avoids flashing the landing input).
+// The minimap's colors are token references, so they follow the theme on
+// their own — no need to re-resolve them when the lighting flips.
+const MINIMAP_COLORS = {
+  mask: 'color-mix(in oklch, var(--canvas) 70%, transparent)',
+  archived: 'var(--muted)',
+  ordinary: 'var(--muted-foreground)',
+};
+
 export default function App() {
   const [hydrated, setHydrated] = useState(isViewerMode || useStore.persist.hasHydrated());
   useEffect(() => useStore.persist.onFinishHydration(() => setHydrated(true)), []);
@@ -239,18 +247,6 @@ function Canvas() {
   const resolvedTheme = useAppearance((s) => s.resolved);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const themePalette = useMemo(() => edgePalette(), [resolvedTheme]);
-  // minimap colors resolve per theme too (its mask is the canvas surface)
-  const minimapColors = useMemo(() => {
-    const cs = getComputedStyle(document.documentElement);
-    const surface = (cs.getPropertyValue('--color-surface').trim() || '#FAF9F7').replace('#', '');
-    const [r, g, b] = [0, 2, 4].map((i) => parseInt(surface.slice(i, i + 2), 16));
-    return {
-      mask: `rgba(${r},${g},${b},0.7)`,
-      archived: cs.getPropertyValue('--color-wash').trim() || '#EFEDE9',
-      ordinary: resolvedTheme === 'dark' ? '#6E6759' : '#B9B3AB',
-    };
-   
-  }, [resolvedTheme]);
   const prevNodeCount = useRef(nodes.length);
   // Every "center on node" goes through here: when the focus panel is open
   // the visual center sits half the panel further left, so the target shifts
@@ -435,7 +431,7 @@ function Canvas() {
       if (!ghost && Math.hypot(ev.clientX - startX, ev.clientY - startY) > 6) {
         ghost = document.createElement('div');
         ghost.innerHTML = source.innerHTML;
-        ghost.style.cssText = 'position:fixed;z-index:300;pointer-events:none;width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--color-card);border:1px solid var(--color-accent);border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.18);opacity:.92;';
+        ghost.style.cssText = 'position:fixed;z-index:300;pointer-events:none;width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--card);border:1px solid var(--primary);border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.18);opacity:.92;';
         document.body.appendChild(ghost);
       }
       if (ghost) { ghost.style.left = `${ev.clientX - 18}px`; ghost.style.top = `${ev.clientY - 18}px`; }
@@ -1182,14 +1178,14 @@ function Canvas() {
             const data = node.data as Record<string, unknown>;
             // information density over decoration: type is color, archived
             // fades to paper, ordinary turns stay a readable mid-gray
-            if (data.archived) return minimapColors.archived;
+            if (data.archived) return MINIMAP_COLORS.archived;
             const sk = data.stepKind as string | undefined;
             if (sk === 'note') return '#D97706';
             if (sk === 'file' || sk === 'link') return '#64748B';
             if (Array.isArray(data.condensedFrom) && data.condensedFrom.length) return '#8B7CF0';
-            return data.isRoot ? themePalette.accent : data.isBranch ? themePalette.warm : minimapColors.ordinary;
+            return data.isRoot ? themePalette.accent : data.isBranch ? themePalette.warm : MINIMAP_COLORS.ordinary;
           }}
-          maskColor={minimapColors.mask}
+          maskColor={MINIMAP_COLORS.mask}
           style={{ width: 200, height: 140 }}
           pannable
           zoomable
@@ -1201,18 +1197,18 @@ function Canvas() {
       {!hasNodes && isParadigm && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center pointer-events-auto">
-            <p className="text-sm text-ink-muted mb-1 font-medium">{t('paradigm.emptyTitle')}</p>
-            <p className="text-xs text-ink-faint mb-4 max-w-sm leading-relaxed">{t('paradigm.emptyHint')}</p>
+            <p className="text-sm text-muted-foreground mb-1 font-medium">{t('paradigm.emptyTitle')}</p>
+            <p className="text-xs text-muted-foreground mb-4 max-w-sm leading-relaxed">{t('paradigm.emptyHint')}</p>
             <div className="flex items-center justify-center gap-2">
               <button
                 onClick={() => addStep('human')}
-                className="text-sm border-2 border-dashed border-warm/60 text-warm hover:bg-warm/10 px-4 py-2.5 rounded-xl transition-colors flex items-center gap-1.5"
+                className="text-sm border-2 border-dashed border-edge-explore/60 text-edge-explore hover:bg-edge-explore/10 px-4 py-2.5 rounded-xl transition-colors flex items-center gap-1.5"
               >
                 <MessageCircleQuestion size={15} strokeWidth={1.75} /> {t('paradigm.addHuman')}
               </button>
               <button
                 onClick={() => addStep('prompt')}
-                className="text-sm border-2 border-dashed border-accent/50 text-accent hover:bg-accent/10 px-4 py-2.5 rounded-xl transition-colors flex items-center gap-1.5"
+                className="text-sm border-2 border-dashed border-primary/50 text-primary hover:bg-primary/10 px-4 py-2.5 rounded-xl transition-colors flex items-center gap-1.5"
               >
                 <SquareTerminal size={15} strokeWidth={1.75} /> {t('paradigm.addPrompt')}
               </button>
@@ -1226,12 +1222,12 @@ function Canvas() {
             {viewerLoadError ? (
               <>
                 <div className="text-3xl mb-3">🔗</div>
-                <div className="text-sm font-semibold text-ink mb-1.5">{t('viewer.loadError')}</div>
-                <p className="text-xs text-ink-muted leading-relaxed">{t('viewer.loadErrorHint')}</p>
+                <div className="text-sm font-semibold text-foreground mb-1.5">{t('viewer.loadError')}</div>
+                <p className="text-xs text-muted-foreground leading-relaxed">{t('viewer.loadErrorHint')}</p>
               </>
             ) : (
-              <div className="flex items-center gap-2 text-sm text-ink-muted justify-center">
-                <Loader2 size={16} strokeWidth={1.75} className="animate-spin text-accent" /> {t('viewer.loading')}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center">
+                <Loader2 size={16} strokeWidth={1.75} className="animate-spin text-primary" /> {t('viewer.loading')}
               </div>
             )}
           </div>
@@ -1241,40 +1237,40 @@ function Canvas() {
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
           {/* Watermark: faint DAG sketches anchoring the corners */}
           <svg className="absolute -left-10 top-[8%] w-[360px] h-[300px] opacity-[0.35] pointer-events-none" viewBox="0 0 360 300" aria-hidden>
-            <path d="M80 40 C80 90 80 90 80 130 M80 170 C80 210 80 210 80 250" stroke="var(--color-line)" strokeWidth="2" fill="none" />
-            <path d="M95 150 C150 150 150 90 205 88" stroke="var(--color-line)" strokeWidth="2" strokeDasharray="6 5" fill="none" />
-            <circle cx="80" cy="30" r="7" fill="var(--color-line)" />
-            <circle cx="80" cy="150" r="7" fill="none" stroke="var(--color-line)" strokeWidth="2.5" />
-            <circle cx="80" cy="262" r="7" fill="var(--color-line)" />
-            <circle cx="218" cy="88" r="7" fill="var(--color-line)" />
+            <path d="M80 40 C80 90 80 90 80 130 M80 170 C80 210 80 210 80 250" stroke="var(--border)" strokeWidth="2" fill="none" />
+            <path d="M95 150 C150 150 150 90 205 88" stroke="var(--border)" strokeWidth="2" strokeDasharray="6 5" fill="none" />
+            <circle cx="80" cy="30" r="7" fill="var(--border)" />
+            <circle cx="80" cy="150" r="7" fill="none" stroke="var(--border)" strokeWidth="2.5" />
+            <circle cx="80" cy="262" r="7" fill="var(--border)" />
+            <circle cx="218" cy="88" r="7" fill="var(--border)" />
           </svg>
           <svg className="absolute right-[-30px] bottom-[10%] w-[320px] h-[280px] opacity-[0.35] pointer-events-none" viewBox="0 0 320 280" aria-hidden>
-            <path d="M240 30 C240 80 240 80 240 120 M240 160 C240 200 240 200 240 240" stroke="var(--color-line)" strokeWidth="2" fill="none" />
-            <path d="M225 140 C170 140 170 210 115 212" stroke="var(--color-line)" strokeWidth="2" strokeDasharray="6 5" fill="none" />
-            <circle cx="240" cy="20" r="7" fill="var(--color-line)" />
-            <circle cx="240" cy="140" r="7" fill="none" stroke="var(--color-line)" strokeWidth="2.5" />
-            <circle cx="240" cy="252" r="7" fill="var(--color-line)" />
-            <circle cx="102" cy="212" r="7" fill="var(--color-line)" />
+            <path d="M240 30 C240 80 240 80 240 120 M240 160 C240 200 240 200 240 240" stroke="var(--border)" strokeWidth="2" fill="none" />
+            <path d="M225 140 C170 140 170 210 115 212" stroke="var(--border)" strokeWidth="2" strokeDasharray="6 5" fill="none" />
+            <circle cx="240" cy="20" r="7" fill="var(--border)" />
+            <circle cx="240" cy="140" r="7" fill="none" stroke="var(--border)" strokeWidth="2.5" />
+            <circle cx="240" cy="252" r="7" fill="var(--border)" />
+            <circle cx="102" cy="212" r="7" fill="var(--border)" />
           </svg>
 
           <div className="pointer-events-auto w-[560px] animate-fade-in relative">
             <div className="text-center mb-8">
               {/* Mark: a tiny DAG lighting up — main chain in accent, explore branch in warm */}
               <svg width="52" height="52" viewBox="0 0 44 44" className="mx-auto mb-4" aria-hidden>
-                <circle className="dag-pop" style={{ animationDelay: '0.05s' }} cx="22" cy="7" r="3.5" fill="var(--color-accent)" />
-                <line className="dag-pop" style={{ animationDelay: '0.2s' }} x1="22" y1="11" x2="22" y2="19" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" />
-                <circle className="dag-pop" style={{ animationDelay: '0.35s' }} cx="22" cy="22" r="3.5" fill="none" stroke="var(--color-accent)" strokeWidth="2.5" />
-                <line className="dag-pop" style={{ animationDelay: '0.5s' }} x1="22" y1="25" x2="22" y2="33" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" />
-                <circle className="dag-pop" style={{ animationDelay: '0.65s' }} cx="22" cy="37" r="3.5" fill="var(--color-accent)" opacity="0.35" />
-                <line className="dag-pop" style={{ animationDelay: '0.8s' }} x1="25.5" y1="23.5" x2="33" y2="28.5" stroke="var(--color-warm)" strokeWidth="2" strokeLinecap="round" strokeDasharray="3 3" />
-                <circle className="dag-pop" style={{ animationDelay: '0.95s' }} cx="36" cy="30" r="3.5" fill="var(--color-warm)" />
+                <circle className="dag-pop" style={{ animationDelay: '0.05s' }} cx="22" cy="7" r="3.5" fill="var(--primary)" />
+                <line className="dag-pop" style={{ animationDelay: '0.2s' }} x1="22" y1="11" x2="22" y2="19" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" />
+                <circle className="dag-pop" style={{ animationDelay: '0.35s' }} cx="22" cy="22" r="3.5" fill="none" stroke="var(--primary)" strokeWidth="2.5" />
+                <line className="dag-pop" style={{ animationDelay: '0.5s' }} x1="22" y1="25" x2="22" y2="33" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" />
+                <circle className="dag-pop" style={{ animationDelay: '0.65s' }} cx="22" cy="37" r="3.5" fill="var(--primary)" opacity="0.35" />
+                <line className="dag-pop" style={{ animationDelay: '0.8s' }} x1="25.5" y1="23.5" x2="33" y2="28.5" stroke="var(--edge-explore)" strokeWidth="2" strokeLinecap="round" strokeDasharray="3 3" />
+                <circle className="dag-pop" style={{ animationDelay: '0.95s' }} cx="36" cy="30" r="3.5" fill="var(--edge-explore)" />
               </svg>
-              <h1 className="text-4xl font-semibold tracking-tight text-ink mb-2.5">ThoughtDAG</h1>
-              <p className="text-sm text-ink-muted">{t('landing.tagline')}</p>
-              <p className="text-xs text-ink-muted mt-1.5 font-medium">{t('landing.mechanism')}</p>
+              <h1 className="text-4xl font-semibold tracking-tight text-foreground mb-2.5">ThoughtDAG</h1>
+              <p className="text-sm text-muted-foreground">{t('landing.tagline')}</p>
+              <p className="text-xs text-muted-foreground mt-1.5 font-medium">{t('landing.mechanism')}</p>
             </div>
             <div
-              className="bg-card border border-line rounded-xl px-5 py-4 shadow-lg transition-all focus-within:border-accent/50 focus-within:shadow-xl"
+              className="bg-card border border-border rounded-xl px-5 py-4 shadow-lg transition-all focus-within:border-primary/50 focus-within:shadow-xl"
             >
               <textarea
                 value={inputValue}
@@ -1286,7 +1282,7 @@ function Canvas() {
                   if (files.length) handleFileUpload(files);
                 }}
                 placeholder={t('landing.placeholder')}
-                className="w-full bg-transparent text-ink text-sm leading-relaxed resize-none focus:outline-none placeholder-ink-faint"
+                className="w-full bg-transparent text-foreground text-sm leading-relaxed resize-none focus:outline-none placeholder-muted-foreground"
                 rows={3}
                 autoFocus
               />
@@ -1294,18 +1290,18 @@ function Canvas() {
               {pendingAttachments.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-2 pb-1">
                   {pendingAttachments.map((att) => (
-                    <div key={att.id} className="flex items-center gap-1.5 bg-wash rounded-lg px-2.5 py-1.5 group">
+                    <div key={att.id} className="flex items-center gap-1.5 bg-muted rounded-lg px-2.5 py-1.5 group">
                       {att.thumbnailUrl ? (
                         <img src={att.thumbnailUrl} className="w-6 h-6 rounded object-cover" alt={att.name} />
                       ) : (
                         <span className="text-xs"><FileText size={16} strokeWidth={1.75} /></span>
                       )}
-                      <span className="text-xs text-ink-muted max-w-[100px] truncate">{att.name}</span>
-                      {att.isExtracting && <span className="text-2xs text-accent"><Loader2 className="animate-spin" size={12} strokeWidth={1.75} /></span>}
-                      {att.numPages != null && <span className="text-2xs text-ink-faint">{att.numPages}p</span>}
+                      <span className="text-xs text-muted-foreground max-w-[100px] truncate">{att.name}</span>
+                      {att.isExtracting && <span className="text-2xs text-primary"><Loader2 className="animate-spin" size={12} strokeWidth={1.75} /></span>}
+                      {att.numPages != null && <span className="text-2xs text-muted-foreground">{att.numPages}p</span>}
                       <button
                         onClick={() => setPendingAttachments((p) => p.filter((a) => a.id !== att.id))}
-                        className="text-ink-faint hover:text-red-500 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="text-muted-foreground hover:text-destructive/90 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                       ><X size={14} strokeWidth={1.75} /></button>
                     </div>
                   ))}
@@ -1316,14 +1312,14 @@ function Canvas() {
               {showRootRole && (
                 <div className="space-y-1 mt-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-ink-muted font-medium">{t('landing.roleLabel')}</span>
-                    <button onClick={() => { setShowRootRole(false); setRootRole(''); }} className="text-xs text-ink-faint hover:text-ink-muted"><X size={14} strokeWidth={1.75} /></button>
+                    <span className="text-xs text-muted-foreground font-medium">{t('landing.roleLabel')}</span>
+                    <button onClick={() => { setShowRootRole(false); setRootRole(''); }} className="text-xs text-muted-foreground hover:text-muted-foreground"><X size={14} strokeWidth={1.75} /></button>
                   </div>
                   <textarea
                     value={rootRole}
                     onChange={(e) => setRootRole(e.target.value)}
                     placeholder={t('landing.rolePlaceholder')}
-                    className="w-full text-xs border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent bg-surface resize-none leading-relaxed"
+                    className="w-full text-xs border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring bg-background resize-none leading-relaxed"
                     rows={2}
                     autoFocus
                   />
@@ -1336,14 +1332,14 @@ function Canvas() {
                   onClick={() => setShowRootRole(!showRootRole)}
                   title={t('landing.roleTrayTitle')}
                   className={`rounded-full w-8 h-8 flex items-center justify-center transition-colors shrink-0 ${
-                    showRootRole || rootRole ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-ink-faint hover:text-ink-muted hover:bg-line'
+                    showRootRole || rootRole ? 'text-primary bg-primary/10 hover:bg-primary/20' : 'text-muted-foreground hover:text-muted-foreground hover:bg-border'
                   }`}
                 >
                   <Drama size={16} strokeWidth={1.75} />
                 </button>
                 <button
                   onClick={() => landingFileRef.current?.click()}
-                  className="text-ink-faint hover:text-accent hover:bg-wash rounded-xl px-3 py-2 transition-colors text-sm"
+                  className="text-muted-foreground hover:text-primary hover:bg-accent rounded-xl px-3 py-2 transition-colors text-sm"
                   title={t('landing.attach')}
                 >
                   <Paperclip size={16} strokeWidth={1.75} />
@@ -1359,7 +1355,7 @@ function Canvas() {
                 <button
                   onClick={handleSubmit}
                   disabled={!inputValue.trim() || pendingAttachments.some(a => a.isExtracting)}
-                  className="bg-accent hover:bg-accent-strong disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm px-5 py-2 rounded-xl transition-all"
+                  className="bg-primary hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm px-5 py-2 rounded-xl transition-all"
                 >
                   {pendingAttachments.some(a => a.isExtracting) ? t('landing.extracting') : t('landing.send')}
                 </button>
@@ -1371,14 +1367,14 @@ function Canvas() {
             <div
               onClick={() => docFileRef.current?.click()}
               className={`mt-3 border-2 border-dashed rounded-xl px-5 py-3.5 cursor-pointer transition-all text-center bg-card/60 backdrop-blur ${
-                isDraggingLanding ? 'border-accent bg-accent/5 ring-2 ring-accent/20' : 'border-line hover:border-accent/40 hover:bg-accent/5'
+                isDraggingLanding ? 'border-primary bg-primary/5 ring-2 ring-primary/20' : 'border-border hover:border-primary/40 hover:bg-primary/5'
               }`}
             >
-              <div className="flex items-center justify-center gap-2 text-sm text-ink-muted font-medium">
-                <BookOpen size={15} strokeWidth={1.75} className="text-accent" /> {t('landing.docStart')}
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground font-medium">
+                <BookOpen size={15} strokeWidth={1.75} className="text-primary" /> {t('landing.docStart')}
               </div>
-              <p className="text-2xs text-ink-faint mt-1.5">{t('landing.docFormats')}</p>
-              <p className="text-2xs text-ink-faint mt-0.5">{t('landing.docPrivacy')}</p>
+              <p className="text-2xs text-muted-foreground mt-1.5">{t('landing.docFormats')}</p>
+              <p className="text-2xs text-muted-foreground mt-0.5">{t('landing.docPrivacy')}</p>
             </div>
             {/* Agent conversations, desktop only — one click turns them
                 into graphs, and LOOKING needs no model key: the one
@@ -1389,15 +1385,15 @@ function Canvas() {
             {!!window.desktopSessions && (
               <button
                 onClick={() => setLandingAtlas(true)}
-                className="w-full mt-3 bg-card/60 backdrop-blur border border-line rounded-xl px-5 py-3.5 hover:border-accent/40 hover:bg-accent/5 transition-all text-center"
+                className="w-full mt-3 bg-card/60 backdrop-blur border border-border rounded-xl px-5 py-3.5 hover:border-primary/40 hover:bg-primary/5 transition-all text-center"
                 data-landing-atlas
               >
-                <div className="flex items-center justify-center gap-2 text-sm text-ink-muted font-medium">
-                  <Bot size={15} strokeWidth={1.75} className="text-accent shrink-0" />
+                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground font-medium">
+                  <Bot size={15} strokeWidth={1.75} className="text-primary shrink-0" />
                   <span>{t('landing.atlasStart')}</span>
-                  <ArrowRight size={13} strokeWidth={1.75} className="text-accent shrink-0" />
+                  <ArrowRight size={13} strokeWidth={1.75} className="text-primary shrink-0" />
                 </div>
-                <p className="text-2xs text-ink-faint mt-1.5">{t('landing.atlasDesc')}</p>
+                <p className="text-2xs text-muted-foreground mt-1.5">{t('landing.atlasDesc')}</p>
               </button>
             )}
             <input
@@ -1418,16 +1414,16 @@ function Canvas() {
                 this browser) — plus one quiet line for subscription owners.
                 Gone once any model exists. */}
             {(!modelData || (modelData.models?.length ?? 0) === 0) && (
-              <div className="mt-3 bg-card/60 backdrop-blur border border-line rounded-xl px-5 py-3.5 text-center" data-quick-connect>
-                <div className="flex items-center justify-center gap-2 text-sm text-ink-muted font-medium">
-                  <KeyRound size={15} strokeWidth={1.75} className="text-accent shrink-0" /> {t('landing.quickTitle')}
+              <div className="mt-3 bg-card/60 backdrop-blur border border-border rounded-xl px-5 py-3.5 text-center" data-quick-connect>
+                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground font-medium">
+                  <KeyRound size={15} strokeWidth={1.75} className="text-primary shrink-0" /> {t('landing.quickTitle')}
                 </div>
-                <p className="text-2xs text-ink-faint mt-1.5">{t('landing.quickDesc')}</p>
+                <p className="text-2xs text-muted-foreground mt-1.5">{t('landing.quickDesc')}</p>
                 <div className="mt-2.5 flex items-center justify-center flex-wrap gap-2">
                   {lang === 'zh' && (
                     <button
                       onClick={() => { useUiStore.getState().setApiKeyPresetHint('zhipu'); useUiStore.getState().setApiKeyModalOpen(true); }}
-                      className="text-2xs bg-accent/10 text-accent hover:bg-accent/20 font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                      className="text-2xs bg-primary/10 text-primary hover:bg-primary/20 font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
                       data-quick-zhipu
                     >
                       {t('landing.quickZhipu')}
@@ -1435,21 +1431,21 @@ function Canvas() {
                   )}
                   <button
                     onClick={() => void startOpenRouterOAuth()}
-                    className="text-2xs bg-accent/10 text-accent hover:bg-accent/20 font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                    className="text-2xs bg-primary/10 text-primary hover:bg-primary/20 font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
                     data-quick-primary
                   >
                     {t('landing.quickOpenRouter')}
                   </button>
                   <button
                     onClick={() => useUiStore.getState().setApiKeyModalOpen(true)}
-                    className="text-2xs text-ink-muted hover:text-ink hover:bg-wash font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                    className="text-2xs text-muted-foreground hover:text-foreground hover:bg-accent font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
                   >
                     {t('landing.quickOther')}
                   </button>
                 </div>
                 <button
                   onClick={() => useUiStore.getState().setApiKeyModalOpen(true)}
-                  className="mt-2 mx-auto text-2xs text-ink-faint hover:text-accent transition-colors block"
+                  className="mt-2 mx-auto text-2xs text-muted-foreground hover:text-primary transition-colors block"
                   data-quick-subs
                 >
                   {t('landing.quickSubs')}
@@ -1464,10 +1460,10 @@ function Canvas() {
                 { icon: Workflow, title: 'landing.feature2.title', desc: 'landing.feature2.desc' },
                 { icon: Scissors, title: 'landing.feature3.title', desc: 'landing.feature3.desc' },
               ] as const).map(({ icon: Icon, title, desc }) => (
-                <div key={title} className="bg-card/60 backdrop-blur border border-line rounded-xl px-4 py-3.5">
-                  <Icon size={16} strokeWidth={1.75} className="text-accent mb-2" />
-                  <h3 className="text-xs font-semibold text-ink mb-1">{t(title)}</h3>
-                  <p className="text-2xs text-ink-faint leading-relaxed">{t(desc)}</p>
+                <div key={title} className="bg-card/60 backdrop-blur border border-border rounded-xl px-4 py-3.5">
+                  <Icon size={16} strokeWidth={1.75} className="text-primary mb-2" />
+                  <h3 className="text-xs font-semibold text-foreground mb-1">{t(title)}</h3>
+                  <p className="text-2xs text-muted-foreground leading-relaxed">{t(desc)}</p>
                 </div>
               ))}
             </div>
@@ -1475,13 +1471,13 @@ function Canvas() {
             <div className="text-center mt-6 flex items-center justify-center gap-5">
               <button
                 onClick={loadExample}
-                className="text-xs text-accent hover:text-accent-strong font-medium transition-colors inline-flex items-center gap-1.5"
+                className="text-xs text-primary hover:text-primary/90 font-medium transition-colors inline-flex items-center gap-1.5"
               >
                 <Workflow size={14} strokeWidth={1.75} /> {t('landing.loadExample')}
               </button>
               <button
                 onClick={() => setTutorialOpen(true)}
-                className="text-xs text-ink-muted hover:text-accent transition-colors inline-flex items-center gap-1.5"
+                className="text-xs text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-1.5"
               >
                 <CircleHelp size={14} strokeWidth={1.75} /> {t('landing.howItWorks')}
               </button>
@@ -1497,14 +1493,14 @@ function Canvas() {
           viewport center; DRAG drops at the pointer. Paste works anywhere:
           text → note, a URL → link snapshot, image/files → file node. */}
       {(hasNodes || isParadigm) && !isViewerMode && (
-        <div className="absolute top-[38%] -translate-y-1/2 left-4 z-10 flex flex-col gap-1.5 bg-card/90 backdrop-blur border border-line rounded-xl p-1.5 shadow-sm">
+        <div className="absolute top-[38%] -translate-y-1/2 left-4 z-10 flex flex-col gap-1.5 bg-card/90 backdrop-blur border border-border rounded-xl p-1.5 shadow-sm">
           {!isParadigm && (
             <button
               onClick={() => spawnAskNode(flowPosAt(null))}
               draggable
               onDragStart={(e) => { e.dataTransfer.setData('application/thoughtdag-content', 'ask'); e.dataTransfer.effectAllowed = 'copy'; }}
               title={t('palette.askTitle')}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-accent hover:bg-accent/10 transition-colors cursor-grab"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-primary hover:bg-primary/10 transition-colors cursor-grab"
             >
               <MessageCircleQuestion size={15} strokeWidth={1.75} />
             </button>
@@ -1512,21 +1508,21 @@ function Canvas() {
           <button
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnContentNode('note', flowPosAt(screen)))}
             title={t('palette.noteTitle')}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-amber-600 hover:bg-amber-500/10 transition-colors"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-warning hover:bg-warning/10 transition-colors"
           >
             <StickyNote size={15} strokeWidth={1.75} />
           </button>
           <button
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnContentNode('file', flowPosAt(screen)))}
             title={t('palette.fileTitle')}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:bg-wash transition-colors"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-accent transition-colors"
           >
             <Paperclip size={15} strokeWidth={1.75} />
           </button>
           <button
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnFrame(flowPosAt(screen)))}
             title={t('palette.frameTitle')}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:bg-wash transition-colors"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-accent transition-colors"
           >
             <Frame size={15} strokeWidth={1.75} />
           </button>
@@ -1540,12 +1536,12 @@ function Canvas() {
           className="absolute top-4 z-10 flex gap-1.5 items-center transition-[right] duration-200"
           style={{ right: panelOpen ? livePanelWidth + PANEL_INSET + 12 : 16 }}
         >
-          <span className="bg-card/90 backdrop-blur border border-line rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm text-ink-muted text-xs font-medium" data-viewer-badge>
+          <span className="bg-card/90 backdrop-blur border border-border rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm text-muted-foreground text-xs font-medium" data-viewer-badge>
             <Eye size={14} strokeWidth={1.75} /> {t('viewer.badge')}
           </span>
           <button
             onClick={() => setSearchOpen(true)}
-            className="bg-card/90 backdrop-blur border border-line rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-wash transition-colors text-ink-muted hover:text-accent"
+            className="bg-card/90 backdrop-blur border border-border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-accent transition-colors text-muted-foreground hover:text-primary"
             title={t('search.entryTitle')}
             data-search-entry
           >
@@ -1554,7 +1550,7 @@ function Canvas() {
           <LangSwitch />
           <button
             onClick={() => exportActiveProjectJson()}
-            className="bg-card/90 backdrop-blur border border-line rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-wash transition-colors text-ink-muted hover:text-accent"
+            className="bg-card/90 backdrop-blur border border-border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-accent transition-colors text-muted-foreground hover:text-primary"
             title={t('viewer.downloadJson')}
           >
             <Download size={15} strokeWidth={1.75} />
@@ -1563,7 +1559,7 @@ function Canvas() {
             href="https://github.com/chenxiachan/thoughtdag"
             target="_blank"
             rel="noreferrer"
-            className="bg-ink text-white rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm hover:bg-ink/85 transition-colors text-xs font-medium"
+            className="bg-foreground text-white rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm hover:bg-foreground/85 transition-colors text-xs font-medium"
           >
             {t('viewer.openApp')}
           </a>
@@ -1582,20 +1578,20 @@ function Canvas() {
           <>
             <button
               onClick={() => addStep('human')}
-              className="bg-card/90 backdrop-blur border border-warm/40 rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm hover:bg-warm/10 transition-colors text-warm text-xs font-medium"
+              className="bg-card/90 backdrop-blur border border-edge-explore/40 rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm hover:bg-edge-explore/10 transition-colors text-edge-explore text-xs font-medium"
             >
               <MessageCircleQuestion size={14} strokeWidth={1.75} /> {t('paradigm.addHuman')}
             </button>
             <button
               onClick={() => addStep('prompt')}
-              className="bg-card/90 backdrop-blur border border-accent/40 rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm hover:bg-accent/10 transition-colors text-accent text-xs font-medium"
+              className="bg-card/90 backdrop-blur border border-primary/40 rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm hover:bg-primary/10 transition-colors text-primary text-xs font-medium"
             >
               <SquareTerminal size={14} strokeWidth={1.75} /> {t('paradigm.addPrompt')}
             </button>
             <button
               onClick={() => void instantiate()}
               title={t('paradigm.instantiateTitle')}
-              className="bg-ink text-white rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm hover:bg-ink/85 transition-colors text-xs font-medium"
+              className="bg-foreground text-white rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm hover:bg-foreground/85 transition-colors text-xs font-medium"
             >
               ▶ {t('paradigm.instantiate')}
             </button>
@@ -1608,7 +1604,7 @@ function Canvas() {
         {!hasNodes && (
           <button
             onClick={() => useUiStore.getState().setApiKeyModalOpen(true)}
-            className="bg-card/90 backdrop-blur border border-line rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-wash transition-colors text-ink-faint hover:text-accent"
+            className="bg-card/90 backdrop-blur border border-border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-accent transition-colors text-muted-foreground hover:text-primary"
             title={t('apikey.entryTitle')}
             data-apikey-entry
           >
@@ -1634,7 +1630,7 @@ function Canvas() {
                 confirmLabel: t('replay.confirmBtn'),
               }).then((ok) => { if (ok) void useStore.getState().replayStale(); });
             }}
-            className="bg-amber-500/10 backdrop-blur border border-amber-500/40 rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm hover:bg-amber-500/20 transition-colors text-amber-600 text-xs font-medium"
+            className="bg-warning/10 backdrop-blur border border-warning/40 rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm hover:bg-warning/20 transition-colors text-warning text-xs font-medium"
             title={t('replay.chipTitle')}
           >
             <ListRestart size={14} strokeWidth={1.75} /> {staleCount}
@@ -1645,14 +1641,14 @@ function Canvas() {
             <button
               onClick={() => setFrameNavOpen((v) => !v)}
               className={`bg-card/90 backdrop-blur border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm transition-colors ${
-                frameNavOpen ? 'border-accent/40 text-accent' : 'border-line text-ink-faint hover:bg-wash'
+                frameNavOpen ? 'border-primary/40 text-primary' : 'border-border text-muted-foreground hover:bg-accent'
               }`}
               title={t('toolbar.frames')}
             >
               <Frame size={15} strokeWidth={1.75} />
             </button>
             {frameNavOpen && (
-              <div className="absolute right-0 top-full mt-1.5 bg-card border border-line rounded-xl shadow-lg py-1 w-[230px] max-h-[320px] overflow-y-auto z-30 animate-fade-in">
+              <div className="absolute right-0 top-full mt-1.5 bg-card border border-border rounded-xl shadow-lg py-1 w-[230px] max-h-[320px] overflow-y-auto z-30 animate-fade-in">
                 {frames.map((f) => (
                   <button
                     key={f.id}
@@ -1663,7 +1659,7 @@ function Canvas() {
                         { duration: 400, padding: 0.15 },
                       );
                     }}
-                    className="w-full text-left px-3 py-2 text-xs text-ink hover:bg-wash transition-colors flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2"
                   >
                     <span className={`w-2.5 h-2.5 rounded-sm shrink-0 ${(FRAME_COLORS[f.data.frameColor ?? 'gray'] ?? FRAME_COLORS.gray).dot}`} />
                     <span className="truncate">{f.data.question || t('frame.untitled')}</span>
@@ -1676,7 +1672,7 @@ function Canvas() {
         {hasNodes && (
           <button
             onClick={() => setSearchOpen(true)}
-            className="bg-card/90 backdrop-blur border border-line rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-wash transition-colors text-ink-faint hover:text-accent"
+            className="bg-card/90 backdrop-blur border border-border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-accent transition-colors text-muted-foreground hover:text-primary"
             title={t('search.entryTitle')}
             data-search-entry
           >
@@ -1698,7 +1694,7 @@ function Canvas() {
         {condenseBuilding && !isViewerMode && (
           <button
             onClick={() => useUiStore.getState().setCondenseDialogOpen(true)}
-            className="bg-card/90 backdrop-blur border border-accent/50 rounded-lg h-8 px-2 flex items-center justify-center gap-1.5 shadow-sm hover:bg-wash transition-colors text-accent"
+            className="bg-card/90 backdrop-blur border border-primary/50 rounded-lg h-8 px-2 flex items-center justify-center gap-1.5 shadow-sm hover:bg-accent transition-colors text-primary"
             title={fmt(t('condense.entryBuilding'), { i: String(condenseRunState.current), n: String(condenseRunState.total) })}
             data-condense-entry
           >
@@ -1708,7 +1704,7 @@ function Canvas() {
         {backupSupported && (
           <button
             onClick={() => useUiStore.getState().setBackupDialogOpen(true)}
-            className="bg-card/90 backdrop-blur border border-line rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-wash transition-colors text-ink-muted hover:text-accent"
+            className="bg-card/90 backdrop-blur border border-border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-accent transition-colors text-muted-foreground hover:text-primary"
             title={t('backup.dialogTitle')}
             data-backup-entry
           >
@@ -1721,7 +1717,7 @@ function Canvas() {
           <button
             onClick={() => setMoreOpen((v) => !v)}
             className={`bg-card/90 backdrop-blur border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm transition-colors ${
-              moreOpen ? 'border-accent/40 text-accent' : 'border-line text-ink-faint hover:bg-wash'
+              moreOpen ? 'border-primary/40 text-primary' : 'border-border text-muted-foreground hover:bg-accent'
             }`}
             title={t('toolbar.more')}
             data-toolbar-more
@@ -1729,14 +1725,14 @@ function Canvas() {
             <MoreHorizontal size={15} strokeWidth={1.75} />
           </button>
           {moreOpen && (
-            <div className="absolute right-0 top-full mt-1.5 bg-card border border-line rounded-xl shadow-lg py-1 w-[220px] z-30 animate-fade-in">
+            <div className="absolute right-0 top-full mt-1.5 bg-card border border-border rounded-xl shadow-lg py-1 w-[220px] z-30 animate-fade-in">
               {hasNodes && (
                 <button
                   onClick={() => { setMoreOpen(false); setAnnotationsHidden(!annotationsHidden); }}
-                  className="w-full text-left px-3 py-2 text-xs text-ink hover:bg-wash transition-colors flex items-center gap-2.5"
+                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
                   title={annotationsHidden ? t('toolbar.showAnnotations') : t('toolbar.hideAnnotations')}
                 >
-                  <StickyNote size={14} strokeWidth={1.75} className={`shrink-0 ${annotationsHidden ? 'text-accent' : 'text-ink-faint'}`} /> {annotationsHidden ? t('toolbar.menuAnnotationsShow') : t('toolbar.menuAnnotationsHide')}
+                  <StickyNote size={14} strokeWidth={1.75} className={`shrink-0 ${annotationsHidden ? 'text-primary' : 'text-muted-foreground'}`} /> {annotationsHidden ? t('toolbar.menuAnnotationsShow') : t('toolbar.menuAnnotationsHide')}
                 </button>
               )}
               {hasNodes && (
@@ -1753,49 +1749,49 @@ function Canvas() {
                       setTimeout(() => rfInstance.current?.fitView({ duration: 400, padding: 0.15 }), 50);
                     });
                   }}
-                  className="w-full text-left px-3 py-2 text-xs text-ink hover:bg-wash transition-colors flex items-center gap-2.5"
+                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
                 >
-                  <LayoutGrid size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" /> {t('toolbar.relayout')}
+                  <LayoutGrid size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('toolbar.relayout')}
                 </button>
               )}
               {highlightCount > 0 && (
                 <button
                   onClick={() => { setMoreOpen(false); useUiStore.getState().setHighlightsOverviewOpen(true); }}
-                  className="w-full text-left px-3 py-2 text-xs text-ink hover:bg-wash transition-colors flex items-center gap-2.5"
+                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
                   title={t('hlov.entryTitle')}
                   data-hlov-entry
                 >
-                  <Highlighter size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" /> {fmt(t('hlov.entry'), { n: highlightCount })}
+                  <Highlighter size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {fmt(t('hlov.entry'), { n: highlightCount })}
                 </button>
               )}
               {materialCount > 0 && (
                 <button
                   onClick={() => { setMoreOpen(false); useUiStore.getState().setMaterialsOverviewOpen(true); }}
-                  className="w-full text-left px-3 py-2 text-xs text-ink hover:bg-wash transition-colors flex items-center gap-2.5"
+                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
                   title={t('matov.entryTitle')}
                   data-matov-entry
                 >
-                  <Paperclip size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" /> {fmt(t('matov.entry'), { n: materialCount })}
+                  <Paperclip size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {fmt(t('matov.entry'), { n: materialCount })}
                 </button>
               )}
-              {hasNodes && <div className="border-t border-line/60 my-1" />}
+              {hasNodes && <div className="border-t border-border/60 my-1" />}
               {hasNodes && !isParadigm && !isViewerMode && (
                 <button
                   onClick={() => { setMoreOpen(false); useUiStore.getState().setCondenseDialogOpen(true); }}
-                  className="w-full text-left px-3 py-2 text-xs text-ink hover:bg-wash transition-colors flex items-center gap-2.5"
+                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
                   title={t('condense.entryTitle')}
                 >
-                  <Minimize2 size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" /> {t('condense.title')}…
+                  <Minimize2 size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('condense.title')}…
                 </button>
               )}
               {hasNodes && !isParadigm && (
                 <button
                   onClick={() => { setMoreOpen(false); setDiagPing((v) => v + 1); }}
-                  className="w-full text-left px-3 py-2 text-xs text-ink hover:bg-wash transition-colors flex items-center gap-2.5"
+                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
                   title={t('toolbar.diagnose')}
                   data-menu-diagnose
                 >
-                  <Stethoscope size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" /> {t('toolbar.menuDiagnose')}
+                  <Stethoscope size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('toolbar.menuDiagnose')}
                 </button>
               )}
               {hasNodes && !isParadigm && (
@@ -1813,42 +1809,42 @@ function Canvas() {
                       useUiStore.getState().setShareDialogUrl(url);
                     })();
                   }}
-                  className="w-full text-left px-3 py-2 text-xs text-ink hover:bg-wash transition-colors flex items-center gap-2.5"
+                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
                   data-share-link
                   title={t('viewer.shareTitle')}
                 >
-                  <Share2 size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" /> {t('toolbar.menuShare')}
+                  <Share2 size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('toolbar.menuShare')}
                 </button>
               )}
               {hasNodes && (
                 <button
                   onClick={() => { setMoreOpen(false); if (isParadigm) exportActiveParadigm(); else exportActiveProjectJson(); }}
-                  className="w-full text-left px-3 py-2 text-xs text-ink hover:bg-wash transition-colors flex items-center gap-2.5"
+                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
                   data-menu-export
                 >
-                  <Download size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" /> {isParadigm ? t('paradigm.exportParadigm') : t('switcher.exportBackup')}
+                  <Download size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {isParadigm ? t('paradigm.exportParadigm') : t('switcher.exportBackup')}
                 </button>
               )}
               {hasEvents && (
                 <button
                   onClick={() => { setMoreOpen(false); exportEventLogCsv(); }}
-                  className="w-full text-left px-3 py-2 text-xs text-ink hover:bg-wash transition-colors flex items-center gap-2.5"
+                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
                   title={t('toolbar.exportEventsTitle')}
                 >
-                  <FileText size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" /> {t('toolbar.exportEvents')}
+                  <FileText size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('toolbar.exportEvents')}
                 </button>
               )}
-              {hasNodes && <div className="border-t border-line/60 my-1" />}
+              {hasNodes && <div className="border-t border-border/60 my-1" />}
               {/* appearance: two independent axes — lighting remaps the
                   tokens, paper retextures the canvas (and arms snapping) */}
               <div className="px-3 pt-2 pb-1" data-appearance-lighting>
-                <div className="text-2xs text-ink-faint mb-1.5">{t('appearance.lighting')}</div>
-                <div className="flex rounded-lg border border-line overflow-hidden text-2xs">
+                <div className="text-2xs text-muted-foreground mb-1.5">{t('appearance.lighting')}</div>
+                <div className="flex rounded-lg border border-border overflow-hidden text-2xs">
                   {([['light', t('appearance.light')], ['dark', t('appearance.dark')], ['system', t('appearance.system')]] as const).map(([v, label], i) => (
                     <button
                       key={v}
                       onClick={() => useAppearance.getState().setLighting(v)}
-                      className={`flex-1 px-1 py-1.5 transition-colors ${i > 0 ? 'border-l border-line' : ''} ${lightingChoice === v ? 'bg-accent/10 text-accent font-medium' : 'text-ink-muted hover:bg-wash'}`}
+                      className={`flex-1 px-1 py-1.5 transition-colors ${i > 0 ? 'border-l border-border' : ''} ${lightingChoice === v ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-accent'}`}
                     >
                       {label}
                     </button>
@@ -1856,37 +1852,37 @@ function Canvas() {
                 </div>
               </div>
               <div className="px-3 pt-1 pb-2" data-appearance-paper>
-                <div className="text-2xs text-ink-faint mb-1.5">{t('appearance.paper')}</div>
-                <div className="flex rounded-lg border border-line overflow-hidden text-2xs">
+                <div className="text-2xs text-muted-foreground mb-1.5">{t('appearance.paper')}</div>
+                <div className="flex rounded-lg border border-border overflow-hidden text-2xs">
                   {([['plain', t('appearance.plain')], ['grid', t('appearance.grid')]] as const).map(([v, label], i) => (
                     <button
                       key={v}
                       onClick={() => useAppearance.getState().setPaper(v)}
-                      className={`flex-1 px-1 py-1.5 transition-colors ${i > 0 ? 'border-l border-line' : ''} ${paperTexture === v ? 'bg-accent/10 text-accent font-medium' : 'text-ink-muted hover:bg-wash'}`}
+                      className={`flex-1 px-1 py-1.5 transition-colors ${i > 0 ? 'border-l border-border' : ''} ${paperTexture === v ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-accent'}`}
                     >
                       {label}
                     </button>
                   ))}
                 </div>
               </div>
-              <div className="border-t border-line/60 my-1" />
+              <div className="border-t border-border/60 my-1" />
               <button
                 onClick={() => { setMoreOpen(false); useUiStore.getState().setMemoryManagerOpen(true); }}
-                className="w-full text-left px-3 py-2 text-xs text-ink hover:bg-wash transition-colors flex items-center gap-2.5"
+                className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
                 title={t('memory.entryTitle')}
               >
-                <Brain size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" /> {t('memory.managerTitle')}
+                <Brain size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('memory.managerTitle')}
               </button>
               <button
                 onClick={() => { setMoreOpen(false); setTutorialOpen(true); }}
-                className="w-full text-left px-3 py-2 text-xs text-ink hover:bg-wash transition-colors flex items-center gap-2.5"
+                className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
               >
-                <CircleHelp size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" /> {t('landing.howItWorks')}
+                <CircleHelp size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('landing.howItWorks')}
               </button>
               {pluginUpdate && (
                 <button
                   onClick={() => { setMoreOpen(false); void navigator.clipboard.writeText(pluginUpdateCommand(pluginUpdate.latest)).then(() => toast('success', t('plugin.updateCopied'), 6000)).catch(() => {}); }}
-                  className="w-full text-left px-3 py-2 text-xs text-accent hover:bg-wash transition-colors flex items-center gap-2.5"
+                  className="w-full text-left px-3 py-2 text-xs text-primary hover:bg-accent transition-colors flex items-center gap-2.5"
                   title={fmt(t('plugin.updateHint'), { cmd: pluginUpdateCommand(pluginUpdate.latest) })}
                   data-plugin-update
                 >
@@ -1895,10 +1891,10 @@ function Canvas() {
               )}
               <button
                 onClick={() => { setMoreOpen(false); useUiStore.getState().setReleaseNotesOpen(true); }}
-                className="w-full text-left px-3 py-2 text-xs text-ink hover:bg-wash transition-colors flex items-center gap-2.5"
+                className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
                 data-open-release-notes
               >
-                <HistoryIcon size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" /> {t('releaseNotes.entry')}
+                <HistoryIcon size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('releaseNotes.entry')}
               </button>
             </div>
           )}
@@ -1906,7 +1902,7 @@ function Canvas() {
         <button
           onClick={undo}
           disabled={historyIndex <= 0}
-          className="bg-card/90 backdrop-blur border border-line rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-wash transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+          className="bg-card/90 backdrop-blur border border-border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-accent transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
           title={t('canvas.undo')}
         >
           <Undo2 size={16} strokeWidth={1.75} />
@@ -1914,7 +1910,7 @@ function Canvas() {
         <button
           onClick={redo}
           disabled={historyIndex >= history.length - 1}
-          className="bg-card/90 backdrop-blur border border-line rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-wash transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+          className="bg-card/90 backdrop-blur border border-border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-accent transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
           title={t('canvas.redo')}
         >
           <Redo2 size={16} strokeWidth={1.75} />
@@ -1966,12 +1962,12 @@ function Canvas() {
       }} />
       {edgeMenu && (
         <div
-          className="fixed z-50 bg-card border border-line rounded-xl shadow-lg py-1 min-w-[120px]"
+          className="fixed z-50 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[120px]"
           style={{ left: edgeMenu.x, top: edgeMenu.y }}
         >
           <button
             onClick={() => deleteEdge(edgeMenu.edgeId)}
-            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-1.5"
+            className="w-full text-left px-4 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-1.5"
           >
             <Trash2 size={14} strokeWidth={1.75} />
             {t('canvas.deleteEdge')}
@@ -2074,7 +2070,7 @@ function ThoughtMapPill({ panelShiftWidth }: { panelShiftWidth: number }) {
       <button
         onClick={() => useUiStore.getState().setThoughtMapOpen(true)}
         data-tmap-pill
-        className="flex items-center gap-2 bg-card/95 backdrop-blur border border-line-strong rounded-full px-5 py-2.5 text-sm text-ink shadow-lg hover:border-accent/40 hover:text-accent transition-colors"
+        className="flex items-center gap-2 bg-card/95 backdrop-blur border border-input rounded-full px-5 py-2.5 text-sm text-foreground shadow-lg hover:border-primary/40 hover:text-primary transition-colors"
       >
         <ImageDown size={16} strokeWidth={1.75} /> {t('tmap.export')}
       </button>
@@ -2085,7 +2081,7 @@ function ThoughtMapPill({ panelShiftWidth }: { panelShiftWidth: number }) {
           onMouseLeave={() => useUiStore.getState().setBeaconNodeId(null)}
           title={t('continue.buttonTitle')}
           data-continue-pill
-          className="flex items-center gap-2 bg-accent text-white rounded-full px-5 py-2.5 text-sm shadow-lg hover:bg-accent-strong transition-colors"
+          className="flex items-center gap-2 bg-primary text-white rounded-full px-5 py-2.5 text-sm shadow-lg hover:bg-primary/90 transition-colors"
         >
           <Rewind size={16} strokeWidth={1.75} /> {t('continue.button')}
         </button>

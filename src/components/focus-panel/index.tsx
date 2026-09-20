@@ -96,7 +96,7 @@ export default function FocusPanel({ onFocusNode }: { onFocusNode?: (id: string)
   return (
     <div
       data-focus-panel
-      className={`absolute right-3 top-3 bottom-3 z-20 bg-wash border border-line rounded-2xl shadow-xl overflow-hidden flex flex-col ${resizing ? 'select-none' : ''}`}
+      className={`absolute right-3 top-3 bottom-3 z-20 bg-muted border border-border rounded-2xl shadow-xl overflow-hidden flex flex-col ${resizing ? 'select-none' : ''}`}
       style={{ width: panelWidth, minWidth: PANEL_MIN_WIDTH, maxWidth: '70vw' }}
     >
       {/* Resize handle on the left edge */}
@@ -105,22 +105,22 @@ export default function FocusPanel({ onFocusNode }: { onFocusNode?: (id: string)
         onPointerMove={onResizePointerMove}
         onPointerUp={onResizePointerUp}
         onDoubleClick={onResizeDoubleClick}
-        className={`absolute left-0 top-0 h-full w-[8px] -ml-[3px] z-20 cursor-col-resize hover:bg-accent/20 transition-colors flex items-center justify-center ${resizing ? 'bg-accent/30' : ''}`}
+        className={`absolute left-0 top-0 h-full w-[8px] -ml-[3px] z-20 cursor-col-resize hover:bg-primary/20 transition-colors flex items-center justify-center ${resizing ? 'bg-primary/30' : ''}`}
         title={t('panel.resizeTitle')}
         data-panel-resize
       >
         {/* a visible grip: the handle exists whether or not you hover it */}
-        <div className={`w-[3px] h-9 rounded-full transition-colors ${resizing ? 'bg-accent' : 'bg-line-strong'}`} />
+        <div className={`w-[3px] h-9 rounded-full transition-colors ${resizing ? 'bg-primary' : 'bg-input'}`} />
       </div>
       {/* Header: summary kicker (role · tokens · materials) + action strip */}
-      <div className="flex items-start gap-2 pl-4 pr-3 py-1.5 border-b border-line/70 shrink-0">
+      <div className="flex items-start gap-2 pl-4 pr-3 py-1.5 border-b border-border/70 shrink-0">
         <RoleLine nodeId={selectedNodeId!} data={data} inheritedRole={inheritedRole} />
         <div className="flex items-center gap-1 shrink-0">
           {!isViewerMode && <HeaderActions nodeId={selectedNodeId!} isLoading={data.isLoading} />}
           <button
             onClick={() => { useUiStore.getState().setPanelOpen(false); setSelectedNodeId(null); }}
             title={t('panel.close')}
-            className="text-ink-faint hover:text-ink transition-colors shrink-0 ml-1 h-8 flex items-center"
+            className="text-muted-foreground hover:text-foreground transition-colors shrink-0 ml-1 h-8 flex items-center"
           >
             <X size={16} strokeWidth={1.75} />
           </button>

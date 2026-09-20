@@ -84,9 +84,9 @@ export default function QuestionSection({
 
   return (
     <div className="panel-card px-4 py-3">
-      <label className="text-2xs font-semibold text-accent mb-1 block">{t('panel.question')}</label>
+      <label className="text-2xs font-semibold text-primary mb-1 block">{t('panel.question')}</label>
       {branchContext && (
-        <div className="mb-2 text-xs pl-3 py-1.5 pr-2 border-l-2 border-warm bg-warm/10 rounded-r text-ink-muted italic leading-relaxed">
+        <div className="mb-2 text-xs pl-3 py-1.5 pr-2 border-l-2 border-edge-explore bg-edge-explore/10 rounded-r text-muted-foreground italic leading-relaxed">
           “{branchContext.slice(0, 240)}{branchContext.length > 240 ? '…' : ''}”
         </div>
       )}
@@ -100,17 +100,17 @@ export default function QuestionSection({
             onInput={(e) => autoGrowTa(e.currentTarget)}
             ref={autoGrowTa}
             placeholder={placeholder}
-            className="w-full bg-wash border border-accent rounded-xl p-3 text-sm text-ink resize-none focus:outline-none focus:ring-2 focus:ring-accent/20"
+            className="w-full bg-muted border border-primary rounded-xl p-3 text-sm text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-ring/20"
             rows={3}
             autoFocus
           />
-          {isFact && !awaiting && !isHuman && <p className="text-2xs text-ink-faint mt-1.5" data-fact-note>{t('fact.editQuestionNote')}</p>}
+          {isFact && !awaiting && !isHuman && <p className="text-2xs text-muted-foreground mt-1.5" data-fact-note>{t('fact.editQuestionNote')}</p>}
           {!awaiting && !isHuman && (
             <div className="flex items-center justify-end gap-2 mt-1.5">
               <button
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => setEditing(nodeId, false)}
-                className="text-xs text-ink-muted hover:text-red-500 hover:bg-wash px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                className="text-xs text-muted-foreground hover:text-destructive/90 hover:bg-accent px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
                 data-edit-cancel
               >
                 <X size={12} strokeWidth={2} /> {t('question.editCancel')}
@@ -119,7 +119,7 @@ export default function QuestionSection({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={handleEditSubmit}
                 disabled={!editValue.trim()}
-                className="text-xs bg-accent hover:bg-accent-strong disabled:opacity-30 disabled:cursor-not-allowed text-white px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                className="text-xs bg-primary hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed text-white px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
                 data-edit-submit
               >
                 <Check size={12} strokeWidth={2.25} /> {t('question.editSubmit')}
@@ -130,7 +130,7 @@ export default function QuestionSection({
       ) : (
         <div
           onDoubleClick={handleDoubleClickQuestion}
-          className="text-sm text-ink font-semibold cursor-pointer hover:bg-wash rounded-xl px-2 py-1.5 -mx-1 transition-colors max-h-[240px] overflow-y-auto"
+          className="text-sm text-foreground font-semibold cursor-pointer hover:bg-accent rounded-xl px-2 py-1.5 -mx-1 transition-colors max-h-[240px] overflow-y-auto"
         >
           {question}
         </div>

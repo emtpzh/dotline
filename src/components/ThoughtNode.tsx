@@ -323,9 +323,9 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
       title={fmt(t('insight.compTitle'), { q: composition.q, a: composition.a, tool: composition.tool, pct: Math.round(composition.toolShare * 100) })}
       data-comp-bar
     >
-      <span style={{ flex: Math.max(composition.q, 1) }} className="bg-accent/50" />
-      <span style={{ flex: Math.max(composition.a, 1) }} className="bg-ink/25" />
-      <span style={{ flex: Math.max(composition.tool, 1) }} className={composition.toolShare > 0.6 ? 'bg-amber-500' : 'bg-warm/60'} />
+      <span style={{ flex: Math.max(composition.q, 1) }} className="bg-primary/50" />
+      <span style={{ flex: Math.max(composition.a, 1) }} className="bg-foreground/25" />
+      <span style={{ flex: Math.max(composition.tool, 1) }} className={composition.toolShare > 0.6 ? 'bg-warning' : 'bg-edge-explore/60'} />
     </span>
   );
   // Map layer: the display summary for the ACTIVE version. Long answers wear
@@ -337,13 +337,13 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // Only the rare, high-signal moves wear a badge — a map where every node
   // has one is a map where none do. insight = the unmarked default.
   const TYPE_BADGE: Record<string, { glyph: string; cls: string; solid: string; key: string; nudge?: string }> = {
-    ruleout: { glyph: '✕', cls: 'text-red-500 bg-red-50', solid: 'bg-red-500 text-white', key: 'takeaway.ruleout' },
+    ruleout: { glyph: '✕', cls: 'text-destructive bg-destructive/10', solid: 'bg-destructive text-white', key: 'takeaway.ruleout' },
     // ⚖'s ink sits low in its em box (tall ascent, glyph rides the baseline),
     // so a centered line box leaves it optically LOW — nudge up to visual
     // center (pixel-measured on macOS system fonts; em unit tracks font size)
-    decision: { glyph: '⚖', cls: 'text-accent bg-accent/10', solid: 'bg-accent text-white', key: 'takeaway.decision', nudge: 'block -translate-y-[0.08em]' },
-    pivot: { glyph: '↩', cls: 'text-warm bg-warm/10', solid: 'bg-warm text-white', key: 'takeaway.pivot' },
-    open: { glyph: '?', cls: 'text-amber-600 bg-amber-500/10', solid: 'bg-amber-500 text-white', key: 'takeaway.open' },
+    decision: { glyph: '⚖', cls: 'text-primary bg-primary/10', solid: 'bg-primary text-white', key: 'takeaway.decision', nudge: 'block -translate-y-[0.08em]' },
+    pivot: { glyph: '↩', cls: 'text-edge-explore bg-edge-explore/10', solid: 'bg-edge-explore text-white', key: 'takeaway.pivot' },
+    open: { glyph: '?', cls: 'text-warning bg-warning/10', solid: 'bg-warning text-white', key: 'takeaway.open' },
     // glyph tier only: steps WITH a takeaway spark; plain steps stay dots
     insight: { glyph: '✦', cls: 'text-sky-600 bg-sky-500/10', solid: 'bg-sky-500 text-white', key: 'takeaway.insight' },
   };
@@ -355,7 +355,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
     : (versionSummary ? TYPE_BADGE.insight : null);
   // Stale at glyph tier: the seal itself wears the amber ring — there is no
   // card corner left to pin the dot to
-  const staleRing = isStale && glyphTier ? ' ring-4 ring-amber-400' : '';
+  const staleRing = isStale && glyphTier ? ' ring-4 ring-warning' : '';
   // "Continue last thread" hover: this node is the flight destination
   const isBeacon = useUiStore((s) => s.beaconNodeId === id);
   // entrance, played once: the glow / loading / beacon classes own the
@@ -370,7 +370,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
         ? `w-[520px] ${entrance} transition-all duration-200 ${isBeacon ? 'beacon-node ' : ''}${data.archived ? 'opacity-35 saturate-50 ' : ''}${selectedNodeId === id ? 'glyph-selected ' : ''}`
         : `thought-node relative rounded-xl w-[520px] ${entrance} transition-all duration-200 ${isBeacon ? 'beacon-node ' : ''}${zoomedOut ? 'map-node ' : ''}${condenseLit ? 'condense-lit ' : ''}${data.archived ? 'opacity-35 saturate-50 ' : ''}${isWaitingUpstream ? 'opacity-60 ' : ''}${
         data.isEvaluator ? 'evaluator-node' : isHuman ? 'human-node' : isBranch ? 'orange-node' : isRoot ? 'root-node' : 'branch-node'
-      } ${data.isLoading ? 'loading-border' : ''} ${selectedNodeId === id ? 'ring-2 ring-accent !border-accent selected-glow' : ''} ${isDropTarget ? 'ring-2 ring-accent/50 ring-dashed' : ''}`}
+      } ${data.isLoading ? 'loading-border' : ''} ${selectedNodeId === id ? 'ring-2 ring-primary !border-primary selected-glow' : ''} ${isDropTarget ? 'ring-2 ring-primary/50 ring-dashed' : ''}`}
       onClick={() => setSelectedNodeId(id)}
       onDoubleClick={() => {
         // Double-click opens the panel (single click only selects); inner
@@ -396,11 +396,11 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
       {data.focusRole === 'down' && !glyphTier && (
         // Context Focus: floating corner tag — the card may have no meta
         // row yet (unanswered follow-up), so it cannot live there
-        <span className="absolute -top-2.5 right-4 z-10 text-2xs text-accent/80 bg-card border border-line rounded-full px-2 py-px shadow-sm whitespace-nowrap" data-focus-down>
+        <span className="absolute -top-2.5 right-4 z-10 text-2xs text-primary/80 bg-card border border-border rounded-full px-2 py-px shadow-sm whitespace-nowrap" data-focus-down>
           {t('focus.downstream')}
         </span>
       )}
-      <Handle type="target" position={Position.Top} id="top" className={`!bg-accent !border-2 !border-white tdag-handle ${zoomedOut ? '!w-6 !h-6 tdag-handle-lg' : '!w-3.5 !h-3.5'}`} />
+      <Handle type="target" position={Position.Top} id="top" className={`!bg-primary !border-2 !border-white tdag-handle ${zoomedOut ? '!w-6 !h-6 tdag-handle-lg' : '!w-3.5 !h-3.5'}`} />
       {/* Side anchors: NOT interaction targets — the system routes dashed
           reference edges through them so cross-chain lines never cut across
           the vertical chain grammar. Two handles for people (top in, bottom
@@ -411,7 +411,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
           gone (one centered seal), so the seal wears an amber ring instead
           of a dot floating where the card used to be */}
       {isStale && zoomedOut && !glyphTier && (
-        <span className="absolute top-2.5 right-2.5 w-3.5 h-3.5 rounded-full bg-amber-500 z-10" title={t('node.staleBadge')} />
+        <span className="absolute top-2.5 right-2.5 w-3.5 h-3.5 rounded-full bg-warning z-10" title={t('node.staleBadge')} />
       )}
       {zoomedOut && !glyphTier && badge && (
         // The cognitive move owns the plaque's top-left corner: a solid seal
@@ -445,7 +445,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
           data-glyph-node
         >
           {data.isEvaluator ? (
-            <span className={`w-28 h-28 rounded-[2rem] bg-watch text-white flex items-center justify-center border-4 border-card shadow-lg${staleRing}`}>
+            <span className={`w-28 h-28 rounded-[2rem] bg-edge-watch text-white flex items-center justify-center border-4 border-card shadow-lg${staleRing}`}>
               <Eye size={60} strokeWidth={2} />
             </span>
           ) : data.digestOf ? (
@@ -457,7 +457,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               <span className={glyphSeal.nudge}>{glyphSeal.glyph}</span>
             </span>
           ) : (
-            <span className={`w-14 h-14 rounded-full bg-ink/25 border-4 border-card shadow-md${staleRing}`} />
+            <span className={`w-14 h-14 rounded-full bg-foreground/25 border-4 border-card shadow-md${staleRing}`} />
           )}
         </div>
       ) : zoomedOut ? (
@@ -479,10 +479,10 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
           {(versionSummary || data.response) ? (
             isRoot ? (
               <>
-                <div className="text-2xl font-semibold text-ink leading-snug line-clamp-3">
+                <div className="text-2xl font-semibold text-foreground leading-snug line-clamp-3">
                   {data.question}
                 </div>
-                <div className="text-lg text-ink-muted leading-snug line-clamp-2 mt-1.5">
+                <div className="text-lg text-muted-foreground leading-snug line-clamp-2 mt-1.5">
                   {versionSummary || data.response.replace(/[#*`>-]/g, '').slice(0, 140)}
                 </div>
               </>
@@ -493,34 +493,34 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               // topic (when the judge wrote one) in muted ink, so the
               // turning points read first.
               <>
-                <div className="text-lg text-ink-muted leading-snug line-clamp-2">
+                <div className="text-lg text-muted-foreground leading-snug line-clamp-2">
                   {data.question}
                 </div>
-                <div className={`text-2xl font-semibold leading-snug line-clamp-3 mt-1.5 ${badge ? 'text-ink' : 'text-ink-muted'}`}>
+                <div className={`text-2xl font-semibold leading-snug line-clamp-3 mt-1.5 ${badge ? 'text-foreground' : 'text-muted-foreground'}`}>
                   {(badge ? versionSummary : (activeTopic(data) ?? versionSummary)) || data.response.replace(/[#*`>-]/g, '').slice(0, 140)}
                 </div>
               </>
             )
           ) : (
-            <div className="text-2xl font-semibold text-ink leading-snug line-clamp-3">
+            <div className="text-2xl font-semibold text-foreground leading-snug line-clamp-3">
               {data.question}
             </div>
           )}
           {toolMarks.length > 0 && (
-            <div className="mt-1.5 text-lg text-ink-faint tracking-wide select-none" title={marksTitle} data-map-tool-marks>{marksLine}</div>
+            <div className="mt-1.5 text-lg text-muted-foreground tracking-wide select-none" title={marksTitle} data-map-tool-marks>{marksLine}</div>
           )}
         </div>
       ) : (
       <>
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-line cursor-grab active:cursor-grabbing drag-handle">
+      <div className="flex items-center justify-between px-6 py-3 border-b border-border cursor-grab active:cursor-grabbing drag-handle">
         <div className="flex items-center gap-2">
-          <button onClick={() => toggleCollapse(id)} className={`hover:bg-wash rounded-lg w-7 h-7 flex items-center justify-center transition-all text-sm font-bold ${data.isCollapsed ? 'text-accent bg-accent/10' : 'text-ink-faint'}`}>
+          <button onClick={() => toggleCollapse(id)} className={`hover:bg-accent rounded-lg w-7 h-7 flex items-center justify-center transition-all text-sm font-bold ${data.isCollapsed ? 'text-primary bg-primary/10' : 'text-muted-foreground'}`}>
             {data.isCollapsed ? <ChevronRight size={18} strokeWidth={1.75} /> : <ChevronDown size={18} strokeWidth={1.75} />}
           </button>
-          <span className="text-xs text-ink-faint font-mono">{data.tokenCount} tok</span>
+          <span className="text-xs text-muted-foreground font-mono">{data.tokenCount} tok</span>
           {toolMarks.length > 0 && (
-            <span className="text-2xs text-ink-muted shrink-0 select-none" title={marksTitle} data-tool-marks>{marksLine}</span>
+            <span className="text-2xs text-muted-foreground shrink-0 select-none" title={marksTitle} data-tool-marks>{marksLine}</span>
           )}
           {compBar}
           {data.condensedFrom && data.condensedFrom.length > 0 && (
@@ -538,7 +538,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               }}
               title={t('node.condensedFromTitle')}
               data-condensed-from
-              className="text-2xs bg-accent/10 text-accent hover:bg-accent/20 px-1.5 py-0.5 rounded-md flex items-center gap-1 font-medium transition-colors"
+              className="text-2xs bg-primary/10 text-primary hover:bg-primary/20 px-1.5 py-0.5 rounded-md flex items-center gap-1 font-medium transition-colors"
             >
               <Minimize2 size={11} strokeWidth={1.75} /> {fmt(t('node.condensedFrom'), { n: String(data.condensedFrom.length) })}
             </button>
@@ -547,32 +547,32 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
             <button
               onClick={(e) => { e.stopPropagation(); if (!isViewerMode) void rerunNode(id, {}); }}
               title={t('node.staleTitle')}
-              className="text-2xs bg-amber-500/10 text-amber-600 hover:bg-amber-500/25 px-1.5 py-0.5 rounded-md flex items-center gap-1 font-medium transition-colors"
+              className="text-2xs bg-warning/10 text-warning hover:bg-warning/25 px-1.5 py-0.5 rounded-md flex items-center gap-1 font-medium transition-colors"
             >
               <RefreshCw size={11} strokeWidth={1.75} /> {t('node.staleBadge')}
             </button>
           )}
           {data.archived && (
-            <span className="text-2xs bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-md flex items-center gap-1 font-medium" title={t('archive.badgeTitle')}>
+            <span className="text-2xs bg-warning/10 text-warning px-1.5 py-0.5 rounded-md flex items-center gap-1 font-medium" title={t('archive.badgeTitle')}>
               <Archive size={11} strokeWidth={1.75} /> {t('archive.badge')}
             </span>
           )}
           {isHuman && (
-            <span className="text-2xs bg-warm/10 text-warm px-1.5 py-0.5 rounded-md flex items-center gap-1 font-medium">
+            <span className="text-2xs bg-edge-explore/10 text-edge-explore px-1.5 py-0.5 rounded-md flex items-center gap-1 font-medium">
               <UserRound size={11} strokeWidth={1.75} /> {isAwaitingHuman ? t('paradigm.yourTurn') : t('paradigm.kind.human')}
             </span>
           )}
           {isWaitingUpstream && (
-            <span className="text-2xs bg-wash text-ink-faint px-1.5 py-0.5 rounded-md flex items-center gap-1 font-medium">
+            <span className="text-2xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-md flex items-center gap-1 font-medium">
               <Hourglass size={11} strokeWidth={1.75} /> {t('paradigm.waitingUpstream')}
             </span>
           )}
           {data.isEvaluator ? (
-            <span className="text-2xs bg-watch/10 text-watch px-1.5 py-0.5 rounded-md flex items-center gap-1 font-medium">
+            <span className="text-2xs bg-edge-watch/10 text-edge-watch px-1.5 py-0.5 rounded-md flex items-center gap-1 font-medium">
               <Eye size={12} strokeWidth={1.75} /> {t('evaluator.badge')}
             </span>
           ) : data.appliedRole && (
-            <span className="text-2xs bg-accent/10 text-accent px-1.5 py-0.5 rounded-md truncate max-w-[120px]" title={data.appliedRole}>
+            <span className="text-2xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-md truncate max-w-[120px]" title={data.appliedRole}>
               {data.appliedRole.slice(0, 20)}{data.appliedRole.length > 20 ? '…' : ''}
             </span>
           )}
@@ -589,7 +589,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               ? `\n${fmt(t('node.pinnedModel'), { m: data.model })}`
               : '';
             return (
-              <span className="text-2xs bg-wash text-ink-muted px-1.5 py-0.5 rounded-md font-mono truncate max-w-[130px]" title={`${label}${pinNote}`}>
+              <span className="text-2xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-md font-mono truncate max-w-[130px]" title={`${label}${pinNote}`}>
                 {label.split('/').pop()}
               </span>
             );
@@ -600,13 +600,13 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
             <button
               onClick={(e) => { e.stopPropagation(); stopGeneration(id); }}
               title={t('actions.stop')}
-              className="text-white bg-red-500 hover:bg-red-600 rounded-full w-7 h-7 flex items-center justify-center transition-colors"
+              className="text-white bg-destructive hover:bg-destructive/90 rounded-full w-7 h-7 flex items-center justify-center transition-colors"
             >
               <Square size={10} strokeWidth={1.75} fill="currentColor" />
             </button>
           )}
           {!(isParadigmNode && runLocked) && !isViewerMode && (
-            <button onClick={() => deleteNode(id)} className="text-ink-faint hover:text-red-500 hover:bg-red-50 rounded-full w-7 h-7 flex items-center justify-center transition-colors" title={t('common.delete')}>
+            <button onClick={() => deleteNode(id)} className="text-muted-foreground hover:text-destructive/90 hover:bg-destructive/10 rounded-full w-7 h-7 flex items-center justify-center transition-colors" title={t('common.delete')}>
               <X size={16} strokeWidth={1.75} />
             </button>
           )}
@@ -620,8 +620,8 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               p.N chip that reopens the reader at that page, thread open —
               the same provenance grammar as the digest's page buttons. */}
           {data.branchContext && (
-            <div className="mb-2.5 text-xs pl-3 py-1.5 pr-2 border-l-2 border-warm bg-warm/10 rounded-r text-ink-muted flex items-start gap-1.5">
-              <GitBranch size={13} strokeWidth={1.75} className="text-warm shrink-0 mt-0.5" />
+            <div className="mb-2.5 text-xs pl-3 py-1.5 pr-2 border-l-2 border-edge-explore bg-edge-explore/10 rounded-r text-muted-foreground flex items-start gap-1.5">
+              <GitBranch size={13} strokeWidth={1.75} className="text-edge-explore shrink-0 mt-0.5" />
               <span className="italic leading-relaxed min-w-0">
                 “{(data.anchor ? data.branchContext.replace(/^\(p\.\s?\d+\)\s*/, '') : data.branchContext).slice(0, 180)}{data.branchContext.length > 180 ? '…' : ''}”
               </span>
@@ -629,7 +629,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                 <button
                   onClick={openReaderAtAnchor}
                   title={fmt(t('node.openAtPage'), { n: data.anchor.page })}
-                  className="ml-auto shrink-0 text-2xs font-mono text-accent bg-accent/10 hover:bg-accent/20 rounded-full px-1.5 py-0.5 transition-colors"
+                  className="ml-auto shrink-0 text-2xs font-mono text-primary bg-primary/10 hover:bg-primary/20 rounded-full px-1.5 py-0.5 transition-colors"
                 >
                   p.{data.anchor.page}
                 </button>
@@ -647,13 +647,13 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                 onInput={(e) => autoGrowTa(e.currentTarget)}
                 ref={(el) => { questionTaRef.current = el; autoGrowTa(el); }}
                 placeholder={data.instruction || (isAwaitingAsk ? t(data.converge ? (data.converge.kind === 'merge' ? 'converge.mergePlaceholder' : 'converge.weavePlaceholder') : 'node.askPlaceholder') : undefined)}
-                className={`w-full bg-wash border rounded-xl p-3 text-sm text-ink resize-none focus:outline-none focus:ring-2 ${
-                  isHuman ? 'border-warm focus:ring-warm/20' : 'border-accent focus:ring-accent/20'
+                className={`w-full bg-muted border rounded-xl p-3 text-sm text-foreground resize-none focus:outline-none focus:ring-2 ${
+                  isHuman ? 'border-edge-explore focus:ring-edge-explore/20' : 'border-primary focus:ring-ring/20'
                 }`}
                 rows={2}
                 autoFocus
               />
-              {isFactNode({ data }) && !isHuman && !isAwaitingAsk && <p className="text-2xs text-ink-faint mt-1.5" data-fact-note>{t('fact.editQuestionNote')}</p>}
+              {isFactNode({ data }) && !isHuman && !isAwaitingAsk && <p className="text-2xs text-muted-foreground mt-1.5" data-fact-note>{t('fact.editQuestionNote')}</p>}
               {/* Revision confirms explicitly: visible exits instead of an
                   invisible Enter contract. mousedown-preventDefault keeps the
                   textarea's blur from racing the click. */}
@@ -662,7 +662,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                   <button
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => setEditing(id, false)}
-                    className="text-xs text-ink-muted hover:text-red-500 hover:bg-wash px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                    className="text-xs text-muted-foreground hover:text-destructive/90 hover:bg-accent px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
                     data-edit-cancel
                   >
                     <X size={12} strokeWidth={2} /> {t('question.editCancel')}
@@ -671,7 +671,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={handleEditSubmit}
                     disabled={!editValue.trim()}
-                    className="text-xs bg-accent hover:bg-accent-strong disabled:opacity-30 disabled:cursor-not-allowed text-white px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                    className="text-xs bg-primary hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed text-white px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
                     data-edit-submit
                   >
                     <Check size={12} strokeWidth={2.25} /> {t('question.editSubmit')}
@@ -683,7 +683,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                   <button
                     onClick={handleEditSubmit}
                     disabled={!editValue.trim()}
-                    className="text-xs bg-warm hover:opacity-85 disabled:opacity-30 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded-lg transition-all flex items-center gap-1.5"
+                    className="text-xs bg-edge-explore hover:opacity-85 disabled:opacity-30 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded-lg transition-all flex items-center gap-1.5"
                   >
                     <Send size={12} strokeWidth={1.75} /> {t('paradigm.start')}
                   </button>
@@ -696,7 +696,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
             // keeps the wheel on the text, not the canvas zoom).
             <div
               onDoubleClick={handleDoubleClickQuestion}
-              className="text-sm text-ink font-semibold mb-3 cursor-pointer hover:bg-wash rounded-xl px-2 py-1.5 -mx-1 transition-colors max-h-[180px] overflow-y-auto nowheel nopan"
+              className="text-sm text-foreground font-semibold mb-3 cursor-pointer hover:bg-accent rounded-xl px-2 py-1.5 -mx-1 transition-colors max-h-[180px] overflow-y-auto nowheel nopan"
             >
               {data.question}
             </div>
@@ -706,7 +706,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
           {data.highlights.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-1">
               {data.highlights.map((h) => (
-                <span key={h.id} className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                <span key={h.id} className="inline-flex items-center gap-1 text-xs bg-warning/15 text-warning px-2 py-0.5 rounded-full">
                   <Star size={14} strokeWidth={1.75} />
                   {h.text.slice(0, 30)}{h.text.length > 30 ? '…' : ''}
                 </span>
@@ -717,7 +717,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
           {/* Response — a human turn / pending ask has none by design; a
               waiting prompt step shows its pending state instead of an empty box */}
           {isHuman || isAwaitingAsk ? null : isWaitingUpstream ? (
-            <div className="border-2 border-dashed border-line rounded-xl py-3 px-3 text-xs text-ink-faint flex items-center gap-2">
+            <div className="border-2 border-dashed border-border rounded-xl py-3 px-3 text-xs text-muted-foreground flex items-center gap-2">
               <Hourglass size={13} strokeWidth={1.75} /> {t('paradigm.waitingUpstream')}
             </div>
           ) : data.isLoading ? (
@@ -729,22 +729,22 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               <AgentTrace entries={data.agentTrace} compact />
             ) : data.response && !data.restreaming ? (
               // Streaming: show the live tail of the response on the canvas
-              <div className="text-sm text-ink-muted leading-relaxed px-3 py-2.5 bg-surface rounded-xl max-h-[180px] overflow-hidden flex flex-col justify-end whitespace-pre-wrap break-words">
+              <div className="text-sm text-muted-foreground leading-relaxed px-3 py-2.5 bg-background rounded-xl max-h-[180px] overflow-hidden flex flex-col justify-end whitespace-pre-wrap break-words">
                 {data.response.length > 400 ? '…' + data.response.slice(-400) : data.response}
-                <span className="inline-block w-2 h-4 bg-accent animate-pulse rounded-sm" />
+                <span className="inline-block w-2 h-4 bg-primary animate-pulse rounded-sm" />
               </div>
             ) : data.reasoning ? (
               // Reasoning models think before they answer — show the live
               // tail of the thinking, visually quieter than an answer
-              <div className="px-3 py-2.5 bg-wash/70 rounded-xl max-h-[140px] overflow-hidden flex flex-col justify-end">
-                <div className="text-2xs text-ink-faint mb-1">💭 {t('node.reasoningLive')}</div>
-                <div className="text-xs text-ink-faint italic leading-relaxed whitespace-pre-wrap break-words">
+              <div className="px-3 py-2.5 bg-muted/70 rounded-xl max-h-[140px] overflow-hidden flex flex-col justify-end">
+                <div className="text-2xs text-muted-foreground mb-1">💭 {t('node.reasoningLive')}</div>
+                <div className="text-xs text-muted-foreground italic leading-relaxed whitespace-pre-wrap break-words">
                   {data.reasoning.length > 300 ? '…' + data.reasoning.slice(-300) : data.reasoning}
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-2 text-sm text-ink-muted">
-                <span className="animate-pulse text-accent">●</span> {t('common.thinking')}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span className="animate-pulse text-primary">●</span> {t('common.thinking')}
               </div>
             )
           ) : data.isEditingResponse ? (
@@ -753,14 +753,14 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                 value={editResponseValue}
                 onChange={(e) => setEditResponseValue(e.target.value)}
                 onKeyDown={handleResponseEditKeyDown}
-                className="w-full bg-wash border border-accent rounded-xl p-3 text-sm text-ink resize-y focus:outline-none focus:ring-2 focus:ring-accent/20 min-h-[100px]"
+                className="w-full bg-muted border border-primary rounded-xl p-3 text-sm text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-ring/20 min-h-[100px]"
                 rows={6}
                 autoFocus
               />
-              {isFactNode({ data }) && <p className="text-2xs text-ink-faint mt-1.5" data-fact-note>{t('fact.editResponseNote')}</p>}
+              {isFactNode({ data }) && <p className="text-2xs text-muted-foreground mt-1.5" data-fact-note>{t('fact.editResponseNote')}</p>}
               <div className="flex justify-end gap-2 mt-2">
-                <button onClick={() => setEditingResponse(id, false)} className="text-xs text-ink-muted hover:text-ink px-3 py-1.5 rounded-lg hover:bg-wash transition-colors">{t('common.cancel')}</button>
-                <button onClick={handleResponseEditSubmit} className="text-xs bg-accent hover:bg-accent-strong text-white px-4 py-1.5 rounded-lg transition-colors">{t('common.save')}</button>
+                <button onClick={() => setEditingResponse(id, false)} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-accent transition-colors">{t('common.cancel')}</button>
+                <button onClick={handleResponseEditSubmit} className="text-xs bg-primary hover:bg-primary/90 text-white px-4 py-1.5 rounded-lg transition-colors">{t('common.save')}</button>
               </div>
             </div>
           ) : (
@@ -768,14 +768,14 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               // the map shows the landmark, not the terrain photo: an auto
               // summary of THIS version (display only — the model reads the
               // full text; double-click opens the panel for humans)
-              <div className="px-3 py-2.5 bg-surface rounded-xl nopan" title={t('node.summaryTitle')}>
-                <span className="text-2xs bg-wash text-ink-faint px-1.5 py-0.5 rounded-full">{t('node.summaryLabel')}</span>
+              <div className="px-3 py-2.5 bg-background rounded-xl nopan" title={t('node.summaryTitle')}>
+                <span className="text-2xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">{t('node.summaryLabel')}</span>
                 {badge && (
                   <span title={t(badge.key as Parameters<typeof t>[0])} className={`text-2xs px-1.5 py-0.5 rounded-full ml-1.5 font-medium ${badge.cls}`}>
                     {badge.glyph} {t(badge.key as Parameters<typeof t>[0])}
                   </span>
                 )}
-                <div className="text-sm text-ink-muted leading-relaxed mt-1.5">{versionSummary}</div>
+                <div className="text-sm text-muted-foreground leading-relaxed mt-1.5">{versionSummary}</div>
               </div>
             ) : (
             <>
@@ -785,7 +785,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
             <div
               ref={responseRef}
               onClick={handleResponseClick}
-              className="markdown-body text-sm text-ink leading-relaxed max-h-[400px] overflow-y-auto cursor-text nopan nodrag nowheel px-3 py-2.5 bg-surface rounded-xl"
+              className="markdown-body text-sm text-foreground leading-relaxed max-h-[400px] overflow-y-auto cursor-text nopan nodrag nowheel px-3 py-2.5 bg-background rounded-xl"
             >
               {highlightedTexts.size > 0 || exploreSpecs.length > 0 ? (
                 <HighlightedMarkdown content={data.response} highlights={highlightedTexts} exploreMarks={exploreSpecs} />
@@ -803,7 +803,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               <button
                 onClick={(e) => { e.stopPropagation(); setFanoutOpen(true); }}
                 title={t('paradigm.expandTitle')}
-                className="w-full border-2 border-dashed border-warm/50 hover:border-warm hover:bg-warm/5 text-warm rounded-xl py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors"
+                className="w-full border-2 border-dashed border-edge-explore/50 hover:border-edge-explore hover:bg-edge-explore/5 text-edge-explore rounded-xl py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors"
               >
                 <Split size={16} strokeWidth={1.75} />
                 {fmt(t('paradigm.expand'), { n: data.fanoutRoles?.length ?? 0 })}
@@ -821,11 +821,11 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
 
           {/* Web references consulted for this response (compact) */}
           {(data.references?.length ?? 0) > 0 && !data.isLoading && !data.isEditingResponse && (
-            <div className="mt-2 px-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-ink-faint">
+            <div className="mt-2 px-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground">
               <Globe size={11} strokeWidth={1.75} className="shrink-0" />
               {data.references!.slice(0, 3).map((r, i) =>
                 r.url ? (
-                  <a key={i} href={r.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-accent/80 hover:text-accent hover:underline nopan">
+                  <a key={i} href={r.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-primary/80 hover:text-primary hover:underline nopan">
                     [{i + 1}] {r.title.length > 44 ? r.title.slice(0, 44) + '…' : r.title}
                   </a>
                 ) : (
@@ -840,11 +840,11 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               on THIS answer live right under it (regenerate = new version in
               place; the sibling-branch variant lives in the panel's ⋯ menu) */}
           {data.response && !data.isLoading && !data.isEditingResponse && !isHuman && !isAwaitingAsk && !data.generationFailed && (
-            <div className="mt-1.5 flex items-center gap-0.5 text-ink-faint">
+            <div className="mt-1.5 flex items-center gap-0.5 text-muted-foreground">
               {!isViewerMode && (
                 <button
                   onClick={(e) => { e.stopPropagation(); void rerunNode(id, {}); }}
-                  className={`rounded-full w-6 h-6 flex items-center justify-center transition-colors ${data.isEvaluator ? 'hover:text-watch hover:bg-red-50' : 'hover:text-accent hover:bg-wash'}`}
+                  className={`rounded-full w-6 h-6 flex items-center justify-center transition-colors ${data.isEvaluator ? 'hover:text-edge-watch hover:bg-destructive/10' : 'hover:text-primary hover:bg-accent'}`}
                   title={data.isEvaluator ? t('evaluator.rerun') : t('common.regenerate')}
                 >
                   <RefreshCw size={14} strokeWidth={1.75} />
@@ -852,7 +852,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               )}
               <button
                 onClick={(e) => { e.stopPropagation(); void copyText(data.response); }}
-                className="rounded-full w-6 h-6 flex items-center justify-center hover:text-accent hover:bg-wash transition-colors"
+                className="rounded-full w-6 h-6 flex items-center justify-center hover:text-primary hover:bg-accent transition-colors"
                 title={t('actions.copyResponse')}
               >
                 <Copy size={13} strokeWidth={1.75} />
@@ -860,7 +860,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               {!isViewerMode && (
                 <button
                   onClick={(e) => { e.stopPropagation(); startEditResponse(); }}
-                  className="rounded-full w-6 h-6 flex items-center justify-center hover:text-accent hover:bg-wash transition-colors"
+                  className="rounded-full w-6 h-6 flex items-center justify-center hover:text-primary hover:bg-accent transition-colors"
                   title={t('actions.editResponse')}
                   data-edit-response
                 >
@@ -868,23 +868,23 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                 </button>
               )}
               {data.focusRole === 'ctx' && (
-                <span className="w-[7px] h-[7px] rounded-full bg-accent inline-block ml-1 shrink-0" title={t('focus.inContext')} data-focus-dot />
+                <span className="w-[7px] h-[7px] rounded-full bg-primary inline-block ml-1 shrink-0" title={t('focus.inContext')} data-focus-dot />
               )}
               {(data.generatedBy?.[data.responseIndex]) && (
                 <span
-                  className="text-2xs text-ink-faint font-mono ml-1 truncate flex-1 min-w-0 max-w-[260px]"
+                  className="text-2xs text-muted-foreground font-mono ml-1 truncate flex-1 min-w-0 max-w-[260px]"
                   title={`${t('node.generatedByTitle')} · ${describeModel(data.generatedBy[data.responseIndex], data.generatedEfforts?.[data.responseIndex])}`}
                 >
                   {describeModel(data.generatedBy[data.responseIndex], data.generatedEfforts?.[data.responseIndex], { compact: true })}
                 </span>
               )}
               {data.agentSession?.continued && (
-                <span className="text-2xs text-ink-faint ml-1 shrink-0" title={t('agent.continuedTitle')} data-agent-continued>↩ {t('agent.continued')}</span>
+                <span className="text-2xs text-muted-foreground ml-1 shrink-0" title={t('agent.continuedTitle')} data-agent-continued>↩ {t('agent.continued')}</span>
               )}
               {data.importSource?.runner === 'pi' && window.desktopSessions && (
                 <button
                   onClick={(e) => { e.stopPropagation(); void window.desktopSessions!.openInCli('pi', data.importSource!.cwd ?? '', data.importSource!.sessionId, 'terminal'); }}
-                  className="rounded-full w-6 h-6 flex items-center justify-center hover:text-accent hover:bg-wash transition-colors"
+                  className="rounded-full w-6 h-6 flex items-center justify-center hover:text-primary hover:bg-accent transition-colors"
                   title={t('agent.openInTerminal')}
                   data-open-in-terminal
                 >
@@ -892,24 +892,24 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                 </button>
               )}
               {data.gatewaySearches?.[data.responseIndex] && (
-                <span className="text-2xs text-ink-faint ml-1 shrink-0" title={t('node.gatewaySearchedTitle')} data-gateway-searched>
+                <span className="text-2xs text-muted-foreground ml-1 shrink-0" title={t('node.gatewaySearchedTitle')} data-gateway-searched>
                   🌐 {t('node.gatewaySearched')}
                 </span>
               )}
               {data.generatedAts?.[data.responseIndex] && (
-                <span className="text-2xs text-ink-faint font-mono ml-1 shrink-0" title={t('node.generatedAtTitle')} data-generated-at>
+                <span className="text-2xs text-muted-foreground font-mono ml-1 shrink-0" title={t('node.generatedAtTitle')} data-generated-at>
                   {formatStamp(data.generatedAts[data.responseIndex]!)}
                 </span>
               )}
               {hasMultipleVersions && (
-                <div className="flex items-center gap-1 text-xs text-ink-muted ml-1">
-                  <button onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'prev'); }} className="hover:text-accent hover:bg-wash rounded-full w-5 h-5 flex items-center justify-center transition-colors"><ChevronLeft size={14} strokeWidth={1.75} /></button>
-                  <span className="text-accent font-medium">v{data.responseIndex + 1}/{data.responses.length}</span>
-                  <button onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'next'); }} className="hover:text-accent hover:bg-wash rounded-full w-5 h-5 flex items-center justify-center transition-colors"><ChevronRight size={14} strokeWidth={1.75} /></button>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground ml-1">
+                  <button onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'prev'); }} className="hover:text-primary hover:bg-accent rounded-full w-5 h-5 flex items-center justify-center transition-colors"><ChevronLeft size={14} strokeWidth={1.75} /></button>
+                  <span className="text-primary font-medium">v{data.responseIndex + 1}/{data.responses.length}</span>
+                  <button onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'next'); }} className="hover:text-primary hover:bg-accent rounded-full w-5 h-5 flex items-center justify-center transition-colors"><ChevronRight size={14} strokeWidth={1.75} /></button>
                   {!isViewerMode && (
                     <button
                       onClick={(e) => { e.stopPropagation(); deleteVersion(id, data.responseIndex); }}
-                      className="text-ink-faint hover:text-red-500 hover:bg-red-50 rounded-full w-5 h-5 flex items-center justify-center transition-colors"
+                      className="text-muted-foreground hover:text-destructive/90 hover:bg-destructive/10 rounded-full w-5 h-5 flex items-center justify-center transition-colors"
                       title={t('common.deleteVersion')}
                     >
                       <Trash2 size={13} strokeWidth={1.75} />
@@ -922,20 +922,20 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
 
           {/* Failed generation: retry in place */}
           {data.generationFailed && !data.isLoading && (
-            <div className="mt-2 flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+            <div className="mt-2 flex items-center gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/15 rounded-lg px-3 py-2">
               <AlertTriangle size={14} strokeWidth={1.75} className="shrink-0" />
               {t('common.generationFailed')}
               {hasMultipleVersions && (
-                <span className="flex items-center gap-1 text-ink-muted shrink-0" title={t('node.backToVersionTitle')}>
-                  <button onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'prev'); }} className="hover:text-accent rounded-full w-5 h-5 flex items-center justify-center"><ChevronLeft size={14} strokeWidth={1.75} /></button>
+                <span className="flex items-center gap-1 text-muted-foreground shrink-0" title={t('node.backToVersionTitle')}>
+                  <button onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'prev'); }} className="hover:text-primary rounded-full w-5 h-5 flex items-center justify-center"><ChevronLeft size={14} strokeWidth={1.75} /></button>
                   v{data.responseIndex + 1}/{data.responses.length}
-                  <button onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'next'); }} className="hover:text-accent rounded-full w-5 h-5 flex items-center justify-center"><ChevronRight size={14} strokeWidth={1.75} /></button>
+                  <button onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'next'); }} className="hover:text-primary rounded-full w-5 h-5 flex items-center justify-center"><ChevronRight size={14} strokeWidth={1.75} /></button>
                 </span>
               )}
               {!isViewerMode && (
                 <button
                   onClick={(e) => { e.stopPropagation(); editQuestion(id, data.question); }}
-                  className="ml-auto bg-card border border-red-200 hover:bg-red-100 text-red-600 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
+                  className="ml-auto bg-card border border-destructive/30 hover:bg-destructive/15 text-destructive px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
                 >
                   <RefreshCw size={12} strokeWidth={1.75} /> {t('common.retry')}
                 </button>
@@ -945,18 +945,18 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
 
           {/* Branch context indicator when branching from selection */}
           {branchFromText && (
-            <div className="mt-3 text-xs pl-3 py-2 pr-2 border-l-3 border-accent bg-accent/5 rounded-r">
-              <span className="text-accent font-medium"><GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('node.exploringFrom')}</span>
-              <p className="text-ink-muted mt-1 leading-relaxed">&ldquo;{branchFromText.slice(0, 150)}{branchFromText.length > 150 ? '...' : ''}&rdquo;</p>
+            <div className="mt-3 text-xs pl-3 py-2 pr-2 border-l-3 border-primary bg-primary/5 rounded-r">
+              <span className="text-primary font-medium"><GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('node.exploringFrom')}</span>
+              <p className="text-muted-foreground mt-1 leading-relaxed">&ldquo;{branchFromText.slice(0, 150)}{branchFromText.length > 150 ? '...' : ''}&rdquo;</p>
             </div>
           )}
 
           {/* Inline continue input — hidden while a paradigm run is in
               progress (the structure IS the paradigm); returns on unlock */}
           {!data.isLoading && !data.isEditingResponse && !isAwaitingAsk && !(isParadigmNode && runLocked) && !isViewerMode && selectedNodeId !== id && (
-            <div className="mt-3 pt-3 border-t border-line relative">
+            <div className="mt-3 pt-3 border-t border-border relative">
               <MentionSurface m={mention} text={inputValue} setText={setInputValue} />
-              <div className="flex items-end gap-2 bg-wash rounded-xl px-4 py-2.5 transition-shadow focus-within:ring-1 focus-within:ring-accent/40">
+              <div className="flex items-end gap-2 bg-muted rounded-xl px-4 py-2.5 transition-shadow focus-within:ring-1 focus-within:ring-ring/40">
                 <textarea
                   rows={1}
                   ref={mention.bindAnchor}
@@ -969,13 +969,13 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                   }}
                   onKeyDown={handleInputKeyDown}
                   placeholder={t('common.followUp')}
-                  className="flex-1 bg-transparent text-sm text-ink placeholder-ink-faint focus:outline-none resize-none leading-relaxed max-h-[120px] overflow-y-auto nowheel nopan nodrag"
+                  className="flex-1 bg-transparent text-sm text-foreground placeholder-muted-foreground focus:outline-none resize-none leading-relaxed max-h-[120px] overflow-y-auto nowheel nopan nodrag"
                 />
                 <SearchToggles size={15} />
                 <button
                   onClick={handleSubmitBranch}
                   disabled={!inputValue.trim()}
-                  className="text-ink-faint hover:text-accent disabled:opacity-30 disabled:hover:text-ink-faint transition-colors shrink-0 rounded-full w-7 h-7 flex items-center justify-center hover:bg-line"
+                  className="text-muted-foreground hover:text-primary disabled:opacity-30 disabled:hover:text-muted-foreground transition-colors shrink-0 rounded-full w-7 h-7 flex items-center justify-center hover:bg-border"
                 >
                   <Send size={18} strokeWidth={1.75} />
                 </button>
@@ -988,22 +988,22 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
       {/* Collapsed view — question + summary */}
       {data.isCollapsed && (
         <div className="px-5 py-3">
-          <div className="text-sm text-ink font-semibold truncate flex items-center gap-1.5">
+          <div className="text-sm text-foreground font-semibold truncate flex items-center gap-1.5">
             {data.question.slice(0, 80)}{data.question.length > 80 ? '…' : ''}
             {(data.attachments?.length > 0) && (
-              <span className="text-2xs bg-wash text-ink-muted px-1.5 py-0.5 rounded-full shrink-0"><Paperclip size={12} strokeWidth={1.75} className="inline" />{data.attachments.length}</span>
+              <span className="text-2xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full shrink-0"><Paperclip size={12} strokeWidth={1.75} className="inline" />{data.attachments.length}</span>
             )}
             {(data.references?.length ?? 0) > 0 && (
-              <span className="text-2xs bg-wash text-ink-muted px-1.5 py-0.5 rounded-full shrink-0"><Globe size={12} strokeWidth={1.75} className="inline" /> {data.references!.length}</span>
+              <span className="text-2xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full shrink-0"><Globe size={12} strokeWidth={1.75} className="inline" /> {data.references!.length}</span>
             )}
             {toolMarks.length > 0 && (
-              <span className="text-2xs text-ink-muted shrink-0 select-none" title={marksTitle}>{marksLine}</span>
+              <span className="text-2xs text-muted-foreground shrink-0 select-none" title={marksTitle}>{marksLine}</span>
             )}
             {compBar}
           </div>
           {prints.length > 0 && (
             <div
-              className="text-2xs text-ink-faint font-mono mt-1 truncate select-none"
+              className="text-2xs text-muted-foreground font-mono mt-1 truncate select-none"
               title={`${t('node.footprint')}\n${prints.map((f) => `${f.op === 'read' ? '📖' : '✏️'} ${f.path}`).join('\n')}`}
               data-footprint
             >
@@ -1011,11 +1011,11 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
             </div>
           )}
           {versionSummary ? (
-            <div className="text-xs text-ink-faint mt-1.5 leading-relaxed line-clamp-2">
+            <div className="text-xs text-muted-foreground mt-1.5 leading-relaxed line-clamp-2">
               {versionSummary}
             </div>
           ) : data.response ? (
-            <div className="text-xs text-ink-faint mt-1.5 leading-relaxed line-clamp-2 italic">
+            <div className="text-xs text-muted-foreground mt-1.5 leading-relaxed line-clamp-2 italic">
               {data.importSource ? conclusionOf(data.response) : `${data.response.replace(/[#*`>-]/g, '').slice(0, 120)}${data.response.length > 120 ? '…' : ''}`}
             </div>
           ) : null}
@@ -1025,7 +1025,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
       </>
       )}
 
-      <Handle type="source" position={Position.Bottom} id="continue" className={`!bg-accent !border-2 !border-white tdag-handle ${zoomedOut ? '!w-6 !h-6 tdag-handle-lg' : '!w-3.5 !h-3.5'}`} />
+      <Handle type="source" position={Position.Bottom} id="continue" className={`!bg-primary !border-2 !border-white tdag-handle ${zoomedOut ? '!w-6 !h-6 tdag-handle-lg' : '!w-3.5 !h-3.5'}`} />
       <Handle
         type="source"
         position={Position.Right}
@@ -1047,16 +1047,16 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
           }}
           onMouseDown={(e) => e.preventDefault()}
         >
-          <div className="flex gap-1 bg-card border border-line rounded-xl shadow-lg p-1 animate-fade-in">
+          <div className="flex gap-1 bg-card border border-border rounded-xl shadow-lg p-1 animate-fade-in">
             <button
               onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleBranch(); }}
-              className="bg-accent hover:bg-accent-strong text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
+              className="bg-primary hover:bg-primary/90 text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
             >
               <GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('common.explore')}
             </button>
             <button
               onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleHighlight(); }}
-              className="bg-amber-500 hover:bg-amber-400 text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
+              className="bg-warning hover:bg-warning text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
             >
               <Star size={14} strokeWidth={1.75} className="inline" /> {t('common.highlight')}
             </button>

@@ -75,41 +75,41 @@ export default function AgentCwdChip() {
     <div ref={rootRef} className="relative">
       <button
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        className="bg-card/90 backdrop-blur border border-line rounded-lg h-8 px-2.5 flex items-center gap-1.5 shadow-sm hover:bg-wash transition-colors text-xs text-ink max-w-[220px]"
+        className="bg-card/90 backdrop-blur border border-border rounded-lg h-8 px-2.5 flex items-center gap-1.5 shadow-sm hover:bg-accent transition-colors text-xs text-foreground max-w-[220px]"
         title={`${t('agent.cwd')} · ${choice.cwd || t('agent.cwdSessionHint')}`}
         data-agent-cwd={choice.kind}
       >
-        <FolderOpen size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" />
+        <FolderOpen size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" />
         <span className="truncate">{chipLabel}</span>
-        <ChevronDown size={12} strokeWidth={1.75} className="text-ink-faint shrink-0" />
+        <ChevronDown size={12} strokeWidth={1.75} className="text-muted-foreground shrink-0" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-[320px] bg-card border border-line rounded-xl shadow-lg py-1.5 z-50 animate-fade-in" onClick={(e) => e.stopPropagation()}>
-          <p className="text-2xs text-ink-faint uppercase tracking-wider font-medium px-3 pt-1">{t('agent.cwd')}</p>
-          <p className="text-2xs text-ink-faint px-3 pb-1.5" data-agent-cwd-scope>{t('agent.cwdScope')}</p>
-          <button onClick={() => void choose(undefined)} className="w-full text-left px-3 py-2 text-xs hover:bg-wash flex items-center gap-2">
+        <div className="absolute right-0 top-full mt-1.5 w-[320px] bg-card border border-border rounded-xl shadow-lg py-1.5 z-50 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+          <p className="text-2xs text-muted-foreground uppercase tracking-wider font-medium px-3 pt-1">{t('agent.cwd')}</p>
+          <p className="text-2xs text-muted-foreground px-3 pb-1.5" data-agent-cwd-scope>{t('agent.cwdScope')}</p>
+          <button onClick={() => void choose(undefined)} className="w-full text-left px-3 py-2 text-xs hover:bg-accent flex items-center gap-2">
             <span className="flex-1 min-w-0">
-              <span className="block text-ink">{defaultLabel}</span>
-              <span className="block text-2xs text-ink-faint truncate">{defaultHint}</span>
+              <span className="block text-foreground">{defaultLabel}</span>
+              <span className="block text-2xs text-muted-foreground truncate">{defaultHint}</span>
             </span>
-            {!meta?.agentCwd && <Check size={13} strokeWidth={2} className="shrink-0 text-accent" />}
+            {!meta?.agentCwd && <Check size={13} strokeWidth={2} className="shrink-0 text-primary" />}
           </button>
           {meta?.agentCwd && (
-            <button onClick={() => void choose(meta.agentCwd)} className="w-full text-left px-3 py-2 text-xs hover:bg-wash flex items-center gap-2">
-              <span className="flex-1 min-w-0"><span className="block text-ink">{tail(meta.agentCwd)}</span><span className="block text-2xs text-ink-faint truncate">{meta.agentCwd}</span></span>
-              <Check size={13} strokeWidth={2} className="shrink-0 text-accent" />
+            <button onClick={() => void choose(meta.agentCwd)} className="w-full text-left px-3 py-2 text-xs hover:bg-accent flex items-center gap-2">
+              <span className="flex-1 min-w-0"><span className="block text-foreground">{tail(meta.agentCwd)}</span><span className="block text-2xs text-muted-foreground truncate">{meta.agentCwd}</span></span>
+              <Check size={13} strokeWidth={2} className="shrink-0 text-primary" />
             </button>
           )}
-          {recent.length > 0 && <p className="text-2xs text-ink-faint uppercase tracking-wider font-medium px-3 pt-2 pb-1">{t('agent.cwdRecent')}</p>}
+          {recent.length > 0 && <p className="text-2xs text-muted-foreground uppercase tracking-wider font-medium px-3 pt-2 pb-1">{t('agent.cwdRecent')}</p>}
           {recent.map((c) => (
-            <button key={c} onClick={() => void choose(c)} className="w-full text-left px-3 py-1.5 text-xs hover:bg-wash flex items-center gap-2">
-              <span className="flex-1 min-w-0"><span className="block text-ink">{tail(c)}</span><span className="block text-2xs text-ink-faint truncate">{c}</span></span>
+            <button key={c} onClick={() => void choose(c)} className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent flex items-center gap-2">
+              <span className="flex-1 min-w-0"><span className="block text-foreground">{tail(c)}</span><span className="block text-2xs text-muted-foreground truncate">{c}</span></span>
             </button>
           ))}
-          <div className="border-t border-line/60 my-1" />
+          <div className="border-t border-border/60 my-1" />
           {nativePicker ? (
-            <button onClick={() => void pick()} className="w-full text-left px-3 py-2 text-xs text-ink hover:bg-wash flex items-center gap-2" data-agent-cwd-pick>
-              <FolderOpen size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" /> {t('agent.cwdPick')}
+            <button onClick={() => void pick()} className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent flex items-center gap-2" data-agent-cwd-pick>
+              <FolderOpen size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('agent.cwdPick')}
             </button>
           ) : (
             <div className="px-3 py-2 flex items-center gap-2">
@@ -118,34 +118,34 @@ export default function AgentCwdChip() {
                 onChange={(e) => setTyped(e.target.value)}
                 onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') void submitTyped(); }}
                 placeholder={t('agent.cwdType')}
-                className="flex-1 min-w-0 text-xs font-mono bg-wash border border-line rounded-md px-2 py-1 focus:outline-none focus:border-accent/60"
+                className="flex-1 min-w-0 text-xs font-mono bg-muted border border-border rounded-md px-2 py-1 focus:outline-none focus:border-primary/60"
                 data-agent-cwd-input
               />
-              <button onClick={() => void submitTyped()} className="text-xs text-accent hover:underline shrink-0">{t('agent.cwdUse')}</button>
+              <button onClick={() => void submitTyped()} className="text-xs text-primary hover:underline shrink-0">{t('agent.cwdUse')}</button>
             </div>
           )}
           {/* the boundary guard: only a runtime that reads the guard file */}
           {caps?.guard && (
             <>
-              <div className="border-t border-line/60 my-1" />
-              <p className="text-2xs text-ink-faint uppercase tracking-wider font-medium px-3 pt-1 pb-1">{t('agent.guard')}</p>
-              <button onClick={() => { void setGuardMode('ask'); setOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-wash flex items-center gap-2" data-agent-guard="ask">
-                <ShieldCheck size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" />
-                <span className="flex-1 min-w-0"><span className="block text-ink">{t('agent.guardAsk')}</span><span className="block text-2xs text-ink-faint">{t('agent.guardAskHint')}</span></span>
-                {(meta?.agentGuard?.mode ?? 'ask') === 'ask' && <Check size={13} strokeWidth={2} className="shrink-0 text-accent" />}
+              <div className="border-t border-border/60 my-1" />
+              <p className="text-2xs text-muted-foreground uppercase tracking-wider font-medium px-3 pt-1 pb-1">{t('agent.guard')}</p>
+              <button onClick={() => { void setGuardMode('ask'); setOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent flex items-center gap-2" data-agent-guard="ask">
+                <ShieldCheck size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" />
+                <span className="flex-1 min-w-0"><span className="block text-foreground">{t('agent.guardAsk')}</span><span className="block text-2xs text-muted-foreground">{t('agent.guardAskHint')}</span></span>
+                {(meta?.agentGuard?.mode ?? 'ask') === 'ask' && <Check size={13} strokeWidth={2} className="shrink-0 text-primary" />}
               </button>
-              <button onClick={() => { void setGuardMode('allow'); setOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-wash flex items-center gap-2" data-agent-guard="allow">
-                <ShieldOff size={14} strokeWidth={1.75} className="text-ink-faint shrink-0" />
-                <span className="flex-1 min-w-0"><span className="block text-ink">{t('agent.guardAllow')}</span><span className="block text-2xs text-ink-faint">{t('agent.guardAllowHint')}</span></span>
-                {meta?.agentGuard?.mode === 'allow' && <Check size={13} strokeWidth={2} className="shrink-0 text-accent" />}
+              <button onClick={() => { void setGuardMode('allow'); setOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent flex items-center gap-2" data-agent-guard="allow">
+                <ShieldOff size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" />
+                <span className="flex-1 min-w-0"><span className="block text-foreground">{t('agent.guardAllow')}</span><span className="block text-2xs text-muted-foreground">{t('agent.guardAllowHint')}</span></span>
+                {meta?.agentGuard?.mode === 'allow' && <Check size={13} strokeWidth={2} className="shrink-0 text-primary" />}
               </button>
               {(meta?.agentGuard?.allow?.length ?? 0) > 0 && (
                 <>
-                  <p className="text-2xs text-ink-faint px-3 pt-2 pb-1">{t('agent.guardAllowed')}</p>
+                  <p className="text-2xs text-muted-foreground px-3 pt-2 pb-1">{t('agent.guardAllowed')}</p>
                   {meta!.agentGuard!.allow.map((a) => (
                     <div key={a} className="px-3 py-1 text-xs flex items-center gap-2 min-w-0" data-agent-guard-allowed={a}>
-                      <span className="flex-1 min-w-0 truncate text-ink-muted font-mono" title={a}>{a}</span>
-                      <button onClick={() => void allowLocation(a, true)} className="text-ink-faint hover:text-red-500 shrink-0" title={t('agent.guardRemove')}>
+                      <span className="flex-1 min-w-0 truncate text-muted-foreground font-mono" title={a}>{a}</span>
+                      <button onClick={() => void allowLocation(a, true)} className="text-muted-foreground hover:text-destructive/90 shrink-0" title={t('agent.guardRemove')}>
                         <X size={12} strokeWidth={2} />
                       </button>
                     </div>

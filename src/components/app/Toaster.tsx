@@ -2,9 +2,9 @@ import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
 import { useUiStore, type ToastItem } from '../../lib/ui-store';
 
 const KIND_STYLES: Record<ToastItem['kind'], string> = {
-  error: 'border-red-200 bg-red-50 text-red-700',
-  success: 'border-green-200 bg-green-50 text-green-700',
-  info: 'border-line bg-card text-ink-muted',
+  error: 'border-destructive/30 bg-destructive/10 text-destructive',
+  success: 'border-success/30 bg-success/10 text-success',
+  info: 'border-border bg-card text-muted-foreground',
 };
 
 const KIND_ICONS: Record<ToastItem['kind'], typeof Info> = {
@@ -36,7 +36,7 @@ export default function Toaster() {
               {t.action && (
                 <button
                   onClick={() => { t.action!.run(); dismissToast(t.id); }}
-                  className="mt-2 text-2xs font-medium bg-accent/10 text-accent hover:bg-accent/20 px-2.5 py-1 rounded-lg transition-colors"
+                  className="mt-2 text-2xs font-medium bg-primary/10 text-primary hover:bg-primary/20 px-2.5 py-1 rounded-lg transition-colors"
                 >
                   {t.action.label}
                 </button>

@@ -41,25 +41,25 @@ export default function RoleLine({
 
   return (
     <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-1.5 text-xs text-ink-faint min-w-0 h-8">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0 h-8">
         <UserCog size={13} strokeWidth={1.75} className="shrink-0" />
         {!editing && (<>
         {effective ? (
           canEdit ? (
             <button
               onClick={() => { if (isViewerMode) return; setValue(own ?? ''); setEditing(true); }}
-              className="text-warm hover:underline decoration-dotted underline-offset-2 truncate font-medium max-w-[45%] shrink-0"
+              className="text-edge-explore hover:underline decoration-dotted underline-offset-2 truncate font-medium max-w-[45%] shrink-0"
               title={`${effective} — ${t('role.edit')}`}
             >
               {effective}
             </button>
           ) : (
-            <span className="text-warm/90 truncate max-w-[45%] shrink-0" title={effective}>{effective}</span>
+            <span className="text-edge-explore/90 truncate max-w-[45%] shrink-0" title={effective}>{effective}</span>
           )
         ) : canEdit && !isViewerMode ? (
           <button
             onClick={() => { setValue(''); setEditing(true); }}
-            className="hover:text-warm transition-colors shrink-0"
+            className="hover:text-edge-explore transition-colors shrink-0"
           >
             + {t('role.set')}
           </button>
@@ -67,15 +67,15 @@ export default function RoleLine({
           <span className="italic shrink-0">{t('role.noRoleSet')}</span>
         )}
         {!own && effective && (
-          <span className="text-2xs bg-line/50 px-1.5 py-px rounded-full shrink-0">{t('role.inherited')}</span>
+          <span className="text-2xs bg-border/50 px-1.5 py-px rounded-full shrink-0">{t('role.inherited')}</span>
         )}
         <span className="shrink-0">·</span>
         </>)}
-        <span className="shrink-0 text-ink-muted">{data.tokenCount} tok</span>
+        <span className="shrink-0 text-muted-foreground">{data.tokenCount} tok</span>
         {attachCount > 0 && (
           <>
             <span className="shrink-0">·</span>
-            <span className="shrink-0 text-ink-muted flex items-center gap-0.5">
+            <span className="shrink-0 text-muted-foreground flex items-center gap-0.5">
               <Paperclip size={11} strokeWidth={1.75} /> {attachCount}
             </span>
           </>
@@ -91,14 +91,14 @@ export default function RoleLine({
               if (e.key === 'Escape') setEditing(false);
             }}
             placeholder={t('role.placeholder')}
-            className="w-full text-xs border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent bg-card text-ink resize-none leading-relaxed"
+            className="w-full text-xs border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring bg-card text-foreground resize-none leading-relaxed"
             rows={2}
             autoFocus
           />
           <RoleTemplateChips onPick={(p) => setValue(p)} />
           <div className="flex justify-end gap-2">
-            <button onClick={() => setEditing(false)} className="text-xs text-ink-muted hover:text-ink px-2.5 py-1 rounded-lg hover:bg-line/40 transition-colors">{t('common.cancel')}</button>
-            <button onClick={save} className="text-xs bg-accent hover:bg-accent-strong text-white px-3 py-1 rounded-lg transition-colors">{t('common.save')}</button>
+            <button onClick={() => setEditing(false)} className="text-xs text-muted-foreground hover:text-foreground px-2.5 py-1 rounded-lg hover:bg-border/40 transition-colors">{t('common.cancel')}</button>
+            <button onClick={save} className="text-xs bg-primary hover:bg-primary/90 text-white px-3 py-1 rounded-lg transition-colors">{t('common.save')}</button>
           </div>
         </div>
       )}

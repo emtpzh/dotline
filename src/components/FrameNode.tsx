@@ -50,7 +50,7 @@ export default function FrameNode({ id, data, selected }: NodeProps<ThoughtNodeT
   return (
     <div
       className={`relative w-full h-full rounded-2xl border-2 border-dashed flex flex-col transition-colors ${color.border} ${color.bg} ${
-        selected ? 'ring-1 ring-accent/40' : ''
+        selected ? 'ring-1 ring-primary/40' : ''
       }`}
       onClick={() => setSelectedNodeId(id)}
     >
@@ -68,7 +68,7 @@ export default function FrameNode({ id, data, selected }: NodeProps<ThoughtNodeT
             onKeyDown={(e) => { if ((e.key === 'Enter' && !isImeComposing(e)) || e.key === 'Escape') commit(); }}
             placeholder={t('frame.titlePlaceholder')}
             autoFocus
-            className="flex-1 min-w-24 bg-transparent text-sm font-semibold text-ink-muted focus:outline-none placeholder-ink-faint nodrag"
+            className="flex-1 min-w-24 bg-transparent text-sm font-semibold text-muted-foreground focus:outline-none placeholder-muted-foreground nodrag"
           />
         ) : (
           /* min-w floor: on a deep zoom-out the scaled controls must not squeeze
@@ -76,10 +76,10 @@ export default function FrameNode({ id, data, selected }: NodeProps<ThoughtNodeT
              instead (the title is the higher-value signal on the map) */
           <span
             onDoubleClick={() => { if (isViewerMode) return; setDraft(data.question); setEditing(true); }}
-            className={`flex-1 min-w-24 truncate font-semibold text-ink-muted/80 select-none text-xs ${barScale > 1 ? 'normal-case' : 'uppercase tracking-wider'}`}
+            className={`flex-1 min-w-24 truncate font-semibold text-muted-foreground/80 select-none text-xs ${barScale > 1 ? 'normal-case' : 'uppercase tracking-wider'}`}
             title={t('content.noteEditTitle')}
           >
-            {data.question || <span className="text-ink-faint normal-case tracking-normal">{t('frame.titlePlaceholder')}</span>}
+            {data.question || <span className="text-muted-foreground normal-case tracking-normal">{t('frame.titlePlaceholder')}</span>}
           </span>
         )}
         {/* Carry toggle — always visible: it changes what dragging does, and
@@ -88,7 +88,7 @@ export default function FrameNode({ id, data, selected }: NodeProps<ThoughtNodeT
           onClick={(e) => { e.stopPropagation(); useStore.getState().pushHistory(); patch({ frameCarry: !carry }); }}
           title={carry ? t('frame.carryOn') : t('frame.carryOff')}
           className={`rounded-full w-6 h-6 flex items-center justify-center transition-colors shrink-0 nodrag ${
-            carry ? 'text-ink-muted hover:text-ink' : 'text-ink-faint/60 hover:text-ink-muted'
+            carry ? 'text-muted-foreground hover:text-foreground' : 'text-muted-foreground/60 hover:text-muted-foreground'
           }`}
         >
           {carry ? <Link2 size={13} strokeWidth={1.75} /> : <Link2Off size={13} strokeWidth={1.75} />}
@@ -105,7 +105,7 @@ export default function FrameNode({ id, data, selected }: NodeProps<ThoughtNodeT
                     key={name}
                     onClick={(e) => { e.stopPropagation(); patch({ frameColor: name }); }}
                     className={`w-3.5 h-3.5 rounded-full ${c.dot} transition-transform hover:scale-125 ${
-                      (data.frameColor ?? 'gray') === name ? 'ring-2 ring-offset-1 ring-ink/40' : ''
+                      (data.frameColor ?? 'gray') === name ? 'ring-2 ring-offset-1 ring-foreground/40' : ''
                     }`}
                   />
                 ))}
@@ -113,7 +113,7 @@ export default function FrameNode({ id, data, selected }: NodeProps<ThoughtNodeT
             )}
             <button
               onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
-              className="text-ink-faint hover:text-red-500 rounded-full w-6 h-6 flex items-center justify-center transition-colors shrink-0 nodrag"
+              className="text-muted-foreground hover:text-destructive/90 rounded-full w-6 h-6 flex items-center justify-center transition-colors shrink-0 nodrag"
             >
               <Trash2 size={13} strokeWidth={1.75} />
             </button>
@@ -131,7 +131,7 @@ export default function FrameNode({ id, data, selected }: NodeProps<ThoughtNodeT
       {/* resize handles: NO manual scaling — React Flow's autoScale already
           counter-scales them (Math.max(1/zoom, 1)), so they keep a constant
           screen size; scaling here again would compound to huge squares */}
-      <NodeResizer isVisible={selected && !isViewerMode} minWidth={280} minHeight={180} lineClassName="!border-accent/40" handleClassName="!bg-accent !w-2.5 !h-2.5 !rounded-sm" />
+      <NodeResizer isVisible={selected && !isViewerMode} minWidth={280} minHeight={180} lineClassName="!border-primary/40" handleClassName="!bg-primary !w-2.5 !h-2.5 !rounded-sm" />
     </div>
   );
 }

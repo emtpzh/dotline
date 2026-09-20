@@ -28,17 +28,17 @@ export default function ConfirmDialog() {
       onClick={() => resolveConfirm(false)}
     >
       <div
-        className="bg-card border border-line rounded-xl shadow-xl w-[380px] p-5"
+        className="bg-card border border-border rounded-xl shadow-xl w-[380px] p-5"
         onClick={(e) => e.stopPropagation()}
       >
         {request.title && (
-          <h3 className="text-sm font-semibold text-ink mb-1.5">{request.title}</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-1.5">{request.title}</h3>
         )}
-        <p className="text-sm text-ink-muted leading-relaxed whitespace-pre-line [overflow-wrap:anywhere]">{request.message}</p>
+        <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line [overflow-wrap:anywhere]">{request.message}</p>
         <div className="flex justify-end gap-2 mt-5">
           <button
             onClick={() => resolveConfirm(false)}
-            className="text-xs text-ink-muted hover:text-ink px-4 py-2 rounded-lg hover:bg-wash transition-colors"
+            className="text-xs text-muted-foreground hover:text-foreground px-4 py-2 rounded-lg hover:bg-accent transition-colors"
           >
             {t('common.cancel')}
           </button>
@@ -46,7 +46,7 @@ export default function ConfirmDialog() {
             onClick={() => resolveConfirm(true)}
             autoFocus
             className={`text-xs text-white px-4 py-2 rounded-lg transition-colors ${
-              request.danger ? 'bg-red-500 hover:bg-red-600' : 'bg-accent hover:bg-accent-strong'
+              request.danger ? 'bg-destructive hover:bg-destructive/90' : 'bg-primary hover:bg-primary/90'
             }`}
           >
             {request.confirmLabel ?? t('common.confirm')}

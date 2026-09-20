@@ -6,13 +6,13 @@ export default function LangSwitch() {
   const setLang = useI18n((s) => s.setLang);
 
   return (
-    <div className="flex items-center bg-card/90 backdrop-blur border border-line rounded-lg shadow-sm overflow-hidden">
+    <div className="flex items-center bg-card/90 backdrop-blur border border-border rounded-lg shadow-sm overflow-hidden">
       {(['en', 'zh'] as const).map((l) => (
         <button
           key={l}
           onClick={() => setLang(l)}
           className={`px-2 h-8 text-2xs font-medium transition-colors ${
-            lang === l ? 'bg-accent text-white' : 'text-ink-muted hover:bg-wash'
+            lang === l ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-accent'
           }`}
         >
           {l === 'en' ? 'EN' : '中'}

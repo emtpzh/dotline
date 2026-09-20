@@ -71,48 +71,48 @@ export default function HighlightsOverviewModal({ onLocate }: { onLocate: (nodeI
     downloadMarkdown(`# ${t('hlov.title')}\n\n${lines.join('\n')}\n`);
   };
 
-  const chip = 'shrink-0 text-2xs font-mono text-accent bg-accent/10 hover:bg-accent/20 rounded-full px-1.5 py-0.5 transition-colors';
+  const chip = 'shrink-0 text-2xs font-mono text-primary bg-primary/10 hover:bg-primary/20 rounded-full px-1.5 py-0.5 transition-colors';
   const sortBtn = (v: 'time' | 'node', label: string) => (
     <button
       onClick={() => setSort(v)}
-      className={`text-2xs px-2.5 py-1 rounded-full transition-colors ${sort === v ? 'bg-accent/10 text-accent' : 'text-ink-faint hover:bg-wash'}`}
+      className={`text-2xs px-2.5 py-1 rounded-full transition-colors ${sort === v ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent'}`}
     >
       {label}
     </button>
   );
 
   return createPortal((
-    <div className="fixed inset-0 z-[60] bg-ink/30 backdrop-blur-sm flex items-center justify-center p-6" onClick={close}>
-      <div className="bg-card rounded-2xl shadow-2xl border border-line w-[640px] max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2 px-5 py-3 border-b border-line shrink-0">
-          <Highlighter size={15} strokeWidth={1.75} className="text-amber-500" />
-          <span className="text-sm font-semibold text-ink">{t('hlov.title')}</span>
-          <span className="text-2xs text-ink-faint">{fmt(t('hlov.count'), { n: entries.length })}</span>
+    <div className="fixed inset-0 z-[60] bg-foreground/30 backdrop-blur-sm flex items-center justify-center p-6" onClick={close}>
+      <div className="bg-card rounded-2xl shadow-2xl border border-border w-[640px] max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 px-5 py-3 border-b border-border shrink-0">
+          <Highlighter size={15} strokeWidth={1.75} className="text-warning" />
+          <span className="text-sm font-semibold text-foreground">{t('hlov.title')}</span>
+          <span className="text-2xs text-muted-foreground">{fmt(t('hlov.count'), { n: entries.length })}</span>
           <div className="flex-1" />
           {sortBtn('time', t('hlov.byTime'))}
           {sortBtn('node', t('hlov.byNode'))}
-          <button onClick={close} className="text-ink-faint hover:text-ink w-7 h-7 rounded-lg hover:bg-wash flex items-center justify-center transition-colors ml-1">
+          <button onClick={close} className="text-muted-foreground hover:text-foreground w-7 h-7 rounded-lg hover:bg-accent flex items-center justify-center transition-colors ml-1">
             <X size={15} strokeWidth={1.75} />
           </button>
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3">
-          {entries.length === 0 && <p className="text-xs text-ink-faint italic py-2">{t('hlov.empty')}</p>}
+          {entries.length === 0 && <p className="text-xs text-muted-foreground italic py-2">{t('hlov.empty')}</p>}
           {entries.map((e) => {
             return (
               <div key={e.hlId}>
                 {e.showGroup && (
-                  <div className="text-2xs text-ink-faint font-medium mt-3 mb-1 first:mt-0 truncate">{e.nodeTitle}</div>
+                  <div className="text-2xs text-muted-foreground font-medium mt-3 mb-1 first:mt-0 truncate">{e.nodeTitle}</div>
                 )}
-                <div className="group flex items-start gap-2.5 py-1.5 border-b border-line/50 last:border-0">
+                <div className="group flex items-start gap-2.5 py-1.5 border-b border-border/50 last:border-0">
                   <input
                     type="checkbox"
                     checked={picked.has(e.hlId)}
                     onChange={() => togglePick(e.hlId)}
                     className="mt-1 accent-amber-500 shrink-0"
                   />
-                  <span className="flex-1 text-sm text-ink leading-relaxed min-w-0">
-                    <mark className="bg-amber-100 text-amber-800 px-0.5 rounded">{e.text}</mark>
+                  <span className="flex-1 text-sm text-foreground leading-relaxed min-w-0">
+                    <mark className="bg-warning/15 text-warning px-0.5 rounded">{e.text}</mark>
                   </span>
                   {sort === 'time' && (
                     <button className={chip} onClick={() => { close(); onLocate(e.nodeId); }} title={t('hlov.locateTitle')}>
@@ -124,11 +124,11 @@ export default function HighlightsOverviewModal({ onLocate }: { onLocate: (nodeI
                       ↦
                     </button>
                   )}
-                  {e.at && <span className="shrink-0 text-2xs text-ink-faint font-mono mt-0.5">{e.at.slice(5, 10)}</span>}
+                  {e.at && <span className="shrink-0 text-2xs text-muted-foreground font-mono mt-0.5">{e.at.slice(5, 10)}</span>}
                   <button
                     onClick={() => removeHighlight(e.nodeId, e.hlId)}
                     title={t('common.delete')}
-                    className="text-ink-faint hover:text-red-500 w-5 h-5 rounded-full flex items-center justify-center transition-colors shrink-0 opacity-0 group-hover:opacity-100"
+                    className="text-muted-foreground hover:text-destructive/90 w-5 h-5 rounded-full flex items-center justify-center transition-colors shrink-0 opacity-0 group-hover:opacity-100"
                   >
                     <Trash2 size={12} strokeWidth={1.75} />
                   </button>
@@ -138,19 +138,19 @@ export default function HighlightsOverviewModal({ onLocate }: { onLocate: (nodeI
           })}
         </div>
 
-        <div className="px-5 py-3 border-t border-line shrink-0 space-y-2">
+        <div className="px-5 py-3 border-t border-border shrink-0 space-y-2">
           {picked.size > 0 && (
             <div className="flex justify-end">
-              <button onClick={weavePicked} className="text-xs bg-amber-500 hover:bg-amber-400 text-white px-3 py-2 rounded-lg transition-colors shrink-0">
+              <button onClick={weavePicked} className="text-xs bg-warning hover:bg-warning text-white px-3 py-2 rounded-lg transition-colors shrink-0">
                 {fmt(t('hlov.weavePicked'), { n: picked.size })}
               </button>
             </div>
           )}
           <div className="flex items-center">
-            <span className="text-2xs text-ink-faint">{picked.size > 0 ? fmt(t('hlov.picked'), { n: picked.size }) : t('hlov.pickHint')}</span>
+            <span className="text-2xs text-muted-foreground">{picked.size > 0 ? fmt(t('hlov.picked'), { n: picked.size }) : t('hlov.pickHint')}</span>
             <div className="flex-1" />
             {entries.length > 0 && (
-              <button onClick={exportMd} className="flex items-center gap-1.5 text-2xs text-ink-faint hover:text-ink-muted transition-colors" title={t('hlov.exportTitle')}>
+              <button onClick={exportMd} className="flex items-center gap-1.5 text-2xs text-muted-foreground hover:text-muted-foreground transition-colors" title={t('hlov.exportTitle')}>
                 <Download size={12} strokeWidth={1.75} /> {t('hlov.export')}
               </button>
             )}

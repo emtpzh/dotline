@@ -43,19 +43,19 @@ function decide(): WhatsNewEntry[] {
 export function WhatsNewItems({ items, lang }: { items: WhatsNewItem[]; lang: Lang }) {
   if (items.length === 0) return null;
   return (
-    <ol className="divide-y divide-line">
+    <ol className="divide-y divide-border">
       {items.map((it, i) => (
         <li key={i} className="py-3 flex gap-3.5">
-          <span className="shrink-0 w-6 h-6 rounded-full bg-accent/10 text-accent text-xs font-semibold flex items-center justify-center mt-0.5">{i + 1}</span>
+          <span className="shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-semibold flex items-center justify-center mt-0.5">{i + 1}</span>
           <div className="min-w-0">
-            <div className="text-sm font-medium text-ink">{it.title[lang]}</div>
-            <p className="text-sm text-ink-muted leading-relaxed mt-1 [overflow-wrap:anywhere]">{it.body[lang]}</p>
+            <div className="text-sm font-medium text-foreground">{it.title[lang]}</div>
+            <p className="text-sm text-muted-foreground leading-relaxed mt-1 [overflow-wrap:anywhere]">{it.body[lang]}</p>
             {it.link && (
               <a
                 href={it.link.href}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-block mt-1.5 text-xs font-medium text-accent hover:underline"
+                className="inline-block mt-1.5 text-xs font-medium text-primary hover:underline"
               >
                 {it.link.label[lang]} →
               </a>
@@ -97,35 +97,35 @@ export default function WhatsNewDialog() {
   return (
     <div className="fixed inset-0 z-[100] bg-black/25 flex items-center justify-center animate-fade-in p-6" onClick={close}>
       <div
-        className="bg-card border border-line rounded-2xl shadow-xl w-[680px] max-w-full max-h-[85vh] overflow-y-auto"
+        className="bg-card border border-border rounded-2xl shadow-xl w-[680px] max-w-full max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-labelledby="whats-new-title"
         data-whats-new
       >
-        <div className="px-6 pt-5 pb-4 border-b border-line">
-          <div className="text-2xs uppercase tracking-wide text-ink-faint">ThoughtDAG</div>
-          <h2 id="whats-new-title" className="text-base font-semibold text-ink mt-0.5">{fmt(t('whatsNew.title'), { v: appVersion ?? '' })}</h2>
-          {entries.length > 1 && <p className="text-xs text-ink-faint mt-1">{t('whatsNew.multi')}</p>}
+        <div className="px-6 pt-5 pb-4 border-b border-border">
+          <div className="text-2xs uppercase tracking-wide text-muted-foreground">ThoughtDAG</div>
+          <h2 id="whats-new-title" className="text-base font-semibold text-foreground mt-0.5">{fmt(t('whatsNew.title'), { v: appVersion ?? '' })}</h2>
+          {entries.length > 1 && <p className="text-xs text-muted-foreground mt-1">{t('whatsNew.multi')}</p>}
         </div>
-        <ol className="px-6 divide-y divide-line">
+        <ol className="px-6 divide-y divide-border">
           {entries.map((entry) => (
             <li key={entry.version} className="py-4" data-release={entry.version}>
               {entries.length > 1 && (
                 <div className="flex items-baseline gap-2.5 mb-1.5">
-                  <span className="text-sm font-semibold text-ink tabular-nums">v{entry.version}</span>
-                  <span className="text-xs text-ink-faint tabular-nums">{entry.date}</span>
+                  <span className="text-sm font-semibold text-foreground tabular-nums">v{entry.version}</span>
+                  <span className="text-xs text-muted-foreground tabular-nums">{entry.date}</span>
                 </div>
               )}
-              <p className="text-sm text-ink-muted leading-relaxed [overflow-wrap:anywhere]">{entry.lead[lang]}</p>
+              <p className="text-sm text-muted-foreground leading-relaxed [overflow-wrap:anywhere]">{entry.lead[lang]}</p>
               <WhatsNewItems items={entry.items} lang={lang} />
             </li>
           ))}
         </ol>
-        <div className="sticky bottom-0 bg-card px-6 py-4 border-t border-line flex items-center justify-between gap-4">
+        <div className="sticky bottom-0 bg-card px-6 py-4 border-t border-border flex items-center justify-between gap-4">
           <button
             onClick={() => { close(); useUiStore.getState().setReleaseNotesOpen(true); }}
-            className="text-xs text-ink-muted hover:text-ink hover:underline transition-colors"
+            className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
             data-whats-new-all
           >
             {t('whatsNew.seeAll')}
@@ -133,7 +133,7 @@ export default function WhatsNewDialog() {
           <button
             ref={okRef}
             onClick={close}
-            className="text-xs text-white px-4 py-2 rounded-lg bg-accent hover:bg-accent-strong transition-colors"
+            className="text-xs text-white px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 transition-colors"
           >
             {t('whatsNew.ok')}
           </button>

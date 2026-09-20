@@ -1,42 +1,33 @@
 /* canvas: React Flow overrides, node cards, edges, zoom tiers — split out of index.css; the tokens stay there */
 
-
-/* draft dialect: on the drafting board cards sit like components —
-   smaller radius, flat shadow. The layout laws are untouched. */
-:root[data-paper='grid'] .content-card {
-  border-radius: 7px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-:root[data-paper='grid'] .thought-node {
-  border-radius: 7px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
 /* ReactFlow overrides */
+/* the ground the cards float on — one step off the card color, so a card
+   still reads as an object on a plain background */
 .react-flow__background {
-  background: var(--color-surface) !important;
+  background: var(--canvas) !important;
 }
 
 .react-flow__controls {
-  background: var(--color-card) !important;
-  border: 1px solid var(--color-line) !important;
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
   border-radius: 12px !important;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
 }
 
 .react-flow__controls-button {
-  background: var(--color-card) !important;
-  border-color: var(--color-line) !important;
-  fill: var(--color-ink-muted) !important;
+  background: var(--card) !important;
+  border-color: var(--border) !important;
+  fill: var(--muted-foreground) !important;
 }
 
 .react-flow__controls-button:hover {
-  background: var(--color-wash) !important;
-  fill: var(--color-accent) !important;
+  background: var(--muted) !important;
+  fill: var(--primary) !important;
 }
 
 .react-flow__minimap {
-  background: var(--color-card) !important;
-  border: 1px solid var(--color-line) !important;
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
   border-radius: 12px !important;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
   /* hover = intent to read: the svg scales up losslessly from its corner */
@@ -72,8 +63,8 @@
    default 12px and the draft paper's 7px alike). The layer is transparent
    except that left stop, and it never takes pointer events. */
 .thought-node {
-  background: var(--color-card);
-  border: 1px solid var(--color-line);
+  background: var(--card);
+  border: 1px solid var(--border);
   box-shadow: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.05);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   position: relative;
@@ -93,28 +84,28 @@
    under the pointer — and so under the pointer of every click that selected
    one — which read as the card jumping when it was picked. */
 .thought-node:hover {
-  border-color: var(--color-line-strong);
+  border-color: var(--input);
   box-shadow: 0 4px 14px rgba(0,0,0,0.09), 0 2px 4px rgba(0,0,0,0.05);
 }
 
 .root-node {
-  --node-bar: var(--color-accent);
+  --node-bar: var(--primary);
 }
 
 .orange-node {
-  --node-bar: var(--color-warm);
-  border-color: color-mix(in srgb, var(--color-warm) 30%, var(--color-line));
+  --node-bar: var(--edge-explore);
+  border-color: color-mix(in srgb, var(--edge-explore) 30%, var(--border));
 }
 
 .evaluator-node {
-  --node-bar: var(--color-watch);
-  border-color: color-mix(in srgb, var(--color-watch) 25%, var(--color-line));
+  --node-bar: var(--edge-watch);
+  border-color: color-mix(in srgb, var(--edge-watch) 25%, var(--border));
 }
 
 /* Instantiated paradigm human turn: the person acts here */
 .human-node {
-  --node-bar: var(--color-warm);
-  border-color: color-mix(in srgb, var(--color-warm) 45%, var(--color-line));
+  --node-bar: var(--edge-explore);
+  border-color: color-mix(in srgb, var(--edge-explore) 45%, var(--border));
 }
 
 /* Connection handles: small dot, generous finger. The visible dot stays
@@ -135,8 +126,8 @@
    nodes wear a loud halo — visible on full cards AND folded plaques. */
 .thought-node.condense-lit {
   box-shadow:
-    0 0 0 5px color-mix(in srgb, var(--color-accent) 60%, transparent),
-    0 0 32px color-mix(in srgb, var(--color-accent) 45%, transparent);
+    0 0 0 5px color-mix(in srgb, var(--primary) 60%, transparent),
+    0 0 32px color-mix(in srgb, var(--primary) 45%, transparent);
 }
 
 /* ── Map mode: the card becomes a label plaque ─────────────────────
@@ -149,15 +140,15 @@
 .thought-node.map-node::before {
   display: none;
 }
-.map-node.root-node { border-color: color-mix(in srgb, var(--color-accent) 85%, var(--color-line)); }
-.map-node.orange-node { border-color: color-mix(in srgb, var(--color-warm) 88%, var(--color-line)); }
-.map-node.evaluator-node { border-color: color-mix(in srgb, var(--color-watch) 82%, var(--color-line)); }
-.map-node.human-node { border-color: color-mix(in srgb, #d97706 82%, var(--color-line)); }
+.map-node.root-node { border-color: color-mix(in srgb, var(--primary) 85%, var(--border)); }
+.map-node.orange-node { border-color: color-mix(in srgb, var(--edge-explore) 88%, var(--border)); }
+.map-node.evaluator-node { border-color: color-mix(in srgb, var(--edge-watch) 82%, var(--border)); }
+.map-node.human-node { border-color: color-mix(in srgb, #d97706 82%, var(--border)); }
 
 /* ── Glyph tier (semantic zoom L3) ────────────────────────────── */
 /* Selected glyph node: a soft ring around the seal */
 .glyph-selected > div > span {
-  outline: 3px solid var(--color-accent, #6b5ce7);
+  outline: 3px solid var(--primary);
   outline-offset: 3px;
 }
 /* Glyph seals keep a FIXED SCREEN SIZE (POI style, like map pins): the
@@ -182,12 +173,12 @@
 
 /* ── Timeline bar (map/glyph tiers): recently-edited dots breathe ── */
 @keyframes tdag-timeline-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.45); }
-  50% { box-shadow: 0 0 0 5px rgba(var(--accent-rgb), 0); }
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--primary) 45%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in oklch, var(--primary) 0%, transparent); }
 }
 .tdag-timeline-pulse { animation: tdag-timeline-glow 2s ease-in-out infinite; }
 .tdag-timeline { animation: fadeIn 0.25s ease; }
-.tdag-timeline-scroll { scrollbar-width: thin; scrollbar-color: var(--color-line, #e6e4ee) transparent; }
+.tdag-timeline-scroll { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 .tdag-noscrollbar { scrollbar-width: none; }
 .tdag-noscrollbar::-webkit-scrollbar { display: none; }
 
@@ -201,9 +192,9 @@
    condense-lit) plus a wide ripple. The shadow follows the element's own
    shape: full card, folded plaque (26px pill), or the glyph seal. */
 @keyframes tdag-beacon {
-  0% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 55%, transparent), 0 0 34px color-mix(in srgb, var(--color-accent) 45%, transparent); }
-  70% { box-shadow: 0 0 0 46px color-mix(in srgb, var(--color-accent) 0%, transparent), 0 0 34px color-mix(in srgb, var(--color-accent) 45%, transparent); }
-  100% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 55%, transparent), 0 0 34px color-mix(in srgb, var(--color-accent) 45%, transparent); }
+  0% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 55%, transparent), 0 0 34px color-mix(in srgb, var(--primary) 45%, transparent); }
+  70% { box-shadow: 0 0 0 46px color-mix(in srgb, var(--primary) 0%, transparent), 0 0 34px color-mix(in srgb, var(--primary) 45%, transparent); }
+  100% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 55%, transparent), 0 0 34px color-mix(in srgb, var(--primary) 45%, transparent); }
 }
 .thought-node.beacon-node { animation: tdag-beacon 1.3s ease-out infinite; }
 /* glyph tier: the visible body is the seal span inside the counter-scaled

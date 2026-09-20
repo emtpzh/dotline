@@ -31,26 +31,28 @@ export const COLLAPSED_NODE_HEIGHT = 80;
 // every imported chain overlap the moment the user zoomed to the map.
 export const COLLAPSED_LAYOUT_HEIGHT = 240;
 
-// JS mirror of the @theme design tokens in src/index.css — for ReactFlow
-// edge styles / markers / minimap, which take literal color values.
-// Keep in sync with index.css.
+// JS mirror of the design tokens in src/index.css — for ReactFlow edge
+// styles / markers / minimap, which take color values rather than classes.
+// These are var() references, not literals, so an edge drawn under one theme
+// repaints when the theme flips (they are persisted with the graph).
 export const COLORS = {
-  surface: '#FAF9F7',
-  card: '#FFFFFF',
-  line: '#E8E5E0',
-  inkMuted: '#6B6560',
-  accent: '#6B5CE7',   // continue edges, primary actions
-  warm: '#E08A3C',     // explore branch edges
-  trace: '#F59E0B',    // ancestor-path highlight
-  watch: '#DC2626',    // evaluator watch edges
+  surface: 'var(--background)',
+  card: 'var(--card)',
+  line: 'var(--border)',
+  inkMuted: 'var(--muted-foreground)',
+  accent: 'var(--edge-continue)',   // the conversation chain
+  warm: 'var(--edge-explore)',      // explore branch edges
+  trace: 'var(--edge-trace)',       // ancestor-path highlight
+  watch: 'var(--edge-watch)',       // evaluator watch edges
 } as const;
+
 
 // Frame palette — FIXED set (no picker): frames are navigation objects, so
 // color is function, not decoration. Tokens referenced by FrameNode + the
 // frame navigator.
 export const FRAME_COLORS: Record<string, { border: string; bg: string; dot: string }> = {
-  gray: { border: 'border-ink/15', bg: 'bg-ink/[0.03]', dot: 'bg-ink/30' },
-  violet: { border: 'border-accent/40', bg: 'bg-accent/[0.05]', dot: 'bg-accent' },
+  gray: { border: 'border-foreground/15', bg: 'bg-foreground/[0.03]', dot: 'bg-foreground/30' },
+  violet: { border: 'border-primary/40', bg: 'bg-primary/[0.05]', dot: 'bg-primary' },
   amber: { border: 'border-amber-400/60', bg: 'bg-amber-400/[0.07]', dot: 'bg-amber-400' },
   green: { border: 'border-emerald-500/40', bg: 'bg-emerald-500/[0.05]', dot: 'bg-emerald-500' },
   sky: { border: 'border-sky-500/40', bg: 'bg-sky-500/[0.05]', dot: 'bg-sky-500' },

@@ -1,149 +1,250 @@
 @import "tailwindcss";
+@import "shadcn/tailwind.css";
+@import "tw-animate-css";
+@import "@fontsource-variable/geist";
 @import "./styles/base.css";
 @import "./styles/canvas.css";
 @import "./styles/markdown.css";
 @import "./styles/tmap.css";
 
+/* the app owns its theme switch (lib/appearance.ts sets .dark on <html>),
+   so the dark variant follows that class, not the system setting */
+@custom-variant dark (&:is(.dark *));
+
 /* ─── Design tokens ─────────────────────────────────────────────
-   Single source of truth for the color system. The JS mirror lives in
-   src/lib/constants.ts (COLORS) — keep the two in sync.
-   Dark mode is intentionally not implemented yet; when it is, add a
-   `@media (prefers-color-scheme: dark)` block redefining these vars. */
-@theme {
-  /* Typography — self-hosted Inter (UI/body) + JetBrains Mono (data/code),
-     loaded via @fontsource in main.tsx; CJK falls back to PingFang. */
-  --font-sans: 'Inter Variable', -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono Variable', 'SF Mono', 'PingFang SC', monospace;
-
-  /* Type scale — a compact, evenly-stepped ladder for a denser UI.
-     Body (text-sm) sits at 14px (Tailwind's default) and every step
-     is a clean 1px apart, so nothing reads big next to something small.
-     2xs is the smallest label tier. */
-  --text-2xs: 0.75rem;
-  --text-2xs--line-height: 1.35;
-  --text-xs: 0.8125rem;
-  --text-xs--line-height: 1.45;
-  --text-sm: 0.875rem;
-  --text-sm--line-height: 1.6;
-
-  --color-surface: #FAF9F7;      /* app / canvas background        */
-  --color-card: #FFFFFF;         /* node cards, panels             */
-  --color-wash: #F5F3F0;         /* secondary fills, hovers        */
-  --color-line: #E8E5E0;         /* borders                        */
-  --color-line-strong: #D4CFC7;  /* emphasized borders             */
-  --color-ink: #1A1A1A;          /* primary text                   */
-  --color-ink-muted: #6B6560;    /* secondary text                 */
-  --color-ink-faint: #968C77;    /* placeholders, hints — calibrated ≥3:1 on card */
-  --color-accent: #6B5CE7;       /* primary actions, continue edges */
-  --color-accent-strong: #5A4BD6;/* accent hover                   */
-  --color-warm: #E08A3C;         /* explore branches               */
-  --color-trace: #F59E0B;        /* ancestor-path edge highlight   */
-  --color-watch: #DC2626;        /* evaluator watch edges          */
-}
-
+   shadcn's names are the vocabulary: background / foreground / card /
+   popover / primary / secondary / muted / accent / destructive / border /
+   input / ring. Three sets are ours: status (warning, success), the canvas
+   ground and its texture, and the four edge colors — a branch type must
+   stay legible as a hue, so they do not fade into the neutral ramp.
+   The JS mirror lives in src/lib/constants.ts (COLORS) — keep both in sync. */
 :root {
   color-scheme: light;
-  /* canvas texture (React Flow Background strokes) */
-  --canvas-dot: #E8E5E0;
-  --canvas-grid-fine: rgba(84, 100, 128, 0.10);
-  --canvas-grid-major: rgba(84, 100, 128, 0.22);
-  /* the accent as an rgb triplet, for the translucent glows and tints below */
-  --accent-rgb: 107, 92, 231;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  /* primary is DeepSeek Harness's business blue (#4176e6), so the board
+     wears one main color whether it runs standalone or inside the plugin */
+  --primary: oklch(0.590 0.179 263.0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.666 0.157 58.3);
+  --warning-foreground: oklch(0.985 0 0);
+  --success: oklch(0.627 0.170 149.2);
+  --success-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.590 0.179 263.0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+
+  /* canvas: the ground the cards float on, one step off the card color */
+  --canvas: oklch(0.97 0 0);
+  --canvas-dot: oklch(0.922 0 0);
+  --canvas-grid-fine: oklch(0.145 0 0 / 8%);
+  --canvas-grid-major: oklch(0.145 0 0 / 16%);
+
+  /* edges: mainline / explore branch / ancestor path / evaluator watch */
+  --edge-continue: var(--primary);
+  --edge-explore: oklch(0.710 0.139 59.4);
+  --edge-trace: oklch(0.769 0.165 70.1);
+  --edge-watch: oklch(0.577 0.215 27.3);
 }
 
-/* ── appearance: light × dark is a full token remap; paper × grid is a
-   canvas texture plus a component dialect. Set by lib/appearance.ts. ── */
-
-/* the drafting board runs a touch cooler than reading paper (light only;
-   the harness palette keeps its own neutral surface) */
-:root[data-paper='grid']:not([data-theme='dark']):not([data-palette='harness']) {
-  --color-surface: #F7F6F2;
-}
-
-:root[data-theme='dark'] {
+.dark {
   color-scheme: dark;
-  /* elevation is deliberate: cards sit a full step above the canvas
-     (1.22×, was 1.10× — they read as objects, not stains) */
-  --color-surface: #211E18;
-  --color-card: #322D25;
-  --color-wash: #3B352B;
-  --color-line: #4C4536;
-  --color-line-strong: #5E5645;
-  --color-ink: #EDE7DA;
-  --color-ink-muted: #B5AB97;
-  --color-ink-faint: #948A73;
-  --color-accent: #A79FF4;
-  --color-accent-strong: #B9B2F7;
-  --color-warm: #E3A45E;
-  --color-trace: #D9A83E;
-  --color-watch: #E0796F;
-  --canvas-dot: #423B2E;
-  --canvas-grid-fine: rgba(237, 231, 218, 0.05);
-  --canvas-grid-major: rgba(237, 231, 218, 0.11);
-  /* the tailwind semantic slices the UI actually uses, recomposed for dark
-     (utilities compile to var(--color-*), so this remaps them globally) */
-  --color-red-50: #3A2723;
-  --color-red-100: #47302A;
-  --color-red-200: #5C3B33;
-  --color-red-500: #E0796F;
-  --color-red-600: #E88A80;
-  --color-red-700: #F0A29A;
-  --color-green-50: #2A3A30;
-  --color-green-200: #3F5A48;
-  --color-green-600: #7FBF8E;
-  --color-green-700: #93CCA0;
-  --color-amber-50: #3B3220;
-  --color-amber-100: #4A3E26;
-  --color-amber-200: #5E4E2C;
-  --color-amber-400: #D9A83E;
-  --color-amber-500: #D9A83E;
-  --color-amber-600: #E2B558;
-  --color-amber-700: #EAC272;
-  --color-amber-800: #F2D18C;
+
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.704 0.153 260.8);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.765 0.115 67.5);
+  --warning-foreground: oklch(0.205 0 0);
+  --success: oklch(0.768 0.165 152.3);
+  --success-foreground: oklch(0.205 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.704 0.153 260.8);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+
+  --canvas: oklch(0.145 0 0);
+  --canvas-dot: oklch(1 0 0 / 12%);
+  --canvas-grid-fine: oklch(1 0 0 / 5%);
+  --canvas-grid-major: oklch(1 0 0 / 11%);
+
+  --edge-explore: oklch(0.765 0.115 67.5);
+  --edge-trace: oklch(0.758 0.133 83.2);
+  --edge-watch: oklch(0.689 0.130 26.7);
 }
 
-/* ── palette: harness — DeepSeek Harness's design system, fixed here (the
-   plugin build sets data-palette; see lib/appearance.ts). Values are the
-   harness's --dsw-* aliases resolved from @deepseek-ai/dsh-client-ui-theme
-   (0.1.5): surface bg-module-platform, card bg-layer-1, wash
-   interactive-bg-hover, line border-l2 / -l4, ink label-primary / -secondary
-   / -tertiary, accent state-business-primary, accent-strong
-   button-info-hover, warm state-warn-primary, watch state-error-primary.
-   trace is state-success-primary: the harness's amber pair is too close to
-   tell an ancestor-path highlight from an explore branch. ── */
+/* ── palette: harness — inside DeepSeek Harness the board wears the host's
+   neutrals (lib/appearance.ts sets data-palette on <html>). Resolved from
+   @deepseek-ai/dsh-client-ui-theme 0.1.5: background bg-module-platform,
+   card bg-layer-1, accent interactive-bg-hover, border border-l2, input
+   border-l4, foreground label-primary, muted-foreground label-secondary.
+   primary is already the harness blue, so only the neutrals move. ── */
 :root[data-palette='harness'] {
-  --color-surface: #f5f6f7;
-  --color-card: #ffffff;
-  --color-wash: #2631480f;
-  --color-line: #0000001a;
-  --color-line-strong: #00000029;
-  --color-ink: #0f1115;
-  --color-ink-muted: #61666b;
-  --color-ink-faint: #81858c;
-  --color-accent: #4176e6;
-  --color-accent-strong: #679efe;
-  --color-warm: #f59e0b;
-  --color-trace: #22c55e;
-  --color-watch: #ec1313;
+  --background: #f5f6f7;
+  --card: #ffffff;
+  --popover: #ffffff;
+  --muted: #f0f1f3;
+  --accent: #eceef1;
+  --accent-foreground: #0f1115;
+  --foreground: #0f1115;
+  --card-foreground: #0f1115;
+  --popover-foreground: #0f1115;
+  --muted-foreground: #61666b;
+  --secondary: #f0f1f3;
+  --secondary-foreground: #0f1115;
+  --border: #0000001a;
+  --input: #00000029;
+  --canvas: #f5f6f7;
   --canvas-dot: #e1e5ee;
-  --accent-rgb: 65, 118, 230;
+  --canvas-grid-fine: #26314810;
+  --canvas-grid-major: #26314824;
+  --edge-trace: #22c55e;
+  --edge-watch: #ec1313;
 }
 
-:root[data-palette='harness'][data-theme='dark'] {
-  --color-surface: #353638;
-  --color-card: #232324;
-  --color-wash: #ffffff14;
-  --color-line: #ffffff1f;
-  --color-line-strong: #ffffff33;
-  --color-ink: #f9fafb;
-  --color-ink-muted: #cfd3d6;
-  --color-ink-faint: #adb2b8;
-  --color-accent: #679efe;
-  --color-accent-strong: #4176e6;
-  --color-warm: #f59e0b;
-  --color-trace: #4ed17e;
-  --color-watch: #f25a5a;
+.dark[data-palette='harness'] {
+  --background: #353638;
+  --card: #232324;
+  --popover: #232324;
+  --muted: #ffffff14;
+  --accent: #ffffff14;
+  --accent-foreground: #f9fafb;
+  --foreground: #f9fafb;
+  --card-foreground: #f9fafb;
+  --popover-foreground: #f9fafb;
+  --muted-foreground: #cfd3d6;
+  --secondary: #ffffff14;
+  --secondary-foreground: #f9fafb;
+  --border: #ffffff1f;
+  --input: #ffffff33;
+  --canvas: #353638;
   --canvas-dot: #ffffff1f;
-  --accent-rgb: 103, 158, 254;
+  --edge-trace: #4ed17e;
+  --edge-watch: #f25a5a;
 }
 
+@theme inline {
+  /* Geist is the shadcn face; CJK still falls back to PingFang. Mono stays
+     JetBrains — it carries the data readouts and code blocks. */
+  --font-heading: var(--font-sans);
+  --font-sans: 'Geist Variable', -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'SF Mono', 'PingFang SC', monospace;
+
+  /* the smallest label tier, below Tailwind's own scale */
+  --text-2xs: 0.75rem;
+  --text-2xs--line-height: 1.35;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-canvas: var(--canvas);
+  --color-edge-continue: var(--edge-continue);
+  --color-edge-explore: var(--edge-explore);
+  --color-edge-trace: var(--edge-trace);
+  --color-edge-watch: var(--edge-watch);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}

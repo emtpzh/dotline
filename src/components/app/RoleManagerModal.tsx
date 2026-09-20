@@ -21,20 +21,20 @@ function Row({ role, onCommit, onRemove }: {
   const [prompt, setPrompt] = useState(role.prompt);
   const commit = () => onCommit(role, name.trim(), prompt.trim());
   return (
-    <div className="border border-line rounded-xl px-3 py-2.5 space-y-1.5 bg-surface">
+    <div className="border border-border rounded-xl px-3 py-2.5 space-y-1.5 bg-background">
       <div className="flex items-center gap-2">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           onBlur={commit}
           placeholder={t('roles.namePlaceholder')}
-          className="flex-1 text-sm font-medium text-ink bg-transparent focus:outline-none placeholder-ink-faint"
+          className="flex-1 text-sm font-medium text-foreground bg-transparent focus:outline-none placeholder-muted-foreground"
         />
-        {role.builtin && <span className="text-2xs text-ink-faint bg-wash px-1.5 py-0.5 rounded-full shrink-0">{t('roles.builtin')}</span>}
+        {role.builtin && <span className="text-2xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">{t('roles.builtin')}</span>}
         <button
           onClick={() => onRemove(role)}
           title={t('common.delete')}
-          className="text-ink-faint hover:text-red-500 w-6 h-6 rounded-full flex items-center justify-center transition-colors shrink-0"
+          className="text-muted-foreground hover:text-destructive/90 w-6 h-6 rounded-full flex items-center justify-center transition-colors shrink-0"
         >
           <Trash2 size={13} strokeWidth={1.75} />
         </button>
@@ -45,7 +45,7 @@ function Row({ role, onCommit, onRemove }: {
         onBlur={commit}
         placeholder={t('roles.promptPlaceholder')}
         rows={2}
-        className="w-full text-xs text-ink-muted bg-transparent focus:outline-none resize-y leading-relaxed placeholder-ink-faint"
+        className="w-full text-xs text-muted-foreground bg-transparent focus:outline-none resize-y leading-relaxed placeholder-muted-foreground"
       />
     </div>
   );
@@ -78,23 +78,23 @@ export default function RoleManagerModal() {
   const add = () => setLib({ ...lib, custom: [...lib.custom, { id: generateId(), name: '', prompt: '' }] });
 
   return createPortal((
-    <div className="fixed inset-0 z-[60] bg-ink/30 backdrop-blur-sm flex items-center justify-center p-6" onClick={() => setOpen(false)}>
-      <div className="bg-card rounded-2xl shadow-2xl border border-line w-[560px] max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2 px-5 py-3 border-b border-line shrink-0">
-          <span className="text-sm font-semibold text-ink">{t('roles.managerTitle')}</span>
-          <span className="text-2xs text-ink-faint flex-1">{t('roles.hint')}</span>
-          <button onClick={() => setOpen(false)} className="text-ink-faint hover:text-ink w-7 h-7 rounded-lg hover:bg-wash flex items-center justify-center transition-colors shrink-0">
+    <div className="fixed inset-0 z-[60] bg-foreground/30 backdrop-blur-sm flex items-center justify-center p-6" onClick={() => setOpen(false)}>
+      <div className="bg-card rounded-2xl shadow-2xl border border-border w-[560px] max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 px-5 py-3 border-b border-border shrink-0">
+          <span className="text-sm font-semibold text-foreground">{t('roles.managerTitle')}</span>
+          <span className="text-2xs text-muted-foreground flex-1">{t('roles.hint')}</span>
+          <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground w-7 h-7 rounded-lg hover:bg-accent flex items-center justify-center transition-colors shrink-0">
             <X size={15} strokeWidth={1.75} />
           </button>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3 space-y-2">
           {roles.map((r) => <Row key={r.id} role={r} onCommit={commit} onRemove={remove} />)}
-          {roles.length === 0 && <p className="text-xs text-ink-faint italic py-2">{t('roles.empty')}</p>}
+          {roles.length === 0 && <p className="text-xs text-muted-foreground italic py-2">{t('roles.empty')}</p>}
         </div>
-        <div className="flex items-center gap-2 px-5 py-3 border-t border-line shrink-0">
+        <div className="flex items-center gap-2 px-5 py-3 border-t border-border shrink-0">
           <button
             onClick={add}
-            className="flex items-center gap-1.5 text-xs text-accent hover:bg-accent/10 px-3 py-1.5 rounded-lg transition-colors"
+            className="flex items-center gap-1.5 text-xs text-primary hover:bg-primary/10 px-3 py-1.5 rounded-lg transition-colors"
           >
             <Plus size={14} strokeWidth={1.75} /> {t('roles.add')}
           </button>
@@ -102,7 +102,7 @@ export default function RoleManagerModal() {
           {lib.hidden.length > 0 && (
             <button
               onClick={() => setLib({ ...lib, hidden: [] })}
-              className="text-2xs text-ink-faint hover:text-ink-muted underline decoration-dotted transition-colors"
+              className="text-2xs text-muted-foreground hover:text-muted-foreground underline decoration-dotted transition-colors"
             >
               {t('roles.restore')}
             </button>

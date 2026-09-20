@@ -95,7 +95,7 @@ export default function ThoughtEdgeView({
             }}
             data-merge-order={mergeIndex + 1}
           >
-            <div className="w-4.5 h-4.5 min-w-[18px] px-0.5 rounded-full bg-card border border-line shadow-sm flex items-center justify-center text-2xs font-mono text-ink-muted" style={{ fontSize: 10 }}>
+            <div className="w-4.5 h-4.5 min-w-[18px] px-0.5 rounded-full bg-card border border-border shadow-sm flex items-center justify-center text-2xs font-mono text-muted-foreground" style={{ fontSize: 10 }}>
               {mergeIndex + 1}
             </div>
           </div>
@@ -121,7 +121,7 @@ export default function ThoughtEdgeView({
               {convertible && refTok > 0 && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setEdgeStructural(id, isRef); }}
-                  className="h-6 px-2 rounded-full bg-card border border-line shadow-md flex items-center text-2xs text-ink-muted hover:text-accent hover:border-accent/40 transition-colors whitespace-nowrap"
+                  className="h-6 px-2 rounded-full bg-card border border-border shadow-md flex items-center text-2xs text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors whitespace-nowrap"
                   title={isRef ? t('edge.depthToggleTitle') : t('edge.solidChipTitle')}
                 >
                   {isRef
@@ -131,7 +131,7 @@ export default function ThoughtEdgeView({
               )}
               <button
                 onClick={(e) => { e.stopPropagation(); deleteEdges([id]); }}
-                className="w-6 h-6 rounded-full bg-card border border-line shadow-md flex items-center justify-center text-ink-faint hover:text-red-500 hover:border-red-300 transition-colors"
+                className="w-6 h-6 rounded-full bg-card border border-border shadow-md flex items-center justify-center text-muted-foreground hover:text-destructive/90 hover:border-destructive/40 transition-colors"
                 title={t('canvas.deleteEdgeTitle')}
               >
                 <X size={13} strokeWidth={2} />

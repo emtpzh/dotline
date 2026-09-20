@@ -26,11 +26,11 @@ export default function SearchToggles({ size = 16 }: { size?: number }) {
 
   const cls = (on: boolean) =>
     noSearchLane
-      ? 'transition-colors shrink-0 rounded-full w-8 h-8 flex items-center justify-center text-ink-faint opacity-30 cursor-not-allowed'
+      ? 'transition-colors shrink-0 rounded-full w-8 h-8 flex items-center justify-center text-muted-foreground opacity-30 cursor-not-allowed'
       : `transition-colors shrink-0 rounded-full w-8 h-8 flex items-center justify-center ${
           on
-            ? 'text-accent bg-accent/15 ring-1 ring-accent/40 hover:bg-accent/25'
-            : 'text-ink-muted opacity-50 hover:opacity-90 hover:bg-line'
+            ? 'text-primary bg-primary/15 ring-1 ring-primary/40 hover:bg-primary/25'
+            : 'text-muted-foreground opacity-50 hover:opacity-90 hover:bg-border'
         }`;
 
   return (

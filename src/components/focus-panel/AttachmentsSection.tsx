@@ -63,11 +63,11 @@ export default function AttachmentsSection({
   return (
     <div className="panel-card px-4 py-3">
       <details className="group">
-        <summary className="text-2xs font-semibold text-warm cursor-pointer hover:text-warm/80 transition-colors flex items-center gap-1.5 select-none">
+        <summary className="text-2xs font-semibold text-edge-explore cursor-pointer hover:text-edge-explore/80 transition-colors flex items-center gap-1.5 select-none">
           <ChevronRight size={12} strokeWidth={1.75} className="transition-transform group-open:rotate-90" />
           {t('attach.title')}
           {hasContent && (
-            <span className="text-ink-faint font-normal ml-1">
+            <span className="text-muted-foreground font-normal ml-1">
               {fmt(t('attach.local'), { n: attachments.length })}{inherited.length > 0 ? ` ${fmt(t('attach.inheritedBadge'), { n: inherited.length })}` : ''}
             </span>
           )}
@@ -82,14 +82,14 @@ export default function AttachmentsSection({
             onClick={() => fileInputRef.current?.click()}
             className={`border-2 border-dashed rounded-xl px-4 py-3 text-center cursor-pointer transition-all ${
               isDragging
-                ? 'border-accent bg-accent/5'
-                : 'border-line hover:border-accent/40 hover:bg-surface'
+                ? 'border-primary bg-primary/5'
+                : 'border-border hover:border-primary/40 hover:bg-background'
             }`}
           >
-            <p className="text-xs text-ink-faint">
+            <p className="text-xs text-muted-foreground">
               {isDragging ? t('attach.dropHere') : <><Paperclip size={14} strokeWidth={1.75} className="inline" /> {t('attach.upload')}</>}
             </p>
-            <p className="text-2xs text-ink-faint/60 mt-0.5">{t('attach.types')}</p>
+            <p className="text-2xs text-muted-foreground/60 mt-0.5">{t('attach.types')}</p>
             <input
               ref={fileInputRef}
               type="file"
@@ -108,32 +108,32 @@ export default function AttachmentsSection({
           {/* Local attachments */}
           {attachments.length > 0 && (
             <div className="space-y-1.5">
-              <span className="text-2xs text-ink-faint font-medium">{t('attach.thisNode')}</span>
+              <span className="text-2xs text-muted-foreground font-medium">{t('attach.thisNode')}</span>
               {attachments.map((att) => (
-                <div key={att.id} className="flex items-center gap-2 bg-wash rounded-lg px-3 py-2 group">
+                <div key={att.id} className="flex items-center gap-2 bg-muted rounded-lg px-3 py-2 group">
                   {att.thumbnailUrl ? (
                     <img src={att.thumbnailUrl} className="w-8 h-8 rounded object-cover shrink-0" alt={att.name} />
                   ) : (
-                    <span className="w-8 h-8 rounded bg-line flex items-center justify-center text-xs text-ink-muted shrink-0"><FileText size={16} strokeWidth={1.75} /></span>
+                    <span className="w-8 h-8 rounded bg-border flex items-center justify-center text-xs text-muted-foreground shrink-0"><FileText size={16} strokeWidth={1.75} /></span>
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs text-ink truncate">{att.name}</p>
-                    <p className="text-2xs text-ink-faint">
+                    <p className="text-xs text-foreground truncate">{att.name}</p>
+                    <p className="text-2xs text-muted-foreground">
                       {(att.size / 1024).toFixed(1)} KB
-                      {att.isExtracting && <span className="ml-1 text-accent"><Loader2 className="animate-spin inline" size={12} strokeWidth={1.75} /> {t('attach.extracting')}</span>}
-                      {att.numPages != null && <span className="ml-1 text-ink-muted">• {fmt(t('attach.pages'), { n: att.numPages })}</span>}
-                      {att.renderMode && <span className="ml-1 text-ink-muted">• {att.renderMode === 'full' ? t('attach.textVision') : t('attach.textOnly')}</span>}
+                      {att.isExtracting && <span className="ml-1 text-primary"><Loader2 className="animate-spin inline" size={12} strokeWidth={1.75} /> {t('attach.extracting')}</span>}
+                      {att.numPages != null && <span className="ml-1 text-muted-foreground">• {fmt(t('attach.pages'), { n: att.numPages })}</span>}
+                      {att.renderMode && <span className="ml-1 text-muted-foreground">• {att.renderMode === 'full' ? t('attach.textVision') : t('attach.textOnly')}</span>}
                     </p>
                     {/* Render mode toggle for PDFs with >10 pages */}
                     {att.type === 'application/pdf' && att.numPages != null && att.numPages > 10 && !att.isExtracting && (
                       <div className="mt-1 flex items-center gap-1.5">
-                        <span className="text-2xs text-amber-600">{fmt(t('attach.pagesWarning'), { n: att.numPages, tok: (att.numPages * 1500).toLocaleString() })}</span>
+                        <span className="text-2xs text-warning">{fmt(t('attach.pagesWarning'), { n: att.numPages, tok: (att.numPages * 1500).toLocaleString() })}</span>
                         <button
                           onClick={() => setAttachmentRenderMode(nodeId, att.id, att.renderMode === 'full' ? 'text-only' : 'full')}
                           className={`text-2xs px-2 py-0.5 rounded-lg transition-colors ${
                             att.renderMode === 'full'
-                              ? 'bg-accent/10 text-accent'
-                              : 'bg-line text-ink-muted'
+                              ? 'bg-primary/10 text-primary'
+                              : 'bg-border text-muted-foreground'
                           }`}
                         >
                           {att.renderMode === 'full' ? t('attach.switchTextOnly') : t('attach.enableVision')}
@@ -145,14 +145,14 @@ export default function AttachmentsSection({
                     <button
                       onClick={() => useUiStore.getState().setReaderNodeId(nodeId)}
                       title={t('attach.openReader')}
-                      className="text-ink-faint hover:text-accent transition-colors shrink-0"
+                      className="text-muted-foreground hover:text-primary transition-colors shrink-0"
                     >
                       <BookOpen size={14} strokeWidth={1.75} />
                     </button>
                   )}
                   {!isViewerMode && <button
                     onClick={() => removeAttachment(nodeId, att.id)}
-                    className="text-ink-faint hover:text-red-500 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
+                    className="text-muted-foreground hover:text-destructive/90 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
                   >
                     <X size={14} strokeWidth={1.75} />
                   </button>}
@@ -164,32 +164,32 @@ export default function AttachmentsSection({
           {/* Inherited attachments */}
           {inherited.length > 0 && (
             <div className="space-y-1.5">
-              <span className="text-2xs text-ink-faint font-medium">{t('attach.inheritedFrom')}</span>
+              <span className="text-2xs text-muted-foreground font-medium">{t('attach.inheritedFrom')}</span>
               {inherited.map(({ attachment: att, sourceNodeId, sourceQuestion, excludedByAncestor }) => {
                 const isExcludedSelf = excludeSet.has(att.id);
                 const includeSet = new Set(includedAttachmentIds);
                 const isOverridden = includeSet.has(att.id); // re-included despite ancestor exclusion
                 const isEffectivelyExcluded = isExcludedSelf || (excludedByAncestor && !isOverridden);
                 return (
-                  <div key={att.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-all ${isEffectivelyExcluded ? 'bg-red-50/50 opacity-50' : 'bg-wash'}`}>
+                  <div key={att.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-all ${isEffectivelyExcluded ? 'bg-destructive/10 opacity-50' : 'bg-muted'}`}>
                     {att.thumbnailUrl ? (
                       <img src={att.thumbnailUrl} className="w-8 h-8 rounded object-cover shrink-0" alt={att.name} />
                     ) : (
-                      <span className="w-8 h-8 rounded bg-line flex items-center justify-center text-xs text-ink-muted shrink-0"><FileText size={16} strokeWidth={1.75} /></span>
+                      <span className="w-8 h-8 rounded bg-border flex items-center justify-center text-xs text-muted-foreground shrink-0"><FileText size={16} strokeWidth={1.75} /></span>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className={`text-xs truncate ${isEffectivelyExcluded ? 'text-ink-faint line-through' : 'text-ink'}`}>{att.name}</p>
-                      <p className="text-2xs text-ink-faint truncate">
+                      <p className={`text-xs truncate ${isEffectivelyExcluded ? 'text-muted-foreground line-through' : 'text-foreground'}`}>{att.name}</p>
+                      <p className="text-2xs text-muted-foreground truncate">
                         ← {sourceQuestion.slice(0, 40)}{sourceQuestion.length > 40 ? '…' : ''}
-                        {excludedByAncestor && !isOverridden && !isExcludedSelf && <span className="ml-1 text-amber-500">• {t('attach.excludedUpstream')}</span>}
-                        {isOverridden && <span className="ml-1 text-green-500">• {t('attach.reIncluded')}</span>}
+                        {excludedByAncestor && !isOverridden && !isExcludedSelf && <span className="ml-1 text-warning">• {t('attach.excludedUpstream')}</span>}
+                        {isOverridden && <span className="ml-1 text-success">• {t('attach.reIncluded')}</span>}
                       </p>
                     </div>
                     {att.type === 'application/pdf' && (
                       <button
                         onClick={() => useUiStore.getState().setReaderNodeId(sourceNodeId)}
                         title={t('attach.openReader')}
-                        className="text-ink-faint hover:text-accent transition-colors shrink-0"
+                        className="text-muted-foreground hover:text-primary transition-colors shrink-0"
                       >
                         <BookOpen size={14} strokeWidth={1.75} />
                       </button>
@@ -198,10 +198,10 @@ export default function AttachmentsSection({
                       onClick={() => toggleExcludeAttachment(nodeId, att.id, excludedByAncestor)}
                       className={`text-xs px-2 py-1 rounded-lg transition-colors shrink-0 ${
                         isEffectivelyExcluded
-                          ? 'bg-red-100 text-red-500 hover:bg-red-200'
+                          ? 'bg-destructive/15 text-destructive hover:bg-destructive/30'
                           : isOverridden
-                          ? 'bg-green-100 text-green-600 hover:bg-green-200'
-                          : 'bg-line text-ink-muted hover:bg-accent/10 hover:text-accent'
+                          ? 'bg-success/15 text-success hover:bg-success/30'
+                          : 'bg-border text-muted-foreground hover:bg-primary/10 hover:text-primary'
                       }`}
                       title={excludedByAncestor && !isOverridden ? t('attach.titleExcludedUpstream') : isOverridden ? t('attach.titleReIncluded') : isExcludedSelf ? t('attach.titleInclude') : t('attach.titleExclude')}
                     >
@@ -214,7 +214,7 @@ export default function AttachmentsSection({
           )}
 
           {!hasContent && (
-            <p className="text-2xs text-ink-faint italic">{t('attach.empty')}</p>
+            <p className="text-2xs text-muted-foreground italic">{t('attach.empty')}</p>
           )}
         </div>
       </details>

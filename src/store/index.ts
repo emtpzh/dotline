@@ -65,7 +65,7 @@ export const useStore = create<StoreState>()(persist((...a) => ({
   merge: (persisted, current) => {
     const p = (persisted ?? { nodes: [], edges: [] }) as PersistedState;
     const nodes = stripTransient(p.nodes ?? []);
-    const edges = (p.edges ?? []).map((e) => (e.selected ? { ...e, selected: false } : e));
+    const edges = (p.edges ?? []).map((e) => e.selected ? { ...e, selected: false } : e);
     return {
       ...current,
       nodes,

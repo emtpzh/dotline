@@ -27,26 +27,26 @@ export default function AgentSessionLine({ data }: { data: ThoughtData }) {
   const short = cwd.split('/').filter(Boolean).slice(-2).join('/');
 
   return (
-    <div className="rounded-xl border border-line bg-card px-3 py-2 flex items-center gap-2 text-xs min-w-0" data-agent-session-line>
-      <span className="text-2xs font-medium text-ink-muted bg-wash rounded-md px-1.5 py-0.5 shrink-0">{RUNTIME_LABEL[runner] ?? runner}</span>
-      {data.agentSession?.effort && <span className="text-2xs font-mono text-ink-faint shrink-0" title={t('agent.effortTitle')} data-agent-session-effort>{data.agentSession.effort}</span>}
-      <FolderOpen size={13} strokeWidth={1.75} className="text-ink-faint shrink-0" />
-      <span className="font-mono text-ink-muted truncate flex-1 min-w-0" title={cwd} data-agent-session-cwd={cwd}>{short}</span>
-      {data.agentSession?.continued && <span className="text-2xs text-ink-faint shrink-0" title={t('agent.continuedTitle')}>↩ {t('agent.continued')}</span>}
+    <div className="rounded-xl border border-border bg-card px-3 py-2 flex items-center gap-2 text-xs min-w-0" data-agent-session-line>
+      <span className="text-2xs font-medium text-muted-foreground bg-muted rounded-md px-1.5 py-0.5 shrink-0">{RUNTIME_LABEL[runner] ?? runner}</span>
+      {data.agentSession?.effort && <span className="text-2xs font-mono text-muted-foreground shrink-0" title={t('agent.effortTitle')} data-agent-session-effort>{data.agentSession.effort}</span>}
+      <FolderOpen size={13} strokeWidth={1.75} className="text-muted-foreground shrink-0" />
+      <span className="font-mono text-muted-foreground truncate flex-1 min-w-0" title={cwd} data-agent-session-cwd={cwd}>{short}</span>
+      {data.agentSession?.continued && <span className="text-2xs text-muted-foreground shrink-0" title={t('agent.continuedTitle')}>↩ {t('agent.continued')}</span>}
       {window.desktopLocal && (
-        <button onClick={() => void window.desktopLocal!.open(cwd)} className="text-ink-faint hover:text-accent shrink-0" title={t('agent.openDir')}>
+        <button onClick={() => void window.desktopLocal!.open(cwd)} className="text-muted-foreground hover:text-primary shrink-0" title={t('agent.openDir')}>
           <FolderOpen size={14} strokeWidth={1.75} />
         </button>
       )}
       {sessionId && window.desktopSessions && (
-        <button onClick={() => void window.desktopSessions!.openInCli(runner, cwd, sessionId, 'terminal')} className="text-ink-faint hover:text-accent shrink-0" title={t('agent.openInTerminal')}>
+        <button onClick={() => void window.desktopSessions!.openInCli(runner, cwd, sessionId, 'terminal')} className="text-muted-foreground hover:text-primary shrink-0" title={t('agent.openInTerminal')}>
           <SquareTerminal size={14} strokeWidth={1.75} />
         </button>
       )}
       {canPin && (
         <button
           onClick={() => { void setProjectAgentCwd(activeId!, cwd).then(() => toast('success', t('agent.useAsCwdDone'), 4000)); }}
-          className="text-ink-faint hover:text-accent shrink-0"
+          className="text-muted-foreground hover:text-primary shrink-0"
           title={t('agent.useAsCwd')}
           data-agent-session-pin
         >

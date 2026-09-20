@@ -43,9 +43,9 @@ function Pre(props: React.HTMLAttributes<HTMLPreElement>) {
           setTimeout(() => setCopied(false), 1600);
         }}
         title={t('common.copyCode')}
-        className="absolute top-1.5 right-1.5 w-6 h-6 rounded-md bg-card/90 border border-line text-ink-faint hover:text-accent flex items-center justify-center opacity-0 group-hover/pre:opacity-100 transition-opacity nodrag nopan"
+        className="absolute top-1.5 right-1.5 w-6 h-6 rounded-md bg-card/90 border border-border text-muted-foreground hover:text-primary flex items-center justify-center opacity-0 group-hover/pre:opacity-100 transition-opacity nodrag nopan"
       >
-        {copied ? <Check size={12} strokeWidth={2} className="text-green-600" /> : <Copy size={12} strokeWidth={1.75} />}
+        {copied ? <Check size={12} strokeWidth={2} className="text-success" /> : <Copy size={12} strokeWidth={1.75} />}
       </button>
     </div>
   );
@@ -102,7 +102,7 @@ function LocalImage({ path, alt }: { path: string; alt?: string }) {
   }
   return (
     <span
-      className={`inline-flex items-center gap-1 text-xs border border-line rounded-md px-1.5 py-0.5 font-mono nopan cursor-pointer ${failed ? 'text-ink-faint' : 'text-ink-muted'}`}
+      className={`inline-flex items-center gap-1 text-xs border border-border rounded-md px-1.5 py-0.5 font-mono nopan cursor-pointer ${failed ? 'text-muted-foreground' : 'text-muted-foreground'}`}
       title={path}
       data-local-image={path}
       onClick={(e) => { e.stopPropagation(); void openLocalPath(path); }}
@@ -134,7 +134,7 @@ export const Markdown = memo(function Markdown({ children, base }: { children: s
   );
 });
 
-const MARK_OPEN = '<mark class="bg-amber-100 text-amber-800 px-0.5 rounded">';
+const MARK_OPEN = '<mark class="bg-warning/15 text-warning px-0.5 rounded">';
 
 // A match spanning list items / paragraphs / table cells cannot live in
 // ONE <mark>: an inline tag wrapped around "\n- item" breaks the block

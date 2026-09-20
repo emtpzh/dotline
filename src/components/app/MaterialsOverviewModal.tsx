@@ -74,49 +74,49 @@ export default function MaterialsOverviewModal({ onLocate }: { onLocate: (nodeId
     useUiStore.getState().setReaderNodeId(nodeId);
   };
 
-  const chip = 'shrink-0 text-2xs font-mono text-accent bg-accent/10 hover:bg-accent/20 rounded-full px-1.5 py-0.5 transition-colors';
+  const chip = 'shrink-0 text-2xs font-mono text-primary bg-primary/10 hover:bg-primary/20 rounded-full px-1.5 py-0.5 transition-colors';
   const sortBtn = (v: 'time' | 'node', label: string) => (
     <button
       onClick={() => setSort(v)}
-      className={`text-2xs px-2.5 py-1 rounded-full transition-colors ${sort === v ? 'bg-accent/10 text-accent' : 'text-ink-faint hover:bg-wash'}`}
+      className={`text-2xs px-2.5 py-1 rounded-full transition-colors ${sort === v ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent'}`}
     >
       {label}
     </button>
   );
 
   return createPortal((
-    <div className="fixed inset-0 z-[60] bg-ink/30 backdrop-blur-sm flex items-center justify-center p-6" onClick={close}>
-      <div className="bg-card rounded-2xl shadow-2xl border border-line w-[640px] max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2 px-5 py-3 border-b border-line shrink-0">
-          <Paperclip size={15} strokeWidth={1.75} className="text-warm" />
-          <span className="text-sm font-semibold text-ink">{t('matov.title')}</span>
-          <span className="text-2xs text-ink-faint">{fmt(t('matov.count'), { n: entries.length })}</span>
+    <div className="fixed inset-0 z-[60] bg-foreground/30 backdrop-blur-sm flex items-center justify-center p-6" onClick={close}>
+      <div className="bg-card rounded-2xl shadow-2xl border border-border w-[640px] max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 px-5 py-3 border-b border-border shrink-0">
+          <Paperclip size={15} strokeWidth={1.75} className="text-edge-explore" />
+          <span className="text-sm font-semibold text-foreground">{t('matov.title')}</span>
+          <span className="text-2xs text-muted-foreground">{fmt(t('matov.count'), { n: entries.length })}</span>
           <div className="flex-1" />
           {sortBtn('time', t('hlov.byTime'))}
           {sortBtn('node', t('hlov.byNode'))}
-          <button onClick={close} className="text-ink-faint hover:text-ink w-7 h-7 rounded-lg hover:bg-wash flex items-center justify-center transition-colors ml-1">
+          <button onClick={close} className="text-muted-foreground hover:text-foreground w-7 h-7 rounded-lg hover:bg-accent flex items-center justify-center transition-colors ml-1">
             <X size={15} strokeWidth={1.75} />
           </button>
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3">
-          {entries.length === 0 && <p className="text-xs text-ink-faint italic py-2">{t('matov.empty')}</p>}
+          {entries.length === 0 && <p className="text-xs text-muted-foreground italic py-2">{t('matov.empty')}</p>}
           {entries.map((e) => {
             const Icon = ICONS[e.icon];
             return (
               <div key={e.key}>
                 {e.showGroup && (
-                  <div className="text-2xs text-ink-faint font-medium mt-3 mb-1 first:mt-0 truncate">{e.nodeTitle}</div>
+                  <div className="text-2xs text-muted-foreground font-medium mt-3 mb-1 first:mt-0 truncate">{e.nodeTitle}</div>
                 )}
-                <div className="group flex items-center gap-2.5 py-1.5 border-b border-line/50 last:border-0">
+                <div className="group flex items-center gap-2.5 py-1.5 border-b border-border/50 last:border-0">
                   <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                    e.icon === 'note' ? 'bg-amber-100 text-amber-600' : e.icon === 'link' ? 'bg-cyan-100 text-cyan-700' : 'bg-wash text-ink-muted'
+                    e.icon === 'note' ? 'bg-warning/15 text-warning' : e.icon === 'link' ? 'bg-cyan-100 text-cyan-700' : 'bg-muted text-muted-foreground'
                   }`}>
                     <Icon size={14} strokeWidth={1.75} />
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-ink truncate">{e.name}</p>
-                    <p className="text-2xs text-ink-faint">
+                    <p className="text-sm text-foreground truncate">{e.name}</p>
+                    <p className="text-2xs text-muted-foreground">
                       {e.sizeKB != null ? `${e.sizeKB.toFixed(1)} KB` : t(`matov.kind.${e.icon}` as Parameters<typeof t>[0])}
                       {e.at ? ` · ${e.at.slice(0, 10)}` : ''}
                     </p>
@@ -135,7 +135,7 @@ export default function MaterialsOverviewModal({ onLocate }: { onLocate: (nodeId
                     <button
                       onClick={() => openReader(e.nodeId)}
                       title={t('attach.openReader')}
-                      className="w-7 h-7 rounded-lg text-ink-faint hover:text-accent hover:bg-wash flex items-center justify-center transition-colors shrink-0"
+                      className="w-7 h-7 rounded-lg text-muted-foreground hover:text-primary hover:bg-accent flex items-center justify-center transition-colors shrink-0"
                     >
                       <BookOpen size={14} strokeWidth={1.75} />
                     </button>

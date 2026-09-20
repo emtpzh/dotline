@@ -13,14 +13,14 @@ export default function ReasoningDisclosure({ text }: { text: string }) {
     <div className="mb-2 nopan">
       <button
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        className="flex items-center gap-1 text-2xs text-ink-faint hover:text-ink-muted transition-colors"
+        className="flex items-center gap-1 text-2xs text-muted-foreground hover:text-muted-foreground transition-colors"
         data-reasoning-toggle
       >
         {open ? <ChevronDown size={12} strokeWidth={1.75} /> : <ChevronRight size={12} strokeWidth={1.75} />}
         <span>💭 {t('node.reasoning')}</span>
       </button>
       {open && (
-        <div className="mt-1.5 px-3 py-2 bg-wash/70 rounded-xl text-xs text-ink-faint italic leading-relaxed whitespace-pre-wrap break-words max-h-[240px] overflow-y-auto nowheel nodrag cursor-text" data-reasoning-body>
+        <div className="mt-1.5 px-3 py-2 bg-muted/70 rounded-xl text-xs text-muted-foreground italic leading-relaxed whitespace-pre-wrap break-words max-h-[240px] overflow-y-auto nowheel nodrag cursor-text" data-reasoning-body>
           {text}
         </div>
       )}

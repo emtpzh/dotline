@@ -33,12 +33,12 @@ export default function SelectionToolbar() {
 
   return (
     <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 animate-fade-in">
-      <div className="bg-card/95 backdrop-blur border border-line rounded-xl px-4 py-3 shadow-lg space-y-2">
+      <div className="bg-card/95 backdrop-blur border border-border rounded-xl px-4 py-3 shadow-lg space-y-2">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <span className="text-sm text-ink-muted font-medium">
+          <span className="text-sm text-muted-foreground font-medium">
             {fmt(t('toolbar.nodesSelected'), { n: selectedNodeIds.length })}
-            <span className="text-xs text-ink-faint ml-1.5">
+            <span className="text-xs text-muted-foreground ml-1.5">
               ({fmt(t('toolbar.tokens'), { n: totalTokens })}{allHighlights.length > 0 ? fmt(t('toolbar.highlightCount'), { n: allHighlights.length }) : ''})
             </span>
           </span>
@@ -48,7 +48,7 @@ export default function SelectionToolbar() {
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => converge('merge')}
-            className={`${actionBtn} bg-blue-50 hover:bg-blue-100 text-blue-600`}
+            className={`${actionBtn} bg-primary/10 hover:bg-primary/15 text-primary`}
             title={t('toolbar.mergeSummaryTitle')}
           >
             <ClipboardList size={14} strokeWidth={1.75} className="inline" /> {t('toolbar.mergeSummary')}
@@ -57,7 +57,7 @@ export default function SelectionToolbar() {
           {allHighlights.length > 0 && (
             <button
               onClick={() => converge('weave')}
-              className={`${actionBtn} bg-amber-500/10 hover:bg-amber-500/20 text-amber-600`}
+              className={`${actionBtn} bg-warning/10 hover:bg-warning/20 text-warning`}
               title={t('toolbar.weaveTitle')}
             >
               <Highlighter size={14} strokeWidth={1.75} className="inline" /> {t('toolbar.weave')}
@@ -66,7 +66,7 @@ export default function SelectionToolbar() {
 
           <button
             onClick={() => converge('explore')}
-            className={`${actionBtn} bg-accent/10 hover:bg-accent/20 text-accent`}
+            className={`${actionBtn} bg-primary/10 hover:bg-primary/20 text-primary`}
             title={t('toolbar.exploreTitle')}
           >
             <GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('common.explore')}
@@ -76,7 +76,7 @@ export default function SelectionToolbar() {
               both languages (full label lives in the tooltip). */}
           <button
             onClick={() => { setArchived(selectedNodeIds, true); }}
-            className="bg-wash hover:bg-line text-ink-muted w-8 h-7 rounded-lg transition-colors flex items-center justify-center"
+            className="bg-muted hover:bg-border text-muted-foreground w-8 h-7 rounded-lg transition-colors flex items-center justify-center"
             title={`${t('archive.label')} — ${t('archive.batchTitle')}`}
           >
             <Archive size={14} strokeWidth={1.75} />
@@ -84,7 +84,7 @@ export default function SelectionToolbar() {
 
           <button
             onClick={() => duplicateSelection(selectedNodeIds)}
-            className="bg-wash hover:bg-line text-ink-muted w-8 h-7 rounded-lg transition-colors flex items-center justify-center"
+            className="bg-muted hover:bg-border text-muted-foreground w-8 h-7 rounded-lg transition-colors flex items-center justify-center"
             title={`${t('toolbar.duplicate')} — ${t('toolbar.duplicateTitle')}`}
           >
             <Copy size={14} strokeWidth={1.75} />
@@ -98,7 +98,7 @@ export default function SelectionToolbar() {
                 confirmLabel: t('common.confirmAlign'),
               }).then((ok) => { if (ok) alignSelection(selectedNodeIds); });
             }}
-            className="bg-wash hover:bg-line text-ink-muted w-8 h-7 rounded-lg transition-colors flex items-center justify-center"
+            className="bg-muted hover:bg-border text-muted-foreground w-8 h-7 rounded-lg transition-colors flex items-center justify-center"
             title={`${t('toolbar.align')} — ${t('confirm.alignTitle')}`}
           >
             <AlignVerticalJustifyStart size={14} strokeWidth={1.75} />
@@ -106,13 +106,13 @@ export default function SelectionToolbar() {
 
           <button
             onClick={() => downloadMarkdown(selectionMarkdown(selectedNodeIds))}
-            className="bg-wash hover:bg-line text-ink-muted w-8 h-7 rounded-lg transition-colors flex items-center justify-center"
+            className="bg-muted hover:bg-border text-muted-foreground w-8 h-7 rounded-lg transition-colors flex items-center justify-center"
             title={`${t('common.exportMd')} — ${t('toolbar.exportTitle')}`}
           >
             <FileDown size={14} strokeWidth={1.75} />
           </button>
 
-          <div className="w-px h-5 bg-line" />
+          <div className="w-px h-5 bg-border" />
 
           <button
             onClick={() => {
@@ -123,7 +123,7 @@ export default function SelectionToolbar() {
                 danger: true,
               }).then((ok) => { if (ok) batchDelete(selectedNodeIds); });
             }}
-            className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded-lg transition-colors"
+            className="text-xs bg-destructive/10 hover:bg-destructive/15 text-destructive px-3 py-1.5 rounded-lg transition-colors"
           >
             <Trash2 size={14} strokeWidth={1.75} className="inline" /> {t('toolbar.deleteAll')}
           </button>

@@ -150,12 +150,12 @@ export default function ResponseSection({
   return (
     <div className="panel-card px-4 py-3">
       <div className="flex items-center justify-between mb-1.5">
-        <label className="text-2xs font-semibold text-green-600">{t('panel.response')}</label>
+        <label className="text-2xs font-semibold text-success">{t('panel.response')}</label>
         {(data.response || data.isLoading) && (
           <button
             onClick={() => useUiStore.getState().setResponseViewerNodeId(nodeId)}
             title={t('panel.expandResponse')}
-            className="text-ink-faint hover:text-accent w-6 h-6 rounded-md hover:bg-wash flex items-center justify-center transition-colors"
+            className="text-muted-foreground hover:text-primary w-6 h-6 rounded-md hover:bg-accent flex items-center justify-center transition-colors"
             data-response-expand
           >
             <Maximize2 size={13} strokeWidth={1.75} />
@@ -170,20 +170,20 @@ export default function ResponseSection({
       ) : data.isLoading && (!data.response || data.restreaming) ? (
         data.reasoning ? (
           <div className="py-1">
-            <div className="text-2xs text-ink-faint mb-1">💭 {t('node.reasoningLive')}</div>
-            <div ref={streamRef} className="text-xs text-ink-faint italic leading-relaxed whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto">
+            <div className="text-2xs text-muted-foreground mb-1">💭 {t('node.reasoningLive')}</div>
+            <div ref={streamRef} className="text-xs text-muted-foreground italic leading-relaxed whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto">
               {data.reasoning.length > 4000 ? '…' + data.reasoning.slice(-4000) : data.reasoning}
             </div>
           </div>
         ) : (
-        <div className="flex items-center gap-2 text-sm text-ink-muted">
-          <span className="animate-pulse text-accent">●</span> {t('common.thinking')}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="animate-pulse text-primary">●</span> {t('common.thinking')}
         </div>
         )
       ) : data.isLoading && data.response && !data.restreaming ? (
-        <div ref={streamRef} className="markdown-body text-sm text-ink leading-relaxed max-h-[500px] overflow-y-auto py-1">
+        <div ref={streamRef} className="markdown-body text-sm text-foreground leading-relaxed max-h-[500px] overflow-y-auto py-1">
           <Markdown base={data.importSource?.cwd}>{data.response}</Markdown>
-          <span className="inline-block w-2 h-4 bg-accent animate-pulse rounded-sm ml-0.5 align-text-bottom" />
+          <span className="inline-block w-2 h-4 bg-primary animate-pulse rounded-sm ml-0.5 align-text-bottom" />
         </div>
       ) : data.isEditingResponse ? (
         <div>
@@ -191,14 +191,14 @@ export default function ResponseSection({
             value={editResponseValue}
             onChange={(e) => setEditResponseValue(e.target.value)}
             onKeyDown={handleResponseEditKeyDown}
-            className="w-full bg-wash border border-accent rounded-xl p-3 text-sm text-ink resize-y focus:outline-none focus:ring-2 focus:ring-accent/20 min-h-[150px]"
+            className="w-full bg-muted border border-primary rounded-xl p-3 text-sm text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-ring/20 min-h-[150px]"
             rows={10}
             autoFocus
           />
-          {isFactNode({ data }) && <p className="text-2xs text-ink-faint mt-1.5" data-fact-note>{t('fact.editResponseNote')}</p>}
+          {isFactNode({ data }) && <p className="text-2xs text-muted-foreground mt-1.5" data-fact-note>{t('fact.editResponseNote')}</p>}
           <div className="flex justify-end gap-2 mt-2">
-            <button onClick={() => setEditingResponse(nodeId, false)} className="text-xs text-ink-muted hover:text-ink px-3 py-1.5 rounded-lg hover:bg-wash transition-colors">{t('common.cancel')}</button>
-            <button onClick={handleResponseEditSubmit} className="text-xs bg-accent hover:bg-accent-strong text-white px-4 py-1.5 rounded-lg transition-colors">{t('common.save')}</button>
+            <button onClick={() => setEditingResponse(nodeId, false)} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-accent transition-colors">{t('common.cancel')}</button>
+            <button onClick={handleResponseEditSubmit} className="text-xs bg-primary hover:bg-primary/90 text-white px-4 py-1.5 rounded-lg transition-colors">{t('common.save')}</button>
           </div>
         </div>
       ) : (
@@ -207,7 +207,7 @@ export default function ResponseSection({
           {data.reasonings?.[data.responseIndex] && (
             <ReasoningDisclosure text={data.reasonings[data.responseIndex]!} />
           )}
-          <div className="markdown-body text-sm text-ink leading-relaxed cursor-text py-1" onClick={handleExploreMarkClick}>
+          <div className="markdown-body text-sm text-foreground leading-relaxed cursor-text py-1" onClick={handleExploreMarkClick}>
             {highlightedTexts.size > 0 || exploreSpecs.length > 0 ? (
               <HighlightedMarkdown content={data.response} highlights={highlightedTexts} exploreMarks={exploreSpecs} />
             ) : (
@@ -227,16 +227,16 @@ export default function ResponseSection({
               }}
               onMouseDown={(e) => e.preventDefault()}
             >
-              <div className="flex gap-1 bg-card border border-line rounded-xl shadow-lg p-1 animate-fade-in">
+              <div className="flex gap-1 bg-card border border-border rounded-xl shadow-lg p-1 animate-fade-in">
                 <button
                   onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleBranchFromSelection(); }}
-                  className="bg-accent hover:bg-accent-strong text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
+                  className="bg-primary hover:bg-primary/90 text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
                 >
                   <GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('common.explore')}
                 </button>
                 <button
                   onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleHighlight(); }}
-                  className="bg-amber-500 hover:bg-amber-400 text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
+                  className="bg-warning hover:bg-warning text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
                 >
                   <Star size={14} strokeWidth={1.75} className="inline" /> {t('common.highlight')}
                 </button>
@@ -250,17 +250,17 @@ export default function ResponseSection({
           under it (LLM-chat convention); the sibling-branch variant is in
           the header's ⋯ menu */}
       {data.response && !data.isLoading && !data.isEditingResponse && !data.generationFailed && (
-        <div className="mt-2 flex items-center gap-0.5 text-ink-faint">
+        <div className="mt-2 flex items-center gap-0.5 text-muted-foreground">
           {!isViewerMode && <button
             onClick={() => void rerunNode(nodeId, {})}
-            className="rounded-full w-7 h-7 flex items-center justify-center hover:text-accent hover:bg-wash transition-colors"
+            className="rounded-full w-7 h-7 flex items-center justify-center hover:text-primary hover:bg-accent transition-colors"
             title={t('common.regenerate')}
           >
             <RefreshCw size={15} strokeWidth={1.75} />
           </button>}
           <button
             onClick={() => void copyText(data.response)}
-            className="rounded-full w-7 h-7 flex items-center justify-center hover:text-accent hover:bg-wash transition-colors"
+            className="rounded-full w-7 h-7 flex items-center justify-center hover:text-primary hover:bg-accent transition-colors"
             title={t('actions.copyResponse')}
           >
             <Copy size={14} strokeWidth={1.75} />
@@ -268,7 +268,7 @@ export default function ResponseSection({
           {!isViewerMode && (
             <button
               onClick={startEditResponse}
-              className="rounded-full w-7 h-7 flex items-center justify-center hover:text-accent hover:bg-wash transition-colors"
+              className="rounded-full w-7 h-7 flex items-center justify-center hover:text-primary hover:bg-accent transition-colors"
               title={t('actions.editResponse')}
               data-edit-response
             >
@@ -277,20 +277,20 @@ export default function ResponseSection({
           )}
           {(data.generatedBy?.[data.responseIndex]) && (
             <span
-              className="text-2xs text-ink-faint font-mono ml-1 truncate flex-1 min-w-0 max-w-[420px]"
+              className="text-2xs text-muted-foreground font-mono ml-1 truncate flex-1 min-w-0 max-w-[420px]"
               title={`${t('node.generatedByTitle')} · ${describeModel(data.generatedBy[data.responseIndex], data.generatedEfforts?.[data.responseIndex])}`}
             >
               {describeModel(data.generatedBy[data.responseIndex], data.generatedEfforts?.[data.responseIndex])}
             </span>
           )}
           {hasMultipleVersions && (
-            <div className="flex items-center gap-1 text-xs text-ink-muted ml-1">
-              <button onClick={() => navigateVersion(nodeId, 'prev')} className="hover:text-accent hover:bg-wash rounded-full w-5 h-5 flex items-center justify-center transition-colors"><ChevronLeft size={14} strokeWidth={1.75} /></button>
-              <span className="text-accent font-medium">v{data.responseIndex + 1}/{data.responses.length}</span>
-              <button onClick={() => navigateVersion(nodeId, 'next')} className="hover:text-accent hover:bg-wash rounded-full w-5 h-5 flex items-center justify-center transition-colors"><ChevronRight size={14} strokeWidth={1.75} /></button>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground ml-1">
+              <button onClick={() => navigateVersion(nodeId, 'prev')} className="hover:text-primary hover:bg-accent rounded-full w-5 h-5 flex items-center justify-center transition-colors"><ChevronLeft size={14} strokeWidth={1.75} /></button>
+              <span className="text-primary font-medium">v{data.responseIndex + 1}/{data.responses.length}</span>
+              <button onClick={() => navigateVersion(nodeId, 'next')} className="hover:text-primary hover:bg-accent rounded-full w-5 h-5 flex items-center justify-center transition-colors"><ChevronRight size={14} strokeWidth={1.75} /></button>
               {!isViewerMode && <button
                 onClick={() => deleteVersion(nodeId, data.responseIndex)}
-                className="text-ink-faint hover:text-red-500 hover:bg-red-50 rounded-full w-5 h-5 flex items-center justify-center transition-colors"
+                className="text-muted-foreground hover:text-destructive/90 hover:bg-destructive/10 rounded-full w-5 h-5 flex items-center justify-center transition-colors"
                 title={t('common.deleteVersion')}
               >
                 <Trash2 size={13} strokeWidth={1.75} />
@@ -302,21 +302,21 @@ export default function ResponseSection({
 
       {/* Web references consulted for this response */}
       {data.references && data.references.length > 0 && !data.isLoading && (
-        <div className="mt-3 pt-2 border-t border-line/60">
-          <p className="text-2xs text-ink-faint font-medium mb-1.5">{t('refs.title')}</p>
+        <div className="mt-3 pt-2 border-t border-border/60">
+          <p className="text-2xs text-muted-foreground font-medium mb-1.5">{t('refs.title')}</p>
           <ol className="space-y-1">
             {data.references.map((r, i) => (
               <li key={i} className="flex items-start gap-2 text-xs leading-snug">
-                <span className="shrink-0 text-2xs text-ink-faint font-mono mt-0.5">[{i + 1}]</span>
+                <span className="shrink-0 text-2xs text-muted-foreground font-mono mt-0.5">[{i + 1}]</span>
                 {r.url ? (
-                  <a href={r.url} target="_blank" rel="noreferrer" className="text-accent hover:text-accent-strong hover:underline break-all">
+                  <a href={r.url} target="_blank" rel="noreferrer" className="text-primary hover:text-primary/90 hover:underline break-all">
                     {r.title}
                   </a>
                 ) : (
-                  <span className="text-ink-muted">{r.title}</span>
+                  <span className="text-muted-foreground">{r.title}</span>
                 )}
                 {(r.media || r.date) && (
-                  <span className="shrink-0 text-2xs text-ink-faint">{[r.media, r.date].filter(Boolean).join(' · ')}</span>
+                  <span className="shrink-0 text-2xs text-muted-foreground">{[r.media, r.date].filter(Boolean).join(' · ')}</span>
                 )}
               </li>
             ))}
@@ -326,12 +326,12 @@ export default function ResponseSection({
 
       {/* Failed generation: retry in place */}
       {data.generationFailed && !data.isLoading && (
-        <div className="mt-2 flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+        <div className="mt-2 flex items-center gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/15 rounded-lg px-3 py-2">
           <AlertTriangle size={14} strokeWidth={1.75} className="shrink-0" />
           {t('common.generationFailed')}
           {!isViewerMode && <button
             onClick={() => editQuestion(nodeId, data.question)}
-            className="ml-auto bg-card border border-red-200 hover:bg-red-100 text-red-600 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
+            className="ml-auto bg-card border border-destructive/30 hover:bg-destructive/15 text-destructive px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
           >
             <RefreshCw size={12} strokeWidth={1.75} /> {t('common.retry')}
           </button>}
