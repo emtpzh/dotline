@@ -20,11 +20,14 @@ export function useMentions(selfNodeId?: string) {
   const [mentions, setMentions] = useState<Mention[]>([]);
   const [query, setQuery] = useState<string | null>(null); // null = picker closed
   const anchorRef = useRef<HTMLTextAreaElement | null>(null);
+  // the same textarea as an element, for the picker to position against:
+  // a collision-aware popup has to read its anchor during render
+  const [anchor, setAnchor] = useState<HTMLTextAreaElement | null>(null);
   // The picker's keyboard handler, registered by MentionSurface — the host
   // textarea invokes it first and stops if it consumed the key.
   const keyHandlerRef = useRef<(e: React.KeyboardEvent) => boolean>(() => false);
 
-  const bindAnchor = useCallback((el: HTMLTextAreaElement | null) => { anchorRef.current = el; }, []);
+  const bindAnchor = useCallback((el: HTMLTextAreaElement | null) => { anchorRef.current = el; setAnchor(el); }, []);
   const setKeyHandler = useCallback((fn: (e: React.KeyboardEvent) => boolean) => { keyHandlerRef.current = fn; }, []);
   const invokeKey = useCallback((e: React.KeyboardEvent) => keyHandlerRef.current(e), []);
 
@@ -54,7 +57,7 @@ export function useMentions(selfNodeId?: string) {
     setTimeout(() => el?.focus(), 0);
   }, []);
 
-  return { mentions, query, track, close, remove, clear, pick, bindAnchor, setKeyHandler, invokeKey, selfNodeId };
+  return { mentions, query, track, close, remove, clear, pick, bindAnchor, anchor, setKeyHandler, invokeKey, selfNodeId };
 }
 
 export type MentionState = ReturnType<typeof useMentions>;

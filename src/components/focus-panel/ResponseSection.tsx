@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { describeModel } from '../../lib/use-models';
-import { AlertTriangle, ChevronLeft, ChevronRight, Copy, GitBranch, Maximize2, RefreshCw, Star, Trash2, Pencil } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, Copy, Maximize2, RefreshCw, Trash2, Pencil } from 'lucide-react';
 import { useStore } from '../../store';
 import { isFactNode } from '../../lib/facts';
 import { useUiStore } from '../../lib/ui-store';
@@ -16,6 +16,8 @@ import { AgentTrace } from '../app/AgentTrace';
 import type { ThoughtData } from '../../types';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
+import SelectionActions from '../app/SelectionActions';
+import { useTextSelection } from '../../lib/use-text-selection';
 
 export default function ResponseSection({
   nodeId,
@@ -64,9 +66,10 @@ export default function ResponseSection({
   };
 
   const [editResponseValue, setEditResponseValue] = useState('');
-  const [selectedText, setSelectedText] = useState('');
-  const [selectionPos, setSelectionPos] = useState<{ x: number; y: number } | null>(null);
   const responseRef = useRef<HTMLDivElement>(null);
+  // selection menu stages writes, so the shared viewer has none
+  const { text: selectedText, anchor: selectionAnchor, clear: clearSelection } =
+    useTextSelection(responseRef, !isViewerMode);
   const streamRef = useRef<HTMLDivElement>(null);
 
   // Follow the stream — but only while the reader is at the bottom. Scroll
@@ -79,39 +82,6 @@ export default function ResponseSection({
       el.scrollTop = el.scrollHeight;
     }
   }, [data.isLoading, data.response, data.reasoning]);
-
-  // Text selection handler
-  const handleTextSelection = useCallback((e: MouseEvent) => {
-    // Don't clear selection if clicking inside an input/textarea (branch input, etc.)
-    const target = e.target as HTMLElement;
-    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'BUTTON') {
-      return;
-    }
-
-    const selection = window.getSelection();
-    if (selection && selection.toString().trim().length > 0 && responseRef.current?.contains(selection.anchorNode)) {
-      const text = selection.toString().trim();
-      setSelectedText(text);
-      const range = selection.getRangeAt(0);
-      const rangeRect = range.getBoundingClientRect();
-      const panelRect = responseRef.current?.getBoundingClientRect();
-      if (panelRect) {
-        setSelectionPos({
-          x: rangeRect.left + rangeRect.width / 2 - panelRect.left,
-          y: rangeRect.top - panelRect.top - 48,
-        });
-      }
-    } else {
-      setSelectedText('');
-      setSelectionPos(null);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isViewerMode) return; // selection menu stages writes
-    document.addEventListener('mouseup', handleTextSelection);
-    return () => document.removeEventListener('mouseup', handleTextSelection);
-  }, [handleTextSelection]);
 
   // Button-triggered (see ThoughtNode): double-click stays a text gesture.
   const startEditResponse = () => {
@@ -128,19 +98,14 @@ export default function ResponseSection({
     if (e.key === 'Escape') setEditingResponse(nodeId, false);
   };
 
-  const handleHighlight = () => {
-    if (!selectedText) return;
-    addHighlight(nodeId, { id: generateId(), text: selectedText });
-    setSelectedText('');
-    setSelectionPos(null);
-    window.getSelection()?.removeAllRanges();
+  const handleHighlight = (text: string) => {
+    addHighlight(nodeId, { id: generateId(), text });
+    clearSelection();
   };
 
-  const handleBranchFromSelection = () => {
-    onExploreSelection(selectedText); // save before selection clears
-    setSelectedText('');
-    setSelectionPos(null);
-    window.getSelection()?.removeAllRanges();
+  const handleBranchFromSelection = (text: string) => {
+    onExploreSelection(text);
+    clearSelection();
   };
 
   // No response yet and nothing in flight (e.g. a fresh ask node or a
@@ -217,34 +182,13 @@ export default function ResponseSection({
             )}
           </div>
 
-          {/* Floating toolbar for text selection */}
-          {selectedText && selectionPos && (
-            <div
-              style={{
-                position: 'absolute',
-                left: Math.max(0, Math.min(selectionPos.x, 420)),
-                top: Math.max(-40, selectionPos.y),
-                transform: 'translateX(-50%)',
-                zIndex: 9999,
-              }}
-              onMouseDown={(e) => e.preventDefault()}
-            >
-              <div className="flex gap-1 bg-card border border-border rounded-xl shadow-lg p-1 animate-fade-in">
-                <Button size="sm"
-                  onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleBranchFromSelection(); }}
-                  className="whitespace-nowrap"
-                >
-                  <GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('common.explore')}
-                </Button>
-                <Button variant="ghost" size="sm"
-                  onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleHighlight(); }}
-                  className="bg-warning hover:bg-warning text-white text-xs whitespace-nowrap"
-                >
-                  <Star size={14} strokeWidth={1.75} className="inline" /> {t('common.highlight')}
-                </Button>
-              </div>
-            </div>
-          )}
+          {/* Select a passage → explore / highlight */}
+          <SelectionActions
+            text={selectedText}
+            anchor={selectionAnchor}
+            onExplore={handleBranchFromSelection}
+            onHighlight={handleHighlight}
+          />
         </div>
       )}
 

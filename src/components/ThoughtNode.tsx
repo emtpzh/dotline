@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { describeModel } from '../lib/use-models';
 import { toolFingerprint, turnComposition, footprint, conclusionOf } from '../lib/turn-insight';
 import { Handle, Position, useReactFlow, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
@@ -27,6 +27,8 @@ import MentionSurface from './app/NodeMention';
 import { useMentions } from '../lib/mentions';
 import { isViewerMode } from '../lib/viewer';
 import { Button } from './ui/button';
+import SelectionActions from './app/SelectionActions';
+import { useTextSelection } from '../lib/use-text-selection';
 import { Textarea } from './ui/textarea';
 
 export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
@@ -54,8 +56,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   const [fanoutOpen, setFanoutOpen] = useState(false);
   // fan-out placeholder shows its expand button until branches exist
   const hasFanoutChildren = useStore((s) => s.edges.some((e) => e.source === id && e.data?.isBranchFromSelection));
-  const [selectedText, setSelectedText] = useState('');
-  const [selectionPos, setSelectionPos] = useState<{ x: number; y: number } | null>(null);
+
   const inlineDraftKey = `inline:${id}`;
   const [inputValue, setInputValueState] = useState(() => useUiStore.getState().drafts[inlineDraftKey] ?? '');
   const mention = useMentions(id);
@@ -145,53 +146,26 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleTextSelection = useCallback(() => {
-    const selection = window.getSelection();
-    if (selection && selection.toString().trim().length > 0 && responseRef.current?.contains(selection.anchorNode)) {
-      const text = selection.toString().trim();
-      setSelectedText(text);
-      const range = selection.getRangeAt(0);
-      const rangeRect = range.getBoundingClientRect();
-      const nodeRect = nodeRef.current?.getBoundingClientRect();
-      if (nodeRect) {
-        setSelectionPos({
-          x: rangeRect.left + rangeRect.width / 2 - nodeRect.left,
-          y: rangeRect.top - nodeRect.top - 48,
-        });
-      }
-    } else {
-      setSelectedText('');
-      setSelectionPos(null);
-    }
-  }, []);
+  // no selection menu in the viewer (branch/highlight are writes)
+  const { text: selectedText, anchor: selectionAnchor, clear: clearSelection } =
+    useTextSelection(responseRef, !isViewerMode);
 
-  useEffect(() => {
-    if (isViewerMode) return; // no selection menu (branch/highlight are writes)
-    document.addEventListener('mouseup', handleTextSelection);
-    return () => document.removeEventListener('mouseup', handleTextSelection);
-  }, [handleTextSelection]);
-
-  const handleBranch = () => {
-    setBranchFromText(selectedText);
-    const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0 && nodeRef.current) {
-      const range = selection.getRangeAt(0);
-      const selRect = range.getBoundingClientRect();
+  const handleBranch = (text: string) => {
+    setBranchFromText(text);
+    // the branch leaves the card at the height of the passage it came from
+    const rect = selectionAnchor?.getBoundingClientRect();
+    if (rect && nodeRef.current) {
       const nodeRect = nodeRef.current.getBoundingClientRect();
-      const ratio = Math.max(0.1, Math.min(0.9, (selRect.top + selRect.height / 2 - nodeRect.top) / nodeRect.height));
+      const ratio = Math.max(0.1, Math.min(0.9, (rect.top + rect.height / 2 - nodeRect.top) / nodeRect.height));
       setBranchYRatio(ratio);
     }
     setInputValue('');
-    setSelectedText('');
-    setSelectionPos(null);
+    clearSelection();
   };
 
-  const handleHighlight = () => {
-    if (!selectedText) return;
-    addHighlight(id, { id: generateId(), text: selectedText });
-    setSelectedText('');
-    setSelectionPos(null);
-    window.getSelection()?.removeAllRanges();
+  const handleHighlight = (text: string) => {
+    addHighlight(id, { id: generateId(), text });
+    clearSelection();
   };
 
   const handleSubmitBranch = () => {
@@ -205,8 +179,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
     mention.clear();
     setInputValue('');
     setBranchFromText('');
-    setSelectedText('');
-    setSelectionPos(null);
+    clearSelection();
   };
 
   const handleDoubleClickQuestion = (e: React.MouseEvent) => {
@@ -1036,34 +1009,13 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
         style={glyphTier ? { top: '50%', left: 'calc(50% + 56px)', right: 'auto' } : { top: '50%' }}
       />
 
-      {/* Floating toolbar for text selection */}
-      {selectedText && selectionPos && (
-        <div
-          style={{
-            position: 'absolute',
-            left: Math.max(0, Math.min(selectionPos.x, 400)),
-            top: Math.max(-40, selectionPos.y),
-            transform: 'translateX(-50%)',
-            zIndex: 9999,
-          }}
-          onMouseDown={(e) => e.preventDefault()}
-        >
-          <div className="flex gap-1 bg-card border border-border rounded-xl shadow-lg p-1 animate-fade-in">
-            <Button size="sm"
-              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleBranch(); }}
-              className="whitespace-nowrap"
-            >
-              <GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('common.explore')}
-            </Button>
-            <Button variant="ghost" size="sm"
-              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleHighlight(); }}
-              className="bg-warning hover:bg-warning text-white text-xs whitespace-nowrap"
-            >
-              <Star size={14} strokeWidth={1.75} className="inline" /> {t('common.highlight')}
-            </Button>
-          </div>
-        </div>
-      )}
+      {/* Select a passage → explore / highlight */}
+      <SelectionActions
+        text={selectedText}
+        anchor={selectionAnchor}
+        onExplore={handleBranch}
+        onHighlight={handleHighlight}
+      />
     </div>
   );
 }

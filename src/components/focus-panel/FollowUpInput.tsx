@@ -12,6 +12,7 @@ import { useT, fmt } from '../../i18n';
 import MentionSurface from '../app/NodeMention';
 import { useMentions } from '../../lib/mentions';
 import { Button } from '../ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 
 const ROLE_STYLES: Record<string, string> = {
   system: 'bg-primary/10 text-primary',
@@ -115,9 +116,18 @@ export default function FollowUpInput({
 
   return (
     <div className="relative shrink-0 px-3 pb-3 pt-1">
-      {/* Context preview popover */}
-      {previewOpen && (
-        <div className="absolute bottom-full left-3 right-3 mb-1.5 bg-card border border-border rounded-xl shadow-lg max-h-72 overflow-y-auto py-1.5 animate-fade-in z-30">
+      <div className="panel-card px-3.5 pt-2 pb-2.5">
+      {/* Context summary line — opens what will actually be sent */}
+      <Popover open={previewOpen} onOpenChange={setPreviewOpen}>
+        <PopoverTrigger
+          render={
+            <Button variant="ghost" size="xs" className="text-2xs text-muted-foreground hover:text-muted-foreground mb-1.5" title={t('followup.previewTitle')} />
+          }
+        >
+          <ChevronUp size={12} strokeWidth={1.75} className={`transition-transform ${previewOpen ? 'rotate-180' : ''}`} />
+          {fmt(t('followup.willSend'), { n: preview.totalTokens, m: preview.items.length })}{preview.fileCount > 0 ? fmt(t('followup.files'), { k: preview.fileCount }) : ''}
+        </PopoverTrigger>
+        <PopoverContent side="top" align="start" className="w-[22rem] max-w-[90vw] max-h-72 overflow-y-auto gap-0 p-0 py-1.5">
           <div className="px-3 py-1.5 border-b border-border">
             <span className="text-2xs text-muted-foreground font-medium">{t('followup.contextTitle')}</span>
             <span className={`text-2xs ml-2 ${preview.backgroundHeavy ? 'text-warning' : 'text-muted-foreground'}`}>
@@ -140,19 +150,8 @@ export default function FollowUpInput({
               </div>
             ))
           )}
-        </div>
-      )}
-
-      <div className="panel-card px-3.5 pt-2 pb-2.5">
-      {/* Context summary line */}
-      <Button variant="ghost" size="xs"
-        onClick={() => setPreviewOpen((v) => !v)}
-        className="text-2xs text-muted-foreground hover:text-muted-foreground mb-1.5"
-        title={t('followup.previewTitle')}
-      >
-        <ChevronUp size={12} strokeWidth={1.75} className={`transition-transform ${previewOpen ? 'rotate-180' : ''}`} />
-        {fmt(t('followup.willSend'), { n: preview.totalTokens, m: preview.items.length })}{preview.fileCount > 0 ? fmt(t('followup.files'), { k: preview.fileCount }) : ''}
-      </Button>
+        </PopoverContent>
+      </Popover>
 
       {/* Selected text staged as branch context — submit explores from it */}
       {branchContext && (

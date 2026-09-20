@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, Cpu, KeyRound, RefreshCw, Info, Loader2 } from 'lucide-react';
+import { ChevronDown, Cpu, KeyRound, RefreshCw, Info, Loader2 } from 'lucide-react';
 import { toast, useUiStore } from '../../lib/ui-store';
 import { useModels, setModelsCache, ensureAgentsFresh, type ModelInfo } from '../../lib/use-models';
 import { AGENT_PROVIDER, isAgentModel } from '../../lib/agents/agent-runtime';
@@ -7,6 +7,7 @@ import { refreshStoredProviders, pushProviders, storedProviders } from '../../li
 import { fmt } from '../../i18n';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
 
 // same reason as CondenseDialog: "" reads as unset to the select
 const RUNTIME_DEFAULT = '__default__';
@@ -134,62 +135,70 @@ export default function ModelPicker({ value, onChange, effort, onEffortChange, h
 
       {/* Both placements drop DOWN: the compact picker lives in the panel
           header now (an upward menu would fly off the viewport top) */}
-      <PopoverContent align="end" sideOffset={6} className="w-64 max-h-[60vh] overflow-y-auto gap-0 p-0 py-1.5">
-          {providers.map((provider) => (
-            <div key={provider}>
-              <p className="text-2xs text-muted-foreground uppercase tracking-wider font-medium px-3 pt-2 pb-1 flex items-center gap-1.5" title={provider === AGENT_PROVIDER ? t('model.agentGroupHint') : undefined}>
-                {provider === AGENT_PROVIDER ? t('model.agentGroup') : provider}
-                {provider === AGENT_PROVIDER && <Info size={11} strokeWidth={1.75} className="text-muted-foreground/70" data-agent-group-hint />}
-                {provider === AGENT_PROVIDER && data?.agentsPending && <Loader2 size={11} className="animate-spin text-muted-foreground" data-agent-group-pending />}
-              </p>
-              {provider === AGENT_PROVIDER && data?.agentsPending && models.filter((m) => m.provider === AGENT_PROVIDER).length === 0 && (
-                <p className="text-2xs text-muted-foreground px-3 pb-1.5">{t('model.agentGroupLoading')}</p>
-              )}
-              {models.filter((m) => m.provider === provider).map((m) => (
-                <div key={m.id}>
-                <Button variant="ghost"
-                  onClick={() => pick(m.id)}
-                  className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors hover:bg-accent ${
-                    m.id === activeId ? 'text-primary font-medium' : 'text-foreground'
-                  }`}
+      <PopoverContent align="end" sideOffset={6} className="w-64 max-h-[70vh] overflow-y-auto gap-0 p-0">
+        <Command className="bg-transparent">
+          {/* past a handful of models, naming one beats scrolling for it */}
+          {models.length > 7 && <CommandInput placeholder={t('model.search')} />}
+          <CommandList className="max-h-[46vh]">
+            <CommandEmpty>{t('model.noMatch')}</CommandEmpty>
+            {providers.map((provider) => (
+              <CommandGroup
+                key={provider}
+                heading={
+                  <span className="flex items-center gap-1.5" title={provider === AGENT_PROVIDER ? t('model.agentGroupHint') : undefined}>
+                    {provider === AGENT_PROVIDER ? t('model.agentGroup') : provider}
+                    {provider === AGENT_PROVIDER && <Info size={11} strokeWidth={1.75} className="text-muted-foreground/70" data-agent-group-hint />}
+                    {provider === AGENT_PROVIDER && data?.agentsPending && <Loader2 size={11} className="animate-spin text-muted-foreground" data-agent-group-pending />}
+                  </span>
+                }
+              >
+                {provider === AGENT_PROVIDER && data?.agentsPending && models.filter((m) => m.provider === AGENT_PROVIDER).length === 0 && (
+                  <p className="text-2xs text-muted-foreground px-2 pb-1.5">{t('model.agentGroupLoading')}</p>
+                )}
+                {models.filter((m) => m.provider === provider).map((m) => (
+                  <div key={m.id}>
+                    <CommandItem
+                      value={`${m.name} ${m.id}`}
+                      onSelect={() => pick(m.id)}
+                      data-checked={m.id === activeId}
+                      className={m.id === activeId ? 'text-primary font-medium' : ''}
+                    >
+                      <span className="truncate flex-1">{m.name.replace(` (${m.provider})`, '')}</span>
+                      {m.vision && <span className="text-2xs text-muted-foreground shrink-0">{t('model.vision')}</span>}
+                    </CommandItem>
+                    {effortStepFor === m.id && <EffortStep model={m} {...(nodeMode ? { level: effort ?? '', onChange: onEffortChange } : {})} onDone={() => { setEffortStepFor(null); setOpen(false); }} />}
+                  </div>
+                ))}
+              </CommandGroup>
+            ))}
+            {!nodeMode && (
+              <CommandGroup>
+                <CommandItem
+                  onSelect={() => { setOpen(false); useUiStore.getState().setApiKeyModalOpen(true); }}
+                  className={models.length === 0 ? 'text-primary font-medium' : 'text-muted-foreground'}
+                  data-picker-apikey
                 >
-                  <span className="truncate flex-1">{m.name.replace(` (${m.provider})`, '')}</span>
-                  {m.vision && <span className="text-2xs text-muted-foreground shrink-0">{t('model.vision')}</span>}
-                  {m.id === activeId && <Check size={13} strokeWidth={2} className="shrink-0" />}
-                </Button>
-                {effortStepFor === m.id && <EffortStep model={m} {...(nodeMode ? { level: effort ?? '', onChange: onEffortChange } : {})} onDone={() => { setEffortStepFor(null); setOpen(false); }} />}
-              </div>
-              ))}
-            </div>
-          ))}
-          {!nodeMode && (
-            <div className="flex items-center pr-1">
-            <Button variant="ghost"
-              onClick={() => { setOpen(false); useUiStore.getState().setApiKeyModalOpen(true); }}
-              className={`flex-1 text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors hover:bg-accent ${
-                models.length === 0 ? 'text-primary font-medium' : 'text-muted-foreground'
-              }`}
-              data-picker-apikey
-            >
-              <KeyRound size={13} strokeWidth={1.75} className="shrink-0" /> {t('apikey.entryTitle')}
-            </Button>
-            <Button variant="ghost" size="icon-sm"
-              onClick={() => {
-                setRefreshing(true);
-                void refreshStoredProviders()
-                  .then((d) => { if (d) setModelsCache(d); })
-                  .finally(() => setRefreshing(false));
-              }}
-              disabled={refreshing}
-              title={t('model.refreshList')}
-              className="text-muted-foreground hover:text-primary hover:bg-accent shrink-0"
-              data-model-refresh
-            >
-              <RefreshCw size={12} strokeWidth={1.75} className={refreshing ? 'animate-spin' : ''} />
-            </Button>
-            </div>
-          )}
-          {!nodeMode && <GlobalCapabilities />}
+                  <KeyRound size={13} strokeWidth={1.75} /> {t('apikey.entryTitle')}
+                </CommandItem>
+                <CommandItem
+                  onSelect={() => {
+                    setRefreshing(true);
+                    void refreshStoredProviders()
+                      .then((d) => { if (d) setModelsCache(d); })
+                      .finally(() => setRefreshing(false));
+                  }}
+                  disabled={refreshing}
+                  title={t('model.refreshList')}
+                  className="text-muted-foreground"
+                  data-model-refresh
+                >
+                  <RefreshCw size={12} strokeWidth={1.75} className={refreshing ? 'animate-spin' : ''} /> {t('model.refresh')}
+                </CommandItem>
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+        {!nodeMode && <GlobalCapabilities />}
       </PopoverContent>
       </Popover>
     </div>

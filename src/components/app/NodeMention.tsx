@@ -4,6 +4,7 @@ import { useStore } from '../../store';
 import { useT } from '../../i18n';
 import { nodeMentionTitle, type MentionState } from '../../lib/mentions';
 import { Button } from '../ui/button';
+import { Popover, PopoverContent } from '../ui/popover';
 
 /** The @-picker (rendered right above the textarea) plus the attached
     chips row. Keyboard handling registers back into the mention state so
@@ -42,8 +43,20 @@ export default function MentionSurface({ m, text, setText }: {
 
   return (
     <>
-      {m.query !== null && candidates.length > 0 && (
-        <div className="absolute bottom-full mb-1.5 left-0 right-0 z-30 bg-card border border-border rounded-xl shadow-lg py-1 max-h-[220px] overflow-y-auto animate-fade-in nodrag nopan">
+      {/* Anchored to the textarea and portaled: an ask box sits at the foot
+          of a card or a panel that clips its own overflow, and the picker
+          has to stand outside that box. The textarea keeps the keyboard. */}
+      <Popover open={m.query !== null && candidates.length > 0 && !!m.anchor}>
+        <PopoverContent
+          anchor={m.anchor}
+          side="top"
+          align="start"
+          sideOffset={6}
+          initialFocus={false}
+          finalFocus={false}
+          className="w-[var(--anchor-width)] max-h-[220px] overflow-y-auto gap-0 p-0 py-1 nodrag nopan"
+          onMouseDown={(e) => e.preventDefault()}
+        >
           <div className="px-3 py-1 text-2xs text-muted-foreground flex items-center gap-1">
             <AtSign size={11} strokeWidth={1.75} /> {t('mention.hint')}
           </div>
@@ -58,8 +71,8 @@ export default function MentionSurface({ m, text, setText }: {
               {n.data.stepKind && <span className="text-2xs text-muted-foreground shrink-0">{n.data.stepKind}</span>}
             </Button>
           ))}
-        </div>
-      )}
+        </PopoverContent>
+      </Popover>
       {m.mentions.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-1.5">
           {m.mentions.map((x) => (

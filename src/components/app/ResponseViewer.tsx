@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { GitBranch, Loader2, Send, Star, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { GitBranch, Loader2, Send, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { useUiStore } from '../../lib/ui-store';
 import { Markdown, HighlightedMarkdown } from '../Markdown';
@@ -10,6 +10,8 @@ import { useT } from '../../i18n';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
+import SelectionActions from './SelectionActions';
+import { useTextSelection } from '../../lib/use-text-selection';
 
 // The answer, reading-size: the same reading loop the PDF reader gives
 // external material, for the model's own text — select to highlight or to
@@ -25,12 +27,14 @@ export default function ResponseViewer() {
   const close = () => useUiStore.getState().setResponseViewerNodeId(null);
 
   const bodyRef = useRef<HTMLDivElement>(null);
-  const shellRef = useRef<HTMLDivElement>(null);
+  // the reading pane as an element (not a ref): the selection bar is kept
+  // inside it, and a collision boundary has to be read during render
+  const [readingPane, setReadingPane] = useState<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [selectedText, setSelectedText] = useState('');
-  const [selectionPos, setSelectionPos] = useState<{ x: number; y: number } | null>(null);
   const [branchFrom, setBranchFrom] = useState('');
   const [input, setInput] = useState('');
+  const { text: selectedText, anchor: selectionAnchor, clear: clearSelection, reset: resetSelection } =
+    useTextSelection(bodyRef, !!nodeId && !isViewerMode);
 
   useEffect(() => {
     if (!nodeId) return;
@@ -41,37 +45,11 @@ export default function ResponseViewer() {
     return () => window.removeEventListener('keydown', handler, true);
   }, [nodeId]);
 
-  // Same selection bar as the card and the panel: select → highlight / branch
-  const handleTextSelection = useCallback(() => {
-    const selection = window.getSelection();
-    if (selection && selection.toString().trim().length > 0 && bodyRef.current?.contains(selection.anchorNode)) {
-      const text = selection.toString().trim();
-      setSelectedText(text);
-      const rangeRect = selection.getRangeAt(0).getBoundingClientRect();
-      const shellRect = shellRef.current?.getBoundingClientRect();
-      if (shellRect) {
-        setSelectionPos({
-          x: Math.max(70, Math.min(rangeRect.left + rangeRect.width / 2 - shellRect.left, shellRect.width - 70)),
-          y: Math.max(8, rangeRect.top - shellRect.top - 46),
-        });
-      }
-    } else {
-      setSelectedText('');
-      setSelectionPos(null);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!nodeId || isViewerMode) return;
-    document.addEventListener('mouseup', handleTextSelection);
-    return () => document.removeEventListener('mouseup', handleTextSelection);
-  }, [nodeId, handleTextSelection]);
-
   // Reset staged input when the viewer swaps nodes (render-time adjust)
   const [prevNodeId, setPrevNodeId] = useState(nodeId);
   if (prevNodeId !== nodeId) {
     setPrevNodeId(nodeId);
-    setBranchFrom(''); setInput(''); setSelectedText(''); setSelectionPos(null);
+    setBranchFrom(''); setInput(''); resetSelection();
   }
 
   if (!nodeId || !node) return null;
@@ -79,19 +57,14 @@ export default function ResponseViewer() {
   const reasoning = data.reasonings?.[data.responseIndex];
   const canInteract = !isViewerMode && !data.stepKind;
 
-  const highlightSelection = () => {
-    if (!selectedText) return;
-    useStore.getState().addHighlight(nodeId, { id: generateId(), text: selectedText });
-    setSelectedText('');
-    setSelectionPos(null);
-    window.getSelection()?.removeAllRanges();
+  const highlightSelection = (text: string) => {
+    useStore.getState().addHighlight(nodeId, { id: generateId(), text });
+    clearSelection();
   };
 
-  const branchFromSelection = () => {
-    setBranchFrom(selectedText);
-    setSelectedText('');
-    setSelectionPos(null);
-    window.getSelection()?.removeAllRanges();
+  const branchFromSelection = (text: string) => {
+    setBranchFrom(text);
+    clearSelection();
     setTimeout(() => inputRef.current?.focus(), 60);
   };
 
@@ -114,7 +87,6 @@ export default function ResponseViewer() {
   return (
     <Dialog open={!!node} onOpenChange={(next) => { if (!next) close(); }}>
       <DialogContent
-        ref={shellRef}
         size="full"
         className="p-0 gap-0 h-[92vh] flex flex-col overflow-hidden"
         data-response-viewer
@@ -122,7 +94,7 @@ export default function ResponseViewer() {
         <DialogHeader className="px-6 py-4 pr-14 border-b bg-card shrink-0">
           <DialogTitle className="line-clamp-2 leading-snug">{data.question}</DialogTitle>
         </DialogHeader>
-        <div className="flex-1 min-h-0 overflow-y-auto px-8 py-6">
+        <div className="flex-1 min-h-0 overflow-y-auto px-8 py-6" ref={setReadingPane}>
           <div className="max-w-[760px] mx-auto" ref={bodyRef}>
             {reasoning && <ReasoningDisclosure text={reasoning} />}
             {data.isLoading && (!data.response || data.restreaming) ? (
@@ -150,25 +122,14 @@ export default function ResponseViewer() {
         </div>
 
         {/* Selection bar: the card's grammar, in reading size */}
-        {canInteract && selectedText && selectionPos && (
-          <div
-            className="absolute z-10 flex gap-1 bg-card border border-border rounded-xl shadow-lg p-1 animate-fade-in"
-            style={{ left: selectionPos.x, top: selectionPos.y, transform: 'translateX(-50%)' }}
-            onMouseDown={(e) => e.preventDefault()}
-          >
-            <Button size="sm"
-              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); branchFromSelection(); }}
-              className="whitespace-nowrap"
-            >
-              <GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('common.explore')}
-            </Button>
-            <Button variant="ghost" size="sm"
-              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); highlightSelection(); }}
-              className="bg-warning hover:bg-warning text-white text-xs whitespace-nowrap"
-            >
-              <Star size={14} strokeWidth={1.75} className="inline" /> {t('common.highlight')}
-            </Button>
-          </div>
+        {canInteract && (
+          <SelectionActions
+            text={selectedText}
+            anchor={selectionAnchor}
+            onExplore={branchFromSelection}
+            onHighlight={highlightSelection}
+            boundary={readingPane}
+          />
         )}
 
         {/* Follow-up right where you read — the answer streams back into

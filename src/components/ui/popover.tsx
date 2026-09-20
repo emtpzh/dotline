@@ -17,13 +17,15 @@ function PopoverContent({
   side = "bottom",
   sideOffset = 4,
   anchor,
+  collisionBoundary,
   ...props
 }: PopoverPrimitive.Popup.Props &
   Pick<
     PopoverPrimitive.Positioner.Props,
     // `anchor` is for a popover whose opener is not a PopoverTrigger — a
-    // toolbar button that is rendered conditionally, say
-    "align" | "alignOffset" | "side" | "sideOffset" | "anchor"
+    // toolbar button that is rendered conditionally, say; `collisionBoundary`
+    // keeps such a popover inside its own scroll box instead of the viewport
+    "align" | "alignOffset" | "side" | "sideOffset" | "anchor" | "collisionBoundary"
   >) {
   return (
     <PopoverPrimitive.Portal>
@@ -33,6 +35,7 @@ function PopoverContent({
         side={side}
         sideOffset={sideOffset}
         anchor={anchor}
+        collisionBoundary={collisionBoundary}
         className="isolate z-50"
       >
         <PopoverPrimitive.Popup
