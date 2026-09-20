@@ -5,6 +5,7 @@ import { useUiStore } from '../../lib/ui-store';
 import { appVersion } from '../../lib/app-version';
 import { announcedSince, type WhatsNewEntry, type WhatsNewItem } from '../../whats-new';
 import type { Lang } from '../../i18n';
+import { Button } from '../ui/button';
 
 // On the first launch after an update: what changed since the version this
 // person last read about, newest release first, each with a door to read
@@ -105,20 +106,18 @@ export default function WhatsNewDialog() {
           ))}
         </ol>
         <div className="sticky bottom-0 bg-card px-6 py-4 border-t border-border flex items-center justify-between gap-4">
-          <button
+          <Button variant="ghost" size="sm"
             onClick={() => { close(); useUiStore.getState().setReleaseNotesOpen(true); }}
-            className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
+            className="text-xs text-muted-foreground hover:text-foreground hover:underline"
             data-whats-new-all
           >
             {t('whatsNew.seeAll')}
-          </button>
-          <button
+          </Button>
+          <Button size="sm"
             ref={okRef}
-            onClick={close}
-            className="text-xs text-white px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 transition-colors"
-          >
+            onClick={close}>
             {t('whatsNew.ok')}
-          </button>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

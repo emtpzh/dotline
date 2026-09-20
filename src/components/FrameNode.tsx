@@ -7,6 +7,7 @@ import { isImeComposing } from '../utils';
 import { FRAME_COLORS } from '../lib/constants';
 import { useT } from '../i18n';
 import { isViewerMode } from '../lib/viewer';
+import { Button } from './ui/button';
 
 // Frame: a labeled background region — THE spatial annotation. No handles
 // (it can never be wired, so it can never touch context), ignored by
@@ -84,7 +85,7 @@ export default function FrameNode({ id, data, selected }: NodeProps<ThoughtNodeT
         )}
         {/* Carry toggle — always visible: it changes what dragging does, and
             dragging doesn't require selecting first */}
-        {!isViewerMode && <button
+        {!isViewerMode && <Button variant="ghost"
           onClick={(e) => { e.stopPropagation(); useStore.getState().pushHistory(); patch({ frameCarry: !carry }); }}
           title={carry ? t('frame.carryOn') : t('frame.carryOff')}
           className={`rounded-full w-6 h-6 flex items-center justify-center transition-colors shrink-0 nodrag ${
@@ -92,7 +93,7 @@ export default function FrameNode({ id, data, selected }: NodeProps<ThoughtNodeT
           }`}
         >
           {carry ? <Link2 size={13} strokeWidth={1.75} /> : <Link2Off size={13} strokeWidth={1.75} />}
-        </button>}
+        </Button>}
         {selected && !isViewerMode && (
           <>
             {/* fixed palette — color is wayfinding, not decoration; hidden on
@@ -101,7 +102,7 @@ export default function FrameNode({ id, data, selected }: NodeProps<ThoughtNodeT
             {barScale <= 2.5 && (
               <div className="flex items-center gap-1 shrink-0 nodrag">
                 {Object.entries(FRAME_COLORS).map(([name, c]) => (
-                  <button
+                  <Button variant="ghost"
                     key={name}
                     onClick={(e) => { e.stopPropagation(); patch({ frameColor: name }); }}
                     className={`w-3.5 h-3.5 rounded-full ${c.dot} transition-transform hover:scale-125 ${
@@ -111,12 +112,12 @@ export default function FrameNode({ id, data, selected }: NodeProps<ThoughtNodeT
                 ))}
               </div>
             )}
-            <button
+            <Button variant="ghost" size="icon-sm"
               onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
-              className="text-muted-foreground hover:text-destructive/90 rounded-full w-6 h-6 flex items-center justify-center transition-colors shrink-0 nodrag"
+              className="text-muted-foreground hover:text-destructive/90 shrink-0 nodrag"
             >
               <Trash2 size={13} strokeWidth={1.75} />
-            </button>
+            </Button>
           </>
         )}
       </div>

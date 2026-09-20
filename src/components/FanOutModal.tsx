@@ -5,6 +5,8 @@ import { effectiveRoles } from '../lib/role-templates';
 import { useUiStore } from '../lib/ui-store';
 import { useI18n, useT, fmt } from '../i18n';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
+import { Button } from './ui/button';
+import { Textarea } from './ui/textarea';
 
 // Perspectives dialog: N roles, ONE mechanism, two run policies.
 //   once   → each role answers the question once, blind to its siblings
@@ -89,7 +91,7 @@ export default function FanOutModal({
                 { m: 'once' as const, icon: <Split size={14} strokeWidth={1.75} />, label: t('fanout.modeOnce') },
                 { m: 'follow' as const, icon: <Eye size={14} strokeWidth={1.75} />, label: t('fanout.modeFollow') },
               ]).map(({ m, icon, label }) => (
-                <button
+                <Button variant="ghost"
                   key={m}
                   onClick={() => switchMode(m)}
                   className={`text-xs px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 ${
@@ -99,7 +101,7 @@ export default function FanOutModal({
                   }`}
                 >
                   {icon} {label}
-                </button>
+                </Button>
               ))}
             </div>
             <p className="text-2xs text-muted-foreground mt-1.5 leading-relaxed">
@@ -109,7 +111,7 @@ export default function FanOutModal({
               <div className="mt-2 flex items-center gap-2">
                 <span className="text-2xs text-muted-foreground">{t('fanout.rounds')}</span>
                 {[1, 2, 3].map((r) => (
-                  <button
+                  <Button variant="ghost"
                     key={r}
                     onClick={() => setRounds(r)}
                     className={`text-2xs w-7 h-6 rounded-md transition-colors ${
@@ -117,7 +119,7 @@ export default function FanOutModal({
                     }`}
                   >
                     {r}×
-                  </button>
+                  </Button>
                 ))}
                 <span className="text-2xs text-muted-foreground">{t('fanout.roundsHint')}</span>
               </div>
@@ -126,11 +128,11 @@ export default function FanOutModal({
 
           <div>
             <label className="text-2xs text-muted-foreground uppercase tracking-wider font-medium block mb-1.5">{t(mode === 'follow' ? 'fanout.instruction' : 'fanout.question')}</label>
-            <textarea
+            <Textarea
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               rows={2}
-              className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring bg-background resize-none leading-relaxed"
+              className="w-full resize-none leading-relaxed"
             />
           </div>
 
@@ -138,7 +140,7 @@ export default function FanOutModal({
             <label className="text-2xs text-muted-foreground uppercase tracking-wider font-medium block mb-1.5">{t('fanout.templates')}</label>
             <div className="flex flex-wrap gap-1.5">
               {library.map((tpl) => (
-                <button
+                <Button variant="ghost"
                   key={tpl.id}
                   onClick={() => setPicked((prev) => {
                     const next = new Set(prev);
@@ -151,28 +153,28 @@ export default function FanOutModal({
                   }`}
                 >
                   {tpl.name}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
 
           <div>
             <label className="text-2xs text-muted-foreground uppercase tracking-wider font-medium block mb-1.5">{t('fanout.custom')}</label>
-            <textarea
+            <Textarea
               value={customText}
               onChange={(e) => setCustomText(e.target.value)}
               rows={4}
               placeholder={t('fanout.customPlaceholder')}
-              className="w-full text-xs border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring bg-background resize-y leading-relaxed font-mono"
+              className="w-full resize-y leading-relaxed font-mono"
             />
           </div>
         </div>
 
         <div className="px-6 py-4 border-t border-border flex justify-end gap-2">
-          <button onClick={onClose} className="text-xs text-muted-foreground hover:text-foreground px-4 py-2 rounded-lg hover:bg-accent transition-colors">
+          <Button variant="ghost" size="sm" onClick={onClose} className="text-xs text-muted-foreground hover:text-foreground hover:bg-accent">
             {t('common.cancel')}
-          </button>
-          <button
+          </Button>
+          <Button variant="ghost"
             onClick={run}
             disabled={!question.trim() || roles.length === 0}
             className={`text-xs text-white px-5 py-2 rounded-lg transition-colors disabled:opacity-30 ${
@@ -180,7 +182,7 @@ export default function FanOutModal({
             }`}
           >
             {fmt(t(mode === 'follow' ? 'fanout.confirmFollow' : 'fanout.confirm'), { n: roles.length })}
-          </button>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 // same reason as CondenseDialog: "" reads as unset to the select
 const RUNTIME_DEFAULT = '__default__';
 import { useT } from '../../i18n';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 
 interface PickerProps {
   /** Node mode: the node's intent (what it runs on next) + change handler. */
@@ -145,7 +147,7 @@ export default function ModelPicker({ value, onChange, effort, onEffortChange, h
               )}
               {models.filter((m) => m.provider === provider).map((m) => (
                 <div key={m.id}>
-                <button
+                <Button variant="ghost"
                   onClick={() => pick(m.id)}
                   className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors hover:bg-accent ${
                     m.id === activeId ? 'text-primary font-medium' : 'text-foreground'
@@ -154,7 +156,7 @@ export default function ModelPicker({ value, onChange, effort, onEffortChange, h
                   <span className="truncate flex-1">{m.name.replace(` (${m.provider})`, '')}</span>
                   {m.vision && <span className="text-2xs text-muted-foreground shrink-0">{t('model.vision')}</span>}
                   {m.id === activeId && <Check size={13} strokeWidth={2} className="shrink-0" />}
-                </button>
+                </Button>
                 {effortStepFor === m.id && <EffortStep model={m} {...(nodeMode ? { level: effort ?? '', onChange: onEffortChange } : {})} onDone={() => { setEffortStepFor(null); setOpen(false); }} />}
               </div>
               ))}
@@ -162,7 +164,7 @@ export default function ModelPicker({ value, onChange, effort, onEffortChange, h
           ))}
           {!nodeMode && (
             <div className="flex items-center pr-1">
-            <button
+            <Button variant="ghost"
               onClick={() => { setOpen(false); useUiStore.getState().setApiKeyModalOpen(true); }}
               className={`flex-1 text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors hover:bg-accent ${
                 models.length === 0 ? 'text-primary font-medium' : 'text-muted-foreground'
@@ -170,8 +172,8 @@ export default function ModelPicker({ value, onChange, effort, onEffortChange, h
               data-picker-apikey
             >
               <KeyRound size={13} strokeWidth={1.75} className="shrink-0" /> {t('apikey.entryTitle')}
-            </button>
-            <button
+            </Button>
+            <Button variant="ghost" size="icon-sm"
               onClick={() => {
                 setRefreshing(true);
                 void refreshStoredProviders()
@@ -180,11 +182,11 @@ export default function ModelPicker({ value, onChange, effort, onEffortChange, h
               }}
               disabled={refreshing}
               title={t('model.refreshList')}
-              className="w-6 h-6 rounded-full flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-accent transition-colors shrink-0"
+              className="text-muted-foreground hover:text-primary hover:bg-accent shrink-0"
               data-model-refresh
             >
               <RefreshCw size={12} strokeWidth={1.75} className={refreshing ? 'animate-spin' : ''} />
-            </button>
+            </Button>
             </div>
           )}
           {!nodeMode && <GlobalCapabilities />}
@@ -226,7 +228,7 @@ function EffortStep({ model, level, onChange, onDone }: { model: ModelInfo; leve
           {levels.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
         </SelectContent>
       </Select>
-      <button onClick={(e) => { e.stopPropagation(); onDone(); }} className="text-2xs px-2 py-1 rounded-md bg-primary text-white hover:bg-primary/90 transition-colors shrink-0" data-agent-effort-ok>{t('model.effortConfirm')}</button>
+      <Button size="xs" onClick={(e) => { e.stopPropagation(); onDone(); }} className="shrink-0" data-agent-effort-ok>{t('model.effortConfirm')}</Button>
     </div>
   );
 }
@@ -268,7 +270,7 @@ function GlobalCapabilities() {
   );
   const anysearchKeyRow = (hintKey: 'caps.anysearchHintQuota' | 'caps.anysearchHintEnable') => (
     <div className="mt-1">
-      <input
+      <Input
         type="password"
         value={anysearchDraft}
         onChange={(e) => setAnysearchDraft(e.target.value)}
@@ -277,7 +279,7 @@ function GlobalCapabilities() {
         onClick={(e) => e.stopPropagation()}
         placeholder={t('caps.anysearchKeyPlaceholder')}
         data-anysearch-key
-        className="w-full text-2xs text-muted-foreground bg-muted border border-border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring/40 placeholder-muted-foreground font-mono"
+        className="w-full text-2xs text-muted-foreground font-mono"
       />
       <p className="text-2xs text-muted-foreground leading-relaxed mt-0.5">
         {t(hintKey)}{' '}
@@ -333,19 +335,19 @@ function GlobalCapabilities() {
             {t('caps.memory')}
             <span className="text-muted-foreground font-normal"> · {memoryCount}</span>
           </p>
-          <button
+          <Button variant="ghost" size="xs"
             onClick={(e) => { e.stopPropagation(); setMemoryManagerOpen(true); }}
-            className="text-2xs text-muted-foreground hover:text-primary underline decoration-dotted transition-colors shrink-0"
+            className="text-2xs text-muted-foreground hover:text-primary underline decoration-dotted shrink-0"
           >
             {t('memory.manage')}
-          </button>
-          <button
+          </Button>
+          <Button variant="ghost"
             onClick={(e) => { e.stopPropagation(); setMemoryEnabled(!memoryEnabled); }}
             title={t('caps.memoryTitle')}
             className={`text-2xs px-2 py-0.5 rounded-full transition-colors shrink-0 ${memoryEnabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}
           >
             {memoryEnabled ? t('caps.on') : t('caps.off')}
-          </button>
+          </Button>
         </div>
       </div>
       <div className="px-3 py-1 flex items-start gap-2">

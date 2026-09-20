@@ -9,6 +9,7 @@ import { Check, Copy } from 'lucide-react';
 import { fuzzyHighlightRegex } from '../lib/highlight-match';
 import { useT } from '../i18n';
 import { localPathOf, openLocalPath, basenameOf } from '../lib/local-path';
+import { Button } from './ui/button';
 
 const REMARK_PLUGINS = [remarkGfm, remarkMath];
 
@@ -35,7 +36,7 @@ function Pre(props: React.HTMLAttributes<HTMLPreElement>) {
   return (
     <div className="relative group/pre">
       <pre {...props} ref={ref} />
-      <button
+      <Button variant="outline" size="icon-sm"
         onClick={(e) => {
           e.stopPropagation();
           void navigator.clipboard.writeText(ref.current?.innerText ?? '');
@@ -43,10 +44,10 @@ function Pre(props: React.HTMLAttributes<HTMLPreElement>) {
           setTimeout(() => setCopied(false), 1600);
         }}
         title={t('common.copyCode')}
-        className="absolute top-1.5 right-1.5 w-6 h-6 rounded-md bg-card/90 border border-border text-muted-foreground hover:text-primary flex items-center justify-center opacity-0 group-hover/pre:opacity-100 transition-opacity nodrag nopan"
+        className="absolute top-1.5 right-1.5 opacity-0 group-hover/pre:opacity-100 nodrag nopan"
       >
         {copied ? <Check size={12} strokeWidth={2} className="text-success" /> : <Copy size={12} strokeWidth={1.75} />}
-      </button>
+      </Button>
     </div>
   );
 }

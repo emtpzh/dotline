@@ -85,6 +85,8 @@ import { useZoomTier } from './lib/use-map-mode';
 import { TimelineBar } from './components/app/TimelineBar';
 import TimelineOverviewModal from './components/app/TimelineOverviewModal';
 import { useStore as useRfStore, useReactFlow } from '@xyflow/react';
+import { Button } from './components/ui/button';
+import { Textarea } from './components/ui/textarea';
 
 // One node type key, three renderers: content nodes (notes / files) render
 // the same in every mode; otherwise the active project's kind decides
@@ -1183,18 +1185,18 @@ function Canvas() {
             <p className="text-sm text-muted-foreground mb-1 font-medium">{t('paradigm.emptyTitle')}</p>
             <p className="text-xs text-muted-foreground mb-4 max-w-sm leading-relaxed">{t('paradigm.emptyHint')}</p>
             <div className="flex items-center justify-center gap-2">
-              <button
+              <Button variant="ghost"
                 onClick={() => addStep('human')}
-                className="text-sm border-2 border-dashed border-edge-explore/60 text-edge-explore hover:bg-edge-explore/10 px-4 py-2.5 rounded-xl transition-colors flex items-center gap-1.5"
+                className="text-sm border-2 border-dashed border-edge-explore/60 text-edge-explore hover:bg-edge-explore/10"
               >
                 <MessageCircleQuestion size={15} strokeWidth={1.75} /> {t('paradigm.addHuman')}
-              </button>
-              <button
+              </Button>
+              <Button variant="ghost"
                 onClick={() => addStep('prompt')}
-                className="text-sm border-2 border-dashed border-primary/50 text-primary hover:bg-primary/10 px-4 py-2.5 rounded-xl transition-colors flex items-center gap-1.5"
+                className="text-sm border-2 border-dashed border-primary/50 text-primary hover:bg-primary/10"
               >
                 <SquareTerminal size={15} strokeWidth={1.75} /> {t('paradigm.addPrompt')}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -1282,10 +1284,10 @@ function Canvas() {
                       <span className="text-xs text-muted-foreground max-w-[100px] truncate">{att.name}</span>
                       {att.isExtracting && <span className="text-2xs text-primary"><Loader2 className="animate-spin" size={12} strokeWidth={1.75} /></span>}
                       {att.numPages != null && <span className="text-2xs text-muted-foreground">{att.numPages}p</span>}
-                      <button
+                      <Button variant="ghost" size="sm"
                         onClick={() => setPendingAttachments((p) => p.filter((a) => a.id !== att.id))}
-                        className="text-muted-foreground hover:text-destructive/90 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                      ><X size={14} strokeWidth={1.75} /></button>
+                        className="text-muted-foreground hover:text-destructive/90 text-xs opacity-0 group-hover:opacity-100"
+                      ><X size={14} strokeWidth={1.75} /></Button>
                     </div>
                   ))}
                 </div>
@@ -1296,13 +1298,13 @@ function Canvas() {
                 <div className="space-y-1 mt-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground font-medium">{t('landing.roleLabel')}</span>
-                    <button onClick={() => { setShowRootRole(false); setRootRole(''); }} className="text-xs text-muted-foreground hover:text-muted-foreground"><X size={14} strokeWidth={1.75} /></button>
+                    <Button variant="ghost" size="sm" onClick={() => { setShowRootRole(false); setRootRole(''); }} className="text-xs text-muted-foreground hover:text-muted-foreground"><X size={14} strokeWidth={1.75} /></Button>
                   </div>
-                  <textarea
+                  <Textarea
                     value={rootRole}
                     onChange={(e) => setRootRole(e.target.value)}
                     placeholder={t('landing.rolePlaceholder')}
-                    className="w-full text-xs border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring bg-background resize-none leading-relaxed"
+                    className="w-full resize-none leading-relaxed"
                     rows={2}
                     autoFocus
                   />
@@ -1311,7 +1313,7 @@ function Canvas() {
               )}
               <div className="flex items-center justify-end mt-2 gap-2">
                 <SearchToggles />
-                <button
+                <Button variant="ghost"
                   onClick={() => setShowRootRole(!showRootRole)}
                   title={t('landing.roleTrayTitle')}
                   className={`rounded-full w-8 h-8 flex items-center justify-center transition-colors shrink-0 ${
@@ -1319,14 +1321,14 @@ function Canvas() {
                   }`}
                 >
                   <Drama size={16} strokeWidth={1.75} />
-                </button>
-                <button
+                </Button>
+                <Button variant="ghost"
                   onClick={() => landingFileRef.current?.click()}
-                  className="text-muted-foreground hover:text-primary hover:bg-accent rounded-xl px-3 py-2 transition-colors text-sm"
+                  className="text-muted-foreground hover:text-primary hover:bg-accent text-sm"
                   title={t('landing.attach')}
                 >
                   <Paperclip size={16} strokeWidth={1.75} />
-                </button>
+                </Button>
                 <input
                   ref={landingFileRef}
                   type="file"
@@ -1335,13 +1337,11 @@ function Canvas() {
                   className="hidden"
                   onChange={(e) => { handleFileUpload(e.target.files || []); e.target.value = ''; }}
                 />
-                <button
+                <Button
                   onClick={handleSubmit}
-                  disabled={!inputValue.trim() || pendingAttachments.some(a => a.isExtracting)}
-                  className="bg-primary hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm px-5 py-2 rounded-xl transition-all"
-                >
+                  disabled={!inputValue.trim() || pendingAttachments.some(a => a.isExtracting)}>
                   {pendingAttachments.some(a => a.isExtracting) ? t('landing.extracting') : t('landing.send')}
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -1366,9 +1366,9 @@ function Canvas() {
                 the one distinction left is the border — dashed means
                 "drop here", solid means "click me". */}
             {!!window.desktopSessions && (
-              <button
+              <Button variant="outline"
                 onClick={() => setLandingAtlas(true)}
-                className="w-full mt-3 bg-card/60 backdrop-blur border border-border rounded-xl px-5 py-3.5 hover:border-primary/40 hover:bg-primary/5 transition-all text-center"
+                className="w-full mt-3 backdrop-blur hover:border-primary/40 text-center"
                 data-landing-atlas
               >
                 <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground font-medium">
@@ -1377,7 +1377,7 @@ function Canvas() {
                   <ArrowRight size={13} strokeWidth={1.75} className="text-primary shrink-0" />
                 </div>
                 <p className="text-2xs text-muted-foreground mt-1.5">{t('landing.atlasDesc')}</p>
-              </button>
+              </Button>
             )}
             <input
               ref={docFileRef}
@@ -1404,35 +1404,35 @@ function Canvas() {
                 <p className="text-2xs text-muted-foreground mt-1.5">{t('landing.quickDesc')}</p>
                 <div className="mt-2.5 flex items-center justify-center flex-wrap gap-2">
                   {lang === 'zh' && (
-                    <button
+                    <Button variant="ghost" size="xs"
                       onClick={() => { useUiStore.getState().setApiKeyPresetHint('zhipu'); useUiStore.getState().setApiKeyModalOpen(true); }}
-                      className="text-2xs bg-primary/10 text-primary hover:bg-primary/20 font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                      className="text-2xs bg-primary/10 text-primary hover:bg-primary/20 shrink-0"
                       data-quick-zhipu
                     >
                       {t('landing.quickZhipu')}
-                    </button>
+                    </Button>
                   )}
-                  <button
+                  <Button variant="ghost" size="xs"
                     onClick={() => void startOpenRouterOAuth()}
-                    className="text-2xs bg-primary/10 text-primary hover:bg-primary/20 font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                    className="text-2xs bg-primary/10 text-primary hover:bg-primary/20 shrink-0"
                     data-quick-primary
                   >
                     {t('landing.quickOpenRouter')}
-                  </button>
-                  <button
+                  </Button>
+                  <Button variant="ghost" size="xs"
                     onClick={() => useUiStore.getState().setApiKeyModalOpen(true)}
-                    className="text-2xs text-muted-foreground hover:text-foreground hover:bg-accent font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                    className="text-2xs text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
                   >
                     {t('landing.quickOther')}
-                  </button>
+                  </Button>
                 </div>
-                <button
+                <Button variant="ghost" size="xs"
                   onClick={() => useUiStore.getState().setApiKeyModalOpen(true)}
-                  className="mt-2 mx-auto text-2xs text-muted-foreground hover:text-primary transition-colors block"
+                  className="mt-2 mx-auto text-2xs text-muted-foreground hover:text-primary block"
                   data-quick-subs
                 >
                   {t('landing.quickSubs')}
-                </button>
+                </Button>
               </div>
             )}
 
@@ -1452,18 +1452,18 @@ function Canvas() {
             </div>
 
             <div className="text-center mt-6 flex items-center justify-center gap-5">
-              <button
+              <Button variant="ghost" size="sm"
                 onClick={loadExample}
-                className="text-xs text-primary hover:text-primary/90 font-medium transition-colors inline-flex items-center gap-1.5"
+                className="text-xs text-primary hover:text-primary/90"
               >
                 <Workflow size={14} strokeWidth={1.75} /> {t('landing.loadExample')}
-              </button>
-              <button
+              </Button>
+              <Button variant="ghost" size="sm"
                 onClick={() => setTutorialOpen(true)}
-                className="text-xs text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-1.5"
+                className="text-xs text-muted-foreground hover:text-primary"
               >
                 <CircleHelp size={14} strokeWidth={1.75} /> {t('landing.howItWorks')}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -1478,37 +1478,37 @@ function Canvas() {
       {(hasNodes || isParadigm) && !isViewerMode && (
         <div className="absolute top-[38%] -translate-y-1/2 left-4 z-10 flex flex-col gap-1.5 bg-card/90 backdrop-blur border border-border rounded-xl p-1.5 shadow-sm">
           {!isParadigm && (
-            <button
+            <Button variant="ghost" size="icon"
               onClick={() => spawnAskNode(flowPosAt(null))}
               draggable
               onDragStart={(e) => { e.dataTransfer.setData('application/thoughtdag-content', 'ask'); e.dataTransfer.effectAllowed = 'copy'; }}
               title={t('palette.askTitle')}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-primary hover:bg-primary/10 transition-colors cursor-grab"
+              className="text-primary hover:bg-primary/10 cursor-grab"
             >
               <MessageCircleQuestion size={15} strokeWidth={1.75} />
-            </button>
+            </Button>
           )}
-          <button
+          <Button variant="ghost" size="icon"
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnContentNode('note', flowPosAt(screen)))}
             title={t('palette.noteTitle')}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-warning hover:bg-warning/10 transition-colors"
+            className="text-warning hover:bg-warning/10"
           >
             <StickyNote size={15} strokeWidth={1.75} />
-          </button>
-          <button
+          </Button>
+          <Button variant="ghost" size="icon"
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnContentNode('file', flowPosAt(screen)))}
             title={t('palette.fileTitle')}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-accent transition-colors"
+            className="text-muted-foreground hover:bg-accent"
           >
             <Paperclip size={15} strokeWidth={1.75} />
-          </button>
-          <button
+          </Button>
+          <Button variant="ghost" size="icon"
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnFrame(flowPosAt(screen)))}
             title={t('palette.frameTitle')}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-accent transition-colors"
+            className="text-muted-foreground hover:bg-accent"
           >
             <Frame size={15} strokeWidth={1.75} />
-          </button>
+          </Button>
         </div>
       )}
 
@@ -1522,22 +1522,22 @@ function Canvas() {
           <span className="bg-card/90 backdrop-blur border border-border rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm text-muted-foreground text-xs font-medium" data-viewer-badge>
             <Eye size={14} strokeWidth={1.75} /> {t('viewer.badge')}
           </span>
-          <button
+          <Button variant="outline" size="icon"
             onClick={() => setSearchOpen(true)}
-            className="bg-card/90 backdrop-blur border border-border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-accent transition-colors text-muted-foreground hover:text-primary"
+            className="backdrop-blur"
             title={t('search.entryTitle')}
             data-search-entry
           >
             <Search size={15} strokeWidth={1.75} />
-          </button>
+          </Button>
           <LangSwitch />
-          <button
+          <Button variant="outline" size="icon"
             onClick={() => exportActiveProjectJson()}
-            className="bg-card/90 backdrop-blur border border-border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-accent transition-colors text-muted-foreground hover:text-primary"
+            className="backdrop-blur"
             title={t('viewer.downloadJson')}
           >
             <Download size={15} strokeWidth={1.75} />
-          </button>
+          </Button>
           <a
             href="https://github.com/chenxiachan/thoughtdag"
             target="_blank"
@@ -1559,25 +1559,25 @@ function Canvas() {
       >
         {isParadigm && (
           <>
-            <button
+            <Button variant="ghost" size="sm"
               onClick={() => addStep('human')}
-              className="bg-card/90 backdrop-blur border border-edge-explore/40 rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm hover:bg-edge-explore/10 transition-colors text-edge-explore text-xs font-medium"
+              className="bg-card/90 backdrop-blur border-edge-explore/40 hover:bg-edge-explore/10 text-edge-explore text-xs"
             >
               <MessageCircleQuestion size={14} strokeWidth={1.75} /> {t('paradigm.addHuman')}
-            </button>
-            <button
+            </Button>
+            <Button variant="ghost" size="sm"
               onClick={() => addStep('prompt')}
-              className="bg-card/90 backdrop-blur border border-primary/40 rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm hover:bg-primary/10 transition-colors text-primary text-xs font-medium"
+              className="bg-card/90 backdrop-blur border-primary/40 hover:bg-primary/10 text-primary text-xs"
             >
               <SquareTerminal size={14} strokeWidth={1.75} /> {t('paradigm.addPrompt')}
-            </button>
-            <button
+            </Button>
+            <Button variant="ghost" size="sm"
               onClick={() => void instantiate()}
               title={t('paradigm.instantiateTitle')}
-              className="bg-foreground text-white rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm hover:bg-foreground/85 transition-colors text-xs font-medium"
+              className="bg-foreground text-white hover:bg-foreground/85 text-xs"
             >
               ▶ {t('paradigm.instantiate')}
-            </button>
+            </Button>
           </>
         )}
         {!isParadigm && <AgentCwdChip />}
@@ -1585,20 +1585,20 @@ function Canvas() {
         {/* Landing convenience only: inside the canvas the picker's own
             empty state (Connect a model) is the door — no twin key icon */}
         {!hasNodes && (
-          <button
+          <Button variant="outline" size="icon"
             onClick={() => useUiStore.getState().setApiKeyModalOpen(true)}
-            className="bg-card/90 backdrop-blur border border-border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-accent transition-colors text-muted-foreground hover:text-primary"
+            className="backdrop-blur"
             title={t('apikey.entryTitle')}
             data-apikey-entry
           >
             <KeyRound size={15} strokeWidth={1.75} />
-          </button>
+          </Button>
         )}
         {/* Batch replay: visible only when something is stale. Price at the
             decision point — N generations is the one many-calls-per-click
             action in the app, so it confirms with a token estimate. */}
         {staleCount > 0 && !isParadigm && (
-          <button
+          <Button variant="ghost" size="sm"
             onClick={() => {
               const { nodes: ns, edges: es, staleIds } = useStore.getState();
               const estTok = staleIds.reduce((sum, sid) => {
@@ -1613,11 +1613,11 @@ function Canvas() {
                 confirmLabel: t('replay.confirmBtn'),
               }).then((ok) => { if (ok) void useStore.getState().replayStale(); });
             }}
-            className="bg-warning/10 backdrop-blur border border-warning/40 rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm hover:bg-warning/20 transition-colors text-warning text-xs font-medium"
+            className="bg-warning/10 backdrop-blur border-warning/40 hover:bg-warning/20 text-warning text-xs"
             title={t('replay.chipTitle')}
           >
             <ListRestart size={14} strokeWidth={1.75} /> {staleCount}
-          </button>
+          </Button>
         )}
         {hasNodes && frames.length > 0 && (
           <DropdownMenu open={frameNavOpen} onOpenChange={setFrameNavOpen}>
@@ -1648,14 +1648,14 @@ function Canvas() {
           </DropdownMenu>
         )}
         {hasNodes && (
-          <button
+          <Button variant="outline" size="icon"
             onClick={() => setSearchOpen(true)}
-            className="bg-card/90 backdrop-blur border border-border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-accent transition-colors text-muted-foreground hover:text-primary"
+            className="backdrop-blur"
             title={t('search.entryTitle')}
             data-search-entry
           >
             <Search size={15} strokeWidth={1.75} />
-          </button>
+          </Button>
         )}
         <LangSwitch />
         {hasNodes && !isParadigm && (
@@ -1670,24 +1670,24 @@ function Canvas() {
         {/* Condense while RUNNING is a status badge (click reopens progress);
             the launch entry lives in the ⋯ menu with the other tools. */}
         {condenseBuilding && !isViewerMode && (
-          <button
+          <Button variant="ghost"
             onClick={() => useUiStore.getState().setCondenseDialogOpen(true)}
-            className="bg-card/90 backdrop-blur border border-primary/50 rounded-lg h-8 px-2 flex items-center justify-center gap-1.5 shadow-sm hover:bg-accent transition-colors text-primary"
+            className="bg-card/90 backdrop-blur border-primary/50 hover:bg-accent text-primary"
             title={fmt(t('condense.entryBuilding'), { i: String(condenseRunState.current), n: String(condenseRunState.total) })}
             data-condense-entry
           >
             <Loader2 size={14} strokeWidth={1.75} className="animate-spin" /><span className="text-2xs font-mono">{condenseRunState.current}/{condenseRunState.total}</span>
-          </button>
+          </Button>
         )}
         {backupSupported && (
-          <button
+          <Button variant="outline" size="icon"
             onClick={() => useUiStore.getState().setBackupDialogOpen(true)}
-            className="bg-card/90 backdrop-blur border border-border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-accent transition-colors text-muted-foreground hover:text-primary"
+            className="backdrop-blur"
             title={t('backup.dialogTitle')}
             data-backup-entry
           >
             <FolderSync size={15} strokeWidth={1.75} />
-          </button>
+          </Button>
         )}
         {/* ⋯ overflow: share, memory, annotations, relayout, tutorial —
             one slot regardless of language or panel width. */}
@@ -1806,13 +1806,13 @@ function Canvas() {
                 <div className="text-2xs text-muted-foreground mb-1.5">{t('appearance.lighting')}</div>
                 <div className="flex rounded-lg border border-border overflow-hidden text-2xs">
                   {([['light', t('appearance.light')], ['dark', t('appearance.dark')], ['system', t('appearance.system')]] as const).map(([v, label], i) => (
-                    <button
+                    <Button variant="ghost"
                       key={v}
                       onClick={() => useAppearance.getState().setLighting(v)}
                       className={`flex-1 px-1 py-1.5 transition-colors ${i > 0 ? 'border-l border-border' : ''} ${lightingChoice === v ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-accent'}`}
                     >
                       {label}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -1820,13 +1820,13 @@ function Canvas() {
                 <div className="text-2xs text-muted-foreground mb-1.5">{t('appearance.paper')}</div>
                 <div className="flex rounded-lg border border-border overflow-hidden text-2xs">
                   {([['plain', t('appearance.plain')], ['grid', t('appearance.grid')]] as const).map(([v, label], i) => (
-                    <button
+                    <Button variant="ghost"
                       key={v}
                       onClick={() => useAppearance.getState().setPaper(v)}
                       className={`flex-1 px-1 py-1.5 transition-colors ${i > 0 ? 'border-l border-border' : ''} ${paperTexture === v ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-accent'}`}
                     >
                       {label}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -1860,22 +1860,22 @@ function Canvas() {
               </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <button
+        <Button variant="outline" size="icon"
           onClick={undo}
           disabled={historyIndex <= 0}
-          className="bg-card/90 backdrop-blur border border-border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-accent transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+          className="backdrop-blur"
           title={t('canvas.undo')}
         >
           <Undo2 size={16} strokeWidth={1.75} />
-        </button>
-        <button
+        </Button>
+        <Button variant="outline" size="icon"
           onClick={redo}
           disabled={historyIndex >= history.length - 1}
-          className="bg-card/90 backdrop-blur border border-border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-accent transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+          className="backdrop-blur"
           title={t('canvas.redo')}
         >
           <Redo2 size={16} strokeWidth={1.75} />
-        </button>
+        </Button>
       </div>
       )}
 
@@ -1926,13 +1926,13 @@ function Canvas() {
           className="fixed z-50 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[120px]"
           style={{ left: edgeMenu.x, top: edgeMenu.y }}
         >
-          <button
+          <Button variant="destructive"
             onClick={() => deleteEdge(edgeMenu.edgeId)}
-            className="w-full text-left px-4 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-1.5"
+            className="w-full text-left"
           >
             <Trash2 size={14} strokeWidth={1.75} />
             {t('canvas.deleteEdge')}
-          </button>
+          </Button>
         </div>
       )}
       </div>
@@ -2028,24 +2028,24 @@ function ThoughtMapPill({ panelShiftWidth }: { panelShiftWidth: number }) {
       style={{ left: `calc((100% - ${panelShiftWidth}px) / 2)` }}
       data-map-dock
     >
-      <button
+      <Button variant="ghost"
         onClick={() => useUiStore.getState().setThoughtMapOpen(true)}
         data-tmap-pill
-        className="flex items-center gap-2 bg-card/95 backdrop-blur border border-input rounded-full px-5 py-2.5 text-sm text-foreground shadow-lg hover:border-primary/40 hover:text-primary transition-colors"
+        className="bg-card/95 backdrop-blur border-input text-sm text-foreground shadow-lg hover:border-primary/40 hover:text-primary"
       >
         <ImageDown size={16} strokeWidth={1.75} /> {t('tmap.export')}
-      </button>
+      </Button>
       {lastActive && (
-        <button
+        <Button
           onClick={flyBack}
           onMouseEnter={() => useUiStore.getState().setBeaconNodeId(lastActive.node.id)}
           onMouseLeave={() => useUiStore.getState().setBeaconNodeId(null)}
           title={t('continue.buttonTitle')}
           data-continue-pill
-          className="flex items-center gap-2 bg-primary text-white rounded-full px-5 py-2.5 text-sm shadow-lg hover:bg-primary/90 transition-colors"
+          className="shadow-lg"
         >
           <Rewind size={16} strokeWidth={1.75} /> {t('continue.button')}
-        </button>
+        </Button>
       )}
     </div>
   );

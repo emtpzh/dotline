@@ -4,6 +4,7 @@ import { useStore } from '../store';
 import { runDiagnostics, type Finding } from '../lib/diagnostics';
 import { useT, fmt } from '../i18n';
 import { Popover, PopoverContent } from './ui/popover';
+import { Button } from './ui/button';
 
 // The whole-graph mirror: on-demand topology check-up (never live linting).
 // Tier 1 = deterministic problems with one-click fixes (delete the edge);
@@ -65,22 +66,22 @@ export default function DiagnosticsPanel({ onLocate, openPing = 0, showTrigger =
       </span>
       <div className="flex items-center gap-1 shrink-0">
         {f.nodeIds.length > 0 && (
-          <button
+          <Button variant="ghost" size="icon-sm"
             onClick={() => onLocate(f.nodeIds[0])}
             title={t('diag.locate')}
-            className="w-6 h-6 rounded-md text-muted-foreground hover:text-primary hover:bg-accent flex items-center justify-center transition-colors"
+            className="text-muted-foreground hover:text-primary hover:bg-accent"
           >
             <Crosshair size={13} strokeWidth={1.75} />
-          </button>
+          </Button>
         )}
         {f.fixable && (
-          <button
+          <Button variant="ghost" size="icon-sm"
             onClick={() => fix(f)}
             title={t('diag.fix')}
-            className="w-6 h-6 rounded-md text-muted-foreground hover:text-destructive/90 hover:bg-destructive/10 flex items-center justify-center transition-colors"
+            className="text-muted-foreground hover:text-destructive/90 hover:bg-destructive/10"
           >
             <Trash2 size={13} strokeWidth={1.75} />
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -89,7 +90,7 @@ export default function DiagnosticsPanel({ onLocate, openPing = 0, showTrigger =
   return (
     <div ref={ref} className="relative">
       {showTrigger && (
-        <button
+        <Button variant="ghost"
           onClick={() => (open ? setOpen(false) : run())}
           className={`bg-card/90 backdrop-blur border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm transition-colors ${
             open ? 'border-primary/40 text-primary' : 'border-border text-muted-foreground hover:bg-accent'
@@ -97,7 +98,7 @@ export default function DiagnosticsPanel({ onLocate, openPing = 0, showTrigger =
           title={t('toolbar.diagnose')}
         >
           <Stethoscope size={15} strokeWidth={1.75} />
-        </button>
+        </Button>
       )}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverContent anchor={ref} align="end" sideOffset={6} className="w-[340px] max-h-[420px] overflow-y-auto gap-0 p-0 py-1">

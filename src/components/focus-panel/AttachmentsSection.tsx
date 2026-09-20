@@ -6,6 +6,7 @@ import { processFile, FILE_INPUT_ACCEPT } from '../../lib/attachments';
 import { useT, fmt } from '../../i18n';
 import { isViewerMode } from '../../lib/viewer';
 import type { Attachment } from '../../types';
+import { Button } from '../ui/button';
 
 export default function AttachmentsSection({
   nodeId,
@@ -128,7 +129,7 @@ export default function AttachmentsSection({
                     {att.type === 'application/pdf' && att.numPages != null && att.numPages > 10 && !att.isExtracting && (
                       <div className="mt-1 flex items-center gap-1.5">
                         <span className="text-2xs text-warning">{fmt(t('attach.pagesWarning'), { n: att.numPages, tok: (att.numPages * 1500).toLocaleString() })}</span>
-                        <button
+                        <Button variant="ghost"
                           onClick={() => setAttachmentRenderMode(nodeId, att.id, att.renderMode === 'full' ? 'text-only' : 'full')}
                           className={`text-2xs px-2 py-0.5 rounded-lg transition-colors ${
                             att.renderMode === 'full'
@@ -137,25 +138,25 @@ export default function AttachmentsSection({
                           }`}
                         >
                           {att.renderMode === 'full' ? t('attach.switchTextOnly') : t('attach.enableVision')}
-                        </button>
+                        </Button>
                       </div>
                     )}
                   </div>
                   {att.type === 'application/pdf' && !att.isExtracting && (
-                    <button
+                    <Button variant="ghost"
                       onClick={() => useUiStore.getState().setReaderNodeId(nodeId)}
                       title={t('attach.openReader')}
-                      className="text-muted-foreground hover:text-primary transition-colors shrink-0"
+                      className="text-muted-foreground hover:text-primary shrink-0"
                     >
                       <BookOpen size={14} strokeWidth={1.75} />
-                    </button>
+                    </Button>
                   )}
-                  {!isViewerMode && <button
+                  {!isViewerMode && <Button variant="ghost"
                     onClick={() => removeAttachment(nodeId, att.id)}
-                    className="text-muted-foreground hover:text-destructive/90 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
+                    className="text-muted-foreground hover:text-destructive/90 shrink-0 opacity-0 group-hover:opacity-100"
                   >
                     <X size={14} strokeWidth={1.75} />
-                  </button>}
+                  </Button>}
                 </div>
               ))}
             </div>
@@ -186,15 +187,15 @@ export default function AttachmentsSection({
                       </p>
                     </div>
                     {att.type === 'application/pdf' && (
-                      <button
+                      <Button variant="ghost"
                         onClick={() => useUiStore.getState().setReaderNodeId(sourceNodeId)}
                         title={t('attach.openReader')}
-                        className="text-muted-foreground hover:text-primary transition-colors shrink-0"
+                        className="text-muted-foreground hover:text-primary shrink-0"
                       >
                         <BookOpen size={14} strokeWidth={1.75} />
-                      </button>
+                      </Button>
                     )}
-                    <button
+                    <Button variant="ghost"
                       onClick={() => toggleExcludeAttachment(nodeId, att.id, excludedByAncestor)}
                       className={`text-xs px-2 py-1 rounded-lg transition-colors shrink-0 ${
                         isEffectivelyExcluded
@@ -206,7 +207,7 @@ export default function AttachmentsSection({
                       title={excludedByAncestor && !isOverridden ? t('attach.titleExcludedUpstream') : isOverridden ? t('attach.titleReIncluded') : isExcludedSelf ? t('attach.titleInclude') : t('attach.titleExclude')}
                     >
                       {excludedByAncestor && !isOverridden && !isExcludedSelf ? t('attach.btnUpstream') : isOverridden ? t('attach.btnReIncluded') : isExcludedSelf ? t('attach.btnExcluded') : t('attach.btnIncluded')}
-                    </button>
+                    </Button>
                   </div>
                 );
               })}

@@ -7,6 +7,7 @@ import { referenceBlockContent } from '../../store/context-builder';
 import type { ContextPartition } from '../../lib/graph';
 import { useT } from '../../i18n';
 import type { ThoughtNode } from '../../types';
+import { Button } from '../ui/button';
 
 // The context TREE, grouped the same way the prompt is assembled
 // (materials → references → the conversation): what you read here is
@@ -23,9 +24,9 @@ function MemoryRow() {
   if (!enabled || memories.length === 0) return null;
   const tok = countTokens(memories.map((m) => m.text).join('\n'));
   return (
-    <button
+    <Button variant="ghost" size="sm"
       onClick={() => setMemoryManagerOpen(true)}
-      className="w-full text-left rounded-lg px-2 py-1.5 hover:bg-accent transition-colors group flex items-center gap-2 text-xs"
+      className="w-full text-left hover:bg-accent group text-xs"
       title={t('memory.rowTitle')}
     >
       <span className="text-muted-foreground shrink-0">🧠</span>
@@ -33,7 +34,7 @@ function MemoryRow() {
         {t('memory.rowLabel')}
       </span>
       <span className="text-2xs text-muted-foreground font-mono shrink-0">{memories.length} · {tok} tok</span>
-    </button>
+    </Button>
   );
 }
 
@@ -75,14 +76,14 @@ export default function ContextChainSection({
 
   return (
     <div className="panel-card px-4 py-3">
-      <button
+      <Button variant="ghost" size="xs"
         onClick={() => setContextOpen(!contextOpen)}
-        className="flex items-center gap-1.5 text-2xs font-semibold text-muted-foreground mb-1 hover:text-foreground transition-colors w-full"
+        className="text-2xs text-muted-foreground mb-1 hover:text-foreground w-full"
       >
         <span>{contextOpen ? <ChevronDown size={14} strokeWidth={1.75} /> : <ChevronRight size={14} strokeWidth={1.75} />}</span>
         <span>{t('chain.title')}</span>
         <span className="text-muted-foreground font-normal ml-auto">{totalContextTokens} tok</span>
-      </button>
+      </Button>
 
       {contextOpen && (
         <div>
@@ -94,12 +95,12 @@ export default function ContextChainSection({
               {partition.materials.map((m) => {
                 const { icon, label } = materialEntry(m);
                 return (
-                  <button key={m.id} onClick={() => jump(m.id)} className={rowCls}>
+                  <Button variant="ghost" key={m.id} onClick={() => jump(m.id)} className={rowCls}>
                     <span className="text-muted-foreground shrink-0">{icon}</span>
                     <span className="text-muted-foreground group-hover:text-primary transition-colors truncate flex-1">
                       {label.slice(0, 70)}{label.length > 70 ? '…' : ''}
                     </span>
-                  </button>
+                  </Button>
                 );
               })}
             </>
@@ -110,7 +111,7 @@ export default function ContextChainSection({
             <>
               <p className={groupCls}>{t('chain.references')}</p>
               {partition.references.map((ref) => (
-                <button key={ref.edge.id} onClick={() => jump(ref.source.id)} className={rowCls}>
+                <Button variant="ghost" key={ref.edge.id} onClick={() => jump(ref.source.id)} className={rowCls}>
                   <span className="text-muted-foreground shrink-0"><Quote size={13} strokeWidth={1.75} /></span>
                   <span className="text-muted-foreground group-hover:text-primary transition-colors truncate flex-1">
                     {ref.source.data.question.slice(0, 60)}{ref.source.data.question.length > 60 ? '…' : ''}
@@ -126,7 +127,7 @@ export default function ContextChainSection({
                   <span className="text-2xs text-muted-foreground font-mono shrink-0">
                     {countTokens(referenceBlockContent(ref))}
                   </span>
-                </button>
+                </Button>
               ))}
             </>
           )}
@@ -140,7 +141,7 @@ export default function ContextChainSection({
               <p className={groupCls}>{t('chain.conversation')}</p>
             )}
             {ancestors.map((ancestor, i) => (
-              <button key={ancestor.id} onClick={() => jump(ancestor.id)} className={rowCls}>
+              <Button variant="ghost" key={ancestor.id} onClick={() => jump(ancestor.id)} className={rowCls}>
                 <span className="text-muted-foreground shrink-0">
                   {i === 0 ? <Sprout size={14} strokeWidth={1.75} /> : <CornerDownRight size={14} strokeWidth={1.75} />}
                 </span>
@@ -151,7 +152,7 @@ export default function ContextChainSection({
                 <span className="text-2xs text-muted-foreground font-mono shrink-0">
                   {countTokens(ancestor.data.question + ancestor.data.response)}
                 </span>
-              </button>
+              </Button>
             ))}
             </>
           )}

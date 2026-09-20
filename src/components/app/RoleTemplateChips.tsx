@@ -2,6 +2,7 @@ import { Pencil } from 'lucide-react';
 import { effectiveRoles } from '../../lib/role-templates';
 import { useUiStore } from '../../lib/ui-store';
 import { useI18n, useT } from '../../i18n';
+import { Button } from '../ui/button';
 
 // One-tap role presets shown under every role input — pick a chip to fill
 // the prompt, then edit freely. The list is the user-editable role library
@@ -14,24 +15,24 @@ export default function RoleTemplateChips({ onPick }: { onPick: (prompt: string)
   return (
     <div className="flex flex-wrap gap-1.5 mt-1.5">
       {effectiveRoles(lang, lib).map((tpl) => (
-        <button
+        <Button variant="ghost" size="xs"
           key={tpl.id}
           type="button"
           onClick={() => onPick(tpl.prompt)}
-          className="text-2xs bg-muted hover:bg-primary/10 hover:text-primary text-muted-foreground px-2 py-1 rounded-full transition-colors"
+          className="text-2xs bg-muted hover:bg-primary/10 hover:text-primary text-muted-foreground"
           title={tpl.prompt.slice(0, 140) + '…'}
         >
           {tpl.name}
-        </button>
+        </Button>
       ))}
-      <button
+      <Button variant="outline" size="xs"
         type="button"
         onClick={() => setRoleManagerOpen(true)}
         title={t('roles.manageTitle')}
-        className="text-2xs text-muted-foreground hover:text-primary px-2 py-1 rounded-full border border-dashed border-border hover:border-primary/40 transition-colors flex items-center gap-1"
+        className="border-dashed hover:border-primary/40"
       >
         <Pencil size={10} strokeWidth={1.75} /> {t('roles.manage')}
-      </button>
+      </Button>
     </div>
   );
 }

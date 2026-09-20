@@ -13,6 +13,9 @@ import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import { isViewerMode } from '../lib/viewer';
 import { loadAttachmentContent } from '../lib/attachment-vault';
 import { HtmlMaterialView } from './HtmlMaterialView';
+import { Button } from './ui/button';
+import { Textarea } from './ui/textarea';
+import { Input } from './ui/input';
 
 // MaterialReader: the reading overlay — a VIEW onto a material node, never a
 // container. Select a passage (in the original PDF's text layer, or in the
@@ -672,30 +675,30 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
           <div className="flex-1" />
           {((pdfAtt && !pdfError) || imageAtts.length > 0 || htmlAtt || linkHtml) && (
             <div className="flex items-center rounded-lg border border-border overflow-hidden shrink-0 text-xs">
-              <button
+              <Button variant="ghost"
                 onClick={() => setView('original')}
                 className={`px-3 py-1.5 transition-colors ${view === 'original' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-accent'}`}
               >
                 {t('reader.viewOriginal')}
-              </button>
-              <button
+              </Button>
+              <Button variant="ghost"
                 onClick={() => setView('text')}
                 className={`px-3 py-1.5 transition-colors border-l border-border ${view === 'text' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-accent'}`}
               >
                 {t('reader.viewText')}
-              </button>
+              </Button>
               {(digestText || digesting) && (
-                <button
+                <Button variant="ghost"
                   onClick={() => setView('digest')}
                   className={`px-3 py-1.5 transition-colors border-l border-border ${view === 'digest' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-accent'}`}
                 >
                   {t('reader.viewDigest')}
-                </button>
+                </Button>
               )}
             </div>
           )}
           {(pdfAtt || imageAtts.length > 0 || htmlAtt || linkHtml) && view === 'original' && !isViewerMode && (
-            <button
+            <Button variant="ghost"
               onClick={() => setClipMode((v) => !v)}
               title={t('reader.clipTitle')}
               data-reader-clip-toggle
@@ -703,43 +706,43 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
             >
               <Crosshair size={13} strokeWidth={1.75} />
               {clipMode ? t('reader.clipActive') : t('reader.clip')}
-            </button>
+            </Button>
           )}
           {!pdfAtt && imageAtts.length > 0 && !isViewerMode && (
-            <button
+            <Button variant="outline" size="sm"
               onClick={() => { if (hasVisionModel) imageAtts.forEach((a) => void extractImage(node.id, a.id)); }}
               disabled={!hasVisionModel || imageAtts.some((a) => a.isExtracting)}
               title={hasVisionModel ? t('reader.imageRecognizeTitle') : t('content.noVisionModel')}
               data-image-recognize
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:bg-accent transition-colors shrink-0 disabled:opacity-40"
+              className="shrink-0"
             >
               {imageAtts.some((a) => a.isExtracting)
                 ? <Loader2 size={13} strokeWidth={1.75} className="animate-spin" />
                 : <ScanText size={13} strokeWidth={1.75} />}
               {t(imageAtts.every((a) => a.extractedText?.trim()) ? 'reader.imageReRecognize' : 'reader.imageRecognize')}
-            </button>
+            </Button>
           )}
           {docAtt && !digestText && !digesting && !!docAtt.extractedText?.trim() && !isViewerMode && (
-            <button
+            <Button variant="outline" size="sm"
               onClick={() => void startDigest()}
               title={t('reader.digestTitle')}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:bg-accent transition-colors shrink-0"
+              className="shrink-0"
             >
               <Sparkles size={13} strokeWidth={1.75} />
               {t('reader.digest')}
-            </button>
+            </Button>
           )}
           {pdfAtt && view === 'text' && !isViewerMode && (
             recog === 'running' ? (
               <span className="flex items-center gap-2 text-xs text-primary shrink-0">
                 <Loader2 size={13} strokeWidth={1.75} className="animate-spin" />
                 {progress ? fmt(t('reader.recognizing'), { a: progress[0], b: progress[1] }) : '…'}
-                <button onClick={() => { cancelRef.current = true; }} className="text-muted-foreground hover:text-destructive/90 underline decoration-dotted">
+                <Button variant="ghost" onClick={() => { cancelRef.current = true; }} className="text-muted-foreground hover:text-destructive/90 underline decoration-dotted">
                   {t('reader.stop')}
-                </button>
+                </Button>
               </span>
             ) : (
-              <button
+              <Button variant="ghost"
                 onClick={() => (recog === 'confirm' ? void startRecognize() : setRecog('confirm'))}
                 onBlur={() => setRecog((r) => (r === 'confirm' ? 'idle' : r))}
                 disabled={!pdfAtt.pageImages?.length || !hasVisionModel}
@@ -750,21 +753,21 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
               >
                 <ScanText size={13} strokeWidth={1.75} />
                 {recog === 'confirm' ? fmt(t('reader.recognizeConfirm'), { n: pdfAtt.pageImages?.length ?? 0 }) : t('reader.recognize')}
-              </button>
+              </Button>
             )
           )}
           {pdfAtt && view === 'text' && recog !== 'running' && (
-            <button
+            <Button variant="ghost"
               onClick={() => (editing ? commitEdit() : setEditing(true))}
               title={t('reader.editText')}
               className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors shrink-0 ${editing ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`}
             >
               <Pencil size={13} strokeWidth={1.75} />
-            </button>
+            </Button>
           )}
-          <button onClick={close} title={t('panel.close')} className="w-7 h-7 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground flex items-center justify-center transition-colors shrink-0">
+          <Button variant="ghost" size="icon-sm" onClick={close} title={t('panel.close')} className="text-muted-foreground hover:bg-accent hover:text-foreground shrink-0">
             <X size={16} strokeWidth={1.75} />
-          </button>
+          </Button>
         </div>
 
         {/* body: document column + (optional) annotation rail */}
@@ -800,12 +803,12 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                   flex from stretching the pill into that zero height */}
               <div className="sticky top-3 z-10 flex items-start justify-end pr-4 h-0">
                 <div className="flex items-center gap-1 bg-card/95 backdrop-blur border border-border rounded-xl shadow-md px-1.5 py-1" data-image-zoom>
-                  <button onClick={() => setImgZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))} title={t('reader.imageZoomOut')} data-zoom-out
-                    className="w-7 h-7 rounded-lg hover:bg-accent flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"><ZoomOut size={14} strokeWidth={1.75} /></button>
-                  <button onClick={() => setImgZoom(1)} title={t('reader.imageZoomFit')} data-zoom-fit
-                    className="px-2 h-7 rounded-lg hover:bg-accent font-mono text-xs text-muted-foreground hover:text-foreground transition-colors min-w-[52px]">{Math.round(imgZoom * 100)}%</button>
-                  <button onClick={() => setImgZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)))} title={t('reader.imageZoomIn')} data-zoom-in
-                    className="w-7 h-7 rounded-lg hover:bg-accent flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"><ZoomIn size={14} strokeWidth={1.75} /></button>
+                  <Button variant="ghost" size="icon-sm" onClick={() => setImgZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))} title={t('reader.imageZoomOut')} data-zoom-out
+                    className="hover:bg-accent text-muted-foreground hover:text-foreground"><ZoomOut size={14} strokeWidth={1.75} /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => setImgZoom(1)} title={t('reader.imageZoomFit')} data-zoom-fit
+                    className="hover:bg-accent font-mono text-xs text-muted-foreground hover:text-foreground min-w-[52px]">{Math.round(imgZoom * 100)}%</Button>
+                  <Button variant="ghost" size="icon-sm" onClick={() => setImgZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)))} title={t('reader.imageZoomIn')} data-zoom-in
+                    className="hover:bg-accent text-muted-foreground hover:text-foreground"><ZoomIn size={14} strokeWidth={1.75} /></Button>
                 </div>
               </div>
               <div
@@ -843,13 +846,13 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
               {digestText && !digesting && (
                 <div className="mt-6 pt-4 border-t border-border flex items-center gap-3 text-2xs text-muted-foreground">
                   <span className="font-mono">{digestModel ? digestModel.split('/').pop() : ''}</span>
-                  <button onClick={() => void startDigest()} className="flex items-center gap-1 hover:text-muted-foreground transition-colors">
+                  <Button variant="ghost" onClick={() => void startDigest()} className="hover:text-muted-foreground">
                     <RefreshCw size={11} strokeWidth={1.75} /> {t('reader.redigest')}
-                  </button>
+                  </Button>
                   {digestNode && (
-                    <button onClick={() => { close(); onLocate(digestNode.id); }} className="flex items-center gap-1 hover:text-primary transition-colors" title={t('reader.locate')}>
+                    <Button variant="ghost" onClick={() => { close(); onLocate(digestNode.id); }} className="hover:text-primary" title={t('reader.locate')}>
                       <Crosshair size={11} strokeWidth={1.75} /> {t('reader.digestOnCanvas')}
-                    </button>
+                    </Button>
                   )}
                 </div>
               )}
@@ -864,12 +867,12 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                 </div>
               )}
               {editing && pdfAtt ? (
-                <textarea
+                <Textarea
                   ref={editRef}
                   defaultValue={pdfAtt.extractedText ?? ''}
                   onBlur={commitEdit}
                   autoFocus
-                  className="w-full h-[70vh] text-xs font-mono text-foreground bg-card border border-border rounded-xl px-4 py-3 focus:outline-none focus:ring-1 focus:ring-ring/40 leading-relaxed resize-none"
+                  className="w-full h-[70vh] font-mono leading-relaxed resize-none"
                 />
               ) : textBody.trim() === '' ? (
                 htmlAtt?.isExtracting ? (
@@ -913,20 +916,20 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                   <div className="text-2xs text-muted-foreground">{t('reader.wholeThread')}</div>
                 )}
               </div>
-              <button
+              <Button variant="ghost" size="icon-sm"
                 onClick={() => { close(); onLocate(thread[0].id); }}
                 title={t('reader.locate')}
-                className="w-6 h-6 rounded-md text-muted-foreground hover:text-primary hover:bg-accent flex items-center justify-center transition-colors shrink-0"
+                className="text-muted-foreground hover:text-primary hover:bg-accent shrink-0"
               >
                 <Crosshair size={13} strokeWidth={1.75} />
-              </button>
-              <button
+              </Button>
+              <Button variant="ghost" size="icon-sm"
                 onClick={() => setThreadId(null)}
                 title={t('reader.threadClose')}
-                className="w-6 h-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent flex items-center justify-center transition-colors shrink-0"
+                className="text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
               >
                 <X size={14} strokeWidth={1.75} />
-              </button>
+              </Button>
             </div>
             <div ref={railRef} onMouseUp={handleRailMouseUp} className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-4">
               {thread.map((turn) => (
@@ -949,13 +952,13 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
               ))}
             </div>
             <div className="border-t border-border px-3 py-2.5 shrink-0 flex items-end gap-1.5">
-              <textarea
+              <Textarea
                 value={followDraft}
                 onChange={(e) => setFollowDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) { e.preventDefault(); submitFollow(); } }}
                 placeholder={t('common.followUp')}
                 rows={1}
-                className="flex-1 bg-muted text-sm text-foreground rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring/40 resize-none placeholder-muted-foreground"
+                className="flex-1 resize-none"
                 style={{ minHeight: 32, maxHeight: 120 }}
                 onInput={(e) => {
                   const ta = e.currentTarget;
@@ -963,13 +966,13 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                   ta.style.height = `${Math.min(120, ta.scrollHeight)}px`;
                 }}
               />
-              <button
+              <Button size="icon"
                 onClick={submitFollow}
                 disabled={!followDraft.trim()}
-                className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center disabled:opacity-30 transition-opacity shrink-0"
+                className="shrink-0"
               >
                 <Send size={14} strokeWidth={1.75} />
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -977,21 +980,21 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
 
         {/* footer: ask about the whole material + the questions grown from it */}
         <div className="border-t border-border bg-card px-5 py-2.5 shrink-0 flex items-center gap-2.5">
-          <input
+          <Input
             value={wholeDraft}
             onChange={(e) => setWholeDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !isImeComposing(e)) { e.preventDefault(); submitWhole(); } }}
             placeholder={t('reader.askWhole')}
-            className="flex-1 min-w-[200px] bg-muted text-sm text-foreground rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring/40 placeholder-muted-foreground"
+            className="flex-1 min-w-[200px]"
             data-reader-wholeask
           />
-          <button
+          <Button size="icon"
             onClick={submitWhole}
             disabled={!wholeDraft.trim()}
-            className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center disabled:opacity-30 transition-opacity shrink-0"
+            className="shrink-0"
           >
             <Send size={14} strokeWidth={1.75} />
-          </button>
+          </Button>
           {grownChildren.length > 0 && (
             <div className="flex flex-wrap items-center content-start gap-1.5 max-w-[45%] shrink-0 max-h-[3.75rem] overflow-y-auto" data-grown-chips>
               <span className="text-2xs text-muted-foreground shrink-0">{fmt(t('reader.grown'), { n: grownChildren.length })}</span>
@@ -1002,7 +1005,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                     threadId === c.id ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground hover:bg-border'
                   }`}
                 >
-                  <button onClick={() => setThreadId(c.id)} className="flex items-center gap-1.5 min-w-0">
+                  <Button variant="ghost" onClick={() => setThreadId(c.id)} className="min-w-0">
                     {c.data.isLoading && <Loader2 size={10} strokeWidth={2} className="animate-spin text-primary shrink-0" />}
                     {/* provenance at a glance: page-anchored vs whole-material */}
                     {(c.data.anchor || !c.data.branchContext) && (
@@ -1011,14 +1014,14 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                       </span>
                     )}
                     <span className="truncate">{c.data.question.replace(/\s+/g, ' ').slice(0, 32) || '…'}</span>
-                  </button>
-                  <button
+                  </Button>
+                  <Button variant="ghost"
                     onClick={() => { close(); onLocate(c.id); }}
                     title={t('reader.locate')}
-                    className="w-4.5 h-4.5 rounded-full flex items-center justify-center text-muted-foreground hover:text-primary shrink-0"
+                    className="w-4.5 h-4.5 text-muted-foreground hover:text-primary shrink-0"
                   >
                     <Crosshair size={11} strokeWidth={1.75} />
-                  </button>
+                  </Button>
                 </span>
               ))}
             </div>
@@ -1037,7 +1040,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
             {ask.page != null && <span className="font-mono"> · p.{ask.page}</span>}
           </div>
           <div className="flex items-end gap-1.5">
-            <textarea
+            <Textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
@@ -1047,7 +1050,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
               placeholder={t('reader.askPlaceholder')}
               rows={1}
               autoFocus
-              className="flex-1 bg-muted text-sm text-foreground rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring/40 resize-none placeholder-muted-foreground"
+              className="flex-1 resize-none"
               style={{ minHeight: 32, maxHeight: 120 }}
               onInput={(e) => {
                 const ta = e.currentTarget;
@@ -1056,16 +1059,16 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
               }}
             />
             {ask.targetNodeId && (
-              <button
+              <Button variant="ghost" size="icon"
                 onClick={highlightSelection}
                 title={t('common.highlight')}
-                className="w-8 h-8 rounded-lg bg-muted text-muted-foreground hover:text-primary hover:bg-primary/10 flex items-center justify-center transition-colors shrink-0"
+                className="bg-muted text-muted-foreground hover:text-primary hover:bg-primary/10 shrink-0"
               >
                 <Highlighter size={14} strokeWidth={1.75} />
-              </button>
+              </Button>
             )}
             {!ask.targetNodeId && (
-              <button
+              <Button variant="ghost" size="icon"
                 onClick={() => {
                   useStore.getState().addHighlight(node.id, { id: generateId(), text: ask.text });
                   toast('success', t('reader.textHighlighted'));
@@ -1074,28 +1077,28 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                 }}
                 title={t('reader.highlightText')}
                 data-reader-highlight
-                className="w-8 h-8 rounded-lg bg-muted text-muted-foreground hover:text-warning/90 hover:bg-warning/10 flex items-center justify-center transition-colors shrink-0"
+                className="bg-muted text-muted-foreground hover:text-warning/90 hover:bg-warning/10 shrink-0"
               >
                 <Highlighter size={14} strokeWidth={1.75} />
-              </button>
+              </Button>
             )}
             {!ask.targetNodeId && (
-              <button
+              <Button variant="ghost" size="icon"
                 onClick={saveSelectionAsNote}
                 title={t('reader.saveAsNote')}
                 data-reader-clip-note
-                className="w-8 h-8 rounded-lg bg-muted text-muted-foreground hover:text-edge-explore hover:bg-edge-explore/10 flex items-center justify-center transition-colors shrink-0"
+                className="bg-muted text-muted-foreground hover:text-edge-explore hover:bg-edge-explore/10 shrink-0"
               >
                 <StickyNote size={14} strokeWidth={1.75} />
-              </button>
+              </Button>
             )}
-            <button
+            <Button size="icon"
               onClick={submitAsk}
               disabled={!draft.trim()}
-              className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center disabled:opacity-30 transition-opacity shrink-0"
+              className="shrink-0"
             >
               <Send size={14} strokeWidth={1.75} />
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -1277,7 +1280,7 @@ function PdfPage({ doc, pdfjs, pageNo, width, anchors, activeThreadId, onAnchorC
               style={{ left: `${r[0] * 100}%`, top: `${r[1] * 100}%`, width: `${r[2] * 100}%`, height: `${r[3] * 100}%`, zIndex: 3 }}
             />
           ))}
-          <button
+          <Button variant="ghost"
             onClick={() => onAnchorClick?.(a.id)}
             title={a.question}
             className={`absolute w-6 h-6 rounded-full shadow-md border flex items-center justify-center text-xs transition-transform hover:scale-110 ${
@@ -1287,7 +1290,7 @@ function PdfPage({ doc, pdfjs, pageNo, width, anchors, activeThreadId, onAnchorC
             data-anchor-bubble={a.id}
           >
             💬
-          </button>
+          </Button>
         </div>
       ))}
       <span className="absolute -left-9 top-1 text-2xs text-muted-foreground font-mono select-none">p.{pageNo}</span>
@@ -1328,13 +1331,13 @@ function DigestBody({ text, onJump }: { text: string; onJump: (page: number) => 
         const m = seg.match(/^\(p\.\s?(\d+)\)$/);
         if (m) {
           return (
-            <button
+            <Button variant="ghost" size="xs"
               key={i}
               onClick={() => onJump(Number(m[1]))}
-              className="inline-flex items-center text-2xs text-primary bg-primary/10 hover:bg-primary/20 rounded-full px-1.5 py-0.5 mx-0.5 align-middle transition-colors"
+              className="text-2xs text-primary bg-primary/10 hover:bg-primary/20 mx-0.5 align-middle"
             >
               p.{m[1]}
-            </button>
+            </Button>
           );
         }
         return <Markdown key={i}>{seg}</Markdown>;

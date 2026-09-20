@@ -10,6 +10,7 @@ import FanOutModal from '../FanOutModal';
 import { toast, confirmDialog, useUiStore } from '../../lib/ui-store';
 import { useT, fmt } from '../../i18n';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import { Button } from '../ui/button';
 
 // Compact action strip: the two actions you actually reach for (regenerate,
 // archive) plus the model chip, everything else behind "…". Perspectives
@@ -73,30 +74,30 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
   return (
     <div className="relative flex items-center gap-1 shrink-0">
       {isLoading ? (
-        <button
+        <Button variant="ghost" size="icon"
           onClick={() => stopGeneration(nodeId)}
           title={t('actions.stop')}
-          className="text-white bg-destructive hover:bg-destructive/90 rounded-lg w-8 h-8 flex items-center justify-center transition-colors"
+          className="text-white bg-destructive hover:bg-destructive/90"
         >
           <Square size={12} strokeWidth={1.75} fill="currentColor" />
-        </button>
+        </Button>
       ) : (
-        <button
+        <Button variant="ghost"
           onClick={() => void rerunNode(nodeId, {})}
           disabled={isLoading}
           title={isLoading ? t('node.generatingTitle') : t('common.regenerate')}
           className={`${iconBtn} disabled:opacity-25 disabled:cursor-not-allowed`}
         >
           <RefreshCw size={16} strokeWidth={1.75} className={isLoading ? 'animate-spin' : ''} />
-        </button>
+        </Button>
       )}
-      <button
+      <Button variant="ghost"
         onClick={() => setArchived([nodeId], !isArchived)}
         title={isArchived ? t('archive.restoreTitle') : t('archive.title')}
         className={isArchived ? 'text-warning bg-warning/10 rounded-lg w-8 h-8 flex items-center justify-center' : iconBtn}
       >
         {isArchived ? <ArchiveRestore size={16} strokeWidth={1.75} /> : <Archive size={16} strokeWidth={1.75} />}
-      </button>
+      </Button>
       <ModelPicker
         compact
         value={intentModel}

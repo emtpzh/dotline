@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useUiStore } from '../lib/ui-store';
 import { useT, useI18n } from '../i18n';
+import { Button } from './ui/button';
 
 // Miniature diagrams for each concept — same visual language as the canvas:
 // solid accent chain, dashed warm branch, cards as rounded rects.
@@ -201,9 +202,9 @@ export default function Tutorial() {
             <h2 className="text-lg font-semibold text-foreground tracking-tight shrink-0">{t('tutorial.title')}</h2>
             <p className="text-xs text-muted-foreground truncate">{t('tutorial.subtitle')}</p>
           </div>
-          <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors mt-1">
+          <Button variant="ghost" onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground mt-1">
             <X size={18} strokeWidth={1.75} />
-          </button>
+          </Button>
         </div>
 
         <div className="px-7 pt-3 pb-1 min-h-[380px]">
@@ -225,16 +226,14 @@ export default function Tutorial() {
 
         {/* Pager: arrows + dots; the last page closes */}
         <div className="px-7 py-4 shrink-0 flex items-center justify-between">
-          <button
+          <Button variant="outline" size="icon"
             onClick={() => setPage((p) => Math.max(p - 1, 0))}
-            disabled={page === 0}
-            className="w-8 h-8 rounded-lg border border-border text-muted-foreground hover:bg-accent transition-colors flex items-center justify-center disabled:opacity-25 disabled:cursor-not-allowed"
-          >
+            disabled={page === 0}>
             <ChevronLeft size={16} strokeWidth={1.75} />
-          </button>
+          </Button>
           <div className="flex items-center gap-2">
             {SLIDES.map((_, i) => (
-              <button
+              <Button variant="ghost"
                 key={i}
                 onClick={() => setPage(i)}
                 className={`h-2 rounded-full transition-all ${i === page ? 'w-6 bg-primary' : 'w-2 bg-border hover:bg-input'}`}
@@ -243,19 +242,15 @@ export default function Tutorial() {
             ))}
           </div>
           {last ? (
-            <button
-              onClick={() => setOpen(false)}
-              className="text-xs bg-primary hover:bg-primary/90 text-white px-5 py-2 rounded-lg transition-colors"
-            >
+            <Button size="sm"
+              onClick={() => setOpen(false)}>
               {t('tutorial.close')}
-            </button>
+            </Button>
           ) : (
-            <button
-              onClick={() => setPage((p) => p + 1)}
-              className="w-8 h-8 rounded-lg border border-border text-muted-foreground hover:bg-accent transition-colors flex items-center justify-center"
-            >
+            <Button variant="outline" size="icon"
+              onClick={() => setPage((p) => p + 1)}>
               <ChevronRight size={16} strokeWidth={1.75} />
-            </button>
+            </Button>
           )}
         </div>
 

@@ -6,6 +6,8 @@ import { useT } from '../../i18n';
 import { isViewerMode } from '../../lib/viewer';
 import RoleTemplateChips from '../app/RoleTemplateChips';
 import type { ThoughtData } from '../../types';
+import { Button } from '../ui/button';
+import { Textarea } from '../ui/textarea';
 
 // The panel's summary kicker: role · tokens · materials, in one quiet line
 // at the top. The narrow role model: a rolePrompt on a node is the system
@@ -46,23 +48,23 @@ export default function RoleLine({
         {!editing && (<>
         {effective ? (
           canEdit ? (
-            <button
+            <Button variant="ghost"
               onClick={() => { if (isViewerMode) return; setValue(own ?? ''); setEditing(true); }}
-              className="text-edge-explore hover:underline decoration-dotted underline-offset-2 truncate font-medium max-w-[45%] shrink-0"
+              className="text-edge-explore hover:underline decoration-dotted underline-offset-2 truncate max-w-[45%] shrink-0"
               title={`${effective} — ${t('role.edit')}`}
             >
               {effective}
-            </button>
+            </Button>
           ) : (
             <span className="text-edge-explore/90 truncate max-w-[45%] shrink-0" title={effective}>{effective}</span>
           )
         ) : canEdit && !isViewerMode ? (
-          <button
+          <Button variant="ghost"
             onClick={() => { setValue(''); setEditing(true); }}
-            className="hover:text-edge-explore transition-colors shrink-0"
+            className="hover:text-edge-explore shrink-0"
           >
             + {t('role.set')}
-          </button>
+          </Button>
         ) : (
           <span className="italic shrink-0">{t('role.noRoleSet')}</span>
         )}
@@ -83,7 +85,7 @@ export default function RoleLine({
       </div>
       {editing && (
         <div className="pb-2 space-y-1.5">
-          <textarea
+          <Textarea
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
@@ -91,14 +93,14 @@ export default function RoleLine({
               if (e.key === 'Escape') setEditing(false);
             }}
             placeholder={t('role.placeholder')}
-            className="w-full text-xs border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring bg-card text-foreground resize-none leading-relaxed"
+            className="w-full resize-none leading-relaxed"
             rows={2}
             autoFocus
           />
           <RoleTemplateChips onPick={(p) => setValue(p)} />
           <div className="flex justify-end gap-2">
-            <button onClick={() => setEditing(false)} className="text-xs text-muted-foreground hover:text-foreground px-2.5 py-1 rounded-lg hover:bg-border/40 transition-colors">{t('common.cancel')}</button>
-            <button onClick={save} className="text-xs bg-primary hover:bg-primary/90 text-white px-3 py-1 rounded-lg transition-colors">{t('common.save')}</button>
+            <Button variant="ghost" size="xs" onClick={() => setEditing(false)} className="text-xs text-muted-foreground hover:text-foreground hover:bg-border/40">{t('common.cancel')}</Button>
+            <Button size="xs" onClick={save}>{t('common.save')}</Button>
           </div>
         </div>
       )}

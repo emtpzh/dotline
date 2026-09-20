@@ -6,6 +6,7 @@ import { useDateLocale, useI18n, useT, fmt } from '../../i18n';
 import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
 import { collectTimeline } from '../../lib/timeline';
 import { generateGedankengang, getCached, graphFingerprint, type Gedankengang } from '../../lib/gedankengang';
+import { Button } from '../ui/button';
 
 // The third overview, after highlights and materials: the canvas as a
 // chronicle. Every node in creation order, grouped by day, each row carrying
@@ -57,26 +58,26 @@ export default function TimelineOverviewModal({ onLocate }: { onLocate: (nodeId:
           <DialogTitle>{t('tlov.title')}</DialogTitle>
           <span className="text-2xs text-muted-foreground">{fmt(t('tlov.count'), { n: entries.length })}</span>
           <div className="flex-1" />
-          <button
+          <Button variant="ghost" size="xs"
             onClick={() => { close(); useUiStore.getState().setThoughtMapOpen(true); }}
             disabled={entries.length === 0}
             data-tmap-from-timeline
-            className="flex items-center gap-1.5 text-2xs text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full px-2.5 py-1 transition-colors disabled:opacity-50"
+            className="text-2xs text-muted-foreground hover:text-primary hover:bg-primary/10"
           >
             <ImageDown size={13} strokeWidth={1.75} />
             {t('tmap.export')}
-          </button>
+          </Button>
         </div>
 
         <div className="px-5 pt-3 shrink-0" data-gedankengang>
           {!shown && !gedLoading && (
-            <button
+            <Button variant="ghost" size="xs"
               onClick={writeJourney}
-              className="flex items-center gap-1.5 text-2xs text-primary bg-primary/10 hover:bg-primary/20 rounded-full px-3 py-1.5 transition-colors"
+              className="text-2xs text-primary bg-primary/10 hover:bg-primary/20"
             >
               <Sparkles size={12} strokeWidth={1.75} />
               {t('tlov.gedankenGenerate')}
-            </button>
+            </Button>
           )}
           {gedLoading && (
             <p className="text-2xs text-muted-foreground italic py-1.5">{t('tlov.gedankenLoading')}</p>
@@ -92,9 +93,9 @@ export default function TimelineOverviewModal({ onLocate }: { onLocate: (nodeId:
                   {stale ? t('tlov.gedankenStale') : new Date(shown.at).toLocaleString(dateLocale)}
                 </span>
                 {stale && (
-                  <button onClick={writeJourney} className="text-2xs text-primary hover:underline">
+                  <Button variant="ghost" size="xs" onClick={writeJourney} className="text-2xs text-primary hover:underline">
                     {t('tlov.gedankenRedo')}
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
@@ -129,13 +130,13 @@ export default function TimelineOverviewModal({ onLocate }: { onLocate: (nodeId:
                       <p className="text-2xs text-muted-foreground">{t('timeline.modified')} {new Date(e.modifiedAt).toLocaleString(dateLocale)}</p>
                     )}
                   </div>
-                  <button
-                    className="shrink-0 text-2xs font-mono text-primary bg-primary/10 hover:bg-primary/20 rounded-full px-1.5 py-0.5 transition-colors opacity-0 group-hover:opacity-100"
+                  <Button variant="ghost" size="xs"
+                    className="shrink-0 text-2xs font-mono text-primary bg-primary/10 hover:bg-primary/20 opacity-0 group-hover:opacity-100"
                     onClick={() => { close(); onLocate(e.id); }}
                     title={t('hlov.locateTitle')}
                   >
                     {t('tlov.locate')}
-                  </button>
+                  </Button>
                 </div>
               </div>
             );

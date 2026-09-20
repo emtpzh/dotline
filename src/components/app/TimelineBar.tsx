@@ -7,6 +7,7 @@ import { useZoomTier } from '../../lib/use-map-mode';
 import { useDateLocale, useT } from '../../i18n';
 import { collectTimeline } from '../../lib/timeline';
 import { panelShift } from '../../lib/panel-shift';
+import { Button } from '../ui/button';
 
 // The map's second axis. Space answers "where is it in the graph"; this rail
 // answers "when did I think it". Not a floating panel — a bare ruler drawn
@@ -98,14 +99,14 @@ export function TimelineBar() {
           <div className="text-[10px] text-muted-foreground/80 mt-1">{t('timeline.clickHint')}</div>
         </div>
       )}
-      <button
+      <Button variant="ghost" size="icon-sm"
         onClick={() => setOverviewOpen(true)}
         title={t('timeline.openOverview')}
         data-timeline-overview-btn
-        className="pointer-events-auto self-start ml-[25px] w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/70 hover:text-primary hover:bg-primary/10 transition-colors"
+        className="pointer-events-auto self-start ml-[25px] text-muted-foreground/70 hover:text-primary hover:bg-primary/10"
       >
         <History size={14} strokeWidth={1.75} />
-      </button>
+      </Button>
       <div className="pointer-events-auto overflow-y-auto tdag-noscrollbar max-h-[170px] mt-0.5">
         <div className="flex flex-col py-1">
           {entries.map((e, i) => {
@@ -116,7 +117,7 @@ export function TimelineBar() {
               // Each row is a full-width, gap-free hit area — the pointer
               // never falls between ticks. The tick itself is the visual
               // child, left-anchored, swelling rightward under the fisheye.
-              <button
+              <Button variant="ghost"
                 key={e.id}
                 data-timeline-dot={e.id}
                 onMouseEnter={(ev) => setHover({ id: e.id, idx: i, y: ev.currentTarget.getBoundingClientRect().top })}
@@ -137,7 +138,7 @@ export function TimelineBar() {
                   setSelectedNodeId(e.id);
                   rf.setCenter(e.x + 260 + panelShift(e.id) / 2, e.y + 110, { zoom: 1, duration: 350 });
                 }}
-                className="relative flex items-center w-full h-[14px] shrink-0 pl-[29px] cursor-pointer"
+                className="relative w-full h-[14px] shrink-0 pl-[29px]"
                 aria-label={e.label}
               >
                 <span
@@ -155,7 +156,7 @@ export function TimelineBar() {
                     {fmtDay(day)}
                   </span>
                 )}
-              </button>
+              </Button>
             );
           })}
         </div>

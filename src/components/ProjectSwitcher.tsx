@@ -11,6 +11,8 @@ import type { ImportableConversation } from '../lib/import-chat';
 import { confirmDialog, toast } from '../lib/ui-store';
 import { isImeComposing } from '../utils';
 import { useT, t as ti, fmt } from '../i18n';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
 
 function relativeTime(ts: number): string {
   const diff = Date.now() - ts;
@@ -98,7 +100,7 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
           // (assume live: never a false alarm)
           const unreachable = knownSessionIds.size > 0 && !knownSessionIds.has(active.sourceSession.sessionId);
           return (
-            <button
+            <Button variant="ghost"
               title={unreachable
                 ? ti('switcher.mirrorBadgeGone')
                 : fmt(ti('switcher.mirrorBadge'), { runner: active.sourceSession!.runner })}
@@ -107,7 +109,7 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
               data-twin-badge={unreachable ? 'unreachable' : 'live'}
             >
               ⇄ {active.sourceSession!.runner}
-            </button>
+            </Button>
           );
         })()}
       </div>
@@ -121,7 +123,7 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
                 onClick={() => { if (renamingId !== p.id && p.id !== activeId) void doSwitch(p.id); }}
               >
                 {renamingId === p.id ? (
-                  <input
+                  <Input
                     autoFocus
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
@@ -134,7 +136,7 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
                       if (e.key === 'Escape') setRenamingId(null);
                     }}
                     onBlur={() => setRenamingId(null)}
-                    className="flex-1 text-xs text-foreground border border-primary/40 rounded-lg px-2 py-1 bg-background focus:outline-none"
+                    className="flex-1 border-primary/40"
                   />
                 ) : (
                   <>
@@ -152,28 +154,28 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
                         )}
                       </div>
                     </div>
-                    <button
+                    <Button variant="ghost"
                       title={t('switcher.rename')}
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground p-1 rounded transition-all shrink-0"
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0"
                       onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenameValue(p.name); }}
                     >
                       <Pencil size={14} strokeWidth={1.75} />
-                    </button>
-                    <button
+                    </Button>
+                    <Button variant="ghost"
                       title={t('common.delete')}
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive/90 p-1 rounded transition-all shrink-0"
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive/90 shrink-0"
                       onClick={(e) => { e.stopPropagation(); void confirmDelete(p); }}
                     >
                       <Trash2 size={14} strokeWidth={1.75} />
-                    </button>
-                    <button
+                    </Button>
+                    <Button variant="ghost"
                       title={t('switcher.archive')}
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-warning/90 p-1 rounded transition-all shrink-0"
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-warning/90 shrink-0"
                       onClick={(e) => { e.stopPropagation(); void setProjectArchived(p.id, true).then(onSwitched); }}
                       data-archive-canvas
                     >
                       <Archive size={14} strokeWidth={1.75} />
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>
@@ -181,29 +183,29 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
           </div>
 
           <div className="border-t border-border mt-1 pt-1">
-            <button
+            <Button variant="ghost" size="sm"
               onClick={() => { setOpen(false); void createProject().then(onSwitched); }}
-              className="w-full text-left px-3 py-2 text-xs text-primary hover:bg-accent transition-colors flex items-center gap-2"
+              className="w-full text-left text-xs text-primary hover:bg-accent"
             >
               <Plus size={15} strokeWidth={1.75} /> {t('switcher.newCanvas')}
-            </button>
-            <button
+            </Button>
+            <Button variant="ghost" size="sm"
               onClick={() => importFileRef.current?.click()}
-              className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-accent transition-colors flex items-center gap-2"
+              className="w-full text-left text-xs text-muted-foreground hover:bg-accent"
             >
               <Upload size={15} strokeWidth={1.75} /> {t('switcher.importBackup')}
-            </button>
-            <button
+            </Button>
+            <Button variant="ghost" size="sm"
               onClick={() => { setOpen(false); setAtlasOpen(true); }}
-              className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-accent transition-colors flex items-center gap-2"
+              className="w-full text-left text-xs text-muted-foreground hover:bg-accent"
               data-open-atlas
             >
               <MapIcon size={15} strokeWidth={1.75} /> {t('switcher.allCanvases')}
-            </button>
+            </Button>
             {window.desktop && (
-              <button
+              <Button variant="ghost" size="sm"
                 onClick={() => { setOpen(false); void window.desktop!.checkForUpdates(); }}
-                className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-accent transition-colors flex items-center gap-2"
+                className="w-full text-left text-xs text-muted-foreground hover:bg-accent"
                 data-check-updates
               >
                 <RefreshCw size={15} strokeWidth={1.75} /> {t('update.checkMenu')}
@@ -211,7 +213,7 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
                 <span className="ml-auto text-2xs text-muted-foreground">
                   v{new URLSearchParams(window.location.search).get('dv')}
                 </span>
-              </button>
+              </Button>
             )}
             <input
               ref={importFileRef}

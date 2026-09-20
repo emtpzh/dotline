@@ -10,6 +10,8 @@ import {
 import { useT, fmt, useI18n } from '../../i18n';
 import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
 import { API_BASE } from '../../lib/constants';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 
 // The model-interface manager: one door for every way in. Presets carry a
 // baseURL and a key page; the model list is always fetched live from the
@@ -239,12 +241,12 @@ export default function ApiKeyModal() {
                     {p.models.some((m) => m.vision) && <span> · 📷 {p.models.filter((m) => m.vision).length}</span>}
                   </div>
                 </div>
-                <button onClick={() => void refresh(p)} disabled={busy} title={t('provider.refreshTitle')} className="text-muted-foreground hover:text-primary w-6 h-6 rounded-full flex items-center justify-center transition-colors shrink-0" data-provider-refresh>
+                <Button variant="ghost" size="icon-sm" onClick={() => void refresh(p)} disabled={busy} title={t('provider.refreshTitle')} className="text-muted-foreground hover:text-primary shrink-0" data-provider-refresh>
                   <Pencil size={13} strokeWidth={1.75} />
-                </button>
-                <button onClick={() => void remove(p.baseURL)} disabled={busy} title={t('common.delete')} className="text-muted-foreground hover:text-destructive/90 w-6 h-6 rounded-full flex items-center justify-center transition-colors shrink-0">
+                </Button>
+                <Button variant="ghost" size="icon-sm" onClick={() => void remove(p.baseURL)} disabled={busy} title={t('common.delete')} className="text-muted-foreground hover:text-destructive/90 shrink-0">
                   <Trash2 size={13} strokeWidth={1.75} />
-                </button>
+                </Button>
               </div>
             ))}
 
@@ -255,9 +257,9 @@ export default function ApiKeyModal() {
               </p>
             )}
 
-            <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 text-xs text-primary hover:bg-primary/10 px-3 py-1.5 rounded-lg transition-colors" data-provider-add>
+            <Button variant="ghost" size="sm" onClick={() => setAdding(true)} className="text-xs text-primary hover:bg-primary/10" data-provider-add>
               <Plus size={14} strokeWidth={1.75} /> {t('provider.add')}
-            </button>
+            </Button>
           </>)}
 
           {adding && (<>
@@ -265,7 +267,7 @@ export default function ApiKeyModal() {
               <label className="text-2xs font-medium text-muted-foreground block mb-1.5">{t('provider.pickSource')}</label>
               <div className="flex flex-wrap gap-1.5">
                 {visiblePresets.map((p) => (
-                  <button
+                  <Button variant="ghost"
                     key={p.id}
                     onClick={() => {
                       // A provider for this endpoint already exists: adding
@@ -279,7 +281,7 @@ export default function ApiKeyModal() {
                     data-preset={p.id}
                   >
                     {p.id === 'custom' ? t('provider.customName') : p.noKey ? `${p.name} · ${t('provider.local')}` : p.name}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -287,31 +289,31 @@ export default function ApiKeyModal() {
             {preset.id === 'custom' && (<>
               <div>
                 <label className="text-2xs font-medium text-muted-foreground block mb-1.5">{t('provider.baseURL')}</label>
-                <input value={customURL} onChange={(e) => setCustomURL(e.target.value)} placeholder="https://…/v1"
-                  className="w-full bg-muted text-sm text-foreground font-mono rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring/40 placeholder-muted-foreground" data-provider-url />
+                <Input value={customURL} onChange={(e) => setCustomURL(e.target.value)} placeholder="https://…/v1"
+                  className="w-full font-mono" data-provider-url />
                 <p className="text-2xs text-muted-foreground mt-1">{t('provider.baseURLHint')}</p>
               </div>
               <div>
                 <label className="text-2xs font-medium text-muted-foreground block mb-1.5">{t('provider.displayName')}</label>
-                <input value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder={t('provider.customName')}
-                  className="w-full bg-muted text-sm text-foreground rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring/40 placeholder-muted-foreground" />
+                <Input value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder={t('provider.customName')}
+                  className="w-full" />
               </div>
             </>)}
 
             {preset.id === 'openrouter' && !probed && (
               <div className="border border-primary/30 bg-primary/5 rounded-xl px-3 py-2.5 flex items-center gap-2.5" data-provider-oauth-row>
                 <p className="text-2xs text-muted-foreground leading-relaxed flex-1 min-w-0">{t('provider.oauthHint')}</p>
-                <button onClick={() => void startOpenRouterOAuth()} data-provider-oauth
-                  className="text-xs bg-primary text-white px-3 py-1.5 rounded-lg shrink-0 flex items-center gap-1.5">
+                <Button size="sm" onClick={() => void startOpenRouterOAuth()} data-provider-oauth
+                  className="shrink-0">
                   <ExternalLink size={12} strokeWidth={1.75} /> {t('provider.oauthButton')}
-                </button>
+                </Button>
               </div>
             )}
             {!preset.noKey && (
               <div>
                 <label className="text-2xs font-medium text-muted-foreground block mb-1.5">API key</label>
-                <input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="sk-…" autoFocus
-                  className="w-full bg-muted text-sm text-foreground font-mono rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring/40 placeholder-muted-foreground" data-provider-key />
+                <Input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="sk-…" autoFocus
+                  className="w-full font-mono" data-provider-key />
                 {preset.keyUrl && (
                   <p className="text-2xs text-muted-foreground mt-1.5">
                     {t('provider.keyHint')}{' '}
@@ -328,11 +330,11 @@ export default function ApiKeyModal() {
             )}
 
             {!probed && (
-              <button onClick={() => void doProbe()} disabled={busy || hostedBridgeBlocked || (preset.id === 'custom' ? !customURL.trim() : !preset.noKey && !key.trim())}
-                className="text-xs bg-primary text-white px-4 py-1.5 rounded-lg disabled:opacity-40 flex items-center gap-1.5" data-provider-probe>
+              <Button size="sm" onClick={() => void doProbe()} disabled={busy || hostedBridgeBlocked || (preset.id === 'custom' ? !customURL.trim() : !preset.noKey && !key.trim())}
+                 data-provider-probe>
                 {busy && <Loader2 size={12} className="animate-spin" />}
                 {busy ? t('provider.probing') : t('provider.probe')}
-              </button>
+              </Button>
             )}
 
             {probed && (<>
@@ -340,17 +342,17 @@ export default function ApiKeyModal() {
                 <div className="flex items-center gap-2 mb-1.5">
                   <label className="text-2xs font-medium text-muted-foreground flex-1">{fmt(t('provider.pickModels'), { n: probed.length })}</label>
                   {probed.length > 15 && (
-                    <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('provider.filter')}
-                      className="bg-muted text-2xs text-foreground rounded-md px-2 py-1 w-36 focus:outline-none focus:ring-1 focus:ring-ring/40 placeholder-muted-foreground" />
+                    <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('provider.filter')}
+                      className="text-2xs w-36" />
                   )}
                   {probed.some((m) => m.created) && (
-                    <button
+                    <Button variant="outline" size="xs"
                       onClick={() => setSortMode((v) => (v === 'time' ? 'name' : 'time'))}
-                      className="text-2xs px-2.5 py-1.5 rounded-lg border border-border text-muted-foreground hover:bg-accent transition-colors shrink-0"
+                      className="shrink-0"
                       data-sort-toggle
                     >
                       {sortMode === 'time' ? t('provider.sortTime') : t('provider.sortName')}
-                    </button>
+                    </Button>
                   )}
                 </div>
                 <div className="border border-border rounded-xl max-h-[220px] overflow-y-auto divide-y divide-border/60" data-provider-models>
@@ -371,13 +373,13 @@ export default function ApiKeyModal() {
                       {m.vision != null ? (
                         m.vision && <span title={t('provider.visionYes')}>📷</span>
                       ) : picked.has(m.id) && (
-                        <button
+                        <Button variant="ghost"
                           onClick={(e) => { e.preventDefault(); const next = new Map(picked); next.set(m.id, !next.get(m.id)); setPicked(next); }}
                           title={t('provider.visionToggle')}
                           className={`flex items-center gap-0.5 text-2xs px-1.5 py-0.5 rounded-full transition-colors ${picked.get(m.id) ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}
                         >
                           <Camera size={11} strokeWidth={1.75} />
-                        </button>
+                        </Button>
                       )}
                     </label>
                   ))}
@@ -395,14 +397,14 @@ export default function ApiKeyModal() {
         <div className="flex items-center gap-2 px-5 py-3 border-t border-border shrink-0">
           <div className="flex-1" />
           {adding ? (<>
-            <button onClick={resetAdd} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-accent transition-colors">{t('common.cancel')}</button>
-            <button onClick={() => void doAdd()} disabled={busy || picked.size === 0}
-              className="text-xs bg-primary text-white px-4 py-1.5 rounded-lg disabled:opacity-40 flex items-center gap-1.5" data-provider-save>
+            <Button variant="ghost" size="sm" onClick={resetAdd} className="text-xs text-muted-foreground hover:text-foreground hover:bg-accent">{t('common.cancel')}</Button>
+            <Button size="sm" onClick={() => void doAdd()} disabled={busy || picked.size === 0}
+               data-provider-save>
               {busy && <Loader2 size={12} className="animate-spin" />}
               {t('provider.save')}
-            </button>
+            </Button>
           </>) : (
-            <button onClick={() => { setOpen(false); resetAdd(); }} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-accent transition-colors">{t('common.close')}</button>
+            <Button variant="ghost" size="sm" onClick={() => { setOpen(false); resetAdd(); }} className="text-xs text-muted-foreground hover:text-foreground hover:bg-accent">{t('common.close')}</Button>
           )}
         </div>
       </DialogContent>

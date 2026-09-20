@@ -4,6 +4,7 @@ import { useProjects, setProjectAgentCwd } from '../../store/projects';
 import { toast } from '../../lib/ui-store';
 import type { ThoughtData } from '../../types';
 import { runtimeOf } from '../../lib/agents/runtimes';
+import { Button } from '../ui/button';
 
 // Where an agent turn ran, kept in view: the runtime, the working directory,
 // whether the turn continued a session. The directory is a fact of the turn
@@ -34,24 +35,24 @@ export default function AgentSessionLine({ data }: { data: ThoughtData }) {
       <span className="font-mono text-muted-foreground truncate flex-1 min-w-0" title={cwd} data-agent-session-cwd={cwd}>{short}</span>
       {data.agentSession?.continued && <span className="text-2xs text-muted-foreground shrink-0" title={t('agent.continuedTitle')}>↩ {t('agent.continued')}</span>}
       {window.desktopLocal && (
-        <button onClick={() => void window.desktopLocal!.open(cwd)} className="text-muted-foreground hover:text-primary shrink-0" title={t('agent.openDir')}>
+        <Button variant="ghost" onClick={() => void window.desktopLocal!.open(cwd)} className="text-muted-foreground hover:text-primary shrink-0" title={t('agent.openDir')}>
           <FolderOpen size={14} strokeWidth={1.75} />
-        </button>
+        </Button>
       )}
       {sessionId && window.desktopSessions && (
-        <button onClick={() => void window.desktopSessions!.openInCli(runner, cwd, sessionId, 'terminal')} className="text-muted-foreground hover:text-primary shrink-0" title={t('agent.openInTerminal')}>
+        <Button variant="ghost" onClick={() => void window.desktopSessions!.openInCli(runner, cwd, sessionId, 'terminal')} className="text-muted-foreground hover:text-primary shrink-0" title={t('agent.openInTerminal')}>
           <SquareTerminal size={14} strokeWidth={1.75} />
-        </button>
+        </Button>
       )}
       {canPin && (
-        <button
+        <Button variant="ghost"
           onClick={() => { void setProjectAgentCwd(activeId!, cwd).then(() => toast('success', t('agent.useAsCwdDone'), 4000)); }}
           className="text-muted-foreground hover:text-primary shrink-0"
           title={t('agent.useAsCwd')}
           data-agent-session-pin
         >
           <Pin size={14} strokeWidth={1.75} />
-        </button>
+        </Button>
       )}
     </div>
   );

@@ -4,6 +4,7 @@ import type { ImportableConversation } from '../lib/import-chat';
 import { importChatConversations } from '../lib/export';
 import { useT, fmt } from '../i18n';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { Button } from './ui/button';
 
 // Conversation picker for ChatGPT/Claude exports: each checked conversation
 // becomes its own canvas.
@@ -79,16 +80,14 @@ export default function ImportChatModal({
         </ul>
 
         <div className="px-6 py-4 border-t border-border flex justify-end gap-2">
-          <button onClick={onClose} className="text-xs text-muted-foreground hover:text-foreground px-4 py-2 rounded-lg hover:bg-accent transition-colors">
+          <Button variant="ghost" size="sm" onClick={onClose} className="text-xs text-muted-foreground hover:text-foreground hover:bg-accent">
             {t('common.cancel')}
-          </button>
-          <button
+          </Button>
+          <Button size="sm"
             onClick={() => void doImport()}
-            disabled={checked.size === 0 || busy}
-            className="text-xs bg-primary hover:bg-primary/90 text-white px-5 py-2 rounded-lg transition-colors disabled:opacity-30"
-          >
+            disabled={checked.size === 0 || busy}>
             {busy ? '…' : fmt(t('import.confirm'), { n: checked.size })}
-          </button>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

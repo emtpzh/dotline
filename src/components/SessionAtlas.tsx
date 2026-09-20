@@ -7,6 +7,7 @@ import { useT, t as ti, fmt } from '../i18n';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { toast } from '../lib/ui-store';
+import { Button } from './ui/button';
 
 // The session atlas: the external world's view. Project folders on the
 // left are cwd groups discovered across ALL runner stores — one folder can
@@ -61,12 +62,12 @@ function SourcesDialog({ roots, counts, onChanged, onClose }: {
         {root.exists ? (counts.get(root.key) ?? 0) : t('atlas.rootMissing')}
       </span>
       {!root.builtin && (
-        <button
-          className="text-muted-foreground hover:text-destructive/90 p-1 rounded transition-colors shrink-0"
+        <Button variant="ghost"
+          className="text-muted-foreground hover:text-destructive/90 shrink-0"
           onClick={() => { void window.desktopSessions!.removeRoot(root.key).then(onChanged); }}
         >
           <Trash2 size={14} strokeWidth={1.75} />
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -93,8 +94,8 @@ function SourcesDialog({ roots, counts, onChanged, onClose }: {
                   </div>
                 </div>
                 {c.state !== 'installed' && (
-                  <button
-                    className="text-2xs bg-primary/10 text-primary hover:bg-primary/20 font-medium px-2.5 py-1 rounded-lg transition-colors shrink-0"
+                  <Button variant="ghost" size="xs"
+                    className="text-2xs bg-primary/10 text-primary hover:bg-primary/20 shrink-0"
                     data-handoff-install
                     onClick={() => void (async () => {
                       const { confirmDialog } = await import('../lib/ui-store');
@@ -111,17 +112,17 @@ function SourcesDialog({ roots, counts, onChanged, onClose }: {
                     })()}
                   >
                     {t(c.state === 'outdated' ? 'atlas.handoffUpdate' : 'atlas.handoffEnable')}
-                  </button>
+                  </Button>
                 )}
                 {(c.state === 'installed' || c.state === 'outdated') && (
-                  <button
-                    className="text-muted-foreground hover:text-destructive/90 p-1 rounded transition-colors shrink-0"
+                  <Button variant="ghost"
+                    className="text-muted-foreground hover:text-destructive/90 shrink-0"
                     title={t('atlas.handoffRemove')}
                     data-handoff-remove
                     onClick={() => void window.desktopSessions!.commandsRemove!(runner).then(refreshCmds)}
                   >
                     <Trash2 size={14} strokeWidth={1.75} />
-                  </button>
+                  </Button>
                 )}
               </div>
             ))}
@@ -129,19 +130,16 @@ function SourcesDialog({ roots, counts, onChanged, onClose }: {
         )}
         {roots.filter((r) => !r.builtin).map(row)}
         <div className="flex items-center gap-2 px-4 py-3">
-          <button
-            onClick={onChanged}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground border border-border rounded-lg px-2.5 py-1.5 hover:bg-accent transition-colors"
-          >
+          <Button variant="outline" size="sm"
+            onClick={onChanged}>
             <RefreshCw size={13} strokeWidth={1.75} /> {t('atlas.autoDetect')}
-          </button>
-          <button
+          </Button>
+          <Button variant="outline" size="sm"
             onClick={() => { void window.desktopSessions!.addRoot().then((r) => { if (r) onChanged(); }); }}
-            className="flex items-center gap-1.5 text-sm text-primary border border-border rounded-lg px-2.5 py-1.5 hover:bg-accent transition-colors"
-            data-atlas-add-dir
-          >
+            
+            data-atlas-add-dir>
             <Plug size={13} strokeWidth={1.75} /> {t('atlas.addDir')}
-          </button>
+          </Button>
         </div>
 
       </div>
@@ -384,13 +382,13 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
                     m: [...changes.values()].filter((c) => c.kind === 'updated').length,
                   })}
                 </span>
-                <button
-                  className="text-muted-foreground hover:text-foreground underline decoration-dotted transition-colors"
+                <Button variant="ghost"
+                  className="text-muted-foreground hover:text-foreground underline decoration-dotted"
                   onClick={() => { markAllSeen(cards ?? []); setChanges(new Map()); }}
                   data-atlas-mark-all
                 >
                   {t('atlas.markAllSeen')}
-                </button>
+                </Button>
               </div>
             )}
           </div>
@@ -423,24 +421,22 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
             </Select>
           )}
           {isDesktop && (
-          <button
+          <Button variant="outline" size="sm"
             onClick={() => setSourcesOpen(true)}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground border border-border rounded-lg px-2.5 py-1.5 hover:bg-accent transition-colors"
-            data-atlas-sources
-          >
+            
+            data-atlas-sources>
             <Plug size={14} strokeWidth={1.75} /> {t('atlas.sources')}
-          </button>
+          </Button>
           )}
           {isDesktop && (
-          <button
+          <Button variant="outline" size="sm"
             onClick={() => void refresh()}
             disabled={scanning}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground border border-border rounded-lg px-2.5 py-1.5 hover:bg-accent transition-colors disabled:opacity-60"
-            data-atlas-refresh
-          >
+            
+            data-atlas-refresh>
             {scanning ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} strokeWidth={1.75} />}
             {scanning ? t('atlas.scanning') : t('atlas.refresh')}
-          </button>
+          </Button>
           )}
         </DialogHeader>
 
@@ -450,17 +446,17 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
           <div className="w-[260px] border-r border-border overflow-y-auto py-2 shrink-0">
             <div className="px-4 py-1 text-2xs uppercase tracking-wide text-muted-foreground">{t('atlas.recent')}</div>
             {projects.filter((p) => !p.archived).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6).map((p) => (
-              <button
+              <Button variant="ghost" size="sm"
                 key={p.id}
                 onClick={() => { onClose(); void switchProject(p.id).then(onSwitched); }}
-                className="w-full text-left px-4 py-1.5 flex items-center gap-2 text-foreground hover:bg-accent transition-colors"
+                className="w-full text-left text-foreground hover:bg-accent"
                 data-atlas-recent={p.id}
               >
                 {p.sourceSession?.sessionId
                   ? <span className="text-2xs font-mono border border-border rounded px-1 py-px shrink-0 text-muted-foreground">{p.sourceSession.runner}</span>
                   : <Inbox size={13} strokeWidth={1.75} className="shrink-0 text-muted-foreground" />}
                 <span className="flex-1 truncate text-sm">{p.name}</span>
-              </button>
+              </Button>
             ))}
             <div className="border-t border-border mt-2 pt-2 px-4 py-1 text-2xs uppercase tracking-wide text-muted-foreground">{t('atlas.folders')}</div>
             {!isDesktop && (
@@ -476,7 +472,7 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
               const key = g.cwd ?? '';
               const isActive = selected !== 'canvases' && activeGroup === g;
               return (
-                <button
+                <Button variant="ghost"
                   key={key}
                   onClick={() => setSelected(key)}
                   className={`w-full text-left px-4 py-2 flex items-center gap-2 transition-colors ${isActive ? 'bg-primary/5 text-primary' : 'text-foreground hover:bg-accent'}`}
@@ -489,11 +485,11 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
                     return n > 0 ? <span className="text-2xs text-primary shrink-0" data-atlas-folder-changes>+{n}</span> : null;
                   })()}
                   <span className="text-2xs text-muted-foreground shrink-0">{g.cards.length}</span>
-                </button>
+                </Button>
               );
             })}
             <div className="border-t border-border mt-2 pt-2">
-              <button
+              <Button variant="ghost"
                 onClick={() => setSelected('canvases')}
                 className={`w-full text-left px-4 py-2 flex items-center gap-2 transition-colors ${selected === 'canvases' ? 'bg-primary/5 text-primary' : 'text-foreground hover:bg-accent'}`}
                 data-atlas-canvases
@@ -501,7 +497,7 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
                 <Inbox size={15} strokeWidth={1.75} className="shrink-0" />
                 <span className="flex-1 truncate text-sm">{t('atlas.myCanvases')}</span>
                 <span className="text-2xs text-muted-foreground shrink-0">{projects.length}</span>
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -519,14 +515,14 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
                         {!!p.sourceSession?.sessionId && <span className="font-mono border border-border rounded px-1 py-px">{p.sourceSession.runner}</span>}
                       </div>
                     </div>
-                    <button
+                    <Button variant="ghost"
                       title={t('switcher.archive')}
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-warning/90 p-1.5 rounded transition-all shrink-0"
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-warning/90 shrink-0"
                       onClick={(e) => { e.stopPropagation(); void setProjectArchived(p.id, true); }}
                       data-atlas-archive
                     >
                       <Archive size={15} strokeWidth={1.75} />
-                    </button>
+                    </Button>
                     {/* the listening cluster: every session this canvas
                         subscribes to, with its role and progress */}
                     {!!p.sourceSession && subscribedSessionIds(p).length > 0 && (
@@ -551,11 +547,11 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
                     </summary>
                     <div className="space-y-1.5 mt-1.5">
                       {projects.filter((p) => p.archived).sort((a, b) => b.updatedAt - a.updatedAt).map((p) => (
-                        <button
+                        <Button variant="outline"
                           key={p.id}
                           title={t('atlas.restoreOpen')}
                           onClick={() => { void setProjectArchived(p.id, false).then(() => { onClose(); void switchProject(p.id).then(onSwitched); }); }}
-                          className="w-full text-left border border-dashed border-border rounded-xl px-4 py-2.5 hover:bg-accent transition-colors opacity-70 hover:opacity-100"
+                          className="w-full text-left border-dashed opacity-70 hover:opacity-100"
                           data-atlas-archived-item
                         >
                           <div className="text-sm text-foreground truncate flex items-center gap-1.5">
@@ -563,7 +559,7 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
                             {!!p.sourceSession?.sessionId && <span className="text-2xs font-mono border border-border rounded px-1 py-px shrink-0 text-muted-foreground">{p.sourceSession.runner}</span>}
                           </div>
                           <div className="text-2xs text-muted-foreground mt-0.5">{dateLabel(p.updatedAt)}</div>
-                        </button>
+                        </Button>
                       ))}
                     </div>
                   </details>
@@ -586,41 +582,41 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
                     />
                   </div>
                   {runners.map((r) => (
-                    <button
+                    <Button variant="ghost"
                       key={r}
                       onClick={() => setRunnerOff((s) => { const n = new Set(s); if (n.has(r)) n.delete(r); else n.add(r); return n; })}
                       className={`text-2xs font-mono border rounded-lg px-2 py-1 transition-colors ${runnerOff.has(r) ? 'border-border text-muted-foreground line-through' : 'border-primary/40 text-primary bg-primary/5'}`}
                       data-atlas-runner-toggle={r}
                     >
                       {r}
-                    </button>
+                    </Button>
                   ))}
                   {changes.size > 0 && (
-                    <button
+                    <Button variant="ghost"
                       onClick={() => setOnlyChanged((v) => !v)}
                       className={`text-2xs border rounded-lg px-2 py-1 transition-colors ${onlyChanged ? 'border-primary text-white bg-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
                       data-atlas-only-changed
                     >
                       {t('atlas.onlyChanged')}
-                    </button>
+                    </Button>
                   )}
                   {(cards ?? []).some((c) => c.subagent) && (
-                    <button
+                    <Button variant="ghost"
                       onClick={() => setShowSubagents((v) => !v)}
                       className={`text-2xs border rounded-lg px-2 py-1 transition-colors ${showSubagents ? 'border-primary text-primary bg-primary/5' : 'border-border text-muted-foreground hover:text-foreground'}`}
                       data-atlas-show-sub
                     >
                       {t('atlas.showSub')}
-                    </button>
+                    </Button>
                   )}
-                  <button
+                  <Button variant="outline" size="xs"
                     onClick={() => setSortKey((k) => (({ time: 'name', name: 'size', size: 'runner', runner: 'time' } as const)[k]))}
-                    className="ml-auto flex items-center gap-1.5 text-2xs text-muted-foreground hover:text-foreground border border-border rounded-lg px-2 py-1 hover:bg-accent transition-colors"
+                    className="ml-auto"
                     data-atlas-sort
                   >
                     <ArrowDownUp size={12} strokeWidth={1.75} />
                     {t(`atlas.sort${sortKey[0].toUpperCase()}${sortKey.slice(1)}` as 'atlas.sortTime')}
-                  </button>
+                  </Button>
                 </div>
                 )}
                 {!activeGroup ? (
@@ -675,54 +671,54 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
                           // canvas, host app (when one is installed), terminal
                           <div className={`${picked.has(pickKey(card)) ? '' : 'opacity-0 group-hover:opacity-100'} transition-opacity flex items-center gap-1 shrink-0`}>
                             {!canvasOf(card.sessionId) && !!card.sessionId && (
-                              <button
+                              <Button variant="ghost"
                                 title={t('atlas.pickForMerge')}
                                 className={`p-1.5 rounded transition-colors ${picked.has(pickKey(card)) ? 'text-primary' : 'text-muted-foreground hover:text-primary'}`}
                                 onClick={(e) => { e.stopPropagation(); togglePick(card); }}
                                 data-atlas-pick={picked.has(pickKey(card)) ? 'on' : 'off'}
                               >
                                 {picked.has(pickKey(card)) ? <SquareCheckBig size={16} strokeWidth={1.75} /> : <Square size={16} strokeWidth={1.75} />}
-                              </button>
+                              </Button>
                             )}
                             <span title={t('atlas.import')} className="text-muted-foreground hover:text-primary p-1.5"><Import size={16} strokeWidth={1.75} /></span>
                             {projects.some((p) => p.sourceSession?.sessionId === card.sessionId) && (
-                              <button
+                              <Button variant="ghost"
                                 title={t('atlas.recast')}
-                                className="text-muted-foreground hover:text-destructive/90 p-1.5 rounded transition-colors"
+                                className="text-muted-foreground hover:text-destructive/90"
                                 onClick={(e) => { e.stopPropagation(); void recast(card); }}
                                 data-atlas-recast
                               >
                                 <RotateCcw size={16} strokeWidth={1.75} />
-                              </button>
+                              </Button>
                             )}
                             {!canvasOf(card.sessionId) && (
-                              <button
+                              <Button variant="ghost"
                                 title={t('atlas.mountTo')}
-                                className="text-muted-foreground hover:text-primary p-1.5 rounded transition-colors"
+                                className="text-muted-foreground hover:text-primary"
                                 onClick={(e) => { e.stopPropagation(); setMountPick(card); }}
                                 data-atlas-mount
                               >
                                 <Link2 size={16} strokeWidth={1.75} />
-                              </button>
+                              </Button>
                             )}
                             {appHosts.has(card.runner) && (
-                              <button
+                              <Button variant="ghost"
                                 title={fmt(t('atlas.openApp'), { name: appHosts.get(card.runner)! })}
-                                className="text-muted-foreground hover:text-primary p-1.5 rounded transition-colors"
+                                className="text-muted-foreground hover:text-primary"
                                 onClick={(e) => { e.stopPropagation(); void openInCli(card, 'app'); }}
                                 data-atlas-open-app
                               >
                                 <AppWindow size={16} strokeWidth={1.75} />
-                              </button>
+                              </Button>
                             )}
-                            <button
+                            <Button variant="ghost"
                               title={t('atlas.openTerminal')}
-                              className="text-muted-foreground hover:text-primary p-1.5 rounded transition-colors"
+                              className="text-muted-foreground hover:text-primary"
                               onClick={(e) => { e.stopPropagation(); void openInCli(card, 'terminal'); }}
                               data-atlas-open-cli
                             >
                               <SquareTerminal size={16} strokeWidth={1.75} />
-                            </button>
+                            </Button>
                           </div>
                         )}
                     </div>
@@ -741,25 +737,25 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
               ? <Loader2 size={15} className="animate-spin text-primary" />
               : (
                 <>
-                  <button
-                    className="text-xs bg-primary hover:bg-primary/90 text-white font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                  <Button size="sm"
+                    className="whitespace-nowrap"
                     onClick={() => void mergeRun()}
                     data-atlas-merge-new
                   >
                     {t('atlas.mergeNew')}
-                  </button>
-                  <button
-                    className="text-xs text-muted-foreground hover:text-foreground hover:bg-accent font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                  </Button>
+                  <Button variant="ghost" size="sm"
+                    className="text-xs text-muted-foreground hover:text-foreground hover:bg-accent whitespace-nowrap"
                     onClick={() => setMergePick(true)}
                     data-atlas-merge-into
                   >
                     {t('atlas.mergeInto')}
-                  </button>
+                  </Button>
                 </>
               )}
-            <button className="text-muted-foreground hover:text-foreground p-1" onClick={() => setPicked(new Map())} title={t('common.cancel')}>
+            <Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={() => setPicked(new Map())} title={t('common.cancel')}>
               <X size={14} strokeWidth={1.75} />
-            </button>
+            </Button>
           </div>
         )}
         {(mountPick || mergePick) && (
@@ -770,9 +766,9 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
                 <div className="text-2xs text-muted-foreground mt-0.5">{t(mergePick ? 'atlas.mergeSelected' : 'atlas.mountHint').replace('{n}', String(picked.size))}</div>
               </div>
               {projects.filter((p) => !p.archived && p.kind !== 'paradigm').sort((a, b) => b.updatedAt - a.updatedAt).map((p) => (
-                <button
+                <Button variant="outline"
                   key={p.id}
-                  className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-accent transition-colors border-b border-border last:border-b-0"
+                  className="w-full text-left border-b last:border-b-0"
                   onClick={() => {
                     if (mergePick) { setMergePick(false); void mergeRun(p.id); return; }
                     const card = mountPick!;
@@ -795,7 +791,7 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
                   }}
                 >
                   {p.name}
-                </button>
+                </Button>
               ))}
             </div>
           </div>

@@ -1,5 +1,6 @@
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
 import { useUiStore, type ToastItem } from '../../lib/ui-store';
+import { Button } from '../ui/button';
 
 const KIND_STYLES: Record<ToastItem['kind'], string> = {
   error: 'border-destructive/30 bg-destructive/10 text-destructive',
@@ -34,20 +35,20 @@ export default function Toaster() {
             <div className="flex-1 min-w-0">
               <p className="text-xs leading-relaxed break-words">{t.message}</p>
               {t.action && (
-                <button
+                <Button variant="ghost" size="xs"
                   onClick={() => { t.action!.run(); dismissToast(t.id); }}
-                  className="mt-2 text-2xs font-medium bg-primary/10 text-primary hover:bg-primary/20 px-2.5 py-1 rounded-lg transition-colors"
+                  className="mt-2 text-2xs bg-primary/10 text-primary hover:bg-primary/20"
                 >
                   {t.action.label}
-                </button>
+                </Button>
               )}
             </div>
-            <button
+            <Button variant="ghost"
               onClick={() => dismissToast(t.id)}
-              className="shrink-0 opacity-50 hover:opacity-100 transition-opacity"
+              className="shrink-0 opacity-50 hover:opacity-100"
             >
               <X size={14} strokeWidth={1.75} />
-            </button>
+            </Button>
           </div>
         );
       })}

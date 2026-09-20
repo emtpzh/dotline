@@ -11,6 +11,9 @@ import {
   type MapStructure, type MapStats,
 } from '../../lib/thought-map';
 import { llmCall } from '../../lib/api';
+import { Button } from '../ui/button';
+import { Textarea } from '../ui/textarea';
+import { Input } from '../ui/input';
 
 // The thought-map console, two rooms with one door between them. Room one
 // edits the PICTURE: knobs left, live artifact centre, a feed-size
@@ -374,10 +377,10 @@ export default function ThoughtMapDialog() {
   ) => (
     <div className="flex rounded-lg border border-border overflow-hidden">
       {entries.map(([v, label], i) => (
-        <button key={v} onClick={() => set(v)}
+        <Button variant="ghost" key={v} onClick={() => set(v)}
           className={`flex-1 px-2 py-1.5 text-2xs whitespace-nowrap transition-colors ${i > 0 ? 'border-l border-border' : ''} ${cur === v ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-accent'}`}>
           {label}
-        </button>
+        </Button>
       ))}
     </div>
   );
@@ -397,26 +400,26 @@ export default function ThoughtMapDialog() {
               <div>
                 <div className="text-2xs text-muted-foreground mb-1 flex items-center justify-between">
                   <span>{t('tmap.publicTitle')}</span>
-                  <button onClick={() => void draft()} disabled={drafting} data-tmap-draft
-                    className="flex items-center gap-1 text-2xs text-primary hover:bg-primary/10 rounded-md px-1.5 py-0.5 transition-colors disabled:opacity-50">
+                  <Button variant="ghost" size="xs" onClick={() => void draft()} disabled={drafting} data-tmap-draft
+                    className="text-2xs text-primary hover:bg-primary/10">
                     {drafting ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} strokeWidth={1.75} />}
                     {drafting ? t('tmap.drafting') : t('tmap.draft')}
-                  </button>
+                  </Button>
                 </div>
-                <input value={title} onChange={(e) => setTitle(clampWeight(e.target.value, TITLE_MAX))} data-tmap-title placeholder={t('tmap.subtitlePh')}
-                  className="w-full border border-border rounded-lg px-3 py-1.5 text-xs bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring/40" />
+                <Input value={title} onChange={(e) => setTitle(clampWeight(e.target.value, TITLE_MAX))} data-tmap-title placeholder={t('tmap.subtitlePh')}
+                  className="w-full" />
                 <div className="text-2xs text-muted-foreground font-mono text-right mt-0.5">{textWeight(title)}/{TITLE_MAX}</div>
               </div>
               <div>
                 <div className="text-2xs text-muted-foreground mb-1">{t('tmap.subtitle')}</div>
-                <input value={subtitle} onChange={(e) => setSubtitle(clampWeight(e.target.value, SUB_MAX))} placeholder={t('tmap.subtitlePh')} data-tmap-subtitle
-                  className="w-full border border-border rounded-lg px-3 py-1.5 text-xs bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring/40" />
+                <Input value={subtitle} onChange={(e) => setSubtitle(clampWeight(e.target.value, SUB_MAX))} placeholder={t('tmap.subtitlePh')} data-tmap-subtitle
+                  className="w-full" />
               </div>
               <div>
                 <div className="text-2xs text-muted-foreground mb-1">{t('tmap.sig')}</div>
-                <input value={sig} placeholder={t('tmap.subtitlePh')} data-tmap-sig
+                <Input value={sig} placeholder={t('tmap.subtitlePh')} data-tmap-sig
                   onChange={(e) => { const v = clampWeight(e.target.value, 48); setSig(v); localStorage.setItem('thoughtdag.tmapSignature', v); }}
-                  className="w-full border border-border rounded-lg px-3 py-1.5 text-xs bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring/40" />
+                  className="w-full" />
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-2xs text-muted-foreground w-[56px] shrink-0">{t('tmap.sigPos')}</span>
@@ -476,11 +479,10 @@ export default function ThoughtMapDialog() {
                 </div>
               ))}
               <div className="flex-1" />
-              <button onClick={() => { void downloadPng().then((ok) => { if (ok) setStep('share'); }); }} disabled={busy} data-tmap-download
-                className="flex items-center justify-center gap-1.5 text-xs font-semibold bg-primary text-white hover:bg-primary/90 rounded-lg px-3 py-2.5 transition-colors disabled:opacity-50">
+              <Button size="sm" onClick={() => { void downloadPng().then((ok) => { if (ok) setStep('share'); }); }} disabled={busy} data-tmap-download>
                 {busy ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} strokeWidth={1.75} />}
                 {t('tmap.download')}
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
@@ -493,10 +495,9 @@ export default function ThoughtMapDialog() {
                     showStats={showStats} timeInk={timeInk} dateText={dateText} sig={sig} sigPos={sigPos} artRef={artRef} />
                 </div>
               </div>
-              <button onClick={() => setStep('image')} data-tmap-back
-                className="flex items-center justify-center gap-1.5 text-xs border border-border text-muted-foreground hover:bg-accent rounded-lg px-3 py-2 transition-colors">
+              <Button variant="outline" size="sm" onClick={() => setStep('image')} data-tmap-back>
                 <ArrowLeft size={13} strokeWidth={1.75} /> {t('tmap.backToImage')}
-              </button>
+              </Button>
             </div>
             <div className="flex-1 min-w-[320px] flex flex-col gap-3">
               <div>
@@ -505,32 +506,31 @@ export default function ThoughtMapDialog() {
                   <span className="flex items-center gap-2">
                     <span className="flex rounded-md border border-border overflow-hidden" data-tmap-caplang>
                       {(['zh', 'en'] as const).map((v, i) => (
-                        <button key={v} onClick={() => { capTouched.current = false; setCapLang(v); }}
+                        <Button variant="ghost" key={v} onClick={() => { capTouched.current = false; setCapLang(v); }}
                           className={`px-2 py-0.5 text-2xs transition-colors ${i > 0 ? 'border-l border-border' : ''} ${capLang === v ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-accent'}`}>
                           {v === 'zh' ? '中文' : 'EN'}
-                        </button>
+                        </Button>
                       ))}
                     </span>
-                    <button onClick={() => void draft()} disabled={drafting}
-                      className="flex items-center gap-1 text-2xs text-primary hover:bg-primary/10 rounded-md px-1.5 py-0.5 transition-colors disabled:opacity-50">
+                    <Button variant="ghost" size="xs" onClick={() => void draft()} disabled={drafting}
+                      className="text-2xs text-primary hover:bg-primary/10">
                       {drafting ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} strokeWidth={1.75} />}
                       {drafting ? t('tmap.drafting') : t('tmap.draft')}
-                    </button>
+                    </Button>
                   </span>
                 </div>
-                <textarea value={caption} onChange={(e) => { capTouched.current = true; setCaption(e.target.value); }} rows={7} data-tmap-caption
-                  className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-card text-foreground leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-ring/40" />
+                <Textarea value={caption} onChange={(e) => { capTouched.current = true; setCaption(e.target.value); }} rows={7} data-tmap-caption
+                  className="w-full leading-relaxed resize-none" />
               </div>
               <div className="flex flex-wrap gap-2">
-                <button onClick={() => { void navigator.clipboard.writeText(caption); toast('success', t('tmap.captionCopied')); }}
-                  className="flex items-center gap-1.5 text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 border border-primary/30 rounded-lg px-3 py-2 transition-colors">
+                <Button variant="ghost" size="sm" onClick={() => { void navigator.clipboard.writeText(caption); toast('success', t('tmap.captionCopied')); }}
+                  className="text-xs bg-primary/10 text-primary hover:bg-primary/20 border-primary/30">
                   <Copy size={13} strokeWidth={1.75} /> {t('tmap.copyCaption')}
-                </button>
+                </Button>
                 {PLATFORMS.map(([name, kind]) => (
-                  <button key={name} onClick={() => share(kind, name)}
-                    className="text-xs border border-border text-muted-foreground hover:bg-accent rounded-lg px-3 py-2 transition-colors">
+                  <Button variant="outline" size="sm" key={name} onClick={() => share(kind, name)}>
                     {name}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>

@@ -7,6 +7,7 @@ import { useModels } from '../../lib/use-models';
 import { findCandidateSegments, startCondenseRun, cancelCondenseRun, type CondenseSegment } from '../../lib/condense';
 import { useI18n, useT, fmt } from '../../i18n';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Button } from '../ui/button';
 
 // an empty value means "unset" to the select, so the follow-the-global
 // option carries a value of its own
@@ -97,22 +98,22 @@ export default function CondenseDialog({ onFocusSegment }: { onFocusSegment?: (n
         <div className="text-sm font-semibold text-foreground flex items-center gap-2">
           <Minimize2 size={15} strokeWidth={1.75} className="text-primary" /> {t('condense.title')}
         </div>
-        <button onClick={close} title={run.status === 'building' ? t('condense.runningBg') : undefined}
-          className="text-muted-foreground hover:text-foreground rounded-lg w-7 h-7 flex items-center justify-center hover:bg-accent transition-colors"><X size={15} /></button>
+        <Button variant="ghost" size="icon-sm" onClick={close} title={run.status === 'building' ? t('condense.runningBg') : undefined}
+          className="text-muted-foreground hover:text-foreground hover:bg-accent"><X size={15} /></Button>
       </div>
 
       {run.status === 'idle' && (
         <>
           <div className="flex items-center justify-between gap-2 mb-2">
             <p className="text-2xs text-muted-foreground leading-snug" title={t('condense.copyIntroFull')}>{t('condense.copyIntroShort')}</p>
-            <button
+            <Button variant="ghost" size="xs"
               onClick={() => setRefreshTick((v) => v + 1)}
               title={t('condense.rescanTitle')}
               data-condense-rescan
-              className="text-2xs text-muted-foreground hover:text-primary px-2 py-1 rounded-lg hover:bg-accent transition-colors shrink-0"
+              className="text-2xs text-muted-foreground hover:text-primary hover:bg-accent shrink-0"
             >
               ⟳ {t('condense.rescan')}
-            </button>
+            </Button>
           </div>
           <p className="text-2xs text-muted-foreground mb-2" data-condense-scanline>
             {fmt(t('condense.scanLine'), { turns: String(nodes.filter((n) => n.data.response && !n.data.stepKind).length), n: String(segments.length) })}
@@ -173,15 +174,15 @@ export default function CondenseDialog({ onFocusSegment }: { onFocusSegment?: (n
           {segments.length > 0 && (
             <div className="flex items-center justify-between gap-2 pt-3 mt-2 border-t border-border">
               <span className="text-2xs text-muted-foreground">{t('condense.copyFootnote')}</span>
-              <button
+              <Button size="sm"
                 onClick={build}
                 disabled={picked.length === 0}
                 data-condense-build
-                className="text-xs bg-primary text-white px-3.5 py-2 rounded-lg disabled:opacity-40 transition-colors flex items-center gap-1.5 shrink-0"
+                className="shrink-0"
               >
                 <Copy size={13} strokeWidth={1.75} />
                 {fmt(t('condense.buildCopy'), { n: String(picked.length), tok: String(pickedSaving) })}
-              </button>
+              </Button>
             </div>
           )}
         </>
@@ -199,20 +200,20 @@ export default function CondenseDialog({ onFocusSegment }: { onFocusSegment?: (n
               {run.streaming}
             </div>
           )}
-          <button onClick={() => cancelCondenseRun()} data-condense-cancel
-            className="self-start mt-3 text-xs text-muted-foreground hover:text-destructive/90 px-3 py-1.5 rounded-lg hover:bg-accent transition-colors">
+          <Button variant="ghost" size="sm" onClick={() => cancelCondenseRun()} data-condense-cancel
+            className="self-start mt-3 text-xs text-muted-foreground hover:text-destructive/90 hover:bg-accent">
             {t('common.cancel')}
-          </button>
+          </Button>
         </div>
       )}
 
       {run.status === 'error' && (
         <div className="flex flex-col gap-2 py-3">
           <p className="text-2xs text-destructive">{run.error}</p>
-          <button onClick={() => useUiStore.getState().setCondenseRun({ status: 'idle', error: undefined })}
-            className="self-start text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-accent transition-colors">
+          <Button variant="ghost" size="sm" onClick={() => useUiStore.getState().setCondenseRun({ status: 'idle', error: undefined })}
+            className="self-start text-xs text-muted-foreground hover:text-foreground hover:bg-accent">
             {t('common.cancel')}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -223,16 +224,15 @@ export default function CondenseDialog({ onFocusSegment }: { onFocusSegment?: (n
           </div>
           <p className="text-2xs text-muted-foreground leading-relaxed">{t('condense.copyCompareHint')}</p>
           <div className="flex items-center gap-2">
-            <button onClick={focusCopy} className="text-xs bg-primary/10 text-primary hover:bg-primary/20 px-3 py-2 rounded-lg transition-colors">
+            <Button variant="ghost" size="sm" onClick={focusCopy} className="text-xs bg-primary/10 text-primary hover:bg-primary/20">
               {t('condense.viewCopy')}
-            </button>
-            <button onClick={archiveOriginal} data-condense-archive-original
-              className="text-xs border border-border text-muted-foreground hover:text-foreground hover:bg-accent px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5">
+            </Button>
+            <Button variant="outline" size="sm" onClick={archiveOriginal} data-condense-archive-original>
               <Archive size={13} strokeWidth={1.75} /> {t('condense.archiveOriginal')}
-            </button>
+            </Button>
           </div>
-          <button onClick={() => { useUiStore.getState().setCondenseRun({ status: 'idle' }); close(); }}
-            className="self-start text-xs text-muted-foreground hover:text-foreground transition-colors">{t('common.close')}</button>
+          <Button variant="ghost" size="sm" onClick={() => { useUiStore.getState().setCondenseRun({ status: 'idle' }); close(); }}
+            className="self-start text-xs text-muted-foreground hover:text-foreground">{t('common.close')}</Button>
         </div>
       )}
     </div>

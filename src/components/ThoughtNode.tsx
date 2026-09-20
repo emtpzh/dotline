@@ -26,6 +26,8 @@ import { useT, fmt } from '../i18n';
 import MentionSurface from './app/NodeMention';
 import { useMentions } from '../lib/mentions';
 import { isViewerMode } from '../lib/viewer';
+import { Button } from './ui/button';
+import { Textarea } from './ui/textarea';
 
 export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // Actions are stable references: selecting them one by one (instead of a
@@ -515,16 +517,16 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-3 border-b border-border cursor-grab active:cursor-grabbing drag-handle">
         <div className="flex items-center gap-2">
-          <button onClick={() => toggleCollapse(id)} className={`hover:bg-accent rounded-lg w-7 h-7 flex items-center justify-center transition-all text-sm font-bold ${data.isCollapsed ? 'text-primary bg-primary/10' : 'text-muted-foreground'}`}>
+          <Button variant="ghost" onClick={() => toggleCollapse(id)} className={`hover:bg-accent rounded-lg w-7 h-7 flex items-center justify-center transition-all text-sm font-bold ${data.isCollapsed ? 'text-primary bg-primary/10' : 'text-muted-foreground'}`}>
             {data.isCollapsed ? <ChevronRight size={18} strokeWidth={1.75} /> : <ChevronDown size={18} strokeWidth={1.75} />}
-          </button>
+          </Button>
           <span className="text-xs text-muted-foreground font-mono">{data.tokenCount} tok</span>
           {toolMarks.length > 0 && (
             <span className="text-2xs text-muted-foreground shrink-0 select-none" title={marksTitle} data-tool-marks>{marksLine}</span>
           )}
           {compBar}
           {data.condensedFrom && data.condensedFrom.length > 0 && (
-            <button
+            <Button variant="ghost" size="xs"
               onClick={(e) => {
                 e.stopPropagation();
                 // provenance travels by chip, context by wires: highlight the
@@ -538,19 +540,19 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               }}
               title={t('node.condensedFromTitle')}
               data-condensed-from
-              className="text-2xs bg-primary/10 text-primary hover:bg-primary/20 px-1.5 py-0.5 rounded-md flex items-center gap-1 font-medium transition-colors"
+              className="text-2xs bg-primary/10 text-primary hover:bg-primary/20"
             >
               <Minimize2 size={11} strokeWidth={1.75} /> {fmt(t('node.condensedFrom'), { n: String(data.condensedFrom.length) })}
-            </button>
+            </Button>
           )}
           {isStale && !data.isLoading && (
-            <button
+            <Button variant="ghost" size="xs"
               onClick={(e) => { e.stopPropagation(); if (!isViewerMode) void rerunNode(id, {}); }}
               title={t('node.staleTitle')}
-              className="text-2xs bg-warning/10 text-warning hover:bg-warning/25 px-1.5 py-0.5 rounded-md flex items-center gap-1 font-medium transition-colors"
+              className="text-2xs bg-warning/10 text-warning hover:bg-warning/25"
             >
               <RefreshCw size={11} strokeWidth={1.75} /> {t('node.staleBadge')}
-            </button>
+            </Button>
           )}
           {data.archived && (
             <span className="text-2xs bg-warning/10 text-warning px-1.5 py-0.5 rounded-md flex items-center gap-1 font-medium" title={t('archive.badgeTitle')}>
@@ -597,18 +599,18 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
         </div>
         <div className="flex items-center gap-0.5">
           {data.isLoading && (
-            <button
+            <Button variant="ghost" size="icon-sm"
               onClick={(e) => { e.stopPropagation(); stopGeneration(id); }}
               title={t('actions.stop')}
-              className="text-white bg-destructive hover:bg-destructive/90 rounded-full w-7 h-7 flex items-center justify-center transition-colors"
+              className="text-white bg-destructive hover:bg-destructive/90"
             >
               <Square size={10} strokeWidth={1.75} fill="currentColor" />
-            </button>
+            </Button>
           )}
           {!(isParadigmNode && runLocked) && !isViewerMode && (
-            <button onClick={() => deleteNode(id)} className="text-muted-foreground hover:text-destructive/90 hover:bg-destructive/10 rounded-full w-7 h-7 flex items-center justify-center transition-colors" title={t('common.delete')}>
+            <Button variant="ghost" size="icon-sm" onClick={() => deleteNode(id)} className="text-muted-foreground hover:text-destructive/90 hover:bg-destructive/10" title={t('common.delete')}>
               <X size={16} strokeWidth={1.75} />
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -626,13 +628,13 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                 “{(data.anchor ? data.branchContext.replace(/^\(p\.\s?\d+\)\s*/, '') : data.branchContext).slice(0, 180)}{data.branchContext.length > 180 ? '…' : ''}”
               </span>
               {data.anchor && anchorMaterialId && (
-                <button
+                <Button variant="ghost" size="xs"
                   onClick={openReaderAtAnchor}
                   title={fmt(t('node.openAtPage'), { n: data.anchor.page })}
-                  className="ml-auto shrink-0 text-2xs font-mono text-primary bg-primary/10 hover:bg-primary/20 rounded-full px-1.5 py-0.5 transition-colors"
+                  className="ml-auto shrink-0 text-2xs font-mono text-primary bg-primary/10 hover:bg-primary/20"
                 >
                   p.{data.anchor.page}
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -659,34 +661,33 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                   textarea's blur from racing the click. */}
               {!isHuman && !isAwaitingAsk && (
                 <div className="flex items-center justify-end gap-2 mt-1.5">
-                  <button
+                  <Button variant="ghost" size="sm"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => setEditing(id, false)}
-                    className="text-xs text-muted-foreground hover:text-destructive/90 hover:bg-accent px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                    className="text-xs text-muted-foreground hover:text-destructive/90 hover:bg-accent"
                     data-edit-cancel
                   >
                     <X size={12} strokeWidth={2} /> {t('question.editCancel')}
-                  </button>
-                  <button
+                  </Button>
+                  <Button size="sm"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={handleEditSubmit}
                     disabled={!editValue.trim()}
-                    className="text-xs bg-primary hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed text-white px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
-                    data-edit-submit
-                  >
+                    
+                    data-edit-submit>
                     <Check size={12} strokeWidth={2.25} /> {t('question.editSubmit')}
-                  </button>
+                  </Button>
                 </div>
               )}
               {isHuman && (
                 <div className="flex justify-end mt-1.5">
-                  <button
+                  <Button variant="ghost" size="sm"
                     onClick={handleEditSubmit}
                     disabled={!editValue.trim()}
-                    className="text-xs bg-edge-explore hover:opacity-85 disabled:opacity-30 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded-lg transition-all flex items-center gap-1.5"
+                    className="text-xs bg-edge-explore hover:opacity-85 text-white"
                   >
                     <Send size={12} strokeWidth={1.75} /> {t('paradigm.start')}
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -749,18 +750,18 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
             )
           ) : data.isEditingResponse ? (
             <div>
-              <textarea
+              <Textarea
                 value={editResponseValue}
                 onChange={(e) => setEditResponseValue(e.target.value)}
                 onKeyDown={handleResponseEditKeyDown}
-                className="w-full bg-muted border border-primary rounded-xl p-3 text-sm text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-ring/20 min-h-[100px]"
+                className="w-full border-primary resize-y min-h-[100px]"
                 rows={6}
                 autoFocus
               />
               {isFactNode({ data }) && <p className="text-2xs text-muted-foreground mt-1.5" data-fact-note>{t('fact.editResponseNote')}</p>}
               <div className="flex justify-end gap-2 mt-2">
-                <button onClick={() => setEditingResponse(id, false)} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-accent transition-colors">{t('common.cancel')}</button>
-                <button onClick={handleResponseEditSubmit} className="text-xs bg-primary hover:bg-primary/90 text-white px-4 py-1.5 rounded-lg transition-colors">{t('common.save')}</button>
+                <Button variant="ghost" size="sm" onClick={() => setEditingResponse(id, false)} className="text-xs text-muted-foreground hover:text-foreground hover:bg-accent">{t('common.cancel')}</Button>
+                <Button size="sm" onClick={handleResponseEditSubmit}>{t('common.save')}</Button>
               </div>
             </div>
           ) : (
@@ -800,14 +801,14 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
           {/* Fan-out placeholder: the human decides when to expand */}
           {data.stepKind === 'fanout' && !hasFanoutChildren && !data.isLoading && (
             <div className="mt-2">
-              <button
+              <Button variant="ghost"
                 onClick={(e) => { e.stopPropagation(); setFanoutOpen(true); }}
                 title={t('paradigm.expandTitle')}
-                className="w-full border-2 border-dashed border-edge-explore/50 hover:border-edge-explore hover:bg-edge-explore/5 text-edge-explore rounded-xl py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors"
+                className="w-full border-2 border-dashed border-edge-explore/50 hover:border-edge-explore hover:bg-edge-explore/5 text-edge-explore text-sm"
               >
                 <Split size={16} strokeWidth={1.75} />
                 {fmt(t('paradigm.expand'), { n: data.fanoutRoles?.length ?? 0 })}
-              </button>
+              </Button>
               {fanoutOpen && (
                 <FanOutModal
                   parentId={id}
@@ -842,30 +843,30 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
           {data.response && !data.isLoading && !data.isEditingResponse && !isHuman && !isAwaitingAsk && !data.generationFailed && (
             <div className="mt-1.5 flex items-center gap-0.5 text-muted-foreground">
               {!isViewerMode && (
-                <button
+                <Button variant="ghost"
                   onClick={(e) => { e.stopPropagation(); void rerunNode(id, {}); }}
                   className={`rounded-full w-6 h-6 flex items-center justify-center transition-colors ${data.isEvaluator ? 'hover:text-edge-watch hover:bg-destructive/10' : 'hover:text-primary hover:bg-accent'}`}
                   title={data.isEvaluator ? t('evaluator.rerun') : t('common.regenerate')}
                 >
                   <RefreshCw size={14} strokeWidth={1.75} />
-                </button>
+                </Button>
               )}
-              <button
+              <Button variant="ghost" size="icon-sm"
                 onClick={(e) => { e.stopPropagation(); void copyText(data.response); }}
-                className="rounded-full w-6 h-6 flex items-center justify-center hover:text-primary hover:bg-accent transition-colors"
+                className="hover:text-primary hover:bg-accent"
                 title={t('actions.copyResponse')}
               >
                 <Copy size={13} strokeWidth={1.75} />
-              </button>
+              </Button>
               {!isViewerMode && (
-                <button
+                <Button variant="ghost" size="icon-sm"
                   onClick={(e) => { e.stopPropagation(); startEditResponse(); }}
-                  className="rounded-full w-6 h-6 flex items-center justify-center hover:text-primary hover:bg-accent transition-colors"
+                  className="hover:text-primary hover:bg-accent"
                   title={t('actions.editResponse')}
                   data-edit-response
                 >
                   <Pencil size={13} strokeWidth={1.75} />
-                </button>
+                </Button>
               )}
               {data.focusRole === 'ctx' && (
                 <span className="w-[7px] h-[7px] rounded-full bg-primary inline-block ml-1 shrink-0" title={t('focus.inContext')} data-focus-dot />
@@ -882,14 +883,14 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                 <span className="text-2xs text-muted-foreground ml-1 shrink-0" title={t('agent.continuedTitle')} data-agent-continued>↩ {t('agent.continued')}</span>
               )}
               {data.importSource?.runner === 'pi' && window.desktopSessions && (
-                <button
+                <Button variant="ghost" size="icon-sm"
                   onClick={(e) => { e.stopPropagation(); void window.desktopSessions!.openInCli('pi', data.importSource!.cwd ?? '', data.importSource!.sessionId, 'terminal'); }}
-                  className="rounded-full w-6 h-6 flex items-center justify-center hover:text-primary hover:bg-accent transition-colors"
+                  className="hover:text-primary hover:bg-accent"
                   title={t('agent.openInTerminal')}
                   data-open-in-terminal
                 >
                   <SquareTerminal size={13} strokeWidth={1.75} />
-                </button>
+                </Button>
               )}
               {data.gatewaySearches?.[data.responseIndex] && (
                 <span className="text-2xs text-muted-foreground ml-1 shrink-0" title={t('node.gatewaySearchedTitle')} data-gateway-searched>
@@ -903,17 +904,17 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               )}
               {hasMultipleVersions && (
                 <div className="flex items-center gap-1 text-xs text-muted-foreground ml-1">
-                  <button onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'prev'); }} className="hover:text-primary hover:bg-accent rounded-full w-5 h-5 flex items-center justify-center transition-colors"><ChevronLeft size={14} strokeWidth={1.75} /></button>
+                  <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'prev'); }} className="hover:text-primary hover:bg-accent"><ChevronLeft size={14} strokeWidth={1.75} /></Button>
                   <span className="text-primary font-medium">v{data.responseIndex + 1}/{data.responses.length}</span>
-                  <button onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'next'); }} className="hover:text-primary hover:bg-accent rounded-full w-5 h-5 flex items-center justify-center transition-colors"><ChevronRight size={14} strokeWidth={1.75} /></button>
+                  <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'next'); }} className="hover:text-primary hover:bg-accent"><ChevronRight size={14} strokeWidth={1.75} /></Button>
                   {!isViewerMode && (
-                    <button
+                    <Button variant="ghost" size="icon-sm"
                       onClick={(e) => { e.stopPropagation(); deleteVersion(id, data.responseIndex); }}
-                      className="text-muted-foreground hover:text-destructive/90 hover:bg-destructive/10 rounded-full w-5 h-5 flex items-center justify-center transition-colors"
+                      className="text-muted-foreground hover:text-destructive/90 hover:bg-destructive/10"
                       title={t('common.deleteVersion')}
                     >
                       <Trash2 size={13} strokeWidth={1.75} />
-                    </button>
+                    </Button>
                   )}
                 </div>
               )}
@@ -927,18 +928,18 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               {t('common.generationFailed')}
               {hasMultipleVersions && (
                 <span className="flex items-center gap-1 text-muted-foreground shrink-0" title={t('node.backToVersionTitle')}>
-                  <button onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'prev'); }} className="hover:text-primary rounded-full w-5 h-5 flex items-center justify-center"><ChevronLeft size={14} strokeWidth={1.75} /></button>
+                  <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'prev'); }} className="hover:text-primary"><ChevronLeft size={14} strokeWidth={1.75} /></Button>
                   v{data.responseIndex + 1}/{data.responses.length}
-                  <button onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'next'); }} className="hover:text-primary rounded-full w-5 h-5 flex items-center justify-center"><ChevronRight size={14} strokeWidth={1.75} /></button>
+                  <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'next'); }} className="hover:text-primary"><ChevronRight size={14} strokeWidth={1.75} /></Button>
                 </span>
               )}
               {!isViewerMode && (
-                <button
+                <Button variant="destructive" size="xs"
                   onClick={(e) => { e.stopPropagation(); editQuestion(id, data.question); }}
-                  className="ml-auto bg-card border border-destructive/30 hover:bg-destructive/15 text-destructive px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
+                  className="ml-auto border-destructive/30"
                 >
                   <RefreshCw size={12} strokeWidth={1.75} /> {t('common.retry')}
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -972,13 +973,13 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                   className="flex-1 bg-transparent text-sm text-foreground placeholder-muted-foreground focus:outline-none resize-none leading-relaxed max-h-[120px] overflow-y-auto nowheel nopan nodrag"
                 />
                 <SearchToggles size={15} />
-                <button
+                <Button variant="ghost" size="icon-sm"
                   onClick={handleSubmitBranch}
                   disabled={!inputValue.trim()}
-                  className="text-muted-foreground hover:text-primary disabled:opacity-30 disabled:hover:text-muted-foreground transition-colors shrink-0 rounded-full w-7 h-7 flex items-center justify-center hover:bg-border"
+                  className="text-muted-foreground hover:text-primary shrink-0 hover:bg-border"
                 >
                   <Send size={18} strokeWidth={1.75} />
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -1048,18 +1049,18 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
           onMouseDown={(e) => e.preventDefault()}
         >
           <div className="flex gap-1 bg-card border border-border rounded-xl shadow-lg p-1 animate-fade-in">
-            <button
+            <Button size="sm"
               onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleBranch(); }}
-              className="bg-primary hover:bg-primary/90 text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
+              className="whitespace-nowrap"
             >
               <GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('common.explore')}
-            </button>
-            <button
+            </Button>
+            <Button variant="ghost" size="sm"
               onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleHighlight(); }}
-              className="bg-warning hover:bg-warning text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
+              className="bg-warning hover:bg-warning text-white text-xs whitespace-nowrap"
             >
               <Star size={14} strokeWidth={1.75} className="inline" /> {t('common.highlight')}
-            </button>
+            </Button>
           </div>
         </div>
       )}

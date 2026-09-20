@@ -14,6 +14,8 @@ import ReasoningDisclosure from '../app/ReasoningDisclosure';
 import { ApprovalCard, DecisionsDisclosure } from '../app/ApprovalCard';
 import { AgentTrace } from '../app/AgentTrace';
 import type { ThoughtData } from '../../types';
+import { Button } from '../ui/button';
+import { Textarea } from '../ui/textarea';
 
 export default function ResponseSection({
   nodeId,
@@ -152,14 +154,14 @@ export default function ResponseSection({
       <div className="flex items-center justify-between mb-1.5">
         <label className="text-2xs font-semibold text-success">{t('panel.response')}</label>
         {(data.response || data.isLoading) && (
-          <button
+          <Button variant="ghost" size="icon-sm"
             onClick={() => useUiStore.getState().setResponseViewerNodeId(nodeId)}
             title={t('panel.expandResponse')}
-            className="text-muted-foreground hover:text-primary w-6 h-6 rounded-md hover:bg-accent flex items-center justify-center transition-colors"
+            className="text-muted-foreground hover:text-primary hover:bg-accent"
             data-response-expand
           >
             <Maximize2 size={13} strokeWidth={1.75} />
-          </button>
+          </Button>
         )}
       </div>
 
@@ -187,18 +189,18 @@ export default function ResponseSection({
         </div>
       ) : data.isEditingResponse ? (
         <div>
-          <textarea
+          <Textarea
             value={editResponseValue}
             onChange={(e) => setEditResponseValue(e.target.value)}
             onKeyDown={handleResponseEditKeyDown}
-            className="w-full bg-muted border border-primary rounded-xl p-3 text-sm text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-ring/20 min-h-[150px]"
+            className="w-full border-primary resize-y min-h-[150px]"
             rows={10}
             autoFocus
           />
           {isFactNode({ data }) && <p className="text-2xs text-muted-foreground mt-1.5" data-fact-note>{t('fact.editResponseNote')}</p>}
           <div className="flex justify-end gap-2 mt-2">
-            <button onClick={() => setEditingResponse(nodeId, false)} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-accent transition-colors">{t('common.cancel')}</button>
-            <button onClick={handleResponseEditSubmit} className="text-xs bg-primary hover:bg-primary/90 text-white px-4 py-1.5 rounded-lg transition-colors">{t('common.save')}</button>
+            <Button variant="ghost" size="sm" onClick={() => setEditingResponse(nodeId, false)} className="text-xs text-muted-foreground hover:text-foreground hover:bg-accent">{t('common.cancel')}</Button>
+            <Button size="sm" onClick={handleResponseEditSubmit}>{t('common.save')}</Button>
           </div>
         </div>
       ) : (
@@ -228,18 +230,18 @@ export default function ResponseSection({
               onMouseDown={(e) => e.preventDefault()}
             >
               <div className="flex gap-1 bg-card border border-border rounded-xl shadow-lg p-1 animate-fade-in">
-                <button
+                <Button size="sm"
                   onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleBranchFromSelection(); }}
-                  className="bg-primary hover:bg-primary/90 text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
+                  className="whitespace-nowrap"
                 >
                   <GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('common.explore')}
-                </button>
-                <button
+                </Button>
+                <Button variant="ghost" size="sm"
                   onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleHighlight(); }}
-                  className="bg-warning hover:bg-warning text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
+                  className="bg-warning hover:bg-warning text-white text-xs whitespace-nowrap"
                 >
                   <Star size={14} strokeWidth={1.75} className="inline" /> {t('common.highlight')}
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -251,29 +253,29 @@ export default function ResponseSection({
           the header's ⋯ menu */}
       {data.response && !data.isLoading && !data.isEditingResponse && !data.generationFailed && (
         <div className="mt-2 flex items-center gap-0.5 text-muted-foreground">
-          {!isViewerMode && <button
+          {!isViewerMode && <Button variant="ghost" size="icon-sm"
             onClick={() => void rerunNode(nodeId, {})}
-            className="rounded-full w-7 h-7 flex items-center justify-center hover:text-primary hover:bg-accent transition-colors"
+            className="hover:text-primary hover:bg-accent"
             title={t('common.regenerate')}
           >
             <RefreshCw size={15} strokeWidth={1.75} />
-          </button>}
-          <button
+          </Button>}
+          <Button variant="ghost" size="icon-sm"
             onClick={() => void copyText(data.response)}
-            className="rounded-full w-7 h-7 flex items-center justify-center hover:text-primary hover:bg-accent transition-colors"
+            className="hover:text-primary hover:bg-accent"
             title={t('actions.copyResponse')}
           >
             <Copy size={14} strokeWidth={1.75} />
-          </button>
+          </Button>
           {!isViewerMode && (
-            <button
+            <Button variant="ghost" size="icon-sm"
               onClick={startEditResponse}
-              className="rounded-full w-7 h-7 flex items-center justify-center hover:text-primary hover:bg-accent transition-colors"
+              className="hover:text-primary hover:bg-accent"
               title={t('actions.editResponse')}
               data-edit-response
             >
               <Pencil size={14} strokeWidth={1.75} />
-            </button>
+            </Button>
           )}
           {(data.generatedBy?.[data.responseIndex]) && (
             <span
@@ -285,16 +287,16 @@ export default function ResponseSection({
           )}
           {hasMultipleVersions && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground ml-1">
-              <button onClick={() => navigateVersion(nodeId, 'prev')} className="hover:text-primary hover:bg-accent rounded-full w-5 h-5 flex items-center justify-center transition-colors"><ChevronLeft size={14} strokeWidth={1.75} /></button>
+              <Button variant="ghost" size="icon-sm" onClick={() => navigateVersion(nodeId, 'prev')} className="hover:text-primary hover:bg-accent"><ChevronLeft size={14} strokeWidth={1.75} /></Button>
               <span className="text-primary font-medium">v{data.responseIndex + 1}/{data.responses.length}</span>
-              <button onClick={() => navigateVersion(nodeId, 'next')} className="hover:text-primary hover:bg-accent rounded-full w-5 h-5 flex items-center justify-center transition-colors"><ChevronRight size={14} strokeWidth={1.75} /></button>
-              {!isViewerMode && <button
+              <Button variant="ghost" size="icon-sm" onClick={() => navigateVersion(nodeId, 'next')} className="hover:text-primary hover:bg-accent"><ChevronRight size={14} strokeWidth={1.75} /></Button>
+              {!isViewerMode && <Button variant="ghost" size="icon-sm"
                 onClick={() => deleteVersion(nodeId, data.responseIndex)}
-                className="text-muted-foreground hover:text-destructive/90 hover:bg-destructive/10 rounded-full w-5 h-5 flex items-center justify-center transition-colors"
+                className="text-muted-foreground hover:text-destructive/90 hover:bg-destructive/10"
                 title={t('common.deleteVersion')}
               >
                 <Trash2 size={13} strokeWidth={1.75} />
-              </button>}
+              </Button>}
             </div>
           )}
         </div>
@@ -329,12 +331,12 @@ export default function ResponseSection({
         <div className="mt-2 flex items-center gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/15 rounded-lg px-3 py-2">
           <AlertTriangle size={14} strokeWidth={1.75} className="shrink-0" />
           {t('common.generationFailed')}
-          {!isViewerMode && <button
+          {!isViewerMode && <Button variant="destructive" size="xs"
             onClick={() => editQuestion(nodeId, data.question)}
-            className="ml-auto bg-card border border-destructive/30 hover:bg-destructive/15 text-destructive px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
+            className="ml-auto border-destructive/30"
           >
             <RefreshCw size={12} strokeWidth={1.75} /> {t('common.retry')}
-          </button>}
+          </Button>}
         </div>
       )}
     </div>

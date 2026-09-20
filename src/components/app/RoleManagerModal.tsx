@@ -5,6 +5,7 @@ import { useUiStore } from '../../lib/ui-store';
 import { generateId } from '../../utils';
 import { useI18n, useT } from '../../i18n';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Button } from '../ui/button';
 
 // The role LIBRARY editor: add, edit and remove the reusable options shown
 // as chips everywhere. Editing a built-in converts it into a custom copy
@@ -31,13 +32,13 @@ function Row({ role, onCommit, onRemove }: {
           className="flex-1 text-sm font-medium text-foreground bg-transparent focus:outline-none placeholder-muted-foreground"
         />
         {role.builtin && <span className="text-2xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">{t('roles.builtin')}</span>}
-        <button
+        <Button variant="ghost" size="icon-sm"
           onClick={() => onRemove(role)}
           title={t('common.delete')}
-          className="text-muted-foreground hover:text-destructive/90 w-6 h-6 rounded-full flex items-center justify-center transition-colors shrink-0"
+          className="text-muted-foreground hover:text-destructive/90 shrink-0"
         >
           <Trash2 size={13} strokeWidth={1.75} />
-        </button>
+        </Button>
       </div>
       <textarea
         value={prompt}
@@ -88,20 +89,20 @@ export default function RoleManagerModal() {
           {roles.length === 0 && <p className="text-xs text-muted-foreground italic py-2">{t('roles.empty')}</p>}
         </div>
         <div className="flex items-center gap-2 px-5 py-3 border-t border-border shrink-0">
-          <button
+          <Button variant="ghost" size="sm"
             onClick={add}
-            className="flex items-center gap-1.5 text-xs text-primary hover:bg-primary/10 px-3 py-1.5 rounded-lg transition-colors"
+            className="text-xs text-primary hover:bg-primary/10"
           >
             <Plus size={14} strokeWidth={1.75} /> {t('roles.add')}
-          </button>
+          </Button>
           <div className="flex-1" />
           {lib.hidden.length > 0 && (
-            <button
+            <Button variant="ghost" size="xs"
               onClick={() => setLib({ ...lib, hidden: [] })}
-              className="text-2xs text-muted-foreground hover:text-muted-foreground underline decoration-dotted transition-colors"
+              className="text-2xs text-muted-foreground hover:text-muted-foreground underline decoration-dotted"
             >
               {t('roles.restore')}
-            </button>
+            </Button>
           )}
         </div>
       </DialogContent>

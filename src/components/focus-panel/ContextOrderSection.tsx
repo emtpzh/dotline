@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { useStore } from '../../store';
 import { useT } from '../../i18n';
+import { Button } from '../ui/button';
 
 // The order of a merge's incoming BLOCKS — visible and adjustable only
 // where several parents feed one node. Reordering moves whole upstream
@@ -46,24 +47,24 @@ export default function ContextOrderSection({ nodeId }: { nodeId: string }) {
           <div key={e.id} className="flex items-center gap-1.5 text-xs text-foreground" data-context-order-item={e.source}>
             <span className="text-2xs font-mono text-muted-foreground w-4 shrink-0">{i + 1}</span>
             <span className="flex-1 truncate">{labelOf(e.source)}</span>
-            <button
-              className="text-muted-foreground hover:text-foreground disabled:opacity-25 p-0.5"
+            <Button variant="ghost"
+              className="text-muted-foreground hover:text-foreground"
               disabled={i === 0}
               onClick={() => move(i, -1)}
               title={t('panel.ctxOrderUp')}
               data-ctx-up
             >
               <ArrowUp size={13} strokeWidth={1.75} />
-            </button>
-            <button
-              className="text-muted-foreground hover:text-foreground disabled:opacity-25 p-0.5"
+            </Button>
+            <Button variant="ghost"
+              className="text-muted-foreground hover:text-foreground"
               disabled={i === incoming.length - 1}
               onClick={() => move(i, 1)}
               title={t('panel.ctxOrderDown')}
               data-ctx-down
             >
               <ArrowDown size={13} strokeWidth={1.75} />
-            </button>
+            </Button>
           </div>
         ))}
       </div>

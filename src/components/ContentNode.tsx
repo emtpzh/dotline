@@ -13,6 +13,8 @@ import { Markdown } from './Markdown';
 import { countTokens } from '../utils';
 import { useT, fmt } from '../i18n';
 import { isViewerMode } from '../lib/viewer';
+import { Button } from './ui/button';
+import { Textarea } from './ui/textarea';
 
 // Content nodes: canvas material, not turns. A note (markdown), a file
 // (attachments) or a link (stamped web snapshot) that never generates — it
@@ -155,14 +157,14 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
             ? <span className="text-2xs text-muted-foreground truncate">{linkDomain}</span>
             : <span className="text-2xs text-muted-foreground font-mono">{kind === 'note' ? `${data.tokenCount} tok` : `${attachments.length}`}</span>}
           {clipSourceName && (
-            <button
+            <Button variant="ghost" size="xs"
               onClick={openClipSource}
               title={t('content.clipSourceTitle')}
               data-clip-source
-              className="text-2xs font-mono text-edge-explore bg-edge-explore/10 hover:bg-edge-explore/20 px-1.5 py-0.5 rounded-full truncate max-w-[180px] transition-colors shrink"
+              className="text-2xs font-mono text-edge-explore bg-edge-explore/10 hover:bg-edge-explore/20 truncate max-w-[180px] shrink"
             >
               {clipSourceName} &middot; p.{clipAnchor!.page}
-            </button>
+            </Button>
           )}
           {!isLinked && (
             <span className="text-2xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full flex items-center gap-1 shrink-0" title={t('content.unlinkedTitle')}>
@@ -171,13 +173,13 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <button
+          <Button variant="ghost" size="icon-sm"
             onClick={(e) => { e.stopPropagation(); useUiStore.getState().setReaderNodeId(id); }}
             title={t('reader.open')}
-            className="text-muted-foreground hover:text-primary rounded-full w-6 h-6 flex items-center justify-center transition-colors"
+            className="text-muted-foreground hover:text-primary"
           >
             <BookOpen size={13} strokeWidth={1.75} />
-          </button>
+          </Button>
           {kind === 'link' && data.linkUrl && (
             <a
               href={data.linkUrl}
@@ -190,12 +192,12 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
               <ExternalLink size={13} strokeWidth={1.75} />
             </a>
           )}
-          {!isViewerMode && <button
+          {!isViewerMode && <Button variant="ghost" size="icon-sm"
             onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
-            className="text-muted-foreground hover:text-destructive/90 rounded-full w-6 h-6 flex items-center justify-center transition-colors"
+            className="text-muted-foreground hover:text-destructive/90"
           >
             <Trash2 size={13} strokeWidth={1.75} />
-          </button>}
+          </Button>}
         </div>
       </div>
 
@@ -238,12 +240,12 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
                 <div className={`text-sm font-semibold leading-snug ${data.linkTitle.startsWith('⚠') ? 'text-destructive' : 'text-foreground'}`}>{data.linkTitle}</div>
               )}
               {data.linkTitle?.startsWith('⚠') && data.linkUrl && (
-                <button
+                <Button variant="ghost" size="sm"
                   onClick={(e) => { e.stopPropagation(); void fetchLinkIntoNode(id, data.linkUrl!); }}
-                  className="text-xs bg-muted hover:bg-border text-muted-foreground px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                  className="text-xs bg-muted hover:bg-border text-muted-foreground"
                 >
                   <RefreshCw size={13} strokeWidth={1.75} /> {t('common.retry')}
-                </button>
+                </Button>
               )}
               {data.question && (
                 <div className="text-xs text-muted-foreground leading-relaxed max-h-[200px] overflow-y-auto nopan nowheel whitespace-pre-wrap">
@@ -277,33 +279,33 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
                       <Loader2 size={11} strokeWidth={1.75} className="animate-spin" /> {t('content.extracting')}
                     </span>
                   ) : att.extractedText ? (
-                    <button
+                    <Button variant="ghost" size="xs"
                       onClick={(e) => { e.stopPropagation(); setOpenExtract(openExtract === att.id ? null : att.id); }}
                       title={t('content.editExtractTitle')}
-                      className="absolute bottom-1.5 left-1.5 text-2xs bg-foreground/60 hover:bg-foreground/80 text-white px-2 py-0.5 rounded-full transition-colors"
+                      className="absolute bottom-1.5 left-1.5 text-2xs bg-foreground/60 hover:bg-foreground/80 text-white"
                     >
                       {t('content.extracted')}{att.extractedBy ? ` · ${att.extractedBy}` : ''} ▾
-                    </button>
+                    </Button>
                   ) : (
-                    <button
+                    <Button variant="ghost" size="xs"
                       onClick={(e) => { e.stopPropagation(); void extractImage(id, att.id); }}
                       title={t('content.reExtractTitle')}
-                      className="absolute bottom-1.5 left-1.5 text-2xs bg-foreground/60 hover:bg-foreground/80 text-white px-2 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
+                      className="absolute bottom-1.5 left-1.5 text-2xs bg-foreground/60 hover:bg-foreground/80 text-white opacity-0 group-hover:opacity-100"
                     >
                       <RefreshCw size={11} strokeWidth={1.75} /> {t('content.reExtract')}
-                    </button>
+                    </Button>
                   )}
-                  <button
+                  <Button variant="ghost" size="icon-sm"
                     onClick={(e) => { e.stopPropagation(); removeAttachment(id, att.id); }}
-                    className="absolute top-1.5 right-1.5 bg-foreground/60 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-1.5 right-1.5 bg-foreground/60 text-white opacity-0 group-hover:opacity-100"
                   >
                     <X size={13} strokeWidth={2} />
-                  </button>
+                  </Button>
                   {/* Extraction panel: SEE what the model read, fix it, or redo it —
                       this text is what downstream context receives as the image's index */}
                   {openExtract === att.id && (
                     <div className="mt-1.5 space-y-1.5" onClick={(e) => e.stopPropagation()}>
-                      <textarea
+                      <Textarea
                         defaultValue={att.extractedText}
                         onBlur={(e) => {
                           if (e.target.value !== att.extractedText) {
@@ -312,16 +314,16 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
                           }
                         }}
                         rows={7}
-                        className="w-full text-xs text-foreground bg-background border border-border rounded-lg px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-ring/40 resize-y leading-relaxed nopan nowheel"
+                        className="w-full resize-y leading-relaxed nopan nowheel"
                       />
                       <div className="flex items-center justify-between">
                         <span className="text-2xs text-muted-foreground font-mono">{att.extractedBy}</span>
-                        <button
+                        <Button variant="ghost" size="xs"
                           onClick={() => { setOpenExtract(null); void extractImage(id, att.id); }}
-                          className="text-2xs bg-muted hover:bg-border text-muted-foreground px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
+                          className="text-2xs bg-muted hover:bg-border text-muted-foreground"
                         >
                           <RefreshCw size={11} strokeWidth={1.75} /> {t('content.reExtractAgain')}
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   )}
@@ -340,12 +342,12 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
                     <span className="truncate">{att.name}</span>
                     {att.numPages != null && <span className="shrink-0 opacity-80">· {att.numPages}p</span>}
                   </span>
-                  <button
+                  <Button variant="ghost" size="icon-sm"
                     onClick={(e) => { e.stopPropagation(); removeAttachment(id, att.id); }}
-                    className="absolute top-1.5 right-1.5 bg-foreground/60 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-1.5 right-1.5 bg-foreground/60 text-white opacity-0 group-hover:opacity-100"
                   >
                     <X size={13} strokeWidth={2} />
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <div key={att.id} className="flex items-center gap-2 bg-muted rounded-lg px-2.5 py-2 group">
@@ -353,22 +355,22 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
                   <span className="text-xs text-foreground flex-1 truncate">{att.name}</span>
                   {att.isExtracting && <span className="text-2xs text-primary shrink-0">{t('attach.extracting')}</span>}
                   {att.numPages != null && <span className="text-2xs text-muted-foreground shrink-0">{att.numPages}p</span>}
-                  <button
+                  <Button variant="ghost"
                     onClick={(e) => { e.stopPropagation(); removeAttachment(id, att.id); }}
-                    className="text-muted-foreground hover:text-destructive/90 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    className="text-muted-foreground hover:text-destructive/90 opacity-0 group-hover:opacity-100 shrink-0"
                   >
                     <X size={13} strokeWidth={1.75} />
-                  </button>
+                  </Button>
                 </div>
               )
             ))}
-            <button
+            <Button variant="ghost"
               onClick={() => fileRef.current?.click()}
               className={`w-full border-2 border-dashed border-border hover:border-primary/40 hover:bg-primary/5 rounded-lg text-xs text-muted-foreground hover:text-muted-foreground transition-colors ${attachments.length === 0 ? 'py-6' : 'py-2'}`}
             >
               {t('attach.upload')}
               {attachments.length === 0 && <span className="block text-2xs mt-1">{t('attach.types')}</span>}
-            </button>
+            </Button>
             <input
               ref={fileRef}
               type="file"

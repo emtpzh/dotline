@@ -5,6 +5,7 @@ import { useUiStore } from '../../lib/ui-store';
 import { WHATS_NEW } from '../../whats-new';
 import { appVersion } from '../../lib/app-version';
 import { WhatsNewItems } from './WhatsNewDialog';
+import { Button } from '../ui/button';
 
 // The release history behind the ⋯ menu: every entry of the what's-new
 // list, newest first, the running version marked. Same card as the update
@@ -54,12 +55,10 @@ export default function ReleaseNotesDialog() {
           })}
         </ol>
         <div className="sticky bottom-0 bg-card px-6 py-4 border-t border-border flex justify-end">
-          <button
-            onClick={() => setOpen(false)}
-            className="text-xs text-foreground px-4 py-2 rounded-lg border border-border hover:bg-accent transition-colors"
-          >
+          <Button variant="outline" size="sm"
+            onClick={() => setOpen(false)}>
             {t('common.close')}
-          </button>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

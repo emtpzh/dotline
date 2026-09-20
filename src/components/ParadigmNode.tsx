@@ -5,6 +5,7 @@ import { useStore } from '../store';
 import { effectiveRoles } from '../lib/role-templates';
 import { useUiStore } from '../lib/ui-store';
 import { useI18n, useT } from '../i18n';
+import { Button } from './ui/button';
 
 // Orchestration-view card. A paradigm has exactly two node kinds:
 //   human  — a dialogue turn: the human asks here. The card holds optional
@@ -48,7 +49,7 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
       <div className="flex items-center justify-between px-4 py-2 border-b border-border/60 cursor-grab active:cursor-grabbing drag-handle">
         <div className="flex gap-1">
           {KINDS.map(({ kind: k, icon: Icon, labelKey }) => (
-            <button
+            <Button variant="ghost"
               key={k}
               onClick={(e) => { e.stopPropagation(); patch({ stepKind: k }); }}
               title={t(labelKey as Parameters<typeof t>[0])}
@@ -57,18 +58,18 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
               }`}
             >
               <Icon size={14} strokeWidth={1.75} />
-            </button>
+            </Button>
           ))}
           <span className={`text-2xs self-center ml-1 uppercase tracking-wider font-medium ${kind === 'human' ? 'text-edge-explore' : 'text-primary/80'}`}>
             {t(`paradigm.kind.${kind}` as Parameters<typeof t>[0])}
           </span>
         </div>
-        <button
+        <Button variant="ghost" size="icon-sm"
           onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
-          className="text-muted-foreground hover:text-destructive/90 rounded-full w-6 h-6 flex items-center justify-center transition-colors"
+          className="text-muted-foreground hover:text-destructive/90"
         >
           <Trash2 size={13} strokeWidth={1.75} />
-        </button>
+        </Button>
       </div>
 
       <div className="px-4 py-3 space-y-2.5 nodrag">
@@ -97,13 +98,13 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
         {kind === 'prompt' && (
           <div className="flex flex-wrap gap-1" title={t('paradigm.insertPersona')}>
             {effectiveRoles(lang, useUiStore.getState().roleLib).map((tpl) => (
-              <button
+              <Button variant="ghost" size="xs"
                 key={tpl.id}
                 onClick={() => patch({ instruction: `${tpl.prompt}\n${data.instruction ?? ''}` })}
-                className="text-2xs bg-muted hover:bg-primary/10 hover:text-primary text-muted-foreground px-1.5 py-0.5 rounded-full transition-colors"
+                className="text-2xs bg-muted hover:bg-primary/10 hover:text-primary text-muted-foreground"
               >
                 + {tpl.name}
-              </button>
+              </Button>
             ))}
           </div>
         )}
@@ -111,7 +112,7 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
         {/* per-step search permissions — carried into the instantiated run */}
         {kind === 'prompt' && (
           <div className="flex items-center gap-1.5">
-            <button
+            <Button variant="ghost"
               onClick={() => patch({ webSearch: !data.webSearch })}
               title={data.webSearch ? t('toolbar.webSearch') : t('toolbar.webSearchOff')}
               className={`text-2xs px-2 py-1 rounded-full transition-colors flex items-center gap-1 ${
@@ -119,8 +120,8 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
               }`}
             >
               <Globe size={12} strokeWidth={1.75} /> {t('paradigm.webSearch')}
-            </button>
-            <button
+            </Button>
+            <Button variant="ghost"
               onClick={() => patch({ scholarSearch: !data.scholarSearch })}
               title={data.scholarSearch ? t('toolbar.scholarSearch') : t('toolbar.scholarSearchOff')}
               className={`text-2xs px-2 py-1 rounded-full transition-colors flex items-center gap-1 ${
@@ -128,7 +129,7 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
               }`}
             >
               <GraduationCap size={12} strokeWidth={1.75} /> {t('paradigm.scholarSearch')}
-            </button>
+            </Button>
           </div>
         )}
       </div>

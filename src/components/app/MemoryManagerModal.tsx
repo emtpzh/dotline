@@ -5,6 +5,7 @@ import { downloadFile } from '../../lib/export';
 import { generateId } from '../../utils';
 import { useT, fmt } from '../../i18n';
 import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
+import { Button } from '../ui/button';
 
 // The memory manager: the ChatGPT-style curation surface, and the ONLY
 // standing entry point to memory (writes announce themselves via toasts;
@@ -52,13 +53,13 @@ export default function MemoryManagerModal() {
         <div className="flex items-center gap-2 px-5 py-3 pr-12 border-b border-border shrink-0">
           <DialogTitle>{t('memory.managerTitle')}</DialogTitle>
           <span className="text-2xs text-muted-foreground flex-1">{fmt(t('memory.hint'), { n: memories.length })}</span>
-          <button
+          <Button variant="ghost"
             onClick={() => setEnabled(!enabled)}
             title={t('caps.memoryTitle')}
             className={`text-2xs px-2.5 py-1 rounded-full transition-colors shrink-0 ${enabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}
           >
             {enabled ? t('caps.on') : t('caps.off')}
-          </button>
+          </Button>
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3 space-y-2">
@@ -74,13 +75,13 @@ export default function MemoryManagerModal() {
                   rows={1}
                   className="flex-1 text-sm text-foreground bg-transparent focus:outline-none resize-y leading-relaxed"
                 />
-                <button
+                <Button variant="ghost" size="icon-sm"
                   onClick={() => setMemories(memories.filter((x) => x.id !== m.id))}
                   title={t('common.delete')}
-                  className="text-muted-foreground hover:text-destructive/90 w-6 h-6 rounded-full flex items-center justify-center transition-colors shrink-0 opacity-0 group-hover:opacity-100"
+                  className="text-muted-foreground hover:text-destructive/90 shrink-0 opacity-0 group-hover:opacity-100"
                 >
                   <Trash2 size={13} strokeWidth={1.75} />
-                </button>
+                </Button>
               </div>
               <p className="text-2xs text-muted-foreground mt-1 font-mono flex items-center gap-1.5 flex-wrap">
                 {(() => { const b = catBadge(m.category); return b ? <span className={`px-1.5 py-px rounded-full font-sans ${b.cls}`}>{b.label}</span> : null; })()}
@@ -99,25 +100,25 @@ export default function MemoryManagerModal() {
                 className="w-full text-xs text-foreground bg-transparent focus:outline-none resize-y leading-relaxed placeholder-muted-foreground"
               />
               <div className="flex justify-end gap-2">
-                <button onClick={() => setImporting(false)} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1 rounded-lg hover:bg-accent transition-colors">{t('common.cancel')}</button>
-                <button onClick={doImport} className="text-xs bg-primary text-white px-3 py-1 rounded-lg">{t('memory.importConfirm')}</button>
+                <Button variant="ghost" size="xs" onClick={() => setImporting(false)} className="text-xs text-muted-foreground hover:text-foreground hover:bg-accent">{t('common.cancel')}</Button>
+                <Button size="xs" onClick={doImport}>{t('memory.importConfirm')}</Button>
               </div>
             </div>
           )}
         </div>
 
         <div className="flex items-center gap-2 px-5 py-3 border-t border-border shrink-0">
-          <button onClick={add} className="flex items-center gap-1.5 text-xs text-primary hover:bg-primary/10 px-3 py-1.5 rounded-lg transition-colors">
+          <Button variant="ghost" size="sm" onClick={add} className="text-xs text-primary hover:bg-primary/10">
             <Plus size={14} strokeWidth={1.75} /> {t('memory.add')}
-          </button>
-          <button onClick={() => setImporting(true)} className="text-xs text-muted-foreground hover:text-foreground hover:bg-accent px-3 py-1.5 rounded-lg transition-colors">
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setImporting(true)} className="text-xs text-muted-foreground hover:text-foreground hover:bg-accent">
             {t('memory.import')}
-          </button>
+          </Button>
           <div className="flex-1" />
           {memories.length > 0 && (
-            <button onClick={doExport} className="flex items-center gap-1.5 text-2xs text-muted-foreground hover:text-muted-foreground transition-colors" title={t('memory.exportTitle')}>
+            <Button variant="ghost" size="xs" onClick={doExport} className="text-2xs text-muted-foreground hover:text-muted-foreground" title={t('memory.exportTitle')}>
               <Download size={12} strokeWidth={1.75} /> {t('memory.export')}
-            </button>
+            </Button>
           )}
         </div>
       </DialogContent>

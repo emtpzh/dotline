@@ -5,6 +5,7 @@ import { exportActiveProjectJson } from '../../lib/export';
 import { useT } from '../../i18n';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Input } from '../ui/input';
 
 // Two jobs, two lanes. LANE 1: the read-only canvas link — it CARRIES the
 // whole graph (minted against the public viewer origin, so a link made on
@@ -39,11 +40,11 @@ export default function ShareDialog() {
         <div className="text-2xs font-semibold text-primary mb-1">{t('share.directLane')}</div>
         <p className="text-xs text-muted-foreground mb-2">{t('share.directNote')}</p>
         <div className="flex gap-1.5 mb-4">
-          <input
+          <Input
             readOnly
             value={url ?? ''}
             onFocus={(e) => e.target.select()}
-            className="flex-1 min-w-0 text-xs font-mono text-muted-foreground bg-muted border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring/40 truncate"
+            className="flex-1 min-w-0 font-mono text-muted-foreground truncate"
           />
           <Button
             onClick={() => void copy()}

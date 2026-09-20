@@ -6,6 +6,8 @@ import { isImeComposing } from '../../utils';
 import { useT } from '../../i18n';
 import { isViewerMode } from '../../lib/viewer';
 import { toast } from '../../lib/ui-store';
+import { Button } from '../ui/button';
+import { Textarea } from '../ui/textarea';
 
 export default function QuestionSection({
   nodeId,
@@ -92,7 +94,7 @@ export default function QuestionSection({
       )}
       {(isEditing || awaiting) && !isViewerMode ? (
         <>
-          <textarea
+          <Textarea
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleEditKeyDown}
@@ -100,30 +102,29 @@ export default function QuestionSection({
             onInput={(e) => autoGrowTa(e.currentTarget)}
             ref={autoGrowTa}
             placeholder={placeholder}
-            className="w-full bg-muted border border-primary rounded-xl p-3 text-sm text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-ring/20"
+            className="w-full border-primary resize-none"
             rows={3}
             autoFocus
           />
           {isFact && !awaiting && !isHuman && <p className="text-2xs text-muted-foreground mt-1.5" data-fact-note>{t('fact.editQuestionNote')}</p>}
           {!awaiting && !isHuman && (
             <div className="flex items-center justify-end gap-2 mt-1.5">
-              <button
+              <Button variant="ghost" size="sm"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => setEditing(nodeId, false)}
-                className="text-xs text-muted-foreground hover:text-destructive/90 hover:bg-accent px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                className="text-xs text-muted-foreground hover:text-destructive/90 hover:bg-accent"
                 data-edit-cancel
               >
                 <X size={12} strokeWidth={2} /> {t('question.editCancel')}
-              </button>
-              <button
+              </Button>
+              <Button size="sm"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={handleEditSubmit}
                 disabled={!editValue.trim()}
-                className="text-xs bg-primary hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed text-white px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
-                data-edit-submit
-              >
+                
+                data-edit-submit>
                 <Check size={12} strokeWidth={2.25} /> {t('question.editSubmit')}
-              </button>
+              </Button>
             </div>
           )}
         </>

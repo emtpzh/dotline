@@ -8,6 +8,7 @@ import { referenceBlockContent } from '../store/context-builder';
 import { countTokens } from '../utils';
 import { useT, fmt } from '../i18n';
 import type { ThoughtEdge } from '../types';
+import { Button } from './ui/button';
 
 /**
  * Custom edge registered under the 'smoothstep' type name (overrides the
@@ -119,23 +120,23 @@ export default function ThoughtEdgeView({
           >
             <div className="flex items-center gap-1">
               {convertible && refTok > 0 && (
-                <button
+                <Button variant="outline" size="xs"
                   onClick={(e) => { e.stopPropagation(); setEdgeStructural(id, isRef); }}
-                  className="h-6 px-2 rounded-full bg-card border border-border shadow-md flex items-center text-2xs text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors whitespace-nowrap"
+                  className="shadow-md hover:border-primary/40 whitespace-nowrap"
                   title={isRef ? t('edge.depthToggleTitle') : t('edge.solidChipTitle')}
                 >
                   {isRef
                     ? fmt(t(depth === 'full' ? 'edge.fullChip' : 'edge.quoteChip'), { n: refTok })
                     : fmt(t('edge.solidChip'), { n: refTok })}
-                </button>
+                </Button>
               )}
-              <button
+              <Button variant="outline" size="icon-sm"
                 onClick={(e) => { e.stopPropagation(); deleteEdges([id]); }}
-                className="w-6 h-6 rounded-full bg-card border border-border shadow-md flex items-center justify-center text-muted-foreground hover:text-destructive/90 hover:border-destructive/40 transition-colors"
+                className="shadow-md hover:border-destructive/40"
                 title={t('canvas.deleteEdgeTitle')}
               >
                 <X size={13} strokeWidth={2} />
-              </button>
+              </Button>
             </div>
           </div>
         </EdgeLabelRenderer>

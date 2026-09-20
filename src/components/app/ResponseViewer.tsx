@@ -8,6 +8,8 @@ import { isViewerMode } from '../../lib/viewer';
 import { generateId, isImeComposing } from '../../utils';
 import { useT } from '../../i18n';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Button } from '../ui/button';
+import { Textarea } from '../ui/textarea';
 
 // The answer, reading-size: the same reading loop the PDF reader gives
 // external material, for the model's own text — select to highlight or to
@@ -154,18 +156,18 @@ export default function ResponseViewer() {
             style={{ left: selectionPos.x, top: selectionPos.y, transform: 'translateX(-50%)' }}
             onMouseDown={(e) => e.preventDefault()}
           >
-            <button
+            <Button size="sm"
               onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); branchFromSelection(); }}
-              className="bg-primary hover:bg-primary/90 text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
+              className="whitespace-nowrap"
             >
               <GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('common.explore')}
-            </button>
-            <button
+            </Button>
+            <Button variant="ghost" size="sm"
               onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); highlightSelection(); }}
-              className="bg-warning hover:bg-warning text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
+              className="bg-warning hover:bg-warning text-white text-xs whitespace-nowrap"
             >
               <Star size={14} strokeWidth={1.75} className="inline" /> {t('common.highlight')}
-            </button>
+            </Button>
           </div>
         )}
 
@@ -178,13 +180,13 @@ export default function ResponseViewer() {
                 <div className="mb-2 text-xs pl-3 py-1.5 pr-2 border-l-2 border-edge-explore bg-edge-explore/10 rounded-r text-muted-foreground flex items-start gap-1.5">
                   <GitBranch size={13} strokeWidth={1.75} className="text-edge-explore shrink-0 mt-0.5" />
                   <span className="italic leading-relaxed min-w-0 flex-1">“{branchFrom.slice(0, 160)}{branchFrom.length > 160 ? '…' : ''}”</span>
-                  <button onClick={() => setBranchFrom('')} className="text-muted-foreground hover:text-foreground shrink-0" title={t('common.cancel')}>
+                  <Button variant="ghost" onClick={() => setBranchFrom('')} className="text-muted-foreground hover:text-foreground shrink-0" title={t('common.cancel')}>
                     <X size={13} strokeWidth={1.75} />
-                  </button>
+                  </Button>
                 </div>
               )}
               <div className="flex items-end gap-2">
-                <textarea
+                <Textarea
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
@@ -193,16 +195,16 @@ export default function ResponseViewer() {
                   }}
                   placeholder={branchFrom ? t('viewerqa.placeholderBranch') : t('viewerqa.placeholder')}
                   rows={1}
-                  className="flex-1 text-sm bg-muted border border-border rounded-xl px-3.5 py-2.5 resize-none focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed"
+                  className="flex-1 resize-none leading-relaxed"
                 />
-                <button
+                <Button size="icon"
                   onClick={ask}
                   disabled={!input.trim() || data.isLoading}
                   title={t('viewerqa.askTitle')}
-                  className="w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-30 shrink-0"
+                  className="shrink-0"
                 >
                   <Send size={15} strokeWidth={1.75} />
-                </button>
+                </Button>
               </div>
             </div>
           </div>

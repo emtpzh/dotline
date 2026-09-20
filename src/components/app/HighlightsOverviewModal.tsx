@@ -5,6 +5,7 @@ import { useUiStore } from '../../lib/ui-store';
 import { downloadMarkdown } from '../../lib/export';
 import { useT, fmt } from '../../i18n';
 import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
+import { Button } from '../ui/button';
 
 // Every highlight on the canvas, in one place: the essence the reading
 // left behind. Two lenses (by time = the reading journey, by node = the
@@ -72,12 +73,12 @@ export default function HighlightsOverviewModal({ onLocate }: { onLocate: (nodeI
 
   const chip = 'shrink-0 text-2xs font-mono text-primary bg-primary/10 hover:bg-primary/20 rounded-full px-1.5 py-0.5 transition-colors';
   const sortBtn = (v: 'time' | 'node', label: string) => (
-    <button
+    <Button variant="ghost"
       onClick={() => setSort(v)}
       className={`text-2xs px-2.5 py-1 rounded-full transition-colors ${sort === v ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent'}`}
     >
       {label}
-    </button>
+    </Button>
   );
 
   return (
@@ -111,23 +112,23 @@ export default function HighlightsOverviewModal({ onLocate }: { onLocate: (nodeI
                     <mark className="bg-warning/15 text-warning px-0.5 rounded">{e.text}</mark>
                   </span>
                   {sort === 'time' && (
-                    <button className={chip} onClick={() => { close(); onLocate(e.nodeId); }} title={t('hlov.locateTitle')}>
+                    <Button variant="ghost" className={chip} onClick={() => { close(); onLocate(e.nodeId); }} title={t('hlov.locateTitle')}>
                       {e.nodeTitle.slice(0, 14)}{e.nodeTitle.length > 14 ? '…' : ''}
-                    </button>
+                    </Button>
                   )}
                   {sort === 'node' && (
-                    <button className={chip} onClick={() => { close(); onLocate(e.nodeId); }} title={t('hlov.locateTitle')}>
+                    <Button variant="ghost" className={chip} onClick={() => { close(); onLocate(e.nodeId); }} title={t('hlov.locateTitle')}>
                       ↦
-                    </button>
+                    </Button>
                   )}
                   {e.at && <span className="shrink-0 text-2xs text-muted-foreground font-mono mt-0.5">{e.at.slice(5, 10)}</span>}
-                  <button
+                  <Button variant="ghost" size="icon-sm"
                     onClick={() => removeHighlight(e.nodeId, e.hlId)}
                     title={t('common.delete')}
-                    className="text-muted-foreground hover:text-destructive/90 w-5 h-5 rounded-full flex items-center justify-center transition-colors shrink-0 opacity-0 group-hover:opacity-100"
+                    className="text-muted-foreground hover:text-destructive/90 shrink-0 opacity-0 group-hover:opacity-100"
                   >
                     <Trash2 size={12} strokeWidth={1.75} />
-                  </button>
+                  </Button>
                 </div>
               </div>
             );
@@ -137,18 +138,18 @@ export default function HighlightsOverviewModal({ onLocate }: { onLocate: (nodeI
         <div className="px-5 py-3 border-t border-border shrink-0 space-y-2">
           {picked.size > 0 && (
             <div className="flex justify-end">
-              <button onClick={weavePicked} className="text-xs bg-warning hover:bg-warning text-white px-3 py-2 rounded-lg transition-colors shrink-0">
+              <Button variant="ghost" size="sm" onClick={weavePicked} className="text-xs bg-warning hover:bg-warning text-white shrink-0">
                 {fmt(t('hlov.weavePicked'), { n: picked.size })}
-              </button>
+              </Button>
             </div>
           )}
           <div className="flex items-center">
             <span className="text-2xs text-muted-foreground">{picked.size > 0 ? fmt(t('hlov.picked'), { n: picked.size }) : t('hlov.pickHint')}</span>
             <div className="flex-1" />
             {entries.length > 0 && (
-              <button onClick={exportMd} className="flex items-center gap-1.5 text-2xs text-muted-foreground hover:text-muted-foreground transition-colors" title={t('hlov.exportTitle')}>
+              <Button variant="ghost" size="xs" onClick={exportMd} className="text-2xs text-muted-foreground hover:text-muted-foreground" title={t('hlov.exportTitle')}>
                 <Download size={12} strokeWidth={1.75} /> {t('hlov.export')}
-              </button>
+              </Button>
             )}
           </div>
         </div>

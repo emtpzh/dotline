@@ -4,6 +4,7 @@ import { useStore } from '../../store';
 import { useUiStore } from '../../lib/ui-store';
 import { useT, fmt } from '../../i18n';
 import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
+import { Button } from '../ui/button';
 
 // Every material on the canvas, in one place — the sibling of the
 // highlights overview. Attachments wherever they live (thought nodes and
@@ -75,12 +76,12 @@ export default function MaterialsOverviewModal({ onLocate }: { onLocate: (nodeId
 
   const chip = 'shrink-0 text-2xs font-mono text-primary bg-primary/10 hover:bg-primary/20 rounded-full px-1.5 py-0.5 transition-colors';
   const sortBtn = (v: 'time' | 'node', label: string) => (
-    <button
+    <Button variant="ghost"
       onClick={() => setSort(v)}
       className={`text-2xs px-2.5 py-1 rounded-full transition-colors ${sort === v ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent'}`}
     >
       {label}
-    </button>
+    </Button>
   );
 
   return (
@@ -118,23 +119,23 @@ export default function MaterialsOverviewModal({ onLocate }: { onLocate: (nodeId
                     </p>
                   </div>
                   {sort === 'time' && (
-                    <button className={chip} onClick={() => { close(); onLocate(e.nodeId); }} title={t('hlov.locateTitle')}>
+                    <Button variant="ghost" className={chip} onClick={() => { close(); onLocate(e.nodeId); }} title={t('hlov.locateTitle')}>
                       {e.nodeTitle.slice(0, 14)}{e.nodeTitle.length > 14 ? '…' : ''}
-                    </button>
+                    </Button>
                   )}
                   {sort === 'node' && (
-                    <button className={chip} onClick={() => { close(); onLocate(e.nodeId); }} title={t('hlov.locateTitle')}>
+                    <Button variant="ghost" className={chip} onClick={() => { close(); onLocate(e.nodeId); }} title={t('hlov.locateTitle')}>
                       ↦
-                    </button>
+                    </Button>
                   )}
                   {e.canOpen && (
-                    <button
+                    <Button variant="ghost" size="icon-sm"
                       onClick={() => openReader(e.nodeId)}
                       title={t('attach.openReader')}
-                      className="w-7 h-7 rounded-lg text-muted-foreground hover:text-primary hover:bg-accent flex items-center justify-center transition-colors shrink-0"
+                      className="text-muted-foreground hover:text-primary hover:bg-accent shrink-0"
                     >
                       <BookOpen size={14} strokeWidth={1.75} />
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>

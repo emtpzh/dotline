@@ -3,6 +3,7 @@ import { useUiStore } from '../../lib/ui-store';
 import { useModels } from '../../lib/use-models';
 import { directWithoutSearch } from '../../lib/direct-llm';
 import { useT } from '../../i18n';
+import { Button } from '../ui/button';
 
 // Per-ask search permissions, shown next to every input that asks. The two
 // toggles edit the shared default (ui-store, persisted); each new node
@@ -36,7 +37,7 @@ export default function SearchToggles({ size = 16 }: { size?: number }) {
   return (
     <>
       {webAvailable && (
-        <button
+        <Button variant="ghost"
           type="button"
           onClick={() => { if (!noSearchLane) setWeb(!web); }}
           disabled={noSearchLane}
@@ -45,9 +46,9 @@ export default function SearchToggles({ size = 16 }: { size?: number }) {
           data-web-toggle
         >
           <Globe size={size} strokeWidth={1.75} />
-        </button>
+        </Button>
       )}
-      <button
+      <Button variant="ghost"
         type="button"
         onClick={() => { if (!noSearchLane) setScholar(!scholar); }}
         disabled={noSearchLane}
@@ -56,7 +57,7 @@ export default function SearchToggles({ size = 16 }: { size?: number }) {
         data-scholar-toggle
       >
         <GraduationCap size={size} strokeWidth={1.75} />
-      </button>
+      </Button>
     </>
   );
 }

@@ -18,6 +18,7 @@ import HeaderActions from './HeaderActions';
 import ContextChainSection from './ContextChainSection';
 import ContextOrderSection from './ContextOrderSection';
 import FollowUpInput from './FollowUpInput';
+import { Button } from '../ui/button';
 
 // The panel does three jobs: READ (question/response), ASK (the single
 // follow-up input at the bottom), INSPECT (context chain). Everything else
@@ -117,13 +118,13 @@ export default function FocusPanel({ onFocusNode }: { onFocusNode?: (id: string)
         <RoleLine nodeId={selectedNodeId!} data={data} inheritedRole={inheritedRole} />
         <div className="flex items-center gap-1 shrink-0">
           {!isViewerMode && <HeaderActions nodeId={selectedNodeId!} isLoading={data.isLoading} />}
-          <button
+          <Button variant="ghost"
             onClick={() => { useUiStore.getState().setPanelOpen(false); setSelectedNodeId(null); }}
             title={t('panel.close')}
-            className="text-muted-foreground hover:text-foreground transition-colors shrink-0 ml-1 h-8 flex items-center"
+            className="text-muted-foreground hover:text-foreground shrink-0 ml-1"
           >
             <X size={16} strokeWidth={1.75} />
-          </button>
+          </Button>
         </div>
       </div>
 

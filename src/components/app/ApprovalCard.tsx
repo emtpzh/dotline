@@ -5,6 +5,8 @@ import { useStore } from '../../store';
 import { answerApproval, type QuestionAnswer } from '../../lib/api';
 import { allowLocation } from '../../lib/agents/agent-runtime';
 import type { ApprovalRequest, ApprovalRecord } from '../../types';
+import { Button } from '../ui/button';
+import { Textarea } from '../ui/textarea';
 
 // What an agent asks the person mid-turn, answered where the turn is shown:
 // on the node. A node is one exchange with the agent, and the agent's
@@ -77,39 +79,39 @@ export function ApprovalCard({ nodeId, request, compact }: { nodeId: string; req
       {kind === 'select' && (
         <div className={`mt-2.5 flex flex-wrap items-center ${compact ? 'gap-1.5' : 'gap-2'}`}>
           {(request.options ?? []).map((o) => (
-            <button key={o} onClick={() => void send({ value: o }, 'answered')} disabled={busy} className={secondary} data-question-option={o}>{o}</button>
+            <Button variant="ghost" key={o} onClick={() => void send({ value: o }, 'answered')} disabled={busy} className={secondary} data-question-option={o}>{o}</Button>
           ))}
-          <button onClick={() => void send({ cancelled: true }, 'cancelled')} disabled={busy} className={`${btn} text-muted-foreground hover:text-foreground hover:underline disabled:opacity-50`}>{t('approval.skip')}</button>
+          <Button variant="ghost" onClick={() => void send({ cancelled: true }, 'cancelled')} disabled={busy} className={`${btn} text-muted-foreground hover:text-foreground hover:underline disabled:opacity-50`}>{t('approval.skip')}</Button>
         </div>
       )}
 
       {(kind === 'input' || kind === 'editor') && (
         <div className="mt-2.5">
-          <textarea
+          <Textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { e.stopPropagation(); if (kind === 'input' && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send({ value: text }, 'answered'); } }}
             placeholder={request.placeholder ?? t('approval.inputPlaceholder')}
             rows={kind === 'editor' ? (compact ? 3 : 6) : (compact ? 1 : 2)}
             disabled={busy}
-            className="w-full text-xs text-foreground bg-card border border-border rounded-md px-2 py-1.5 resize-y focus:outline-none focus:border-primary/60 disabled:opacity-50"
+            className="w-full resize-y focus:border-primary/60 disabled:opacity-50"
             data-question-input
           />
           <div className={`mt-1.5 flex flex-wrap items-center ${compact ? 'gap-1.5' : 'gap-2'}`}>
-            <button onClick={() => void send({ value: text }, 'answered')} disabled={busy} className={primary} data-question-submit>{t('approval.answer')}</button>
-            <button onClick={() => void send({ cancelled: true }, 'cancelled')} disabled={busy} className={secondary}>{t('approval.skip')}</button>
+            <Button variant="ghost" onClick={() => void send({ value: text }, 'answered')} disabled={busy} className={primary} data-question-submit>{t('approval.answer')}</Button>
+            <Button variant="ghost" onClick={() => void send({ cancelled: true }, 'cancelled')} disabled={busy} className={secondary}>{t('approval.skip')}</Button>
           </div>
         </div>
       )}
 
       {isApproval && (
         <div className={`mt-2.5 flex flex-wrap items-center ${compact ? 'gap-1.5' : 'gap-2'}`}>
-          <button onClick={() => void send({ confirmed: true }, 'allowed-once')} disabled={busy} className={primary} data-approval-allow>{t('approval.allowOnce')}</button>
+          <Button variant="ghost" onClick={() => void send({ confirmed: true }, 'allowed-once')} disabled={busy} className={primary} data-approval-allow>{t('approval.allowOnce')}</Button>
           {request.rule && request.channel && (
-            <button onClick={() => void send({ confirmed: true, scope: 'session' }, 'allowed-session')} disabled={busy} className={`${btn} text-primary rounded-lg border border-primary/40 hover:bg-primary/10 transition-colors disabled:opacity-50 whitespace-nowrap`} title={t('approval.allowSessionTitle')} data-approval-allow-session>{t('approval.allowSession')}</button>
+            <Button variant="ghost" onClick={() => void send({ confirmed: true, scope: 'session' }, 'allowed-session')} disabled={busy} className={`${btn} text-primary rounded-lg border border-primary/40 hover:bg-primary/10 transition-colors disabled:opacity-50 whitespace-nowrap`} title={t('approval.allowSessionTitle')} data-approval-allow-session>{t('approval.allowSession')}</Button>
           )}
           {request.suggest && request.channel && (
-            <button
+            <Button variant="ghost"
               onClick={() => void send({ confirmed: true }, 'allowed-once', request.suggest!)}
               disabled={busy}
               className={`${btn} text-primary rounded-lg border border-primary/40 hover:bg-primary/10 transition-colors disabled:opacity-50 truncate ${compact ? 'max-w-[150px]' : 'max-w-[240px]'}`}
@@ -117,11 +119,11 @@ export function ApprovalCard({ nodeId, request, compact }: { nodeId: string; req
               data-approval-allow-location
             >
               {t('approval.allowLocation')} {request.suggest.split('/').filter(Boolean).pop()}
-            </button>
+            </Button>
           )}
-          <button onClick={() => void send({ confirmed: false }, 'rejected')} disabled={busy} className={secondary} data-approval-reject>{t('approval.reject')}</button>
+          <Button variant="ghost" onClick={() => void send({ confirmed: false }, 'rejected')} disabled={busy} className={secondary} data-approval-reject>{t('approval.reject')}</Button>
           {!compact && request.arguments && request.arguments !== request.query && (
-            <button onClick={() => setShowArgs((v) => !v)} className="text-2xs text-muted-foreground hover:text-foreground hover:underline ml-1">{t('approval.showArgs')}</button>
+            <Button variant="ghost" size="xs" onClick={() => setShowArgs((v) => !v)} className="text-2xs text-muted-foreground hover:text-foreground hover:underline ml-1">{t('approval.showArgs')}</Button>
           )}
         </div>
       )}
@@ -156,14 +158,14 @@ export function DecisionsDisclosure({ records }: { records: ApprovalRecord[] }) 
   const good = records.filter((r) => r.outcome === 'allowed-once' || r.outcome === 'allowed-session' || r.outcome === 'answered').length;
   return (
     <div className="mb-2 nopan">
-      <button
+      <Button variant="ghost" size="xs"
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        className="flex items-center gap-1 text-2xs text-muted-foreground hover:text-muted-foreground transition-colors"
+        className="text-2xs text-muted-foreground hover:text-muted-foreground"
         data-decisions-toggle
       >
         {open ? <ChevronDown size={12} strokeWidth={1.75} /> : <ChevronRight size={12} strokeWidth={1.75} />}
         <span>🛡 {t('approval.decisions')} · {good}/{records.length}</span>
-      </button>
+      </Button>
       {open && <div className="mt-1 px-3 py-1.5 bg-muted/70 rounded-xl"><ApprovalRecords records={records} /></div>}
     </div>
   );

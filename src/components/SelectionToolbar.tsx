@@ -3,6 +3,7 @@ import { useStore } from '../store';
 import { confirmDialog, useUiStore } from '../lib/ui-store';
 import { selectionMarkdown, downloadMarkdown } from '../lib/export';
 import { useT, t as ti, fmt } from '../i18n';
+import { Button } from './ui/button';
 
 // Converge actions (merge / weave / explore) each land one new node, unasked,
 // wired from the selection: the question — or, for merge and weave, an
@@ -46,51 +47,51 @@ export default function SelectionToolbar() {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2 flex-wrap">
-          <button
+          <Button variant="ghost"
             onClick={() => converge('merge')}
             className={`${actionBtn} bg-primary/10 hover:bg-primary/15 text-primary`}
             title={t('toolbar.mergeSummaryTitle')}
           >
             <ClipboardList size={14} strokeWidth={1.75} className="inline" /> {t('toolbar.mergeSummary')}
-          </button>
+          </Button>
 
           {allHighlights.length > 0 && (
-            <button
+            <Button variant="ghost"
               onClick={() => converge('weave')}
               className={`${actionBtn} bg-warning/10 hover:bg-warning/20 text-warning`}
               title={t('toolbar.weaveTitle')}
             >
               <Highlighter size={14} strokeWidth={1.75} className="inline" /> {t('toolbar.weave')}
-            </button>
+            </Button>
           )}
 
-          <button
+          <Button variant="ghost"
             onClick={() => converge('explore')}
             className={`${actionBtn} bg-primary/10 hover:bg-primary/20 text-primary`}
             title={t('toolbar.exploreTitle')}
           >
             <GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('common.explore')}
-          </button>
+          </Button>
 
           {/* Low-frequency actions: icon-only so the row stays one line in
               both languages (full label lives in the tooltip). */}
-          <button
+          <Button variant="ghost" size="icon"
             onClick={() => { setArchived(selectedNodeIds, true); }}
-            className="bg-muted hover:bg-border text-muted-foreground w-8 h-7 rounded-lg transition-colors flex items-center justify-center"
+            className="bg-muted hover:bg-border text-muted-foreground"
             title={`${t('archive.label')} — ${t('archive.batchTitle')}`}
           >
             <Archive size={14} strokeWidth={1.75} />
-          </button>
+          </Button>
 
-          <button
+          <Button variant="ghost" size="icon"
             onClick={() => duplicateSelection(selectedNodeIds)}
-            className="bg-muted hover:bg-border text-muted-foreground w-8 h-7 rounded-lg transition-colors flex items-center justify-center"
+            className="bg-muted hover:bg-border text-muted-foreground"
             title={`${t('toolbar.duplicate')} — ${t('toolbar.duplicateTitle')}`}
           >
             <Copy size={14} strokeWidth={1.75} />
-          </button>
+          </Button>
 
-          <button
+          <Button variant="ghost" size="icon"
             onClick={() => {
               void confirmDialog({
                 title: t('confirm.alignTitle'),
@@ -98,23 +99,23 @@ export default function SelectionToolbar() {
                 confirmLabel: t('common.confirmAlign'),
               }).then((ok) => { if (ok) alignSelection(selectedNodeIds); });
             }}
-            className="bg-muted hover:bg-border text-muted-foreground w-8 h-7 rounded-lg transition-colors flex items-center justify-center"
+            className="bg-muted hover:bg-border text-muted-foreground"
             title={`${t('toolbar.align')} — ${t('confirm.alignTitle')}`}
           >
             <AlignVerticalJustifyStart size={14} strokeWidth={1.75} />
-          </button>
+          </Button>
 
-          <button
+          <Button variant="ghost" size="icon"
             onClick={() => downloadMarkdown(selectionMarkdown(selectedNodeIds))}
-            className="bg-muted hover:bg-border text-muted-foreground w-8 h-7 rounded-lg transition-colors flex items-center justify-center"
+            className="bg-muted hover:bg-border text-muted-foreground"
             title={`${t('common.exportMd')} — ${t('toolbar.exportTitle')}`}
           >
             <FileDown size={14} strokeWidth={1.75} />
-          </button>
+          </Button>
 
           <div className="w-px h-5 bg-border" />
 
-          <button
+          <Button variant="destructive" size="sm"
             onClick={() => {
               void confirmDialog({
                 title: ti('confirm.deleteNodesTitle'),
@@ -122,11 +123,9 @@ export default function SelectionToolbar() {
                 confirmLabel: ti('common.delete'),
                 danger: true,
               }).then((ok) => { if (ok) batchDelete(selectedNodeIds); });
-            }}
-            className="text-xs bg-destructive/10 hover:bg-destructive/15 text-destructive px-3 py-1.5 rounded-lg transition-colors"
-          >
+            }}>
             <Trash2 size={14} strokeWidth={1.75} className="inline" /> {t('toolbar.deleteAll')}
-          </button>
+          </Button>
         </div>
 
       </div>

@@ -5,6 +5,7 @@ import { useUiStore } from '../lib/ui-store';
 import { searchCanvas, type SearchHit } from '../lib/canvas-search';
 import { isImeComposing } from '../utils';
 import { useT, fmt } from '../i18n';
+import { Button } from './ui/button';
 
 // The canvas searchlight (Cmd+F, or the toolbar icon). Exact search over
 // everything a node remembers — questions, active answers, note bodies,
@@ -115,9 +116,9 @@ export default function SearchBar({
               {fmt(t('search.count'), { n: matches.length })}
             </span>
           )}
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
+          <Button variant="ghost" onClick={onClose} className="text-muted-foreground hover:text-foreground shrink-0">
             <X size={14} strokeWidth={1.75} />
-          </button>
+          </Button>
         </div>
 
         {matches.length > 0 && (
@@ -128,7 +129,7 @@ export default function SearchBar({
               const title = node?.data.question || '—';
               return (
                 <li key={m.nodeId}>
-                  <button
+                  <Button variant="ghost"
                     onClick={() => locate(m)}
                     onMouseEnter={() => setCursor(i)}
                     className={`w-full text-left px-4 py-2 transition-colors ${i === cursor ? 'bg-primary/8' : ''} ${m.archived ? 'opacity-55' : ''}`}
@@ -147,7 +148,7 @@ export default function SearchBar({
                       </mark>
                       {m.snippet.slice(m.matchStart + m.matchLen)}
                     </p>
-                  </button>
+                  </Button>
                 </li>
               );
             })}

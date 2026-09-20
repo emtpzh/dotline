@@ -11,6 +11,7 @@ import { countTokens } from '../../utils';
 import { useT, fmt } from '../../i18n';
 import MentionSurface from '../app/NodeMention';
 import { useMentions } from '../../lib/mentions';
+import { Button } from '../ui/button';
 
 const ROLE_STYLES: Record<string, string> = {
   system: 'bg-primary/10 text-primary',
@@ -144,23 +145,23 @@ export default function FollowUpInput({
 
       <div className="panel-card px-3.5 pt-2 pb-2.5">
       {/* Context summary line */}
-      <button
+      <Button variant="ghost" size="xs"
         onClick={() => setPreviewOpen((v) => !v)}
-        className="flex items-center gap-1 text-2xs text-muted-foreground hover:text-muted-foreground transition-colors mb-1.5"
+        className="text-2xs text-muted-foreground hover:text-muted-foreground mb-1.5"
         title={t('followup.previewTitle')}
       >
         <ChevronUp size={12} strokeWidth={1.75} className={`transition-transform ${previewOpen ? 'rotate-180' : ''}`} />
         {fmt(t('followup.willSend'), { n: preview.totalTokens, m: preview.items.length })}{preview.fileCount > 0 ? fmt(t('followup.files'), { k: preview.fileCount }) : ''}
-      </button>
+      </Button>
 
       {/* Selected text staged as branch context — submit explores from it */}
       {branchContext && (
         <div className="text-xs pl-3 py-1.5 pr-2 mb-1.5 border-l-2 border-edge-explore bg-edge-explore/10 rounded-r text-muted-foreground flex items-start gap-1.5">
           <span className="text-edge-explore font-medium shrink-0"><GitBranch size={13} strokeWidth={1.75} className="inline" /> {t('node.exploringFrom')}</span>
           <span className="flex-1 min-w-0 truncate">&ldquo;{branchContext.slice(0, 90)}{branchContext.length > 90 ? '…' : ''}&rdquo;</span>
-          <button onClick={onClearBranchContext} className="text-muted-foreground hover:text-destructive/90 transition-colors shrink-0">
+          <Button variant="ghost" onClick={onClearBranchContext} className="text-muted-foreground hover:text-destructive/90 shrink-0">
             <X size={13} strokeWidth={2} />
-          </button>
+          </Button>
         </div>
       )}
 
@@ -172,9 +173,9 @@ export default function FollowUpInput({
               <Paperclip size={11} strokeWidth={1.75} />
               <span className="max-w-[140px] truncate">{att.name}</span>
               {att.isExtracting && <span className="text-muted-foreground">…</span>}
-              <button onClick={() => setPendingAttachments((prev) => prev.filter((a) => a.id !== att.id))} className="text-muted-foreground hover:text-destructive/90 transition-colors">
+              <Button variant="ghost" onClick={() => setPendingAttachments((prev) => prev.filter((a) => a.id !== att.id))} className="text-muted-foreground hover:text-destructive/90">
                 <X size={11} strokeWidth={2} />
-              </button>
+              </Button>
             </span>
           ))}
         </div>
@@ -213,20 +214,20 @@ export default function FollowUpInput({
         <input ref={fileRef} type="file" accept={FILE_INPUT_ACCEPT} multiple className="hidden"
           onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ''; }} />
         <SearchToggles />
-        <button
+        <Button variant="ghost" size="icon"
           onClick={() => fileRef.current?.click()}
           title={t('followup.attach')}
-          className="text-muted-foreground hover:text-primary transition-colors shrink-0 rounded-full w-8 h-8 flex items-center justify-center hover:bg-border"
+          className="text-muted-foreground hover:text-primary shrink-0 hover:bg-border"
         >
           <Paperclip size={16} strokeWidth={1.75} />
-        </button>
-        <button
+        </Button>
+        <Button variant="ghost" size="icon-sm"
           onClick={submit}
           disabled={!continueInput.trim()}
-          className="text-muted-foreground hover:text-primary disabled:opacity-30 disabled:hover:text-muted-foreground transition-colors shrink-0 rounded-full w-7 h-7 flex items-center justify-center hover:bg-border"
+          className="text-muted-foreground hover:text-primary shrink-0 hover:bg-border"
         >
           <Send size={18} strokeWidth={1.75} />
-        </button>
+        </Button>
       </div>
       <div className="flex gap-4 mt-1.5 px-1">
         <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">

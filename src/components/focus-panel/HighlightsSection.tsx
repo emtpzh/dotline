@@ -5,6 +5,8 @@ import { isImeComposing } from '../../utils';
 import { useT } from '../../i18n';
 import { isViewerMode } from '../../lib/viewer';
 import type { Highlight } from '../../types';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 
 // Highlights: the list, how they pass downstream (tag / filter-only — no
 // highlights at all IS the "pass everything" state), and one way to act on
@@ -63,12 +65,12 @@ export default function HighlightsSection({
                     <span className="text-xs text-warning flex-1 leading-relaxed">
                       <Star size={14} strokeWidth={1.75} className="inline" /> {h.text.slice(0, 80)}{h.text.length > 80 ? '…' : ''}
                     </span>
-                    {!isViewerMode && <button
+                    {!isViewerMode && <Button variant="ghost"
                       onClick={() => removeHighlight(nodeId, h.id)}
-                      className="text-warning hover:text-destructive/90 transition-colors shrink-0 opacity-0 group-hover/hl:opacity-100"
+                      className="text-warning hover:text-destructive/90 shrink-0 opacity-0 group-hover/hl:opacity-100"
                     >
                       <X size={14} strokeWidth={1.75} />
-                    </button>}
+                    </Button>}
                   </div>
                 ))}
               </div>
@@ -79,7 +81,7 @@ export default function HighlightsSection({
                     { mode: 'tag' as const, icon: <Tag size={14} strokeWidth={1.75} />, label: t('highlight.modeTag') },
                     { mode: 'filter' as const, icon: <Scissors size={14} strokeWidth={1.75} />, label: t('highlight.modeFilter') },
                   ]).map(({ mode, icon, label }) => (
-                    <button
+                    <Button variant="ghost"
                       key={mode}
                       onClick={() => setHighlightMode(nodeId, mode)}
                       title={mode === 'tag' ? t('highlight.hintTag') : t('highlight.hintFilter')}
@@ -90,22 +92,22 @@ export default function HighlightsSection({
                       }`}
                     >
                       <span>{icon}</span> {label}
-                    </button>
+                    </Button>
                   ))}
                 </div>
-                <button
+                <Button variant="ghost" size="sm"
                   onClick={() => setHighlightExploreContext(highlights.map((h) => h.text).join('\n\n'))}
-                  className="text-xs bg-primary/10 hover:bg-primary/20 text-primary px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                  className="text-xs bg-primary/10 hover:bg-primary/20 text-primary"
                   title={t('highlight.exploreTitle')}
                 >
                   <GitBranch size={14} strokeWidth={1.75} />
                   {t('common.explore')}
-                </button>
+                </Button>
               </div>
               {/* Highlight Explore input */}
               {highlightExploreContext && (
                 <div className="mt-3 flex gap-1.5">
-                  <input
+                  <Input
                     ref={highlightExploreRef}
                     type="text"
                     value={highlightExploreInput}
@@ -115,20 +117,20 @@ export default function HighlightsSection({
                       if (e.key === 'Escape') { setHighlightExploreContext(''); setHighlightExploreInput(''); }
                     }}
                     placeholder={t('highlight.explorePlaceholder')}
-                    className="flex-1 text-xs border border-primary/30 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring bg-primary/5"
+                    className="flex-1 border-primary/30 bg-primary/5"
                   />
-                  <button
+                  <Button size="sm"
                     onClick={submitExplore}
-                    className="text-xs bg-primary text-white px-3 py-2 rounded-lg hover:bg-primary/90 transition-colors shrink-0"
+                    className="shrink-0"
                   >
                     {t('common.go')}
-                  </button>
-                  <button
+                  </Button>
+                  <Button variant="ghost" size="sm"
                     onClick={() => { setHighlightExploreContext(''); setHighlightExploreInput(''); }}
-                    className="text-xs text-muted-foreground hover:text-muted-foreground px-1.5 py-2 transition-colors shrink-0"
+                    className="text-xs text-muted-foreground hover:text-muted-foreground shrink-0"
                   >
                     <X size={14} strokeWidth={1.75} />
-                  </button>
+                  </Button>
                 </div>
               )}
             </>
