@@ -12,8 +12,11 @@ export default function LangSwitch() {
         <Button variant="ghost"
           key={l}
           onClick={() => setLang(l)}
-          className={`px-2 h-8 text-2xs font-medium transition-colors ${
-            lang === l ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-accent'
+          // fixed width: the two halves of a segmented control are one
+          // shape, and 'EN' and '中' do not measure the same
+          size="icon"
+          className={`rounded-none text-2xs font-medium ${
+            lang === l ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'
           }`}
         >
           {l === 'en' ? 'EN' : '中'}

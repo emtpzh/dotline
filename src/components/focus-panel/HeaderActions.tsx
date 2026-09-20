@@ -69,7 +69,7 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
   const [menuOpen, setMenuOpen] = useState(false);
   const [fanOutOpen, setFanOutOpen] = useState(false);
 
-  const iconBtn = 'text-muted-foreground hover:text-foreground hover:bg-border/50 rounded-lg w-8 h-8 flex items-center justify-center transition-colors';
+  const iconBtn = 'text-muted-foreground hover:text-foreground hover:bg-border/50';
 
   return (
     <div className="relative flex items-center gap-1 shrink-0">
@@ -94,7 +94,7 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
       <Button variant="ghost"
         onClick={() => setArchived([nodeId], !isArchived)}
         title={isArchived ? t('archive.restoreTitle') : t('archive.title')}
-        className={isArchived ? 'text-warning bg-warning/10 rounded-lg w-8 h-8 flex items-center justify-center' : iconBtn}
+        className={isArchived ? 'text-warning bg-warning/10' : iconBtn}
       >
         {isArchived ? <ArchiveRestore size={16} strokeWidth={1.75} /> : <Archive size={16} strokeWidth={1.75} />}
       </Button>

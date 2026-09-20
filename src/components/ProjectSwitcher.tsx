@@ -80,15 +80,15 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
       <div className="flex items-center gap-1.5">
         <PopoverTrigger
           disabled={switching}
-          className="bg-card/90 backdrop-blur border border-border rounded-lg h-8 px-3 shadow-sm hover:bg-accent transition-colors flex items-center gap-2 text-xs text-foreground max-w-[220px] disabled:opacity-60"
+          render={<Button variant="chrome" className="gap-2 px-3 text-xs text-foreground max-w-[220px]" />}
         >
           {switching
-            ? <Loader2 size={15} strokeWidth={1.75} className="animate-spin shrink-0 text-primary" />
+            ? <Loader2 strokeWidth={1.75} className="animate-spin text-primary" />
             : activeIsParadigm
-              ? <Dna size={15} strokeWidth={1.75} className="shrink-0 text-primary" />
-              : <FolderOpen size={15} strokeWidth={1.75} className="shrink-0 text-muted-foreground" />}
+              ? <Dna strokeWidth={1.75} className="text-primary" />
+              : <FolderOpen strokeWidth={1.75} className="text-muted-foreground" />}
           <span className="truncate font-medium">{active?.name ?? '…'}</span>
-          <ChevronDown size={14} strokeWidth={1.75} className="shrink-0 text-muted-foreground" />
+          <ChevronDown strokeWidth={1.75} className="text-muted-foreground" />
         </PopoverTrigger>
         {/* the twin badge: this canvas is one face of a session — the
             other face is one click away on the map */}
@@ -100,12 +100,12 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
           // (assume live: never a false alarm)
           const unreachable = knownSessionIds.size > 0 && !knownSessionIds.has(active.sourceSession.sessionId);
           return (
-            <Button variant="ghost"
+            <Button variant="chrome"
               title={unreachable
                 ? ti('switcher.mirrorBadgeGone')
                 : fmt(ti('switcher.mirrorBadge'), { runner: active.sourceSession!.runner })}
               onClick={() => { setAtlasFocus(active.sourceSession!.sessionId); setAtlasOpen(true); }}
-              className={`bg-card/90 backdrop-blur border border-border rounded-lg h-8 px-2 shadow-sm hover:bg-accent transition-colors text-2xs font-mono flex items-center gap-1 ${unreachable ? 'text-muted-foreground/50 line-through decoration-1' : 'text-muted-foreground hover:text-primary'}`}
+              className={`gap-1 px-2 text-2xs font-mono ${unreachable ? 'text-muted-foreground/50 line-through decoration-1' : 'hover:text-primary'}`}
               data-twin-badge={unreachable ? 'unreachable' : 'live'}
             >
               ⇄ {active.sourceSession!.runner}

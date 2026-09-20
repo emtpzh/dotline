@@ -114,7 +114,8 @@ export default function FanOutModal({
                   <Button variant="ghost"
                     key={r}
                     onClick={() => setRounds(r)}
-                    className={`text-2xs w-7 h-6 rounded-md transition-colors ${
+                    size="icon-xs"
+                    className={`text-2xs ${
                       rounds === r ? 'bg-edge-watch/10 text-edge-watch font-medium ring-1 ring-edge-watch/30' : 'bg-muted text-muted-foreground hover:bg-border'
                     }`}
                   >

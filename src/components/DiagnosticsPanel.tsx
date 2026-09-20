@@ -90,11 +90,9 @@ export default function DiagnosticsPanel({ onLocate, openPing = 0, showTrigger =
   return (
     <div ref={ref} className="relative">
       {showTrigger && (
-        <Button variant="ghost"
+        <Button variant="chrome" size="icon"
           onClick={() => (open ? setOpen(false) : run())}
-          className={`bg-card/90 backdrop-blur border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm transition-colors ${
-            open ? 'border-primary/40 text-primary' : 'border-border text-muted-foreground hover:bg-accent'
-          }`}
+          className={open ? 'border-primary/40 text-primary' : ''}
           title={t('toolbar.diagnose')}
         >
           <Stethoscope size={15} strokeWidth={1.75} />

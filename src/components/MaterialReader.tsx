@@ -760,7 +760,8 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
             <Button variant="ghost"
               onClick={() => (editing ? commitEdit() : setEditing(true))}
               title={t('reader.editText')}
-              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors shrink-0 ${editing ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`}
+              size="icon-sm"
+              className={`shrink-0 ${editing ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`}
             >
               <Pencil size={13} strokeWidth={1.75} />
             </Button>
@@ -1286,7 +1287,8 @@ function PdfPage({ doc, pdfjs, pageNo, width, anchors, activeThreadId, onAnchorC
           <Button variant="ghost"
             onClick={() => onAnchorClick?.(a.id)}
             title={a.question}
-            className={`absolute w-6 h-6 rounded-full shadow-md border flex items-center justify-center text-xs transition-transform hover:scale-110 ${
+            size="icon-xs"
+            className={`absolute rounded-full shadow-md border text-xs transition-transform hover:scale-110 ${
               activeThreadId === a.id ? 'bg-primary text-white border-primary' : 'bg-card text-primary border-primary/40'
             }`}
             style={{ left: `calc(${(a.rects[0][0] + a.rects[0][2]) * 100}% + 6px)`, top: `${a.rects[0][1] * 100}%`, zIndex: 4 }}

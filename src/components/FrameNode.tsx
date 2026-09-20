@@ -88,7 +88,8 @@ export default function FrameNode({ id, data, selected }: NodeProps<ThoughtNodeT
         {!isViewerMode && <Button variant="ghost"
           onClick={(e) => { e.stopPropagation(); useStore.getState().pushHistory(); patch({ frameCarry: !carry }); }}
           title={carry ? t('frame.carryOn') : t('frame.carryOff')}
-          className={`rounded-full w-6 h-6 flex items-center justify-center transition-colors shrink-0 nodrag ${
+          size="icon-xs"
+          className={`rounded-full shrink-0 nodrag ${
             carry ? 'text-muted-foreground hover:text-foreground' : 'text-muted-foreground/60 hover:text-muted-foreground'
           }`}
         >

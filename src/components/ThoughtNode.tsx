@@ -490,7 +490,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-3 border-b border-border cursor-grab active:cursor-grabbing drag-handle">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" onClick={() => toggleCollapse(id)} className={`hover:bg-accent rounded-lg w-7 h-7 flex items-center justify-center transition-all text-sm font-bold ${data.isCollapsed ? 'text-primary bg-primary/10' : 'text-muted-foreground'}`}>
+          <Button variant="ghost" onClick={() => toggleCollapse(id)} size="icon-sm" className={`hover:bg-accent flex items-center justify-center transition-all text-sm font-bold ${data.isCollapsed ? 'text-primary bg-primary/10' : 'text-muted-foreground'}`}>
             {data.isCollapsed ? <ChevronRight size={18} strokeWidth={1.75} /> : <ChevronDown size={18} strokeWidth={1.75} />}
           </Button>
           <span className="text-xs text-muted-foreground font-mono">{data.tokenCount} tok</span>
@@ -818,7 +818,8 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               {!isViewerMode && (
                 <Button variant="ghost"
                   onClick={(e) => { e.stopPropagation(); void rerunNode(id, {}); }}
-                  className={`rounded-full w-6 h-6 flex items-center justify-center transition-colors ${data.isEvaluator ? 'hover:text-edge-watch hover:bg-destructive/10' : 'hover:text-primary hover:bg-accent'}`}
+                  size="icon-xs"
+                  className={`rounded-full ${data.isEvaluator ? 'hover:text-edge-watch hover:bg-destructive/10' : 'hover:text-primary hover:bg-accent'}`}
                   title={data.isEvaluator ? t('evaluator.rerun') : t('common.regenerate')}
                 >
                   <RefreshCw size={14} strokeWidth={1.75} />

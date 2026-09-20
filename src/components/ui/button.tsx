@@ -17,6 +17,12 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
+        // Canvas chrome: a control floating directly on the board, not
+        // inside a panel. It is a raised surface (card, not background —
+        // in dark the two differ and `outline` would sink into the
+        // canvas) and it frosts what scrolls under it.
+        chrome:
+          "border-border bg-card/90 text-muted-foreground shadow-sm backdrop-blur hover:bg-accent hover:text-foreground aria-expanded:border-primary/40 aria-expanded:text-primary",
       },
       size: {
         default:

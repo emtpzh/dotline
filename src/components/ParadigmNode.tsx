@@ -53,7 +53,8 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
               key={k}
               onClick={(e) => { e.stopPropagation(); patch({ stepKind: k }); }}
               title={t(labelKey as Parameters<typeof t>[0])}
-              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+              size="icon-sm"
+              className={`${
                 kind === k ? (k === 'human' ? 'bg-edge-explore/15 text-edge-explore' : 'bg-primary/10 text-primary') : 'text-muted-foreground hover:bg-accent'
               }`}
             >

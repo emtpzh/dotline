@@ -118,19 +118,22 @@ export default function ModelPicker({ value, onChange, effort, onEffortChange, h
         }}
       >
       <PopoverTrigger
-        className={compact
-          ? `text-xs px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 max-w-[200px] ${hint ? 'bg-warning/10 text-warning ring-1 ring-warning/40' : 'bg-primary/10 text-primary'}`
-          : noModels
-            ? 'bg-primary/10 backdrop-blur border border-primary/40 rounded-lg h-8 px-2.5 flex items-center gap-1.5 shadow-sm hover:bg-primary/20 transition-colors text-primary max-w-[190px]'
-            : 'bg-card/90 backdrop-blur border border-border rounded-lg h-8 px-2.5 flex items-center gap-1.5 shadow-sm hover:bg-accent transition-colors text-muted-foreground max-w-[190px]'}
+        render={
+          // in the panel header it is a tinted chip in a row of controls;
+          // on the canvas it is chrome, and with nothing connected the
+          // chrome wears the accent, because then it IS the way in
+          compact
+            ? <Button variant="ghost" size="sm" className={`max-w-[200px] ${hint ? 'bg-warning/10 text-warning ring-1 ring-warning/40 hover:bg-warning/20' : 'bg-primary/10 text-primary hover:bg-primary/20'}`} />
+            : <Button variant="chrome" className={`max-w-[190px] ${noModels ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20' : ''}`} />
+        }
         title={noModels ? t('apikey.entryTitle') : nodeMode ? (hint ?? t('model.nodeTitle')) : t('toolbar.model')}
         data-apikey-entry={noModels || undefined}
       >
         {noModels
-          ? <KeyRound size={14} strokeWidth={1.75} className="shrink-0" />
-          : <Cpu size={14} strokeWidth={1.75} className={`shrink-0 ${compact && hint ? '' : 'text-primary'}`} />}
+          ? <KeyRound strokeWidth={1.75} />
+          : <Cpu strokeWidth={1.75} className={compact && hint ? '' : 'text-primary'} />}
         <span className="text-xs truncate font-medium">{noModels ? t('model.connectCta') : label}</span>
-        {!noModels && <ChevronDown size={12} strokeWidth={1.75} className="shrink-0" />}
+        {!noModels && <ChevronDown strokeWidth={1.75} className="opacity-70" />}
       </PopoverTrigger>
 
       {/* Both placements drop DOWN: the compact picker lives in the panel

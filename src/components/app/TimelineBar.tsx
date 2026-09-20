@@ -99,13 +99,13 @@ export function TimelineBar() {
           <div className="text-[10px] text-muted-foreground/80 mt-1">{t('timeline.clickHint')}</div>
         </div>
       )}
-      <Button variant="ghost" size="icon-sm"
+      <Button variant="ghost" size="icon"
         onClick={() => setOverviewOpen(true)}
         title={t('timeline.openOverview')}
         data-timeline-overview-btn
         className="pointer-events-auto self-start ml-[25px] text-muted-foreground/70 hover:text-primary hover:bg-primary/10"
       >
-        <History size={14} strokeWidth={1.75} />
+        <History strokeWidth={1.75} />
       </Button>
       <div className="pointer-events-auto overflow-y-auto tdag-noscrollbar max-h-[170px] mt-0.5">
         <div className="flex flex-col py-1">

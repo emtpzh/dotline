@@ -81,6 +81,13 @@ export default defineConfig([
           selector: 'JSXAttribute[name.name="asChild"]',
           message: 'Base UI composes through `render`, not `asChild`.',
         },
+        {
+          // A control sized by hand agrees with the scale only by luck and
+          // drifts the first time either side is touched. The scale lives
+          // on Button's `size`: xs/sm/default/lg = 24/28/32/36 px.
+          selector: 'JSXOpeningElement[name.name=/^(Button|.*Trigger)$/] JSXAttribute[name.name="className"] :matches(Literal[value=/(^|\\s)(w|h|size)-[6-9](\\s|$)/], TemplateElement[value.raw=/(^|\\s)(w|h|size)-[6-9](\\s|$)/])',
+          message: 'Size a control with Button\'s `size`, not w-/h- classes.',
+        },
       ],
     },
   },

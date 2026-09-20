@@ -1308,7 +1308,8 @@ function Canvas() {
                 <Button variant="ghost"
                   onClick={() => setShowRootRole(!showRootRole)}
                   title={t('landing.roleTrayTitle')}
-                  className={`rounded-full w-8 h-8 flex items-center justify-center transition-colors shrink-0 ${
+                  size="icon"
+                  className={`rounded-full shrink-0 ${
                     showRootRole || rootRole ? 'text-primary bg-primary/10 hover:bg-primary/20' : 'text-muted-foreground hover:text-muted-foreground hover:bg-border'
                   }`}
                 >
@@ -1514,18 +1515,16 @@ function Canvas() {
           <span className="bg-card/90 backdrop-blur border border-border rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm text-muted-foreground text-xs font-medium" data-viewer-badge>
             <Eye size={14} strokeWidth={1.75} /> {t('viewer.badge')}
           </span>
-          <Button variant="outline" size="icon"
+          <Button variant="chrome" size="icon"
             onClick={() => setSearchOpen(true)}
-            className="backdrop-blur"
             title={t('search.entryTitle')}
             data-search-entry
           >
             <Search size={15} strokeWidth={1.75} />
           </Button>
           <LangSwitch />
-          <Button variant="outline" size="icon"
+          <Button variant="chrome" size="icon"
             onClick={() => exportActiveProjectJson()}
-            className="backdrop-blur"
             title={t('viewer.downloadJson')}
           >
             <Download size={15} strokeWidth={1.75} />
@@ -1577,9 +1576,8 @@ function Canvas() {
         {/* Landing convenience only: inside the canvas the picker's own
             empty state (Connect a model) is the door — no twin key icon */}
         {!hasNodes && (
-          <Button variant="outline" size="icon"
+          <Button variant="chrome" size="icon"
             onClick={() => useUiStore.getState().setApiKeyModalOpen(true)}
-            className="backdrop-blur"
             title={t('apikey.entryTitle')}
             data-apikey-entry
           >
@@ -1590,7 +1588,7 @@ function Canvas() {
             decision point — N generations is the one many-calls-per-click
             action in the app, so it confirms with a token estimate. */}
         {staleCount > 0 && !isParadigm && (
-          <Button variant="ghost" size="sm"
+          <Button variant="ghost"
             onClick={() => {
               const { nodes: ns, edges: es, staleIds } = useStore.getState();
               const estTok = staleIds.reduce((sum, sid) => {
@@ -1608,18 +1606,15 @@ function Canvas() {
             className="bg-warning/10 backdrop-blur border-warning/40 hover:bg-warning/20 text-warning text-xs"
             title={t('replay.chipTitle')}
           >
-            <ListRestart size={14} strokeWidth={1.75} /> {staleCount}
+            <ListRestart strokeWidth={1.75} /> {staleCount}
           </Button>
         )}
         {hasNodes && frames.length > 0 && (
           <DropdownMenu open={frameNavOpen} onOpenChange={setFrameNavOpen}>
             <DropdownMenuTrigger
-              className={`bg-card/90 backdrop-blur border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm transition-colors ${
-                frameNavOpen ? 'border-primary/40 text-primary' : 'border-border text-muted-foreground hover:bg-accent'
-              }`}
-              title={t('toolbar.frames')}
+              render={<Button variant="chrome" size="icon" title={t('toolbar.frames')} />}
             >
-              <Frame size={15} strokeWidth={1.75} />
+              <Frame strokeWidth={1.75} />
             </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-[230px] max-h-[320px] overflow-y-auto">
                 {frames.map((f) => (
@@ -1640,9 +1635,8 @@ function Canvas() {
           </DropdownMenu>
         )}
         {hasNodes && (
-          <Button variant="outline" size="icon"
+          <Button variant="chrome" size="icon"
             onClick={() => setSearchOpen(true)}
-            className="backdrop-blur"
             title={t('search.entryTitle')}
             data-search-entry
           >
@@ -1672,9 +1666,8 @@ function Canvas() {
           </Button>
         )}
         {backupSupported && (
-          <Button variant="outline" size="icon"
+          <Button variant="chrome" size="icon"
             onClick={() => useUiStore.getState().setBackupDialogOpen(true)}
-            className="backdrop-blur"
             title={t('backup.dialogTitle')}
             data-backup-entry
           >
@@ -1685,13 +1678,9 @@ function Canvas() {
             one slot regardless of language or panel width. */}
         <DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
           <DropdownMenuTrigger
-            className={`bg-card/90 backdrop-blur border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm transition-colors ${
-              moreOpen ? 'border-primary/40 text-primary' : 'border-border text-muted-foreground hover:bg-accent'
-            }`}
-            title={t('toolbar.more')}
-            data-toolbar-more
+            render={<Button variant="chrome" size="icon" title={t('toolbar.more')} data-toolbar-more />}
           >
-            <MoreHorizontal size={15} strokeWidth={1.75} />
+            <MoreHorizontal strokeWidth={1.75} />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-[220px]">
               {hasNodes && (
@@ -1852,18 +1841,16 @@ function Canvas() {
               </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button variant="outline" size="icon"
+        <Button variant="chrome" size="icon"
           onClick={undo}
           disabled={historyIndex <= 0}
-          className="backdrop-blur"
           title={t('canvas.undo')}
         >
           <Undo2 size={16} strokeWidth={1.75} />
         </Button>
-        <Button variant="outline" size="icon"
+        <Button variant="chrome" size="icon"
           onClick={redo}
           disabled={historyIndex >= history.length - 1}
-          className="backdrop-blur"
           title={t('canvas.redo')}
         >
           <Redo2 size={16} strokeWidth={1.75} />
@@ -2020,10 +2007,11 @@ function ThoughtMapPill({ panelShiftWidth }: { panelShiftWidth: number }) {
       style={{ left: `calc((100% - ${panelShiftWidth}px) / 2)` }}
       data-map-dock
     >
-      <Button variant="ghost"
+      <Button variant="chrome"
         onClick={() => useUiStore.getState().setThoughtMapOpen(true)}
         data-tmap-pill
-        className="bg-card/95 backdrop-blur border-input text-sm text-foreground shadow-lg hover:border-primary/40 hover:text-primary"
+        // the dock floats further off the board than the toolbar does
+        className="text-sm text-foreground shadow-lg hover:border-primary/40 hover:text-primary"
       >
         <ImageDown size={16} strokeWidth={1.75} /> {t('tmap.export')}
       </Button>

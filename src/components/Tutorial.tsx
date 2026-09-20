@@ -239,6 +239,9 @@ export default function Tutorial() {
               <Button variant="ghost"
                 key={i}
                 onClick={() => setPage(i)}
+                // a page dot, not a control on the size scale: 8px tall, and
+                // the current one stretches to say where you are
+                // eslint-disable-next-line no-restricted-syntax
                 className={`h-2 rounded-full transition-all ${i === page ? 'w-6 bg-primary' : 'w-2 bg-border hover:bg-input'}`}
                 aria-label={`${i + 1}/${SLIDES.length}`}
               />
