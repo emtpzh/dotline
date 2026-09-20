@@ -70,8 +70,8 @@ textarea:focus-visible {
    depth does the grouping, not divider lines. */
 .panel-card {
   background: var(--card);
-  border-radius: 14px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.04);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 1px 2px color-mix(in oklch, var(--foreground) 5%, transparent);
 }
 
 /* Line clamp utility */
@@ -90,19 +90,19 @@ body.tdag-connecting, body.tdag-connecting * {
 }
 
 /* Global fast tooltip (replaces the browser's sluggish native title) */
+/* shadcn's tooltip, worn by the global one: dark plate, light type */
 .tdag-tooltip {
   position: fixed;
   z-index: 120;
   max-width: 340px;
-  background: var(--card);
-  color: var(--muted-foreground);
-  border: 1px solid var(--input);
-  font-size: 11px;
-  line-height: 1.55;
-  padding: 6px 10px;
-  border-radius: 10px;
+  background: var(--foreground);
+  color: var(--background);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 5px 10px;
+  border-radius: var(--radius-md);
   pointer-events: none;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.10);
+  box-shadow: 0 4px 12px color-mix(in oklch, var(--foreground) 12%, transparent);
   animation: fade-in 0.12s ease;
   white-space: pre-line;
 }

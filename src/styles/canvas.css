@@ -10,8 +10,8 @@
 .react-flow__controls {
   background: var(--card) !important;
   border: 1px solid var(--border) !important;
-  border-radius: 12px !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: 0 1px 2px color-mix(in oklch, var(--foreground) 6%, transparent) !important;
 }
 
 .react-flow__controls-button {
@@ -28,15 +28,15 @@
 .react-flow__minimap {
   background: var(--card) !important;
   border: 1px solid var(--border) !important;
-  border-radius: 12px !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: 0 1px 2px color-mix(in oklch, var(--foreground) 6%, transparent) !important;
   /* hover = intent to read: the svg scales up losslessly from its corner */
   transition: transform 0.18s ease, box-shadow 0.18s ease;
   transform-origin: bottom right;
 }
 .react-flow__minimap:hover {
   transform: scale(1.85);
-  box-shadow: 0 8px 28px rgba(0,0,0,0.16) !important;
+  box-shadow: 0 8px 24px color-mix(in oklch, var(--foreground) 14%, transparent) !important;
 }
 
 /* Allow text selection inside nodes */
@@ -65,7 +65,10 @@
 .thought-node {
   background: var(--card);
   border: 1px solid var(--border);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.05);
+  border-radius: var(--radius-xl);
+  /* the same soft elevation shadcn's Card carries, so a node on the canvas
+     and a card in a dialog read as the same kind of object */
+  box-shadow: 0 1px 2px color-mix(in oklch, var(--foreground) 5%, transparent);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   position: relative;
 }
@@ -85,7 +88,7 @@
    one — which read as the card jumping when it was picked. */
 .thought-node:hover {
   border-color: var(--input);
-  box-shadow: 0 4px 14px rgba(0,0,0,0.09), 0 2px 4px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 12px color-mix(in oklch, var(--foreground) 8%, transparent);
 }
 
 .root-node {
