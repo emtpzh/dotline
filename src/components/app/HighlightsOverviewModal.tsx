@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { Download, Highlighter, Trash2, X } from 'lucide-react';
+import { Download, Highlighter, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { useUiStore } from '../../lib/ui-store';
 import { downloadMarkdown } from '../../lib/export';
 import { useT, fmt } from '../../i18n';
+import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
 
 // Every highlight on the canvas, in one place: the essence the reading
 // left behind. Two lenses (by time = the reading journey, by node = the
@@ -46,7 +46,6 @@ export default function HighlightsOverviewModal({ onLocate }: { onLocate: (nodeI
     return sorted.map((e, i) => ({ ...e, showGroup: sort === 'node' && (i === 0 || sorted[i - 1].nodeTitle !== e.nodeTitle) }));
   }, [nodes, sort]);
 
-  if (!open) return null;
 
   const togglePick = (id: string) => {
     const next = new Set(picked);
@@ -81,19 +80,16 @@ export default function HighlightsOverviewModal({ onLocate }: { onLocate: (nodeI
     </button>
   );
 
-  return createPortal((
-    <div className="fixed inset-0 z-[60] bg-foreground/30 backdrop-blur-sm flex items-center justify-center p-6" onClick={close}>
-      <div className="bg-card rounded-2xl shadow-2xl border border-border w-[640px] max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2 px-5 py-3 border-b border-border shrink-0">
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next) close(); }}>
+      <DialogContent size="md" className="p-0 gap-0 max-h-[80vh] flex flex-col">
+        <div className="flex items-center gap-2 px-5 py-3 pr-12 border-b border-border shrink-0">
           <Highlighter size={15} strokeWidth={1.75} className="text-warning" />
-          <span className="text-sm font-semibold text-foreground">{t('hlov.title')}</span>
+          <DialogTitle>{t('hlov.title')}</DialogTitle>
           <span className="text-2xs text-muted-foreground">{fmt(t('hlov.count'), { n: entries.length })}</span>
           <div className="flex-1" />
           {sortBtn('time', t('hlov.byTime'))}
           {sortBtn('node', t('hlov.byNode'))}
-          <button onClick={close} className="text-muted-foreground hover:text-foreground w-7 h-7 rounded-lg hover:bg-accent flex items-center justify-center transition-colors ml-1">
-            <X size={15} strokeWidth={1.75} />
-          </button>
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3">
@@ -156,7 +152,7 @@ export default function HighlightsOverviewModal({ onLocate }: { onLocate: (nodeI
             )}
           </div>
         </div>
-      </div>
-    </div>
-  ), document.body);
+      </DialogContent>
+    </Dialog>
+  );
 }

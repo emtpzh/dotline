@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useI18n, useT } from '../../i18n';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { useUiStore } from '../../lib/ui-store';
 import { WHATS_NEW } from '../../whats-new';
 import { appVersion } from '../../lib/app-version';
@@ -26,21 +27,14 @@ export default function ReleaseNotesDialog() {
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [open, setOpen]);
 
-  if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/25 flex items-center justify-center animate-fade-in p-6" onClick={() => setOpen(false)}>
-      <div
-        className="bg-card border border-border rounded-2xl shadow-xl w-[680px] max-w-full max-h-[85vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-labelledby="release-notes-title"
-        data-release-notes
-      >
-        <div className="px-6 pt-5 pb-4 border-b border-border">
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent size="lg" className="p-0 gap-0 max-h-[85vh] overflow-y-auto" data-release-notes>
+        <DialogHeader className="px-6 pt-5 pb-4 pr-14 border-b">
           <div className="text-2xs uppercase tracking-wide text-muted-foreground">ThoughtDAG</div>
-          <h2 id="release-notes-title" className="text-base font-semibold text-foreground mt-0.5">{t('releaseNotes.title')}</h2>
-        </div>
+          <DialogTitle>{t('releaseNotes.title')}</DialogTitle>
+        </DialogHeader>
         <ol className="px-6 divide-y divide-border">
           {WHATS_NEW.map((entry) => {
             const current = appVersion === entry.version;
@@ -67,7 +61,7 @@ export default function ReleaseNotesDialog() {
             {t('common.close')}
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

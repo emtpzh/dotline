@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { ArrowLeft, Copy, Download, Loader2, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, Copy, Download, Loader2, Sparkles } from 'lucide-react';
 import { useStore } from '../../store';
 import { useUiStore, toast } from '../../lib/ui-store';
 import { useProjects } from '../../store/projects';
 import { useI18n, useT } from '../../i18n';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import {
   extractStructure, computeStats, tidyPositions, handPositions,
   statParts, fallbackCaption, attributionLine, textWeight, clampWeight, TMAP_SITE_URL,
@@ -277,7 +277,6 @@ export default function ThoughtMapDialog() {
     return () => window.removeEventListener('keydown', handler, true);
   }, [open]);
 
-  if (!open) return null;
   const close = () => { capTouched.current = false; useUiStore.getState().setThoughtMapOpen(false); };
 
   const downloadPng = async (): Promise<boolean> => {
@@ -383,15 +382,12 @@ export default function ThoughtMapDialog() {
     </div>
   );
 
-  return createPortal((
-    <div className="fixed inset-0 z-[85] bg-foreground/25 backdrop-blur-[2px] flex items-center justify-center animate-fade-in" data-thought-map>
-      <div className="bg-background rounded-2xl shadow-2xl border border-border w-[min(1128px,96vw)] max-h-[95vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between mb-4">
-          <div className="text-sm font-semibold text-foreground">{t('tmap.title')}{step === 'share' ? ` · ${t('tmap.shareStep')}` : ''}</div>
-          <button onClick={close} className="w-7 h-7 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground flex items-center justify-center transition-colors">
-            <X size={15} strokeWidth={1.75} />
-          </button>
-        </div>
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next) close(); }}>
+      <DialogContent size="full" className="max-h-[95vh] overflow-y-auto p-6" data-thought-map>
+        <DialogHeader className="pr-10">
+          <DialogTitle>{t('tmap.title')}{step === 'share' ? ` · ${t('tmap.shareStep')}` : ''}</DialogTitle>
+        </DialogHeader>
 
         {step === 'image' ? (
           <div className="flex gap-6 flex-wrap">
@@ -540,7 +536,7 @@ export default function ThoughtMapDialog() {
             </div>
           </div>
         )}
-      </div>
-    </div>
-  ), document.body);
+      </DialogContent>
+    </Dialog>
+  );
 }

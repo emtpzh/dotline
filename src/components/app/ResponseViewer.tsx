@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { GitBranch, Loader2, Send, Star, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { useUiStore } from '../../lib/ui-store';
@@ -8,6 +7,7 @@ import ReasoningDisclosure from './ReasoningDisclosure';
 import { isViewerMode } from '../../lib/viewer';
 import { generateId, isImeComposing } from '../../utils';
 import { useT } from '../../i18n';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 
 // The answer, reading-size: the same reading loop the PDF reader gives
 // external material, for the model's own text — select to highlight or to
@@ -109,15 +109,17 @@ export default function ResponseViewer() {
     setBranchFrom('');
   };
 
-  return createPortal((
-    <div className="fixed inset-0 z-[75] bg-foreground/25 backdrop-blur-[2px] flex items-center justify-center animate-fade-in" onClick={close} data-response-viewer>
-      <div ref={shellRef} className="relative bg-background rounded-2xl shadow-2xl border border-border w-[min(920px,92vw)] h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start gap-3 px-6 py-4 border-b border-border bg-card shrink-0">
-          <div className="flex-1 min-w-0 text-sm font-semibold text-foreground leading-snug line-clamp-2">{data.question}</div>
-          <button onClick={close} title={t('panel.close')} className="w-7 h-7 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground flex items-center justify-center transition-colors shrink-0">
-            <X size={16} strokeWidth={1.75} />
-          </button>
-        </div>
+  return (
+    <Dialog open={!!node} onOpenChange={(next) => { if (!next) close(); }}>
+      <DialogContent
+        ref={shellRef}
+        size="full"
+        className="p-0 gap-0 h-[92vh] flex flex-col overflow-hidden"
+        data-response-viewer
+      >
+        <DialogHeader className="px-6 py-4 pr-14 border-b bg-card shrink-0">
+          <DialogTitle className="line-clamp-2 leading-snug">{data.question}</DialogTitle>
+        </DialogHeader>
         <div className="flex-1 min-h-0 overflow-y-auto px-8 py-6">
           <div className="max-w-[760px] mx-auto" ref={bodyRef}>
             {reasoning && <ReasoningDisclosure text={reasoning} />}
@@ -205,7 +207,7 @@ export default function ResponseViewer() {
             </div>
           </div>
         )}
-      </div>
-    </div>
-  ), document.body);
+      </DialogContent>
+    </Dialog>
+  );
 }

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { Camera, ExternalLink, KeyRound, Loader2, Plus, Trash2, X, Pencil } from 'lucide-react';
+import { Camera, ExternalLink, KeyRound, Loader2, Plus, Trash2, Pencil } from 'lucide-react';
 import { startOpenRouterOAuth } from '../../lib/openrouter-oauth';
 import { useUiStore, toast } from '../../lib/ui-store';
 import { useModels, setModelsCache } from '../../lib/use-models';
@@ -9,6 +8,7 @@ import {
   guessVision, probeModels, pushProviders, saveProviders, storedProviders,
 } from '../../lib/runtime-providers';
 import { useT, fmt, useI18n } from '../../i18n';
+import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
 import { API_BASE } from '../../lib/constants';
 
 // The model-interface manager: one door for every way in. Presets carry a
@@ -77,7 +77,6 @@ export default function ApiKeyModal() {
   );
   const visionCount = (data?.models ?? []).filter((m) => m.vision).length;
 
-  if (!open) return null;
 
   const resetAdd = () => {
     setAdding(false); setProbed(null); setPicked(new Map()); setKey(''); setCustomURL(''); setCustomName(''); setFilter(''); setError('');
@@ -210,15 +209,12 @@ export default function ApiKeyModal() {
       (Number(initialPicked.has(b.id)) - Number(initialPicked.has(a.id))) ||
       (sortMode === 'time' ? (b.created ?? 0) - (a.created ?? 0) : a.id.localeCompare(b.id)));
 
-  return createPortal((
-    <div className="fixed inset-0 z-[60] bg-foreground/30 backdrop-blur-sm flex items-center justify-center p-6" onClick={() => { setOpen(false); resetAdd(); }}>
-      <div className="bg-card rounded-2xl shadow-2xl border border-border w-[560px] max-h-[86vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next) { setOpen(false); resetAdd(); } }}>
+      <DialogContent size="md" className="p-0 gap-0 max-h-[86vh] flex flex-col">
         <div className="flex items-center gap-2 px-5 py-3 border-b border-border shrink-0">
           <KeyRound size={15} strokeWidth={1.75} className="text-primary shrink-0" />
-          <span className="text-sm font-semibold text-foreground flex-1">{t('provider.title')}</span>
-          <button onClick={() => { setOpen(false); resetAdd(); }} className="text-muted-foreground hover:text-foreground w-7 h-7 rounded-lg hover:bg-accent flex items-center justify-center transition-colors shrink-0">
-            <X size={15} strokeWidth={1.75} />
-          </button>
+          <DialogTitle className="flex-1">{t('provider.title')}</DialogTitle>
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-3">
@@ -409,7 +405,7 @@ export default function ApiKeyModal() {
             <button onClick={() => { setOpen(false); resetAdd(); }} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-accent transition-colors">{t('common.close')}</button>
           )}
         </div>
-      </div>
-    </div>
-  ), document.body);
+      </DialogContent>
+    </Dialog>
+  );
 }

@@ -1,58 +1,50 @@
-import { useEffect } from 'react';
 import { useUiStore } from '../../lib/ui-store';
 import { useT } from '../../i18n';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog';
 
+// The app's one confirm box: anything that asks "are you sure?" resolves
+// through ui-store.confirm(). Escape and the backdrop answer no, Enter
+// answers yes — Base UI owns both, along with the focus trap that keeps
+// Delete and the other canvas shortcuts from firing underneath.
 export default function ConfirmDialog() {
   const request = useUiStore((s) => s.confirmRequest);
   const resolveConfirm = useUiStore((s) => s.resolveConfirm);
   const t = useT();
 
-  useEffect(() => {
-    if (!request) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      // Capture-phase + stopPropagation keeps Delete/undo shortcuts in the
-      // canvas from firing underneath the dialog.
-      e.stopPropagation();
-      if (e.key === 'Escape') resolveConfirm(false);
-      if (e.key === 'Enter') resolveConfirm(true);
-    };
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [request, resolveConfirm]);
-
-  if (!request) return null;
-
   return (
-    <div
-      className="fixed inset-0 z-[100] bg-black/25 flex items-center justify-center animate-fade-in"
-      onClick={() => resolveConfirm(false)}
+    <AlertDialog
+      open={!!request}
+      onOpenChange={(open) => { if (!open) resolveConfirm(false); }}
     >
-      <div
-        className="bg-card border border-border rounded-xl shadow-xl w-[380px] p-5"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {request.title && (
-          <h3 className="text-sm font-semibold text-foreground mb-1.5">{request.title}</h3>
-        )}
-        <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line [overflow-wrap:anywhere]">{request.message}</p>
-        <div className="flex justify-end gap-2 mt-5">
-          <button
-            onClick={() => resolveConfirm(false)}
-            className="text-xs text-muted-foreground hover:text-foreground px-4 py-2 rounded-lg hover:bg-accent transition-colors"
-          >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          {request?.title && <AlertDialogTitle>{request.title}</AlertDialogTitle>}
+          <AlertDialogDescription className="whitespace-pre-line [overflow-wrap:anywhere]">
+            {request?.message}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => resolveConfirm(false)}>
             {t('common.cancel')}
-          </button>
-          <button
-            onClick={() => resolveConfirm(true)}
+          </AlertDialogCancel>
+          <AlertDialogAction
             autoFocus
-            className={`text-xs text-white px-4 py-2 rounded-lg transition-colors ${
-              request.danger ? 'bg-destructive hover:bg-destructive/90' : 'bg-primary hover:bg-primary/90'
-            }`}
+            variant={request?.danger ? 'destructive' : 'default'}
+            onClick={() => resolveConfirm(true)}
           >
-            {request.confirmLabel ?? t('common.confirm')}
-          </button>
-        </div>
-      </div>
-    </div>
+            {request?.confirmLabel ?? t('common.confirm')}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

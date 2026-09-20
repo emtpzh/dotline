@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useI18n, useT, fmt } from '../../i18n';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { useUiStore } from '../../lib/ui-store';
 import { appVersion } from '../../lib/app-version';
 import { announcedSince, type WhatsNewEntry, type WhatsNewItem } from '../../whats-new';
@@ -79,35 +80,16 @@ export default function WhatsNewDialog() {
     setEntries([]);
   };
 
-  useEffect(() => {
-    if (!open) return;
-    // Enter closes, so the button holds focus — taken without scrolling, or
-    // the panel would open scrolled to its foot and hide the title
-    okRef.current?.focus({ preventScroll: true });
-    const onKeyDown = (e: KeyboardEvent) => {
-      e.stopPropagation();
-      if (e.key === 'Escape' || e.key === 'Enter') close();
-    };
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [open]);
 
-  if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/25 flex items-center justify-center animate-fade-in p-6" onClick={close}>
-      <div
-        className="bg-card border border-border rounded-2xl shadow-xl w-[680px] max-w-full max-h-[85vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-labelledby="whats-new-title"
-        data-whats-new
-      >
-        <div className="px-6 pt-5 pb-4 border-b border-border">
+    <Dialog open={open} onOpenChange={(next) => { if (!next) close(); }}>
+      <DialogContent size="lg" className="p-0 gap-0 max-h-[85vh] overflow-y-auto" data-whats-new>
+        <DialogHeader className="px-6 pt-5 pb-4 pr-14 border-b">
           <div className="text-2xs uppercase tracking-wide text-muted-foreground">ThoughtDAG</div>
-          <h2 id="whats-new-title" className="text-base font-semibold text-foreground mt-0.5">{fmt(t('whatsNew.title'), { v: appVersion ?? '' })}</h2>
-          {entries.length > 1 && <p className="text-xs text-muted-foreground mt-1">{t('whatsNew.multi')}</p>}
-        </div>
+          <DialogTitle>{fmt(t('whatsNew.title'), { v: appVersion ?? '' })}</DialogTitle>
+          {entries.length > 1 && <DialogDescription>{t('whatsNew.multi')}</DialogDescription>}
+        </DialogHeader>
         <ol className="px-6 divide-y divide-border">
           {entries.map((entry) => (
             <li key={entry.version} className="py-4" data-release={entry.version}>
@@ -138,7 +120,7 @@ export default function WhatsNewDialog() {
             {t('whatsNew.ok')}
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

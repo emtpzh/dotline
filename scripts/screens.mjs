@@ -42,6 +42,26 @@ const SCREENS = [
       });
     },
   },
+  // two dialogs: a long one that scrolls, and the confirm box
+  {
+    name: 'dialog-roles',
+    async run(page) {
+      await page.evaluate(() => window.__ui.setState({ roleManagerOpen: true }));
+    },
+  },
+  {
+    name: 'dialog-confirm',
+    async run(page) {
+      await page.evaluate(() => window.__ui.setState({
+        confirmRequest: {
+          title: 'Delete this node?',
+          message: 'The answer and its branches go with it.',
+          danger: true,
+          resolve: () => {},
+        },
+      }));
+    },
+  },
 ];
 
 // The canvas keeps moving for a while after it loads (fit-view easing, late

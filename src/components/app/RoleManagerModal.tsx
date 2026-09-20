@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { effectiveRoles, type EffectiveRole } from '../../lib/role-templates';
 import { useUiStore } from '../../lib/ui-store';
 import { generateId } from '../../utils';
 import { useI18n, useT } from '../../i18n';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 
 // The role LIBRARY editor: add, edit and remove the reusable options shown
 // as chips everywhere. Editing a built-in converts it into a custom copy
@@ -58,7 +58,6 @@ export default function RoleManagerModal() {
   const setLib = useUiStore((s) => s.setRoleLib);
   const lang = useI18n((s) => s.lang);
   const t = useT();
-  if (!open) return null;
 
   const roles = effectiveRoles(lang, lib);
 
@@ -77,16 +76,13 @@ export default function RoleManagerModal() {
   };
   const add = () => setLib({ ...lib, custom: [...lib.custom, { id: generateId(), name: '', prompt: '' }] });
 
-  return createPortal((
-    <div className="fixed inset-0 z-[60] bg-foreground/30 backdrop-blur-sm flex items-center justify-center p-6" onClick={() => setOpen(false)}>
-      <div className="bg-card rounded-2xl shadow-2xl border border-border w-[560px] max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2 px-5 py-3 border-b border-border shrink-0">
-          <span className="text-sm font-semibold text-foreground">{t('roles.managerTitle')}</span>
-          <span className="text-2xs text-muted-foreground flex-1">{t('roles.hint')}</span>
-          <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground w-7 h-7 rounded-lg hover:bg-accent flex items-center justify-center transition-colors shrink-0">
-            <X size={15} strokeWidth={1.75} />
-          </button>
-        </div>
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent size="md" className="p-0 gap-0 max-h-[80vh] flex flex-col">
+        <DialogHeader className="flex-row items-center gap-2 px-5 py-3 pr-12 border-b shrink-0">
+          <DialogTitle>{t('roles.managerTitle')}</DialogTitle>
+          <DialogDescription className="text-2xs flex-1">{t('roles.hint')}</DialogDescription>
+        </DialogHeader>
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3 space-y-2">
           {roles.map((r) => <Row key={r.id} role={r} onCommit={commit} onRemove={remove} />)}
           {roles.length === 0 && <p className="text-xs text-muted-foreground italic py-2">{t('roles.empty')}</p>}
@@ -108,7 +104,7 @@ export default function RoleManagerModal() {
             </button>
           )}
         </div>
-      </div>
-    </div>
-  ), document.body);
+      </DialogContent>
+    </Dialog>
+  );
 }

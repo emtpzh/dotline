@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
-import { Eye, Split, X } from 'lucide-react';
+import { Eye, Split } from 'lucide-react';
 import { useStore } from '../store';
 import { effectiveRoles } from '../lib/role-templates';
 import { useUiStore } from '../lib/ui-store';
 import { useI18n, useT, fmt } from '../i18n';
+import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 
 // Perspectives dialog: N roles, ONE mechanism, two run policies.
 //   once   → each role answers the question once, blind to its siblings
@@ -69,19 +69,16 @@ export default function FanOutModal({
     onClose();
   };
 
-  return createPortal((
-    <div className="fixed inset-0 z-50 bg-foreground/30 backdrop-blur-sm flex items-center justify-center p-6" onClick={onClose}>
-      <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="px-6 py-4 border-b border-border flex items-start justify-between gap-4">
+  return (
+    <Dialog open onOpenChange={(next: boolean) => { if (!next) onClose(); }}>
+      <DialogContent size="md" className="p-0 gap-0 flex flex-col">
+        <div className="px-6 py-4 pr-12 border-b border-border flex items-start gap-4">
           <div>
-            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2">
               <Split size={16} strokeWidth={1.75} className="text-edge-explore" /> {t('fanout.title')}
-            </h2>
+            </DialogTitle>
             <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t('fanout.subtitle')}</p>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors shrink-0 mt-0.5">
-            <X size={16} strokeWidth={1.75} />
-          </button>
         </div>
 
         <div className="px-6 py-4 space-y-4 overflow-y-auto">
@@ -185,7 +182,7 @@ export default function FanOutModal({
             {fmt(t(mode === 'follow' ? 'fanout.confirmFollow' : 'fanout.confirm'), { n: roles.length })}
           </button>
         </div>
-      </div>
-    </div>
-  ), document.body);
+      </DialogContent>
+    </Dialog>
+  );
 }

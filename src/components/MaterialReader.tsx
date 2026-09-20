@@ -9,6 +9,7 @@ import { generateDigest, recognizePdfPages, spawnContentNode, extractImage } fro
 import { Markdown, HighlightedMarkdown } from './Markdown';
 import { generateId, isImeComposing } from '../utils';
 import { useT, fmt } from '../i18n';
+import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import { isViewerMode } from '../lib/viewer';
 import { loadAttachmentContent } from '../lib/attachment-vault';
 import { HtmlMaterialView } from './HtmlMaterialView';
@@ -654,9 +655,16 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
   const askTop = ask ? Math.min(ask.y + 10, window.innerHeight - 150) : 0;
 
   return (
-    <div className="fixed inset-0 z-[80] bg-foreground/25 backdrop-blur-[2px] flex items-center justify-center animate-fade-in" data-material-reader>
-      <div className={`bg-background rounded-2xl shadow-2xl border border-border ${threadId ? "w-[min(1480px,96vw)]" : "w-[min(1060px,94vw)]"} h-[93vh] flex flex-col overflow-hidden transition-all duration-200`}>
-        {/* header */}
+    <Dialog open onOpenChange={(next: boolean) => { if (!next) close(); }}>
+      <DialogContent
+        size="full"
+        showCloseButton={false}
+        className={`p-0 gap-0 ${threadId ? 'sm:max-w-[min(1480px,96vw)]' : 'sm:max-w-[min(1060px,94vw)]'} h-[93vh] flex flex-col overflow-hidden transition-all duration-200`}
+        data-material-reader
+      >
+        {/* header — this one carries its own controls, so the dialog's
+            default close button stays off */}
+        <DialogTitle className="sr-only">{title || noteTitle || fileFallbackTitle}</DialogTitle>
         <div className="flex items-center gap-3 px-5 py-3 border-b border-border bg-card shrink-0">
           {headerIcon}
           <span className="text-sm font-semibold text-foreground truncate min-w-0" title={title || noteTitle || fileFallbackTitle}>{title || noteTitle || fileFallbackTitle}</span>
@@ -1016,7 +1024,6 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
             </div>
           )}
         </div>
-      </div>
 
       {/* floating ask bar under the selection */}
       {ask && (
@@ -1092,7 +1099,8 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
           </div>
         </div>
       )}
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

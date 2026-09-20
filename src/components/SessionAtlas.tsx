@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { AppWindow, Archive, ArrowDownUp, Link2, Folder, FolderOpen, Loader2, Plug, RefreshCw, RotateCcw, Search, Square, SquareCheckBig, SquareTerminal, Import, Trash2, X, Inbox } from 'lucide-react';
 import { scanSessions, groupByCwd, disabledRoots, setRootDisabled, type SessionCard, type AtlasGroup } from '../lib/atlas/discover';
 import { diffAgainstWatermark, markSeen, markAllSeen, changeKeyOf, type CardChange } from '../lib/atlas/watermark';
 import { useProjects, switchProject, setProjectArchived, subscribedSessionIds } from '../store/projects';
 import { useT, t as ti, fmt } from '../i18n';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { toast } from '../lib/ui-store';
 
 // The session atlas: the external world's view. Project folders on the
@@ -364,13 +364,17 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
   // Portal to body: the switcher that opens us lives in a z-20 stacking
   // context, which would clamp this overlay UNDER the focus panel — the
   // atlas must veil the whole canvas, side panel included.
-  return createPortal(
-    <div className="fixed inset-0 z-50 bg-foreground/30 backdrop-blur-sm flex items-center justify-center p-6" data-session-atlas>
-      <div className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-[980px] h-[min(680px,90vh)] flex flex-col overflow-hidden">
-        <div className="flex items-start gap-3 px-5 pt-4 pb-3 border-b border-border">
+  return (
+    <Dialog open onOpenChange={(next: boolean) => { if (!next) onClose(); }}>
+      <DialogContent
+        size="xl"
+        className="p-0 gap-0 h-[min(680px,90vh)] flex flex-col overflow-hidden"
+        data-session-atlas
+      >
+        <DialogHeader className="flex-row items-start gap-3 px-5 pt-4 pb-3 pr-14 border-b">
           <div className="flex-1 min-w-0">
-            <div className="text-base font-semibold text-foreground">{t('atlas.title')}</div>
-            <div className="text-xs text-muted-foreground mt-0.5">{t('atlas.subtitle')}</div>
+            <DialogTitle>{t('atlas.title')}</DialogTitle>
+            <DialogDescription className="mt-0.5">{t('atlas.subtitle')}</DialogDescription>
             {changes.size > 0 && (
               <div className="text-xs mt-1 flex items-center gap-2" data-atlas-changes>
                 <span className="text-primary">
@@ -432,10 +436,7 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
             {scanning ? t('atlas.scanning') : t('atlas.refresh')}
           </button>
           )}
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1.5 rounded-lg hover:bg-accent transition-colors" data-atlas-close>
-            <X size={18} strokeWidth={1.75} />
-          </button>
-        </div>
+        </DialogHeader>
 
         <div className="flex-1 flex min-h-0">
           {/* left: recent work first (the "where was I" answer), then the
@@ -801,8 +802,7 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
             onClose={() => setSourcesOpen(false)}
           />
         )}
-      </div>
-    </div>,
-    document.body,
+      </DialogContent>
+    </Dialog>
   );
 }

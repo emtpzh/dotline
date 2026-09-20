@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
-import { Download, Plus, Trash2, X } from 'lucide-react';
+import { Download, Plus, Trash2 } from 'lucide-react';
 import { useUiStore } from '../../lib/ui-store';
 import { downloadFile } from '../../lib/export';
 import { generateId } from '../../utils';
 import { useT, fmt } from '../../i18n';
+import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
 
 // The memory manager: the ChatGPT-style curation surface, and the ONLY
 // standing entry point to memory (writes announce themselves via toasts;
@@ -22,7 +22,6 @@ export default function MemoryManagerModal() {
   const setEnabled = useUiStore((s) => s.setMemoryEnabled);
   const [importing, setImporting] = useState(false);
   const [importText, setImportText] = useState('');
-  if (!open) return null;
 
   const kindLabel = (k: string) => t(k === 'auto' ? 'memory.kindAuto' : k === 'imported' ? 'memory.kindImported' : 'memory.kindManual');
   const catBadge = (c?: string) =>
@@ -47,11 +46,11 @@ export default function MemoryManagerModal() {
   };
   const doExport = () => downloadFile('thoughtdag-memory.json', JSON.stringify(memories, null, 2), 'application/json');
 
-  return createPortal((
-    <div className="fixed inset-0 z-[60] bg-foreground/30 backdrop-blur-sm flex items-center justify-center p-6" onClick={() => setOpen(false)}>
-      <div className="bg-card rounded-2xl shadow-2xl border border-border w-[600px] max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2 px-5 py-3 border-b border-border shrink-0">
-          <span className="text-sm font-semibold text-foreground">{t('memory.managerTitle')}</span>
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent size="md" className="p-0 gap-0 max-h-[80vh] flex flex-col">
+        <div className="flex items-center gap-2 px-5 py-3 pr-12 border-b border-border shrink-0">
+          <DialogTitle>{t('memory.managerTitle')}</DialogTitle>
           <span className="text-2xs text-muted-foreground flex-1">{fmt(t('memory.hint'), { n: memories.length })}</span>
           <button
             onClick={() => setEnabled(!enabled)}
@@ -59,9 +58,6 @@ export default function MemoryManagerModal() {
             className={`text-2xs px-2.5 py-1 rounded-full transition-colors shrink-0 ${enabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}
           >
             {enabled ? t('caps.on') : t('caps.off')}
-          </button>
-          <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground w-7 h-7 rounded-lg hover:bg-accent flex items-center justify-center transition-colors shrink-0">
-            <X size={15} strokeWidth={1.75} />
           </button>
         </div>
 
@@ -124,7 +120,7 @@ export default function MemoryManagerModal() {
             </button>
           )}
         </div>
-      </div>
-    </div>
-  ), document.body);
+      </DialogContent>
+    </Dialog>
+  );
 }

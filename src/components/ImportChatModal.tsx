@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { MessageSquare, X } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 import type { ImportableConversation } from '../lib/import-chat';
 import { importChatConversations } from '../lib/export';
 import { useT, fmt } from '../i18n';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 
 // Conversation picker for ChatGPT/Claude exports: each checked conversation
 // becomes its own canvas.
@@ -39,20 +40,12 @@ export default function ImportChatModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-foreground/30 backdrop-blur-sm flex items-center justify-center p-6" onClick={onClose}>
-      <div
-        className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="px-6 py-4 border-b border-border flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">{t('import.title')}</h2>
-            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t('import.subtitle')}</p>
-          </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors shrink-0 mt-0.5">
-            <X size={16} strokeWidth={1.75} />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(next: boolean) => { if (!next) onClose(); }}>
+      <DialogContent size="md" className="p-0 gap-0 max-h-[80vh] flex flex-col">
+        <DialogHeader className="px-6 py-4 pr-14 border-b">
+          <DialogTitle>{t('import.title')}</DialogTitle>
+          <DialogDescription>{t('import.subtitle')}</DialogDescription>
+        </DialogHeader>
 
         <div className="px-6 py-2 border-b border-border/60">
           <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none py-1">
@@ -97,7 +90,7 @@ export default function ImportChatModal({
             {busy ? '…' : fmt(t('import.confirm'), { n: checked.size })}
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

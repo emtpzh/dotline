@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { History, ImageDown, Sparkles, X } from 'lucide-react';
+import { History, ImageDown, Sparkles } from 'lucide-react';
 import { useStore } from '../../store';
 import { useUiStore } from '../../lib/ui-store';
 import { useDateLocale, useI18n, useT, fmt } from '../../i18n';
+import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
 import { collectTimeline } from '../../lib/timeline';
 import { generateGedankengang, getCached, graphFingerprint, type Gedankengang } from '../../lib/gedankengang';
 
@@ -43,19 +43,18 @@ export default function TimelineOverviewModal({ onLocate }: { onLocate: (nodeId:
       .catch(() => setGedFailed(true))
       .finally(() => setGedLoading(false));
   };
-  if (!open) return null;
 
   const close = () => setOpen(false);
   const dayOf = (iso?: string) => (iso ? iso.slice(0, 10) : '');
   const fmtClock = (iso?: string) =>
     iso ? new Date(iso).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' }) : '—';
 
-  return createPortal((
-    <div className="fixed inset-0 z-[60] bg-foreground/30 backdrop-blur-sm flex items-center justify-center p-6" onClick={close}>
-      <div className="bg-card rounded-2xl shadow-2xl border border-border w-[640px] max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2 px-5 py-3 border-b border-border shrink-0">
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next) close(); }}>
+      <DialogContent size="md" className="p-0 gap-0 max-h-[80vh] flex flex-col">
+        <div className="flex items-center gap-2 px-5 py-3 pr-12 border-b border-border shrink-0">
           <History size={15} strokeWidth={1.75} className="text-primary" />
-          <span className="text-sm font-semibold text-foreground">{t('tlov.title')}</span>
+          <DialogTitle>{t('tlov.title')}</DialogTitle>
           <span className="text-2xs text-muted-foreground">{fmt(t('tlov.count'), { n: entries.length })}</span>
           <div className="flex-1" />
           <button
@@ -66,9 +65,6 @@ export default function TimelineOverviewModal({ onLocate }: { onLocate: (nodeId:
           >
             <ImageDown size={13} strokeWidth={1.75} />
             {t('tmap.export')}
-          </button>
-          <button onClick={close} className="text-muted-foreground hover:text-foreground w-7 h-7 rounded-lg hover:bg-accent flex items-center justify-center transition-colors">
-            <X size={15} strokeWidth={1.75} />
           </button>
         </div>
 
@@ -145,7 +141,7 @@ export default function TimelineOverviewModal({ onLocate }: { onLocate: (nodeId:
             );
           })}
         </div>
-      </div>
-    </div>
-  ), document.body);
+      </DialogContent>
+    </Dialog>
+  );
 }
