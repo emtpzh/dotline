@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Archive, ChevronDown, Dna, FolderOpen, Loader2, Map as MapIcon, Pencil, Plus, RefreshCw, Trash2, Upload } from 'lucide-react';
 import SessionAtlas from './SessionAtlas';
 import { knownSessionIds } from '../lib/atlas/discover';
 import { useProjects, switchProject, createProject, renameProject, deleteProject, setProjectArchived } from '../store/projects';
 import { useI18n } from '../i18n';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { parseImportFile } from '../lib/export';
 import ImportChatModal from './ImportChatModal';
 import type { ImportableConversation } from '../lib/import-chat';
@@ -58,16 +59,6 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
     if (ok) void deleteProject(p.id).then(onSwitched);
   };
 
-  // Close on outside click
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    window.addEventListener('mousedown', handler);
-    return () => window.removeEventListener('mousedown', handler);
-  }, [open]);
-
   const doSwitch = async (id: string) => {
     setOpen(false);
     await switchProject(id);
@@ -83,9 +74,9 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
     // z-20: the open dropdown must cover the content palette below (both
     // live on the left edge; the palette is z-10)
     <div ref={rootRef} className="absolute top-4 left-4 z-20">
+      <Popover open={open} onOpenChange={setOpen}>
       <div className="flex items-center gap-1.5">
-        <button
-          onClick={() => setOpen(!open)}
+        <PopoverTrigger
           disabled={switching}
           className="bg-card/90 backdrop-blur border border-border rounded-lg h-8 px-3 shadow-sm hover:bg-accent transition-colors flex items-center gap-2 text-xs text-foreground max-w-[220px] disabled:opacity-60"
         >
@@ -96,7 +87,7 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
               : <FolderOpen size={15} strokeWidth={1.75} className="shrink-0 text-muted-foreground" />}
           <span className="truncate font-medium">{active?.name ?? '…'}</span>
           <ChevronDown size={14} strokeWidth={1.75} className="shrink-0 text-muted-foreground" />
-        </button>
+        </PopoverTrigger>
         {/* the twin badge: this canvas is one face of a session — the
             other face is one click away on the map */}
         {!!active?.sourceSession?.sessionId && (() => {
@@ -121,8 +112,7 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
         })()}
       </div>
 
-      {open && (
-        <div className="mt-1.5 bg-card border border-border rounded-xl shadow-lg py-1.5 w-[280px] animate-fade-in">
+      <PopoverContent align="start" sideOffset={6} className="w-[280px] gap-0 p-0 py-1.5">
           <div className="max-h-[320px] overflow-y-auto">
             {sorted.map((p) => (
               <div
@@ -244,8 +234,8 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
               }}
             />
           </div>
-        </div>
-      )}
+      </PopoverContent>
+      </Popover>
       {chatImport && (
         <ImportChatModal
           conversations={chatImport}

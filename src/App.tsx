@@ -78,6 +78,7 @@ import ReleaseNotesDialog from './components/app/ReleaseNotesDialog';
 import AgentCwdChip from './components/app/AgentCwdChip';
 import { pluginUpdateCommand } from './lib/plugin-update';
 import { useT, t as ti, fmt, useI18n } from './i18n';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './components/ui/dropdown-menu';
 import { isViewerMode, buildViewerLink } from './lib/viewer';
 import { useModels } from './lib/use-models';
 import { useZoomTier } from './lib/use-map-mode';
@@ -832,15 +833,6 @@ function Canvas() {
   // Frame navigator: named regions become a jumpable table of contents
   const frames = useMemo(() => nodes.filter((n) => n.data.stepKind === 'frame'), [nodes]);
   const [frameNavOpen, setFrameNavOpen] = useState(false);
-  const frameNavRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!frameNavOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (!frameNavRef.current?.contains(e.target as Node)) setFrameNavOpen(false);
-    };
-    window.addEventListener('mousedown', handler);
-    return () => window.removeEventListener('mousedown', handler);
-  }, [frameNavOpen]);
 
   // Toolbar overflow menu: low-frequency actions live behind one ⋯ button
   // so the top-right row stays short in both languages and with the panel
@@ -849,15 +841,6 @@ function Canvas() {
   const pluginUpdate = useUiStore((s) => s.pluginUpdate);
   const [diagPing, setDiagPing] = useState(0);
   const searching = useUiStore((s2) => s2.searchHitIds !== null);
-  const moreRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!moreOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (!moreRef.current?.contains(e.target as Node)) setMoreOpen(false);
-    };
-    window.addEventListener('mousedown', handler);
-    return () => window.removeEventListener('mousedown', handler);
-  }, [moreOpen]);
 
   // Annotation view mode: hide frames + UNLINKED content nodes (linked
   // material stays — it's part of the reasoning record). A filter over the
@@ -1637,37 +1620,32 @@ function Canvas() {
           </button>
         )}
         {hasNodes && frames.length > 0 && (
-          <div ref={frameNavRef} className="relative">
-            <button
-              onClick={() => setFrameNavOpen((v) => !v)}
+          <DropdownMenu open={frameNavOpen} onOpenChange={setFrameNavOpen}>
+            <DropdownMenuTrigger
               className={`bg-card/90 backdrop-blur border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm transition-colors ${
                 frameNavOpen ? 'border-primary/40 text-primary' : 'border-border text-muted-foreground hover:bg-accent'
               }`}
               title={t('toolbar.frames')}
             >
               <Frame size={15} strokeWidth={1.75} />
-            </button>
-            {frameNavOpen && (
-              <div className="absolute right-0 top-full mt-1.5 bg-card border border-border rounded-xl shadow-lg py-1 w-[230px] max-h-[320px] overflow-y-auto z-30 animate-fade-in">
+            </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[230px] max-h-[320px] overflow-y-auto">
                 {frames.map((f) => (
-                  <button
+                  <DropdownMenuItem
                     key={f.id}
                     onClick={() => {
-                      setFrameNavOpen(false);
                       rfInstance.current?.fitBounds(
                         { x: f.position.x, y: f.position.y, width: f.width ?? 640, height: f.height ?? 420 },
                         { duration: 400, padding: 0.15 },
                       );
                     }}
-                    className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2"
                   >
                     <span className={`w-2.5 h-2.5 rounded-sm shrink-0 ${(FRAME_COLORS[f.data.frameColor ?? 'gray'] ?? FRAME_COLORS.gray).dot}`} />
                     <span className="truncate">{f.data.question || t('frame.untitled')}</span>
-                  </button>
+                  </DropdownMenuItem>
                 ))}
-              </div>
-            )}
-          </div>
+              </DropdownMenuContent>
+          </DropdownMenu>
         )}
         {hasNodes && (
           <button
@@ -1713,9 +1691,8 @@ function Canvas() {
         )}
         {/* ⋯ overflow: share, memory, annotations, relayout, tutorial —
             one slot regardless of language or panel width. */}
-        <div ref={moreRef} className="relative">
-          <button
-            onClick={() => setMoreOpen((v) => !v)}
+        <DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
+          <DropdownMenuTrigger
             className={`bg-card/90 backdrop-blur border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm transition-colors ${
               moreOpen ? 'border-primary/40 text-primary' : 'border-border text-muted-foreground hover:bg-accent'
             }`}
@@ -1723,22 +1700,19 @@ function Canvas() {
             data-toolbar-more
           >
             <MoreHorizontal size={15} strokeWidth={1.75} />
-          </button>
-          {moreOpen && (
-            <div className="absolute right-0 top-full mt-1.5 bg-card border border-border rounded-xl shadow-lg py-1 w-[220px] z-30 animate-fade-in">
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-[220px]">
               {hasNodes && (
-                <button
-                  onClick={() => { setMoreOpen(false); setAnnotationsHidden(!annotationsHidden); }}
-                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
+                <DropdownMenuItem
+                  onClick={() => { setAnnotationsHidden(!annotationsHidden); }}
                   title={annotationsHidden ? t('toolbar.showAnnotations') : t('toolbar.hideAnnotations')}
                 >
                   <StickyNote size={14} strokeWidth={1.75} className={`shrink-0 ${annotationsHidden ? 'text-primary' : 'text-muted-foreground'}`} /> {annotationsHidden ? t('toolbar.menuAnnotationsShow') : t('toolbar.menuAnnotationsHide')}
-                </button>
+                </DropdownMenuItem>
               )}
               {hasNodes && (
-                <button
+                <DropdownMenuItem
                   onClick={() => {
-                    setMoreOpen(false);
                     void confirmDialog({
                       title: t('confirm.relayoutTitle'),
                       message: t('confirm.relayoutMsg'),
@@ -1749,55 +1723,49 @@ function Canvas() {
                       setTimeout(() => rfInstance.current?.fitView({ duration: 400, padding: 0.15 }), 50);
                     });
                   }}
-                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
                 >
                   <LayoutGrid size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('toolbar.relayout')}
-                </button>
+                </DropdownMenuItem>
               )}
               {highlightCount > 0 && (
-                <button
-                  onClick={() => { setMoreOpen(false); useUiStore.getState().setHighlightsOverviewOpen(true); }}
-                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
+                <DropdownMenuItem
+                  onClick={() => { useUiStore.getState().setHighlightsOverviewOpen(true); }}
                   title={t('hlov.entryTitle')}
                   data-hlov-entry
                 >
                   <Highlighter size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {fmt(t('hlov.entry'), { n: highlightCount })}
-                </button>
+                </DropdownMenuItem>
               )}
               {materialCount > 0 && (
-                <button
-                  onClick={() => { setMoreOpen(false); useUiStore.getState().setMaterialsOverviewOpen(true); }}
-                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
+                <DropdownMenuItem
+                  onClick={() => { useUiStore.getState().setMaterialsOverviewOpen(true); }}
                   title={t('matov.entryTitle')}
                   data-matov-entry
                 >
                   <Paperclip size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {fmt(t('matov.entry'), { n: materialCount })}
-                </button>
+                </DropdownMenuItem>
               )}
-              {hasNodes && <div className="border-t border-border/60 my-1" />}
+              {hasNodes && <DropdownMenuSeparator />}
               {hasNodes && !isParadigm && !isViewerMode && (
-                <button
-                  onClick={() => { setMoreOpen(false); useUiStore.getState().setCondenseDialogOpen(true); }}
-                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
+                <DropdownMenuItem
+                  onClick={() => { useUiStore.getState().setCondenseDialogOpen(true); }}
                   title={t('condense.entryTitle')}
                 >
                   <Minimize2 size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('condense.title')}…
-                </button>
+                </DropdownMenuItem>
               )}
               {hasNodes && !isParadigm && (
-                <button
-                  onClick={() => { setMoreOpen(false); setDiagPing((v) => v + 1); }}
-                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
+                <DropdownMenuItem
+                  onClick={() => { setDiagPing((v) => v + 1); }}
                   title={t('toolbar.diagnose')}
                   data-menu-diagnose
                 >
                   <Stethoscope size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('toolbar.menuDiagnose')}
-                </button>
+                </DropdownMenuItem>
               )}
               {hasNodes && !isParadigm && (
-                <button
+                <DropdownMenuItem
                   onClick={() => {
-                    setMoreOpen(false);
                     void (async () => {
                       const { nodes: ns, edges: es } = useStore.getState();
                       // exit gate: a mirrored canvas can carry CLI tool
@@ -1809,32 +1777,29 @@ function Canvas() {
                       useUiStore.getState().setShareDialogUrl(url);
                     })();
                   }}
-                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
                   data-share-link
                   title={t('viewer.shareTitle')}
                 >
                   <Share2 size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('toolbar.menuShare')}
-                </button>
+                </DropdownMenuItem>
               )}
               {hasNodes && (
-                <button
-                  onClick={() => { setMoreOpen(false); if (isParadigm) exportActiveParadigm(); else exportActiveProjectJson(); }}
-                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
+                <DropdownMenuItem
+                  onClick={() => { if (isParadigm) exportActiveParadigm(); else exportActiveProjectJson(); }}
                   data-menu-export
                 >
                   <Download size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {isParadigm ? t('paradigm.exportParadigm') : t('switcher.exportBackup')}
-                </button>
+                </DropdownMenuItem>
               )}
               {hasEvents && (
-                <button
-                  onClick={() => { setMoreOpen(false); exportEventLogCsv(); }}
-                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
+                <DropdownMenuItem
+                  onClick={() => { exportEventLogCsv(); }}
                   title={t('toolbar.exportEventsTitle')}
                 >
                   <FileText size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('toolbar.exportEvents')}
-                </button>
+                </DropdownMenuItem>
               )}
-              {hasNodes && <div className="border-t border-border/60 my-1" />}
+              {hasNodes && <DropdownMenuSeparator />}
               {/* appearance: two independent axes — lighting remaps the
                   tokens, paper retextures the canvas (and arms snapping) */}
               <div className="px-3 pt-2 pb-1" data-appearance-lighting>
@@ -1865,40 +1830,36 @@ function Canvas() {
                   ))}
                 </div>
               </div>
-              <div className="border-t border-border/60 my-1" />
-              <button
-                onClick={() => { setMoreOpen(false); useUiStore.getState().setMemoryManagerOpen(true); }}
-                className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => { useUiStore.getState().setMemoryManagerOpen(true); }}
                 title={t('memory.entryTitle')}
               >
                 <Brain size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('memory.managerTitle')}
-              </button>
-              <button
-                onClick={() => { setMoreOpen(false); setTutorialOpen(true); }}
-                className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => { setTutorialOpen(true); }}
               >
                 <CircleHelp size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('landing.howItWorks')}
-              </button>
+              </DropdownMenuItem>
               {pluginUpdate && (
-                <button
-                  onClick={() => { setMoreOpen(false); void navigator.clipboard.writeText(pluginUpdateCommand(pluginUpdate.latest)).then(() => toast('success', t('plugin.updateCopied'), 6000)).catch(() => {}); }}
+                <DropdownMenuItem
+                  onClick={() => { void navigator.clipboard.writeText(pluginUpdateCommand(pluginUpdate.latest)).then(() => toast('success', t('plugin.updateCopied'), 6000)).catch(() => {}); }}
                   className="w-full text-left px-3 py-2 text-xs text-primary hover:bg-accent transition-colors flex items-center gap-2.5"
                   title={fmt(t('plugin.updateHint'), { cmd: pluginUpdateCommand(pluginUpdate.latest) })}
                   data-plugin-update
                 >
                   <Download size={14} strokeWidth={1.75} className="shrink-0" /> {fmt(t('plugin.updateAvailable'), { v: pluginUpdate.latest })}
-                </button>
+                </DropdownMenuItem>
               )}
-              <button
-                onClick={() => { setMoreOpen(false); useUiStore.getState().setReleaseNotesOpen(true); }}
-                className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5"
+              <DropdownMenuItem
+                onClick={() => { useUiStore.getState().setReleaseNotesOpen(true); }}
                 data-open-release-notes
               >
                 <HistoryIcon size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('releaseNotes.entry')}
-              </button>
-            </div>
-          )}
-        </div>
+              </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <button
           onClick={undo}
           disabled={historyIndex <= 0}

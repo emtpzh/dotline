@@ -1,10 +1,15 @@
-import { useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { useMemo } from 'react';
 import { Archive, ArchiveRestore, BookOpen, Copy, Files, FlaskConical, GitFork, Maximize2, RefreshCw, StickyNote, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { useUiStore, confirmDialog, toast } from '../lib/ui-store';
 import { recapToNote } from '../lib/recap';
 import { useT, fmt, t as ti } from '../i18n';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from './ui/dropdown-menu';
 
 // Right-click on a node: the app's own context menu (same visual language
 // as the toolbar's ⋯ menu). The browser menu stays available where it is
@@ -15,16 +20,11 @@ export default function NodeContextMenu({ x, y, nodeId, onClose }: {
   x: number; y: number; nodeId: string; onClose: () => void;
 }) {
   const t = useT();
-  const ref = useRef<HTMLDivElement>(null);
   const node = useStore((s) => s.nodes.find((n) => n.id === nodeId));
 
-  useEffect(() => {
-    const down = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) onClose(); };
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('mousedown', down);
-    window.addEventListener('keydown', key);
-    return () => { window.removeEventListener('mousedown', down); window.removeEventListener('keydown', key); };
-  }, [onClose]);
+  // The menu opens at the pointer, not at a trigger, so it is anchored to a
+  // zero-size rectangle there; the positioner keeps it inside the viewport.
+  const anchor = useMemo(() => ({ getBoundingClientRect: () => new DOMRect(x, y, 0, 0) }), [x, y]);
 
   if (!node) return null;
   const kind = node.data.stepKind;
@@ -34,91 +34,88 @@ export default function NodeContextMenu({ x, y, nodeId, onClose }: {
     ? (kind === 'note' || kind === 'link' ? node.data.question : '')
     : node.data.response;
 
-  const item = 'w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2.5';
   const icon = 'text-muted-foreground shrink-0';
 
-  // Keep the menu inside the viewport (it renders at the pointer)
-  const MENU_W = 200;
-  const MENU_H = 340;
-  const left = Math.min(x, window.innerWidth - MENU_W - 8);
-  const top = Math.min(y, window.innerHeight - MENU_H - 8);
-
-  const run = (fn: () => void) => () => { onClose(); fn(); };
-
-  return createPortal((
-    <div ref={ref} className="fixed z-[70] bg-card border border-border rounded-xl shadow-lg py-1 w-[200px] animate-fade-in" style={{ left, top }}>
-      {!isContent && (
-        <button className={item} onClick={run(() => {
-          useStore.getState().setSelectedNodeId(nodeId);
-          useUiStore.getState().setPanelOpen(true);
-        })}>
-          <BookOpen size={14} strokeWidth={1.75} className={icon} /> {t('ctx.openPanel')}
-        </button>
-      )}
-      {hasResponse && (
-        <button className={item} onClick={run(() => useUiStore.getState().setResponseViewerNodeId(nodeId))}>
-          <Maximize2 size={14} strokeWidth={1.75} className={icon} /> {t('ctx.readingView')}
-        </button>
-      )}
-      {hasResponse && (
-        <button className={item} onClick={run(() => { void useStore.getState().rerunNode(nodeId); })}>
-          <RefreshCw size={14} strokeWidth={1.75} className={icon} /> {t('ctx.rerun')}
-        </button>
-      )}
-      {hasResponse && (
-        <button className={item} title={ti('actions.regenBranchTitle')} onClick={run(() => { void useStore.getState().regenerate(nodeId); })}>
-          <GitFork size={14} strokeWidth={1.75} className={icon} /> {t('ctx.regenBranch')}
-        </button>
-      )}
-      {hasResponse && (
-        <button className={item} onClick={run(() => { void recapToNote(nodeId); })}>
-          <StickyNote size={14} strokeWidth={1.75} className={icon} /> {t('continue.summarize')}
-        </button>
-      )}
-      {copyText && (
-        <button className={item} onClick={run(() => {
-          void navigator.clipboard.writeText(copyText).then(() => toast('success', ti('ctx.copied')));
-        })}>
-          <Copy size={14} strokeWidth={1.75} className={icon} /> {t('ctx.copyContent')}
-        </button>
-      )}
-      {!isContent && (
-        <button className={item} title={ti('exp.takeTitle')} onClick={run(() => {
-          void import('../lib/experiment-loop').then((m) => m.takeToExperiment(nodeId, 'branch'));
-        })} data-take-to-experiment>
-          <FlaskConical size={14} strokeWidth={1.75} className={icon} /> {t('exp.take')}
-        </button>
-      )}
-      {!isContent && (
-        <button className={item} title={ti('exp.continueTitle')} onClick={run(() => {
-          void import('../lib/experiment-loop').then((m) => m.takeToExperiment(nodeId, 'continue'));
-        })} data-take-to-continue>
-          <BookOpen size={14} strokeWidth={1.75} className={icon} /> {t('exp.continue')}
-        </button>
-      )}
-      <button className={item} onClick={run(() => useStore.getState().duplicateNode(nodeId))}>
-        <Files size={14} strokeWidth={1.75} className={icon} /> {t('ctx.duplicate')}
-      </button>
-      <button className={item} onClick={run(() => useStore.getState().setArchived([nodeId], !node.data.archived))}>
-        {node.data.archived
-          ? <ArchiveRestore size={14} strokeWidth={1.75} className={icon} />
-          : <Archive size={14} strokeWidth={1.75} className={icon} />}
-        {node.data.archived ? t('ctx.unarchive') : t('archive.label')}
-      </button>
-      <div className="h-px bg-border my-1" />
-      <button
-        className="w-full text-left px-3 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-2.5"
-        onClick={run(() => {
-          void confirmDialog({
-            title: ti('confirm.deleteNodesTitle'),
-            message: fmt(ti('confirm.deleteNodes'), { n: 1 }),
-            confirmLabel: ti('common.delete'),
-            danger: true,
-          }).then((ok) => { if (ok) useStore.getState().deleteNode(nodeId); });
-        })}
-      >
-        <Trash2 size={14} strokeWidth={1.75} className="shrink-0" /> {t('common.delete')}
-      </button>
-    </div>
-  ), document.body);
+  return (
+    <DropdownMenu open onOpenChange={(next: boolean) => { if (!next) onClose(); }}>
+      <DropdownMenuContent anchor={anchor} align="start" className="w-[200px]">
+        {!isContent && (
+          <DropdownMenuItem onClick={() => {
+            useStore.getState().setSelectedNodeId(nodeId);
+            useUiStore.getState().setPanelOpen(true);
+          }}>
+            <BookOpen size={14} strokeWidth={1.75} className={icon} /> {t('ctx.openPanel')}
+          </DropdownMenuItem>
+        )}
+        {hasResponse && (
+          <DropdownMenuItem onClick={() => useUiStore.getState().setResponseViewerNodeId(nodeId)}>
+            <Maximize2 size={14} strokeWidth={1.75} className={icon} /> {t('ctx.readingView')}
+          </DropdownMenuItem>
+        )}
+        {hasResponse && (
+          <DropdownMenuItem onClick={() => { void useStore.getState().rerunNode(nodeId); }}>
+            <RefreshCw size={14} strokeWidth={1.75} className={icon} /> {t('ctx.rerun')}
+          </DropdownMenuItem>
+        )}
+        {hasResponse && (
+          <DropdownMenuItem title={ti('actions.regenBranchTitle')} onClick={() => { void useStore.getState().regenerate(nodeId); }}>
+            <GitFork size={14} strokeWidth={1.75} className={icon} /> {t('ctx.regenBranch')}
+          </DropdownMenuItem>
+        )}
+        {hasResponse && (
+          <DropdownMenuItem onClick={() => { void recapToNote(nodeId); }}>
+            <StickyNote size={14} strokeWidth={1.75} className={icon} /> {t('continue.summarize')}
+          </DropdownMenuItem>
+        )}
+        {copyText && (
+          <DropdownMenuItem onClick={() => {
+            void navigator.clipboard.writeText(copyText).then(() => toast('success', ti('ctx.copied')));
+          }}>
+            <Copy size={14} strokeWidth={1.75} className={icon} /> {t('ctx.copyContent')}
+          </DropdownMenuItem>
+        )}
+        {!isContent && (
+          <DropdownMenuItem
+            title={ti('exp.takeTitle')}
+            onClick={() => { void import('../lib/experiment-loop').then((m) => m.takeToExperiment(nodeId, 'branch')); }}
+            data-take-to-experiment
+          >
+            <FlaskConical size={14} strokeWidth={1.75} className={icon} /> {t('exp.take')}
+          </DropdownMenuItem>
+        )}
+        {!isContent && (
+          <DropdownMenuItem
+            title={ti('exp.continueTitle')}
+            onClick={() => { void import('../lib/experiment-loop').then((m) => m.takeToExperiment(nodeId, 'continue')); }}
+            data-take-to-continue
+          >
+            <BookOpen size={14} strokeWidth={1.75} className={icon} /> {t('exp.continue')}
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onClick={() => useStore.getState().duplicateNode(nodeId)}>
+          <Files size={14} strokeWidth={1.75} className={icon} /> {t('ctx.duplicate')}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => useStore.getState().setArchived([nodeId], !node.data.archived)}>
+          {node.data.archived
+            ? <ArchiveRestore size={14} strokeWidth={1.75} className={icon} />
+            : <Archive size={14} strokeWidth={1.75} className={icon} />}
+          {node.data.archived ? t('ctx.unarchive') : t('archive.label')}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          variant="destructive"
+          onClick={() => {
+            void confirmDialog({
+              title: ti('confirm.deleteNodesTitle'),
+              message: fmt(ti('confirm.deleteNodes'), { n: 1 }),
+              confirmLabel: ti('common.delete'),
+              danger: true,
+            }).then((ok) => { if (ok) useStore.getState().deleteNode(nodeId); });
+          }}
+        >
+          <Trash2 size={14} strokeWidth={1.75} className="shrink-0" /> {t('common.delete')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }

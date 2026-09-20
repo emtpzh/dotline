@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Archive, ArchiveRestore, ClipboardCopy, Copy, Ellipsis, FileDown, GitFork, RefreshCw, Split, Square, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { contextChainMarkdown, downloadMarkdown, copyText } from '../../lib/export';
@@ -9,6 +9,7 @@ import { globalIntent, nodeIntent, parentsOf } from '../../store/intent';
 import FanOutModal from '../FanOutModal';
 import { toast, confirmDialog, useUiStore } from '../../lib/ui-store';
 import { useT, fmt } from '../../i18n';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 
 // Compact action strip: the two actions you actually reach for (regenerate,
 // archive) plus the model chip, everything else behind "…". Perspectives
@@ -66,19 +67,8 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [fanOutOpen, setFanOutOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
-    };
-    window.addEventListener('mousedown', handler);
-    return () => window.removeEventListener('mousedown', handler);
-  }, [menuOpen]);
 
   const iconBtn = 'text-muted-foreground hover:text-foreground hover:bg-border/50 rounded-lg w-8 h-8 flex items-center justify-center transition-colors';
-  const menuItem = 'w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-accent transition-colors flex items-center gap-2';
 
   return (
     <div className="relative flex items-center gap-1 shrink-0">
@@ -122,44 +112,45 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
         hint={mixedSources ? t('model.mixedSources') : undefined}
       />
 
-      <div ref={menuRef} className="relative">
-        <button onClick={() => setMenuOpen((v) => !v)} title={t('panel.more')} className={`${iconBtn} ${menuOpen ? 'bg-border/50 text-foreground' : ''}`}>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenuTrigger
+          title={t('panel.more')}
+          className={`${iconBtn} ${menuOpen ? 'bg-border/50 text-foreground' : ''}`}
+        >
           <Ellipsis size={17} strokeWidth={1.75} />
-        </button>
-        {menuOpen && (
-          <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-lg py-1 w-[210px] z-30 animate-fade-in">
-            <button className={menuItem} onClick={() => { setMenuOpen(false); setFanOutOpen(true); }} title={t('fanout.entryTitle')}>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-[210px]">
+            <DropdownMenuItem onClick={() => { setFanOutOpen(true); }} title={t('fanout.entryTitle')}>
               <Split size={15} strokeWidth={1.75} /> {t('fanout.entry')}
-            </button>
-            <button className={menuItem} onClick={() => { setMenuOpen(false); void regenerate(nodeId); }} title={t('actions.regenBranchTitle')}>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { void regenerate(nodeId); }} title={t('actions.regenBranchTitle')}>
               <GitFork size={15} strokeWidth={1.75} /> {t('actions.regenBranch')}
-            </button>
-            <button className={menuItem} onClick={() => { setMenuOpen(false); duplicateNode(nodeId); }}>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { duplicateNode(nodeId); }}>
               <Copy size={15} strokeWidth={1.75} /> {t('common.duplicate')}
-            </button>
-            <button className={menuItem} onClick={() => { setMenuOpen(false); downloadMarkdown(contextChainMarkdown(nodeId)); }} title={t('actions.exportTitle')}>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { downloadMarkdown(contextChainMarkdown(nodeId)); }} title={t('actions.exportTitle')}>
               <FileDown size={15} strokeWidth={1.75} /> {t('common.exportMd')}
-            </button>
-            <button className={menuItem} onClick={() => { setMenuOpen(false); void copyText(contextChainMarkdown(nodeId)); }} title={t('actions.copyTitle')}>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { void copyText(contextChainMarkdown(nodeId)); }} title={t('actions.copyTitle')}>
               <ClipboardCopy size={15} strokeWidth={1.75} /> {t('actions.copyMd')}
-            </button>
+            </DropdownMenuItem>
             {diverged && (
-              <button className={menuItem} onClick={() => { setMenuOpen(false); revertToSource(); }} data-revert-source>
+              <DropdownMenuItem onClick={() => { revertToSource(); }} data-revert-source>
                 <Undo2 size={15} strokeWidth={1.75} /> {t('panel.revertToSource')}
-              </button>
+              </DropdownMenuItem>
             )}
             {/* a revision leads back to the session turn it rewrote */}
             {originalExists && (
-              <button className={menuItem} onClick={() => { setMenuOpen(false); setSelectedNodeId(revisionOf!); }} data-open-original>
+              <DropdownMenuItem onClick={() => { setSelectedNodeId(revisionOf!); }} data-open-original>
                 <GitFork size={15} strokeWidth={1.75} /> {t('fact.openOriginal')}
-              </button>
+              </DropdownMenuItem>
             )}
-            <div className="border-t border-border my-1" />
+            <DropdownMenuSeparator />
             {mergedSources > 0 && (
-              <button
-                className="w-full text-left px-3 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-2"
+              <DropdownMenuItem
+                variant="destructive"
                 onClick={() => {
-                  setMenuOpen(false);
                   void confirmDialog({
                     title: t('converge.deleteSourcesTitle'),
                     message: fmt(t('converge.deleteSourcesMsg'), { n: mergedSources }),
@@ -170,17 +161,16 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
                 data-delete-merged-sources
               >
                 <Trash2 size={15} strokeWidth={1.75} /> {t('converge.deleteSources')}
-              </button>
+              </DropdownMenuItem>
             )}
-            <button
-              className="w-full text-left px-3 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-2"
-              onClick={() => { setMenuOpen(false); deleteNode(nodeId); setSelectedNodeId(null); }}
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={() => { deleteNode(nodeId); setSelectedNodeId(null); }}
             >
               <Trash2 size={15} strokeWidth={1.75} /> {t('common.delete')}
-            </button>
-          </div>
-        )}
-      </div>
+            </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {fanOutOpen && (
         <FanOutModal parentId={nodeId} initialQuestion={nodeQuestion} onClose={() => setFanOutOpen(false)} />

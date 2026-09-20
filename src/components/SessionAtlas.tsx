@@ -4,6 +4,7 @@ import { scanSessions, groupByCwd, disabledRoots, setRootDisabled, type SessionC
 import { diffAgainstWatermark, markSeen, markAllSeen, changeKeyOf, type CardChange } from '../lib/atlas/watermark';
 import { useProjects, switchProject, setProjectArchived, subscribedSessionIds } from '../store/projects';
 import { useT, t as ti, fmt } from '../i18n';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { toast } from '../lib/ui-store';
 
@@ -394,27 +395,32 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
             )}
           </div>
           {isDesktop && targets && targets.terminals.length > 0 && (
-            <label className="flex items-center gap-1.5 text-sm text-muted-foreground border border-border rounded-lg px-2.5 py-1.5 cursor-pointer" title={t('atlas.terminalChoice')}>
-              <SquareTerminal size={14} strokeWidth={1.75} />
-              <select
-                value={targets.prefs.terminal}
-                onChange={(e) => {
-                  const terminal = e.target.value;
-                  if (terminal === '__add__') {
-                    // native app picker; the chosen app becomes the selection
-                    void window.desktopSessions?.addTerminal().then(() =>
-                      window.desktopSessions?.openTargets().then(setTargets));
-                    return;
-                  }
-                  void window.desktopSessions?.setOpenPrefs({ terminal }).then((p) => setTargets((tg) => (tg ? { ...tg, prefs: p } : tg)));
-                }}
-                className="bg-transparent focus:outline-none text-sm text-foreground cursor-pointer"
-                data-atlas-terminal-select
-              >
-                {targets.terminals.map((term) => <option key={term.id} value={term.id}>{term.name}</option>)}
-                {targets.canAddCustom && <option value="__add__">{t('atlas.otherTerminal')}</option>}
-              </select>
-            </label>
+            <Select
+              items={{
+                ...Object.fromEntries(targets.terminals.map((term) => [term.id, term.name])),
+                __add__: t('atlas.otherTerminal'),
+              }}
+              value={targets.prefs.terminal}
+              onValueChange={(value) => {
+                const terminal = value as string;
+                if (terminal === '__add__') {
+                  // native app picker; the chosen app becomes the selection
+                  void window.desktopSessions?.addTerminal().then(() =>
+                    window.desktopSessions?.openTargets().then(setTargets));
+                  return;
+                }
+                void window.desktopSessions?.setOpenPrefs({ terminal }).then((p) => setTargets((tg) => (tg ? { ...tg, prefs: p } : tg)));
+              }}
+            >
+              <SelectTrigger size="sm" title={t('atlas.terminalChoice')} data-atlas-terminal-select>
+                <SquareTerminal size={14} strokeWidth={1.75} />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {targets.terminals.map((term) => <SelectItem key={term.id} value={term.id}>{term.name}</SelectItem>)}
+                {targets.canAddCustom && <SelectItem value="__add__">{t('atlas.otherTerminal')}</SelectItem>}
+              </SelectContent>
+            </Select>
           )}
           {isDesktop && (
           <button

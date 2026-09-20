@@ -5,6 +5,11 @@ import { useModels, setModelsCache, ensureAgentsFresh, type ModelInfo } from '..
 import { AGENT_PROVIDER, isAgentModel } from '../../lib/agents/agent-runtime';
 import { refreshStoredProviders, pushProviders, storedProviders } from '../../lib/runtime-providers';
 import { fmt } from '../../i18n';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+
+// same reason as CondenseDialog: "" reads as unset to the select
+const RUNTIME_DEFAULT = '__default__';
 import { useT } from '../../i18n';
 
 interface PickerProps {
@@ -41,15 +46,6 @@ export default function ModelPicker({ value, onChange, effort, onEffortChange, h
   // opens, not at launch: a CLI to start is seconds and memory the launch
   // should not pay for
   useEffect(() => { if (open) ensureAgentsFresh(); }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    window.addEventListener('mousedown', onDown);
-    return () => window.removeEventListener('mousedown', onDown);
-  }, [open]);
 
   // A successful connect pings the GLOBAL picker open: the user lands on
   // their fresh model list instead of wondering whether anything happened.
@@ -108,12 +104,17 @@ export default function ModelPicker({ value, onChange, effort, onEffortChange, h
 
   return (
     <div ref={rootRef} className="relative">
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          if (noModels) useUiStore.getState().setApiKeyModalOpen(true);
-          else { setEffortStepFor(null); setOpen((v) => !v); }
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          // with no model connected the button is a door to the key dialog,
+          // not a menu
+          if (noModels) { useUiStore.getState().setApiKeyModalOpen(true); return; }
+          setEffortStepFor(null);
+          setOpen(next);
         }}
+      >
+      <PopoverTrigger
         className={compact
           ? `text-xs px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 max-w-[200px] ${hint ? 'bg-warning/10 text-warning ring-1 ring-warning/40' : 'bg-primary/10 text-primary'}`
           : noModels
@@ -127,12 +128,11 @@ export default function ModelPicker({ value, onChange, effort, onEffortChange, h
           : <Cpu size={14} strokeWidth={1.75} className={`shrink-0 ${compact && hint ? '' : 'text-primary'}`} />}
         <span className="text-xs truncate font-medium">{noModels ? t('model.connectCta') : label}</span>
         {!noModels && <ChevronDown size={12} strokeWidth={1.75} className="shrink-0" />}
-      </button>
+      </PopoverTrigger>
 
-      {open && (
-        // Both placements drop DOWN: the compact picker lives in the panel
-        // header now (an upward menu would fly off the viewport top)
-        <div className="absolute top-9 right-0 bg-card border border-border rounded-xl shadow-xl py-1.5 w-64 max-h-[60vh] overflow-y-auto z-30">
+      {/* Both placements drop DOWN: the compact picker lives in the panel
+          header now (an upward menu would fly off the viewport top) */}
+      <PopoverContent align="end" sideOffset={6} className="w-64 max-h-[60vh] overflow-y-auto gap-0 p-0 py-1.5">
           {providers.map((provider) => (
             <div key={provider}>
               <p className="text-2xs text-muted-foreground uppercase tracking-wider font-medium px-3 pt-2 pb-1 flex items-center gap-1.5" title={provider === AGENT_PROVIDER ? t('model.agentGroupHint') : undefined}>
@@ -188,8 +188,8 @@ export default function ModelPicker({ value, onChange, effort, onEffortChange, h
             </div>
           )}
           {!nodeMode && <GlobalCapabilities />}
-        </div>
-      )}
+      </PopoverContent>
+      </Popover>
     </div>
   );
 }
@@ -210,17 +210,22 @@ function EffortStep({ model, level, onChange, onDone }: { model: ModelInfo; leve
   return (
     <div className="mx-3 mb-1.5 mt-0.5 rounded-lg bg-muted/70 border border-border px-2 py-1.5 flex items-center gap-2" title={t('model.effortHint')} data-agent-effort>
       <span className="text-2xs text-muted-foreground uppercase tracking-wider font-medium shrink-0">{t('model.effort')}</span>
-      <select
-        value={value}
-        onChange={(e) => setEffort(e.target.value)}
-        onClick={(e) => e.stopPropagation()}
-        autoFocus
-        className="flex-1 min-w-0 text-2xs text-foreground bg-card border border-border rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-ring/40"
-        data-agent-effort-select
+      <Select
+        value={value || RUNTIME_DEFAULT}
+        onValueChange={(v) => setEffort(v === RUNTIME_DEFAULT ? '' : (v as string))}
+        items={{
+          [RUNTIME_DEFAULT]: model.defaultEffort ? fmt(t('model.effortDefaultKnown'), { level: model.defaultEffort }) : t('model.effortDefault'),
+          ...Object.fromEntries(levels.map((l) => [l, l])),
+        }}
       >
-        <option value="">{model.defaultEffort ? fmt(t('model.effortDefaultKnown'), { level: model.defaultEffort }) : t('model.effortDefault')}</option>
-        {levels.map((l) => <option key={l} value={l}>{l}</option>)}
-      </select>
+        <SelectTrigger size="sm" className="flex-1 min-w-0" data-agent-effort-select onClick={(e) => e.stopPropagation()}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={RUNTIME_DEFAULT}>{model.defaultEffort ? fmt(t('model.effortDefaultKnown'), { level: model.defaultEffort }) : t('model.effortDefault')}</SelectItem>
+          {levels.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+        </SelectContent>
+      </Select>
       <button onClick={(e) => { e.stopPropagation(); onDone(); }} className="text-2xs px-2 py-1 rounded-md bg-primary text-white hover:bg-primary/90 transition-colors shrink-0" data-agent-effort-ok>{t('model.effortConfirm')}</button>
     </div>
   );
@@ -288,18 +293,26 @@ function GlobalCapabilities() {
         <div className="flex-1 min-w-0">
           <p className="text-2xs text-muted-foreground font-medium">{t('caps.webSearch')}</p>
           {caps?.webSearch ? (
-            <select
+            <Select
               value={searchEnginePref}
-              onChange={(e) => setSearchEnginePref(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-              title={t('caps.enginePickTitle')}
-              className="mt-1 w-full text-2xs text-muted-foreground bg-muted border border-border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring/40"
+              onValueChange={(v) => setSearchEnginePref(v as string)}
+              items={{
+                server: fmt(t('caps.engineServer'), { engine: caps.searchEngine }),
+                search_std: t('caps.engineStd'),
+                search_pro: t('caps.enginePro'),
+                anysearch: t('caps.engineAnysearch'),
+              }}
             >
-              <option value="server">{fmt(t('caps.engineServer'), { engine: caps.searchEngine })}</option>
-              <option value="search_std">{t('caps.engineStd')}</option>
-              <option value="search_pro">{t('caps.enginePro')}</option>
-              {(caps.anysearch || anysearchKey) && <option value="anysearch">{t('caps.engineAnysearch')}</option>}
-            </select>
+              <SelectTrigger size="sm" className="mt-1 w-full" title={t('caps.enginePickTitle')} onClick={(e) => e.stopPropagation()}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="server">{fmt(t('caps.engineServer'), { engine: caps.searchEngine })}</SelectItem>
+                <SelectItem value="search_std">{t('caps.engineStd')}</SelectItem>
+                <SelectItem value="search_pro">{t('caps.enginePro')}</SelectItem>
+                {(caps.anysearch || anysearchKey) && <SelectItem value="anysearch">{t('caps.engineAnysearch')}</SelectItem>}
+              </SelectContent>
+            </Select>
           ) : (
             <p className="text-2xs text-muted-foreground leading-relaxed mt-0.5">{t('caps.webSearchOff')}</p>
           )}
@@ -340,18 +353,24 @@ function GlobalCapabilities() {
         <div className="flex-1 min-w-0">
           <p className="text-2xs text-muted-foreground font-medium">{t('caps.vision')}</p>
           {hasVision ? (
-            <select
+            <Select
               value={visionModels.some((m) => m.id === visionModelPref) ? visionModelPref : 'auto'}
-              onChange={(e) => setVisionModelPref(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-              title={t('caps.visionPickTitle')}
-              className="mt-1 w-full text-2xs text-muted-foreground bg-muted border border-border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring/40"
+              onValueChange={(v) => setVisionModelPref(v as string)}
+              items={{
+                auto: t('caps.visionAuto'),
+                ...Object.fromEntries(visionModels.map((m) => [m.id, m.id.split('/').pop()!])),
+              }}
             >
-              <option value="auto">{t('caps.visionAuto')}</option>
-              {visionModels.map((m) => (
-                <option key={m.id} value={m.id}>{m.id.split('/').pop()}</option>
-              ))}
-            </select>
+              <SelectTrigger size="sm" className="mt-1 w-full" title={t('caps.visionPickTitle')} onClick={(e) => e.stopPropagation()}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">{t('caps.visionAuto')}</SelectItem>
+                {visionModels.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>{m.id.split('/').pop()}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           ) : (
             <p className="text-2xs text-muted-foreground leading-relaxed mt-0.5">{t('caps.visionOff')}</p>
           )}

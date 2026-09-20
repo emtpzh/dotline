@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { FolderOpen, Check, ChevronDown, ShieldCheck, ShieldOff, X } from 'lucide-react';
 import { useT } from '../../i18n';
+import { Popover, PopoverContent } from '../ui/popover';
 import { useUiStore } from '../../lib/ui-store';
 import { useProjects, setProjectAgentCwd } from '../../store/projects';
 import { useStore } from '../../store';
@@ -38,15 +39,6 @@ export default function AgentCwdChip() {
     return () => { alive = false; };
   }, [visible, runtime, activeId, projects, nodeCount]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => { if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-  }, [open]);
-
   if (!visible || !choice) return null;
   // what "no choice" means on this runtime: the mirrored project, else the
   // canvas's workspace, or the harness's current session / its own default
@@ -83,8 +75,8 @@ export default function AgentCwdChip() {
         <span className="truncate">{chipLabel}</span>
         <ChevronDown size={12} strokeWidth={1.75} className="text-muted-foreground shrink-0" />
       </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-[320px] bg-card border border-border rounded-xl shadow-lg py-1.5 z-50 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverContent anchor={rootRef} align="end" sideOffset={6} className="w-[320px] gap-0 p-0 py-1.5" onClick={(e) => e.stopPropagation()}>
           <p className="text-2xs text-muted-foreground uppercase tracking-wider font-medium px-3 pt-1">{t('agent.cwd')}</p>
           <p className="text-2xs text-muted-foreground px-3 pb-1.5" data-agent-cwd-scope>{t('agent.cwdScope')}</p>
           <button onClick={() => void choose(undefined)} className="w-full text-left px-3 py-2 text-xs hover:bg-accent flex items-center gap-2">
@@ -154,8 +146,8 @@ export default function AgentCwdChip() {
               )}
             </>
           )}
-        </div>
-      )}
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

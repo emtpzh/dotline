@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Crosshair, Stethoscope, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { runDiagnostics, type Finding } from '../lib/diagnostics';
 import { useT, fmt } from '../i18n';
+import { Popover, PopoverContent } from './ui/popover';
 
 // The whole-graph mirror: on-demand topology check-up (never live linting).
 // Tier 1 = deterministic problems with one-click fixes (delete the edge);
@@ -36,15 +37,6 @@ export default function DiagnosticsPanel({ onLocate, openPing = 0, showTrigger =
 
   // external open signal (adjust-during-render, same pattern as ModelPicker)
   const [pingSeen, setPingSeen] = useState(openPing);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    window.addEventListener('mousedown', handler);
-    return () => window.removeEventListener('mousedown', handler);
-  }, [open]);
 
   const run = () => {
     const { nodes, edges } = useStore.getState();
@@ -107,8 +99,8 @@ export default function DiagnosticsPanel({ onLocate, openPing = 0, showTrigger =
           <Stethoscope size={15} strokeWidth={1.75} />
         </button>
       )}
-      {open && (
-        <div className="absolute right-0 top-full mt-1.5 bg-card border border-border rounded-xl shadow-lg py-1 w-[340px] max-h-[420px] overflow-y-auto z-30 animate-fade-in">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverContent anchor={ref} align="end" sideOffset={6} className="w-[340px] max-h-[420px] overflow-y-auto gap-0 p-0 py-1">
           <div className="px-3 py-1.5 text-2xs font-semibold text-muted-foreground border-b border-border">
             {t('diag.title')}
             <span className="text-muted-foreground font-normal ml-2">
@@ -130,8 +122,8 @@ export default function DiagnosticsPanel({ onLocate, openPing = 0, showTrigger =
               {tier2.map(row)}
             </>
           )}
-        </div>
-      )}
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

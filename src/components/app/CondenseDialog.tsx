@@ -6,6 +6,11 @@ import { useStore } from '../../store';
 import { useModels } from '../../lib/use-models';
 import { findCandidateSegments, startCondenseRun, cancelCondenseRun, type CondenseSegment } from '../../lib/condense';
 import { useI18n, useT, fmt } from '../../i18n';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+
+// an empty value means "unset" to the select, so the follow-the-global
+// option carries a value of its own
+const FOLLOW_GLOBAL = '__global__';
 
 // Condense v4b: a FLOATING window on the canvas's left side (the focus
 // panel owns the right — the two never fight), and the build itself is a
@@ -114,11 +119,22 @@ export default function CondenseDialog({ onFocusSegment }: { onFocusSegment?: (n
           </p>
           <div className="flex items-center gap-2 mb-3">
             <label className="text-2xs text-muted-foreground shrink-0">{t('condense.modelLabel')}</label>
-            <select value={model} onChange={(e) => setModel(e.target.value)} data-condense-model
-              className="text-xs bg-muted text-foreground rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring/40 max-w-[220px] truncate">
-              <option value="">{fmt(t('condense.modelGlobal'), { model: globalModel || 'auto' })}</option>
-              {models.map((m) => <option key={m.id} value={m.id}>{m.id}</option>)}
-            </select>
+            <Select
+              value={model || FOLLOW_GLOBAL}
+              onValueChange={(v) => setModel(v === FOLLOW_GLOBAL ? '' : (v as string))}
+              items={{
+                [FOLLOW_GLOBAL]: fmt(t('condense.modelGlobal'), { model: globalModel || 'auto' }),
+                ...Object.fromEntries(models.map((m) => [m.id, m.id])),
+              }}
+            >
+              <SelectTrigger size="sm" className="max-w-[220px]" data-condense-model>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={FOLLOW_GLOBAL}>{fmt(t('condense.modelGlobal'), { model: globalModel || 'auto' })}</SelectItem>
+                {models.map((m) => <SelectItem key={m.id} value={m.id}>{m.id}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
           {segments.length === 0 ? (
             <p className="text-xs text-muted-foreground py-4">{t('condense.segNothing')}</p>

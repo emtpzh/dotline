@@ -35,6 +35,7 @@
     "ai": "^7.0.15",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
     "cn": "^0.3.0",
     "cors": "^2.8.6",
     "defuddle": "^0.19.2",
