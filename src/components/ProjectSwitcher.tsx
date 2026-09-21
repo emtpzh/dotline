@@ -13,6 +13,7 @@ import { isImeComposing } from '../utils';
 import { useT, t as ti, fmt } from '../i18n';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { Command, CommandGroup, CommandItem, CommandList, CommandSeparator, CommandShortcut } from './ui/command';
 
 function relativeTime(ts: number): string {
   const diff = Date.now() - ts;
@@ -40,6 +41,9 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
   const [renameValue, setRenameValue] = useState('');
   const importFileRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  // the menu opens focused on the LIST, not on the first row's hover action
+  // (Base UI hands focus to the first tabbable element otherwise)
+  const listRef = useRef<HTMLDivElement>(null);
 
   const active = projects.find((p) => p.id === activeId);
   // the dropdown is a time machine, not a library: recent few only,
@@ -114,128 +118,147 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
         })()}
       </div>
 
-      <PopoverContent align="start" sideOffset={6} className="w-[280px] gap-0 p-0 py-1.5">
-          <div className="max-h-[320px] overflow-y-auto">
-            {sorted.map((p) => (
-              <div
-                key={p.id}
-                className={`group flex items-center gap-1 px-3 py-2 hover:bg-accent cursor-pointer transition-colors ${p.id === activeId ? 'bg-primary/5' : ''}`}
-                onClick={() => { if (renamingId !== p.id && p.id !== activeId) void doSwitch(p.id); }}
-              >
-                {renamingId === p.id ? (
-                  <Input
-                    autoFocus
-                    value={renameValue}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !isImeComposing(e) && renameValue.trim()) {
-                        void renameProject(p.id, renameValue.trim());
-                        setRenamingId(null);
-                      }
-                      if (e.key === 'Escape') setRenamingId(null);
-                    }}
-                    onBlur={() => setRenamingId(null)}
-                    className="flex-1 border-primary/40"
-                  />
+      <PopoverContent align="start" sideOffset={6} className="w-[300px] gap-0 p-0" initialFocus={listRef}>
+        {/* a menu, not a hand-built list: cmdk owns the row metrics,
+            hover/keyboard highlight and the tick on the open canvas */}
+        <Command ref={listRef} shouldFilter={false} className="bg-transparent">
+          <CommandList className="max-h-[320px]">
+            <CommandGroup>
+              {sorted.map((p) => (
+                // rename takes the whole row: an input inside a menu item
+                // would fight the item for the pointer and the keys
+                renamingId === p.id ? (
+                  <div key={p.id} className="px-1 py-1">
+                    <Input
+                      autoFocus
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        // the list listens for Enter/arrows; while renaming, the field owns them
+                        e.stopPropagation();
+                        if (e.key === 'Enter' && !isImeComposing(e) && renameValue.trim()) {
+                          void renameProject(p.id, renameValue.trim());
+                          setRenamingId(null);
+                        }
+                        if (e.key === 'Escape') setRenamingId(null);
+                      }}
+                      onBlur={() => setRenamingId(null)}
+                      className="border-primary/40"
+                    />
+                  </div>
                 ) : (
-                  <>
-                    <div className="flex-1 min-w-0">
-                      {/* the name owns its line; provenance rides below with the time */}
-                      <div className={`text-xs truncate ${p.id === activeId ? 'text-primary font-medium' : 'text-foreground'}`}>
-                        {p.name}
-                      </div>
-                      <div className="text-2xs text-muted-foreground flex items-center gap-1.5">
-                        <span>{relativeTime(p.updatedAt)}</span>
-                        {!!p.sourceSession?.sessionId && (
-                          <span className="font-mono border border-border rounded px-1 py-px" data-mirror-mark>
-                            {p.sourceSession.runner}
-                          </span>
-                        )}
-                      </div>
+                  // the row actions ride ON the item, not inside it — nested
+                  // buttons would swallow the item's own click target
+                  <div key={p.id} className="group/row relative">
+                    <CommandItem
+                      value={p.id}
+                      onSelect={() => { if (p.id !== activeId) void doSwitch(p.id); }}
+                      data-checked={p.id === activeId}
+                      className="pr-24"
+                    >
+                      <span className="flex-1 min-w-0">
+                        {/* the name owns its line; provenance rides below with the time */}
+                        <span className={`block truncate text-xs ${p.id === activeId ? 'text-primary font-medium' : 'text-foreground'}`}>
+                          {p.name}
+                        </span>
+                        <span className="flex items-center gap-1.5 text-2xs text-muted-foreground">
+                          <span>{relativeTime(p.updatedAt)}</span>
+                          {!!p.sourceSession?.sessionId && (
+                            <span className="truncate rounded border border-border px-1 font-mono" data-mirror-mark>
+                              {p.sourceSession.runner}
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                    </CommandItem>
+                    <div className="absolute inset-y-0 right-2 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
+                      <Button variant="ghost" size="icon-xs" tabIndex={-1}
+                        title={t('switcher.rename')}
+                        className="text-muted-foreground hover:text-foreground"
+                        onClick={() => { setRenamingId(p.id); setRenameValue(p.name); }}
+                      >
+                        <Pencil strokeWidth={1.75} />
+                      </Button>
+                      <Button variant="ghost" size="icon-xs" tabIndex={-1}
+                        title={t('common.delete')}
+                        className="text-muted-foreground hover:text-destructive/90"
+                        onClick={() => void confirmDelete(p)}
+                      >
+                        <Trash2 strokeWidth={1.75} />
+                      </Button>
+                      <Button variant="ghost" size="icon-xs" tabIndex={-1}
+                        title={t('switcher.archive')}
+                        className="text-muted-foreground hover:text-warning/90"
+                        onClick={() => void setProjectArchived(p.id, true).then(onSwitched)}
+                        data-archive-canvas
+                      >
+                        <Archive strokeWidth={1.75} />
+                      </Button>
                     </div>
-                    <Button variant="ghost"
-                      title={t('switcher.rename')}
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0"
-                      onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenameValue(p.name); }}
-                    >
-                      <Pencil strokeWidth={1.75} />
-                    </Button>
-                    <Button variant="ghost"
-                      title={t('common.delete')}
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive/90 shrink-0"
-                      onClick={(e) => { e.stopPropagation(); void confirmDelete(p); }}
-                    >
-                      <Trash2 strokeWidth={1.75} />
-                    </Button>
-                    <Button variant="ghost"
-                      title={t('switcher.archive')}
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-warning/90 shrink-0"
-                      onClick={(e) => { e.stopPropagation(); void setProjectArchived(p.id, true).then(onSwitched); }}
-                      data-archive-canvas
-                    >
-                      <Archive strokeWidth={1.75} />
-                    </Button>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
+                  </div>
+                )
+              ))}
+            </CommandGroup>
 
-          <div className="border-t border-border mt-1 pt-1">
-            <Button variant="ghost" size="sm"
-              onClick={() => { setOpen(false); void createProject().then(onSwitched); }}
-              className="w-full text-left text-xs text-primary hover:bg-accent"
-            >
-              <Plus strokeWidth={1.75} /> {t('switcher.newCanvas')}
-            </Button>
-            <Button variant="ghost" size="sm"
-              onClick={() => importFileRef.current?.click()}
-              className="w-full text-left text-xs text-muted-foreground hover:bg-accent"
-            >
-              <Upload strokeWidth={1.75} /> {t('switcher.importBackup')}
-            </Button>
-            <Button variant="ghost" size="sm"
-              onClick={() => { setOpen(false); setAtlasOpen(true); }}
-              className="w-full text-left text-xs text-muted-foreground hover:bg-accent"
-              data-open-atlas
-            >
-              <MapIcon strokeWidth={1.75} /> {t('switcher.allCanvases')}
-            </Button>
-            {window.desktop && (
-              <Button variant="ghost" size="sm"
-                onClick={() => { setOpen(false); void window.desktop!.checkForUpdates(); }}
-                className="w-full text-left text-xs text-muted-foreground hover:bg-accent"
-                data-check-updates
+            <CommandSeparator />
+
+            <CommandGroup>
+              <CommandItem
+                onSelect={() => { setOpen(false); void createProject().then(onSwitched); }}
+                className="text-primary"
               >
-                <RefreshCw strokeWidth={1.75} /> {t('update.checkMenu')}
-                {/* the one place that answers "which version am I on" at a glance */}
-                <span className="ml-auto text-2xs text-muted-foreground">
-                  v{new URLSearchParams(window.location.search).get('dv')}
-                </span>
-              </Button>
-            )}
-            <input
-              ref={importFileRef}
-              type="file"
-              accept=".json,.jsonl,application/json"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) {
-                  // Every failure path must surface — a silently swallowed
-                  // rejection here reads as "the import does nothing".
-                  void parseImportFile(f).then((r) => {
-                    if (r.kind === 'own' && r.ok) { setOpen(false); onSwitched(); }
-                    else if (r.kind === 'chat') { setOpen(false); setChatImport(r.conversations); }
-                  }).catch((err) => {
-                    toast('error', fmt(ti('toast.importFailedGeneric'), { msg: err instanceof Error ? err.message : String(err) }));
-                  });
-                }
-                e.target.value = '';
-              }}
-            />
-          </div>
+                <Plus strokeWidth={1.75} /> {t('switcher.newCanvas')}
+              </CommandItem>
+              <CommandItem
+                onSelect={() => importFileRef.current?.click()}
+                className="text-muted-foreground"
+              >
+                <Upload strokeWidth={1.75} /> {t('switcher.importBackup')}
+              </CommandItem>
+              <CommandItem
+                onSelect={() => { setOpen(false); setAtlasOpen(true); }}
+                className="text-muted-foreground"
+                data-open-atlas
+              >
+                <MapIcon strokeWidth={1.75} /> {t('switcher.allCanvases')}
+              </CommandItem>
+              {window.desktop && (
+                <CommandItem
+                  onSelect={() => { setOpen(false); void window.desktop!.checkForUpdates(); }}
+                  className="text-muted-foreground"
+                  data-check-updates
+                >
+                  <RefreshCw strokeWidth={1.75} /> {t('update.checkMenu')}
+                  {/* the one place that answers "which version am I on" at a glance */}
+                  <CommandShortcut className="tracking-normal">
+                    v{new URLSearchParams(window.location.search).get('dv')}
+                  </CommandShortcut>
+                </CommandItem>
+              )}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+
+        <input
+          ref={importFileRef}
+          type="file"
+          accept=".json,.jsonl,application/json"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) {
+              // Every failure path must surface — a silently swallowed
+              // rejection here reads as "the import does nothing".
+              void parseImportFile(f).then((r) => {
+                if (r.kind === 'own' && r.ok) { setOpen(false); onSwitched(); }
+                else if (r.kind === 'chat') { setOpen(false); setChatImport(r.conversations); }
+              }).catch((err) => {
+                toast('error', fmt(ti('toast.importFailedGeneric'), { msg: err instanceof Error ? err.message : String(err) }));
+              });
+            }
+            e.target.value = '';
+          }}
+        />
       </PopoverContent>
       </Popover>
       {chatImport && (

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { FolderOpen, Check, ChevronDown, ShieldCheck, ShieldOff, X } from 'lucide-react';
+import { FolderOpen, ChevronDown, ShieldCheck, ShieldOff, X } from 'lucide-react';
 import { useT } from '../../i18n';
 import { Popover, PopoverContent } from '../ui/popover';
 import { useUiStore } from '../../lib/ui-store';
@@ -7,7 +7,8 @@ import { useProjects, setProjectAgentCwd } from '../../store/projects';
 import { useStore } from '../../store';
 import { runtimeOf, AGENT_RUNTIMES, resolveAgentCwd, mirroredCwd, setGuardMode, allowLocation, type CwdChoice } from '../../lib/agents/agent-runtime';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '../ui/input-group';
+import { Command, CommandGroup, CommandItem, CommandList, CommandSeparator } from '../ui/command';
 
 // Where the agent works, on the toolbar, whenever an agent model is the
 // pick: the chosen folder, the mirrored project, or the canvas's own
@@ -29,6 +30,8 @@ export default function AgentCwdChip() {
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
+  // focus lands on the list, not on whatever button happens to be tabbable first
+  const listRef = useRef<HTMLDivElement>(null);
   const runtime = runtimeOf(selectedModel);
   const visible = !!window.desktopAgents && !!runtime;
   const caps = runtime ? AGENT_RUNTIMES[runtime].caps : null;
@@ -67,87 +70,140 @@ export default function AgentCwdChip() {
 
   return (
     <div ref={rootRef} className="relative">
-      <Button variant="outline" size="sm"
+      {/* chrome at the default size, like the switcher and the picker it
+          stands between: one row of canvas controls, one height */}
+      <Button variant="chrome"
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        className="backdrop-blur max-w-[220px]"
+        // this one opens its popover by anchor, not as a PopoverTrigger, so it
+        // states the open state itself — chrome keys its accent off it
+        aria-expanded={open}
+        className="max-w-[220px]"
         title={`${t('agent.cwd')} · ${choice.cwd || t('agent.cwdSessionHint')}`}
         data-agent-cwd={choice.kind}
       >
-        <FolderOpen strokeWidth={1.75} className="text-muted-foreground shrink-0" />
-        <span className="truncate">{chipLabel}</span>
-        <ChevronDown strokeWidth={1.75} className="text-muted-foreground shrink-0" />
+        <FolderOpen strokeWidth={1.75} className="shrink-0" />
+        <span className="text-xs truncate font-medium">{chipLabel}</span>
+        <ChevronDown strokeWidth={1.75} className="shrink-0 opacity-70" />
       </Button>
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverContent anchor={rootRef} align="end" sideOffset={6} className="w-[320px] gap-0 p-0 py-1.5" onClick={(e) => e.stopPropagation()}>
-          <p className="text-2xs text-muted-foreground uppercase tracking-wider font-medium px-3 pt-1">{t('agent.cwd')}</p>
-          <p className="text-2xs text-muted-foreground px-3 pb-1.5" data-agent-cwd-scope>{t('agent.cwdScope')}</p>
-          <Button variant="ghost" size="sm" onClick={() => void choose(undefined)} className="w-full text-left text-xs hover:bg-accent">
-            <span className="flex-1 min-w-0">
-              <span className="block text-foreground">{defaultLabel}</span>
-              <span className="block text-2xs text-muted-foreground truncate">{defaultHint}</span>
-            </span>
-            {!meta?.agentCwd && <Check strokeWidth={2} className="shrink-0 text-primary" />}
-          </Button>
-          {meta?.agentCwd && (
-            <Button variant="ghost" size="sm" onClick={() => void choose(meta.agentCwd)} className="w-full text-left text-xs hover:bg-accent">
-              <span className="flex-1 min-w-0"><span className="block text-foreground">{tail(meta.agentCwd)}</span><span className="block text-2xs text-muted-foreground truncate">{meta.agentCwd}</span></span>
-              <Check strokeWidth={2} className="shrink-0 text-primary" />
-            </Button>
-          )}
-          {recent.length > 0 && <p className="text-2xs text-muted-foreground uppercase tracking-wider font-medium px-3 pt-2 pb-1">{t('agent.cwdRecent')}</p>}
-          {recent.map((c) => (
-            <Button variant="ghost" size="sm" key={c} onClick={() => void choose(c)} className="w-full text-left text-xs hover:bg-accent">
-              <span className="flex-1 min-w-0"><span className="block text-foreground">{tail(c)}</span><span className="block text-2xs text-muted-foreground truncate">{c}</span></span>
-            </Button>
-          ))}
-          <div className="border-t border-border/60 my-1" />
-          {nativePicker ? (
-            <Button variant="ghost" size="sm" onClick={() => void pick()} className="w-full text-left text-xs text-foreground hover:bg-accent" data-agent-cwd-pick>
-              <FolderOpen strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('agent.cwdPick')}
-            </Button>
-          ) : (
-            <div className="px-3 py-2 flex items-center gap-2">
-              <Input
-                value={typed}
-                onChange={(e) => setTyped(e.target.value)}
-                onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') void submitTyped(); }}
-                placeholder={t('agent.cwdType')}
-                className="flex-1 min-w-0 font-mono focus:border-primary/60"
-                data-agent-cwd-input
-              />
-              <Button variant="ghost" size="sm" onClick={() => void submitTyped()} className="text-xs text-primary hover:underline shrink-0">{t('agent.cwdUse')}</Button>
-            </div>
-          )}
-          {/* the boundary guard: only a runtime that reads the guard file */}
-          {caps?.guard && (
-            <>
-              <div className="border-t border-border/60 my-1" />
-              <p className="text-2xs text-muted-foreground uppercase tracking-wider font-medium px-3 pt-1 pb-1">{t('agent.guard')}</p>
-              <Button variant="ghost" size="sm" onClick={() => { void setGuardMode('ask'); setOpen(false); }} className="w-full text-left text-xs hover:bg-accent" data-agent-guard="ask">
-                <ShieldCheck strokeWidth={1.75} className="text-muted-foreground shrink-0" />
-                <span className="flex-1 min-w-0"><span className="block text-foreground">{t('agent.guardAsk')}</span><span className="block text-2xs text-muted-foreground">{t('agent.guardAskHint')}</span></span>
-                {(meta?.agentGuard?.mode ?? 'ask') === 'ask' && <Check strokeWidth={2} className="shrink-0 text-primary" />}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => { void setGuardMode('allow'); setOpen(false); }} className="w-full text-left text-xs hover:bg-accent" data-agent-guard="allow">
-                <ShieldOff strokeWidth={1.75} className="text-muted-foreground shrink-0" />
-                <span className="flex-1 min-w-0"><span className="block text-foreground">{t('agent.guardAllow')}</span><span className="block text-2xs text-muted-foreground">{t('agent.guardAllowHint')}</span></span>
-                {meta?.agentGuard?.mode === 'allow' && <Check strokeWidth={2} className="shrink-0 text-primary" />}
-              </Button>
-              {(meta?.agentGuard?.allow?.length ?? 0) > 0 && (
-                <>
-                  <p className="text-2xs text-muted-foreground px-3 pt-2 pb-1">{t('agent.guardAllowed')}</p>
-                  {meta!.agentGuard!.allow.map((a) => (
-                    <div key={a} className="px-3 py-1 text-xs flex items-center gap-2 min-w-0" data-agent-guard-allowed={a}>
-                      <span className="flex-1 min-w-0 truncate text-muted-foreground font-mono" title={a}>{a}</span>
-                      <Button variant="ghost" onClick={() => void allowLocation(a, true)} className="text-muted-foreground hover:text-destructive/90 shrink-0" title={t('agent.guardRemove')}>
-                        <X strokeWidth={2} />
-                      </Button>
-                    </div>
+        <PopoverContent anchor={rootRef} align="end" sideOffset={6} className="w-[320px] gap-0 p-0" initialFocus={listRef} onClick={(e) => e.stopPropagation()}>
+          {/* a menu of folders: cmdk owns the row metrics and the tick, so a
+              two-line choice is a row that grows, not text spilling out of a button */}
+          <Command ref={listRef} shouldFilter={false} className="bg-transparent">
+            <CommandList className="max-h-[60vh]">
+              <CommandGroup heading={<span className="uppercase tracking-wider">{t('agent.cwd')}</span>}>
+                <p className="px-2 pb-1.5 text-2xs text-muted-foreground" data-agent-cwd-scope>{t('agent.cwdScope')}</p>
+                <CommandItem value="default" onSelect={() => void choose(undefined)} data-checked={!meta?.agentCwd}>
+                  <span className="flex-1 min-w-0">
+                    <span className="block truncate text-xs text-foreground">{defaultLabel}</span>
+                    <span className="block truncate text-2xs text-muted-foreground">{defaultHint}</span>
+                  </span>
+                </CommandItem>
+                {meta?.agentCwd && (
+                  <CommandItem value="current" onSelect={() => void choose(meta.agentCwd)} data-checked>
+                    <span className="flex-1 min-w-0">
+                      <span className="block truncate text-xs text-foreground">{tail(meta.agentCwd)}</span>
+                      <span className="block truncate text-2xs text-muted-foreground">{meta.agentCwd}</span>
+                    </span>
+                  </CommandItem>
+                )}
+              </CommandGroup>
+              {recent.length > 0 && (
+                <CommandGroup heading={<span className="uppercase tracking-wider">{t('agent.cwdRecent')}</span>}>
+                  {recent.map((c) => (
+                    <CommandItem key={c} value={c} onSelect={() => void choose(c)}>
+                      <span className="flex-1 min-w-0">
+                        <span className="block truncate text-xs text-foreground">{tail(c)}</span>
+                        <span className="block truncate text-2xs text-muted-foreground">{c}</span>
+                      </span>
+                    </CommandItem>
                   ))}
+                </CommandGroup>
+              )}
+              {nativePicker && (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup>
+                    <CommandItem value="pick" onSelect={() => void pick()} data-agent-cwd-pick>
+                      <FolderOpen strokeWidth={1.75} className="text-muted-foreground" />
+                      <span className="flex-1 truncate text-xs text-foreground">{t('agent.cwdPick')}</span>
+                    </CommandItem>
+                  </CommandGroup>
                 </>
               )}
-            </>
-          )}
+              {/* the boundary guard: only a runtime that reads the guard file */}
+              {caps?.guard && (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup heading={<span className="uppercase tracking-wider">{t('agent.guard')}</span>}>
+                    <CommandItem
+                      value="guard-ask"
+                      onSelect={() => { void setGuardMode('ask'); setOpen(false); }}
+                      data-checked={(meta?.agentGuard?.mode ?? 'ask') === 'ask'}
+                      data-agent-guard="ask"
+                    >
+                      <ShieldCheck strokeWidth={1.75} className="text-muted-foreground" />
+                      <span className="flex-1 min-w-0">
+                        <span className="block truncate text-xs text-foreground">{t('agent.guardAsk')}</span>
+                        <span className="block text-2xs text-muted-foreground">{t('agent.guardAskHint')}</span>
+                      </span>
+                    </CommandItem>
+                    <CommandItem
+                      value="guard-allow"
+                      onSelect={() => { void setGuardMode('allow'); setOpen(false); }}
+                      data-checked={meta?.agentGuard?.mode === 'allow'}
+                      data-agent-guard="allow"
+                    >
+                      <ShieldOff strokeWidth={1.75} className="text-muted-foreground" />
+                      <span className="flex-1 min-w-0">
+                        <span className="block truncate text-xs text-foreground">{t('agent.guardAllow')}</span>
+                        <span className="block text-2xs text-muted-foreground">{t('agent.guardAllowHint')}</span>
+                      </span>
+                    </CommandItem>
+                    {(meta?.agentGuard?.allow?.length ?? 0) > 0 && (
+                      <>
+                        <p className="px-2 pt-2 pb-1 text-2xs text-muted-foreground">{t('agent.guardAllowed')}</p>
+                        {meta!.agentGuard!.allow.map((a) => (
+                          // a standing exception is a record with an undo, not a choice to re-pick
+                          <div key={a} className="flex min-w-0 items-center gap-1 px-2 py-1" data-agent-guard-allowed={a}>
+                            <span className="min-w-0 flex-1 truncate font-mono text-2xs text-muted-foreground" title={a}>{a}</span>
+                            <Button variant="ghost" size="icon-xs" onClick={() => void allowLocation(a, true)} className="text-muted-foreground hover:text-destructive/90" title={t('agent.guardRemove')}>
+                              <X strokeWidth={2} />
+                            </Button>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </CommandGroup>
+                </>
+              )}
+            </CommandList>
+            {/* no folder dialog on this runtime: the path is typed. The field
+                sits outside the list so the list's keys stay the list's, and it
+                is one control — the field and its confirm share a border. */}
+            {!nativePicker && (
+              <div className="border-t border-border/60 p-1">
+                <InputGroup>
+                  <InputGroupInput
+                    value={typed}
+                    onChange={(e) => setTyped(e.target.value)}
+                    onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') void submitTyped(); }}
+                    placeholder={t('agent.cwdType')}
+                    // a path reads in mono; the prompt that asks for one is prose
+                    className="font-mono text-xs! placeholder:font-sans"
+                    data-agent-cwd-input
+                  />
+                  <InputGroupAddon align="inline-end">
+                    {/* only an absolute path is a directory — say so by staying dim
+                        rather than swallowing the click */}
+                    <InputGroupButton onClick={() => void submitTyped()} disabled={!typed.trim().startsWith('/')} className="text-primary">
+                      {t('agent.cwdUse')}
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                </InputGroup>
+              </div>
+            )}
+          </Command>
         </PopoverContent>
       </Popover>
     </div>
