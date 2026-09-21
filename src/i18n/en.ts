@@ -134,6 +134,12 @@ export const en = {
   'canvas.redo': 'Redo (Cmd+Shift+Z)',
   'canvas.deleteEdge': 'Delete edge',
   'canvas.deleteEdgeTitle': 'Delete edge (or press Delete)',
+  // canvas controls, bottom-left
+  'controls.zoomIn': 'Zoom in',
+  'controls.zoomOut': 'Zoom out',
+  'controls.fitView': 'Fit view',
+  'controls.lock': 'Lock the canvas (no dragging or connecting)',
+  'controls.unlock': 'Unlock the canvas',
 
   // Model interface manager (the .env-free path in)
   'provider.title': 'Model interfaces',

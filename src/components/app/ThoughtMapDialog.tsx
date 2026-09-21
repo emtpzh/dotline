@@ -14,6 +14,7 @@ import { llmCall } from '../../lib/api';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { Input } from '../ui/input';
+import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
 
 // The thought-map console, two rooms with one door between them. Room one
 // edits the PICTURE: knobs left, live artifact centre, a feed-size
@@ -375,14 +376,20 @@ export default function ThoughtMapDialog() {
     cur: string,
     set: (v: string) => void,
   ) => (
-    <div className="flex rounded-lg border border-border overflow-hidden">
-      {entries.map(([v, label], i) => (
-        <Button variant="ghost" key={v} onClick={() => set(v)}
-          className={`flex-1 px-2 py-1.5 text-2xs whitespace-nowrap transition-colors ${i > 0 ? 'border-l border-border' : ''} ${cur === v ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-accent'}`}>
+    <ToggleGroup
+      variant="outline"
+      size="sm"
+      spacing={0}
+      className="w-full"
+      value={[cur]}
+      onValueChange={(v) => { const next = v[0]; if (next) set(next); }}
+    >
+      {entries.map(([v, label]) => (
+        <ToggleGroupItem key={v} value={v} className="flex-1 text-2xs whitespace-nowrap">
           {label}
-        </Button>
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   );
 
   return (
@@ -504,14 +511,20 @@ export default function ThoughtMapDialog() {
                 <div className="text-2xs text-muted-foreground mb-1 flex items-center justify-between">
                   <span>{t('tmap.caption')}</span>
                   <span className="flex items-center gap-2">
-                    <span className="flex rounded-md border border-border overflow-hidden" data-tmap-caplang>
-                      {(['zh', 'en'] as const).map((v, i) => (
-                        <Button variant="ghost" key={v} onClick={() => { capTouched.current = false; setCapLang(v); }}
-                          className={`px-2 py-0.5 text-2xs transition-colors ${i > 0 ? 'border-l border-border' : ''} ${capLang === v ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-accent'}`}>
+                    <ToggleGroup
+                      variant="outline"
+                      size="sm"
+                      spacing={0}
+                      value={[capLang]}
+                      onValueChange={(v) => { const next = v[0]; if (next === 'zh' || next === 'en') { capTouched.current = false; setCapLang(next); } }}
+                      data-tmap-caplang
+                    >
+                      {(['zh', 'en'] as const).map((v) => (
+                        <ToggleGroupItem key={v} value={v} className="text-2xs">
                           {v === 'zh' ? '中文' : 'EN'}
-                        </Button>
+                        </ToggleGroupItem>
                       ))}
-                    </span>
+                    </ToggleGroup>
                     <Button variant="ghost" size="xs" onClick={() => void draft()} disabled={drafting}
                       className="text-2xs text-primary hover:bg-primary/10">
                       {drafting ? <Loader2 className="animate-spin" /> : <Sparkles strokeWidth={1.75} />}

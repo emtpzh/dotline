@@ -9,6 +9,11 @@ const toggleVariants = cva(
       variant: {
         default: "bg-transparent",
         outline: "border border-input bg-transparent hover:bg-muted",
+        // Canvas chrome, mirroring Button's variant of the same name: a
+        // control floating on the board rather than inside a panel, so it
+        // is a raised card surface that frosts what pans under it.
+        chrome:
+          "border border-border bg-card/90 text-muted-foreground shadow-sm backdrop-blur hover:bg-accent hover:text-foreground aria-pressed:text-foreground",
       },
       size: {
         default:

@@ -16,6 +16,7 @@ import { HtmlMaterialView } from './HtmlMaterialView';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Input } from './ui/input';
+import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 
 // MaterialReader: the reading overlay — a VIEW onto a material node, never a
 // container. Select a passage (in the original PDF's text layer, or in the
@@ -674,28 +675,20 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
           {numPages != null && <span className="text-2xs text-muted-foreground font-mono shrink-0">{numPages}p</span>}
           <div className="flex-1" />
           {((pdfAtt && !pdfError) || imageAtts.length > 0 || htmlAtt || linkHtml) && (
-            <div className="flex items-center rounded-lg border border-border overflow-hidden shrink-0 text-xs">
-              <Button variant="ghost"
-                onClick={() => setView('original')}
-                className={`px-3 py-1.5 transition-colors ${view === 'original' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-accent'}`}
-              >
-                {t('reader.viewOriginal')}
-              </Button>
-              <Button variant="ghost"
-                onClick={() => setView('text')}
-                className={`px-3 py-1.5 transition-colors border-l border-border ${view === 'text' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-accent'}`}
-              >
-                {t('reader.viewText')}
-              </Button>
+            <ToggleGroup
+              variant="outline"
+              size="sm"
+              spacing={0}
+              className="shrink-0"
+              value={[view]}
+              onValueChange={(v) => { const next = v[0]; if (next) setView(next as typeof view); }}
+            >
+              <ToggleGroupItem value="original">{t('reader.viewOriginal')}</ToggleGroupItem>
+              <ToggleGroupItem value="text">{t('reader.viewText')}</ToggleGroupItem>
               {(digestText || digesting) && (
-                <Button variant="ghost"
-                  onClick={() => setView('digest')}
-                  className={`px-3 py-1.5 transition-colors border-l border-border ${view === 'digest' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-accent'}`}
-                >
-                  {t('reader.viewDigest')}
-                </Button>
+                <ToggleGroupItem value="digest">{t('reader.viewDigest')}</ToggleGroupItem>
               )}
-            </div>
+            </ToggleGroup>
           )}
           {(pdfAtt || imageAtts.length > 0 || htmlAtt || linkHtml) && view === 'original' && !isViewerMode && (
             <Button variant="ghost"

@@ -7,39 +7,6 @@
   background: var(--canvas) !important;
 }
 
-.react-flow__controls {
-  background: var(--card) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius-lg) !important;
-  box-shadow: 0 1px 2px color-mix(in oklch, var(--foreground) 6%, transparent) !important;
-}
-
-/* React Flow ships these at 26px with a 12px glyph. Geometry is the
-   design system's to decide, not the library's: one square, one glyph
-   size, the same as every other control floating on the board. */
-.react-flow__controls-button {
-  width: 32px !important;
-  height: 32px !important;
-  padding: 8px !important;
-  background: var(--card) !important;
-  border-color: var(--border) !important;
-  fill: var(--muted-foreground) !important;
-}
-
-/* the glyph fills the padded box, at the same 16px as every lucide icon
-   inside a Button (React Flow lets it float at ~12px otherwise) */
-.react-flow__controls-button svg {
-  width: 16px !important;
-  height: 16px !important;
-  max-width: none !important;
-  max-height: none !important;
-}
-
-.react-flow__controls-button:hover {
-  background: var(--muted) !important;
-  fill: var(--primary) !important;
-}
-
 .react-flow__minimap {
   background: var(--card) !important;
   border: 1px solid var(--border) !important;

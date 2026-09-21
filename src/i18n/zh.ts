@@ -134,6 +134,12 @@ export const zh: Record<keyof typeof en, string> = {
   'canvas.redo': '重做 (Cmd+Shift+Z)',
   'canvas.deleteEdge': '删除连线',
   'canvas.deleteEdgeTitle': '删除连线（或按 Delete 键）',
+  // 左下角画布控制
+  'controls.zoomIn': '放大',
+  'controls.zoomOut': '缩小',
+  'controls.fitView': '适应画布',
+  'controls.lock': '锁定画布（禁止拖动与连线）',
+  'controls.unlock': '解锁画布',
 
   // Model interface manager (the .env-free path in)
   'provider.title': '模型接口',

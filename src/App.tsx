@@ -2,7 +2,6 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
-  Controls,
   MiniMap,
   SelectionMode,
   type OnNodesChange,
@@ -69,6 +68,7 @@ import BackupDialog from './components/app/BackupDialog';
 import CondenseDialog from './components/app/CondenseDialog';
 import { backupSupported } from './lib/local-backup';
 import LangSwitch from './components/app/LangSwitch';
+import CanvasControls from './components/app/CanvasControls';
 import ModelPicker from './components/app/ModelPicker';
 import RoleTemplateChips from './components/app/RoleTemplateChips';
 import SearchToggles from './components/app/SearchToggles';
@@ -79,6 +79,7 @@ import AgentCwdChip from './components/app/AgentCwdChip';
 import { pluginUpdateCommand } from './lib/plugin-update';
 import { useT, t as ti, fmt, useI18n } from './i18n';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './components/ui/dropdown-menu';
+import { ToggleGroup, ToggleGroupItem } from './components/ui/toggle-group';
 import { isViewerMode, buildViewerLink } from './lib/viewer';
 import { useModels } from './lib/use-models';
 import { useZoomTier } from './lib/use-map-mode';
@@ -1149,7 +1150,7 @@ function Canvas() {
         <ZoomTierTag />
         <ThoughtMapPill panelShiftWidth={panelOpen ? livePanelWidth : 0} />
         <TimelineBar />
-        <Controls position="bottom-left" />
+        <CanvasControls />
         {nodes.length > 0 && <MiniMap
           nodeColor={(node) => {
             const data = node.data as Record<string, unknown>;
@@ -1785,31 +1786,37 @@ function Canvas() {
                   tokens, paper retextures the canvas (and arms snapping) */}
               <div className="px-3 pt-2 pb-1" data-appearance-lighting>
                 <div className="text-2xs text-muted-foreground mb-1.5">{t('appearance.lighting')}</div>
-                <div className="flex rounded-lg border border-border overflow-hidden text-2xs">
-                  {([['light', t('appearance.light')], ['dark', t('appearance.dark')], ['system', t('appearance.system')]] as const).map(([v, label], i) => (
-                    <Button variant="ghost"
-                      key={v}
-                      onClick={() => useAppearance.getState().setLighting(v)}
-                      className={`flex-1 px-1 py-1.5 transition-colors ${i > 0 ? 'border-l border-border' : ''} ${lightingChoice === v ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-accent'}`}
-                    >
+                <ToggleGroup
+                  variant="outline"
+                  size="sm"
+                  spacing={0}
+                  className="w-full"
+                  value={[lightingChoice]}
+                  onValueChange={(v) => { const next = v[0]; if (next) useAppearance.getState().setLighting(next as 'light' | 'dark' | 'system'); }}
+                >
+                  {([['light', t('appearance.light')], ['dark', t('appearance.dark')], ['system', t('appearance.system')]] as const).map(([v, label]) => (
+                    <ToggleGroupItem key={v} value={v} className="flex-1 text-2xs">
                       {label}
-                    </Button>
+                    </ToggleGroupItem>
                   ))}
-                </div>
+                </ToggleGroup>
               </div>
               <div className="px-3 pt-1 pb-2" data-appearance-paper>
                 <div className="text-2xs text-muted-foreground mb-1.5">{t('appearance.paper')}</div>
-                <div className="flex rounded-lg border border-border overflow-hidden text-2xs">
-                  {([['plain', t('appearance.plain')], ['grid', t('appearance.grid')]] as const).map(([v, label], i) => (
-                    <Button variant="ghost"
-                      key={v}
-                      onClick={() => useAppearance.getState().setPaper(v)}
-                      className={`flex-1 px-1 py-1.5 transition-colors ${i > 0 ? 'border-l border-border' : ''} ${paperTexture === v ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-accent'}`}
-                    >
+                <ToggleGroup
+                  variant="outline"
+                  size="sm"
+                  spacing={0}
+                  className="w-full"
+                  value={[paperTexture]}
+                  onValueChange={(v) => { const next = v[0]; if (next) useAppearance.getState().setPaper(next as 'plain' | 'grid'); }}
+                >
+                  {([['plain', t('appearance.plain')], ['grid', t('appearance.grid')]] as const).map(([v, label]) => (
+                    <ToggleGroupItem key={v} value={v} className="flex-1 text-2xs">
                       {label}
-                    </Button>
+                    </ToggleGroupItem>
                   ))}
-                </div>
+                </ToggleGroup>
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem
