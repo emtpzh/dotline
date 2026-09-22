@@ -3,9 +3,12 @@
 // reaches the agent, the events that come back, approvals, abort.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { internals } from '../lib/index.js'
 
-const { createDshRuntime, installApprovalAnswerer, sessionIdOfPath } = internals
+const { createDshRuntime, installApprovalAnswerer, sessionIdOfPath, sessionLogName, findSessionFiles } = internals
 
 /** A harness with just what the runtime touches. `turn(id)` scripts what an
  *  agent does after a prompt; sessions can be seeded with events. */
@@ -222,5 +225,29 @@ test('abort cancels the agent and ends the run', async () => {
 test('a session path names its session', () => {
   assert.equal(sessionIdOfPath('~/.dsh/sessions/session-a/session.jsonl.zstd'), 'session-a')
   assert.equal(sessionIdOfPath('/Users/x/.dsh/sessions/-Users-x-proj/session-b/session.jsonl.zstd'), 'session-b')
+  // the log's name carries the format version, and DSH moves it on
+  assert.equal(sessionIdOfPath('/Users/x/.dsh/sessions/-Users-x-proj/session-c/session.v3.jsonl.zstd'), 'session-c')
   assert.equal(sessionIdOfPath('/tmp/other.jsonl'), null)
+  assert.equal(sessionIdOfPath('/Users/x/.dsh/sessions/-Users-x-proj/session-d/notes.jsonl.zstd'), null)
+})
+
+test('a session directory is read at the format version it holds', () => {
+  assert.equal(sessionLogName(['session.lock', 'session.v3.jsonl.zstd']), 'session.v3.jsonl.zstd')
+  assert.equal(sessionLogName(['session.jsonl.zstd']), 'session.jsonl.zstd')
+  // upgraded in place: the newer log is the session
+  assert.equal(sessionLogName(['session.jsonl.zstd', 'session.v3.jsonl.zstd']), 'session.v3.jsonl.zstd')
+  assert.equal(sessionLogName(['session.v3.jsonl.zstd', 'session.v10.jsonl.zstd']), 'session.v10.jsonl.zstd')
+  assert.equal(sessionLogName(['session.lock']), null)
+})
+
+test('the disk walk finds sessions whatever version wrote them', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'dsh-home-'))
+  const ws = join(home, 'sessions', '--Users-x-proj--')
+  for (const [dir, name] of [['session-old', 'session.jsonl.zstd'], ['session-new', 'session.v3.jsonl.zstd'], ['session-empty', 'session.lock']]) {
+    await mkdir(join(ws, dir), { recursive: true })
+    await writeFile(join(ws, dir, name), 'x')
+  }
+  const found = await findSessionFiles(home)
+  assert.deepEqual(found.map(f => f.sessionDir).sort(), ['session-new', 'session-old'])
+  assert.equal(found.find(f => f.sessionDir === 'session-new').log, join(ws, 'session-new', 'session.v3.jsonl.zstd'))
 })

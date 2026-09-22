@@ -234,8 +234,10 @@ function eventsJsonlSince(session, since) {
 }
 
 // ── durable-session bridge (disk) ──────────────────────────────────────
-// DSH persists each session as session.jsonl.zstd under
-// $DSH_HOME/sessions/<encoded-cwd>/<session-id>/. The zstd log is a
+// DSH persists each session as session[.v<n>].jsonl.zstd under
+// $DSH_HOME/sessions/<encoded-cwd>/<session-id>/ — the name carries the log
+// FORMAT version, which moves on its own (today `session.v3.jsonl.zstd`),
+// so the directory is asked what it holds rather than told. The zstd log is a
 // CONCATENATION of independently-encoded frames (one per durable batch
 // append); Node's one-shot zstdDecompressSync only decodes the FIRST frame,
 // so frames are located structurally and decoded one by one (the same
@@ -295,7 +297,17 @@ function decompressZstdToText(raw) {
   } catch { return '' }
 }
 
-/** Walk $DSH_HOME/sessions for session.jsonl.zstd files (2 levels deep). */
+/** A session directory's durable log, by name: `session.jsonl.zstd` from the
+ *  first format, `session.v<n>.jsonl.zstd` from every one after it. */
+const SESSION_LOG = /^session(?:\.v(\d+))?\.jsonl\.zstd$/
+const logVersion = (name) => Number(SESSION_LOG.exec(name)?.[1] ?? 0)
+
+/** The log one session directory holds: the highest format version in it —
+ *  a directory carrying both is one DSH upgraded, and the new log is the
+ *  session. Null when it holds none (a directory made but never written). */
+const sessionLogName = (names) => names.filter(n => SESSION_LOG.test(n)).sort((a, b) => logVersion(b) - logVersion(a))[0] ?? null
+
+/** Walk $DSH_HOME/sessions for session logs (2 levels deep). */
 async function findSessionFiles(dshHome) {
   const root = join(dshHome, 'sessions')
   const out = []
@@ -307,11 +319,15 @@ async function findSessionFiles(dshHome) {
     try { sessions = await readdir(join(root, ws.name), { withFileTypes: true }) } catch { continue }
     for (const s of sessions) {
       if (!s.isDirectory()) continue
-      const log = join(root, ws.name, s.name, 'session.jsonl.zstd')
+      let names
+      try { names = await readdir(join(root, ws.name, s.name)) } catch { continue }
+      const name = sessionLogName(names)
+      if (name === null) continue // no log yet
+      const log = join(root, ws.name, s.name, name)
       try {
         const st = await stat(log)
         out.push({ dir: ws.name, sessionDir: s.name, log, size: st.size, mtime: st.mtimeMs })
-      } catch { /* no log yet */ }
+      } catch { /* gone between the walk and the stat */ }
     }
   }
   return out
@@ -739,10 +755,11 @@ async function runHarnessTurn(ctx, turn, sink, { signal, ask } = {}) {
 /** The images of a request the harness can take (base64, a known type). */
 const imagesOf = (list) => (Array.isArray(list) ? list : []).filter(i => i && typeof i.data === 'string' && IMAGE_MEDIA.has(i.mimeType))
 
-/** The session id a session path names: `…/<session-id>/session.jsonl.zstd`. */
+/** The session id a session path names: `…/<session-id>/session[.v<n>].jsonl.zstd`
+ *  — the canvas's own virtual name, or a real log path from disk. */
 function sessionIdOfPath(p) {
   const parts = String(p ?? '').split(/[\\/]+/).filter(Boolean)
-  return parts.length >= 2 && parts[parts.length - 1] === 'session.jsonl.zstd' ? parts[parts.length - 2] : null
+  return parts.length >= 2 && SESSION_LOG.test(parts[parts.length - 1]) ? parts[parts.length - 2] : null
 }
 
 /** Where the canvas reads a harness session as a file: the root its
@@ -971,7 +988,7 @@ async function installWhyLayer(ctx, config) {
 }
 
 /** The agent lane's harness runtime and its approval hook, for the plugin's own tests. */
-export const internals = { createDshRuntime, installApprovalAnswerer, sessionIdOfPath }
+export const internals = { createDshRuntime, installApprovalAnswerer, sessionIdOfPath, sessionLogName, findSessionFiles }
 
 export async function apply(ctx, config) {
   const prefix = typeof config?.mountPrefix === 'string' && config.mountPrefix.startsWith('/') && config.mountPrefix.length > 1
