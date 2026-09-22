@@ -678,6 +678,15 @@ async function runHarnessTurn(ctx, turn, sink, { signal, ask } = {}) {
   // the session to a vision model
   if (turn.model && !hasImages) await ctx.sessionController.selectModel({ sessionId, provider: turn.model.provider, model: turn.model.model }).catch(() => {})
   const agent = await agentOf(ctx, sessionId)
+  // A branch starts with the parent's turn and nothing else. Harnesses
+  // before the fork cut moved to the turn's own end seed the child up to
+  // the NEXT turn/start, which carries the message queued for that turn —
+  // the sibling question asked off the same parent earlier. Inherited, it
+  // would run first and sit in this branch's history, which is precisely
+  // what forking at the parent was for. Whatever the cut left pending goes.
+  if (forkedFrom) {
+    try { if (agent.inbox?.hasPending) agent.inbox.clear() } catch { /* an inbox this release does not expose */ }
+  }
   sink.session({ sessionId, continued: sessionId === turn.continueSession, forkedFrom, cwd: cwdOfSession(liveSession(ctx, sessionId)) ?? turn.cwd ?? null })
 
   const entry = { ask, calls: new Map() }

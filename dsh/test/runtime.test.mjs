@@ -13,18 +13,25 @@ function fakeHarness({ turn } = {}) {
   const handlers = new Map()
   const sessions = new Map()
   const agents = new Map()
-  const log = { created: [], forks: [], injected: [], prompts: [], selected: [], cancelled: [] }
+  const log = { created: [], forks: [], injected: [], prompts: [], selected: [], cancelled: [], cleared: [] }
   let n = 0
   const fire = (id, event) => { for (const h of handlers.get('session/event') ?? []) h({ id }, event) }
-  const addSession = (id, cwd, events = []) => {
+  const addSession = (id, cwd, events = [], pending = []) => {
     sessions.set(id, { id, header: { meta: { cwd } }, events, seq: events.length })
+    const inbox = {
+      pending: [...pending],
+      get hasPending() { return inbox.pending.length > 0 },
+      clear: () => { log.cleared.push(id); inbox.pending = [] },
+    }
     agents.set(id, {
+      inbox,
       inject: (m) => log.injected.push({ id, text: m.content[0].text, source: m.source }),
       cancel: () => { log.cancelled.push(id); fire(id, { type: 'turn/end', data: { turn: 99 } }) },
       whenIdle: () => new Promise(() => {}),
     })
     return id
   }
+  const pendingOf = (id) => agents.get(id).inbox.pending
   const ctx = {
     on(name, fn) {
       if (!handlers.has(name)) handlers.set(name, [])
@@ -37,7 +44,9 @@ function fakeHarness({ turn } = {}) {
     sessionController: {
       modelCatalog: async () => ({ groups: [{ id: 'ds', name: 'DS', models: [{ id: 'v4', name: 'V4' }, { id: 'lite', name: 'Lite' }] }], default: { provider: 'ds', model: 'v4' } }),
       create: async ({ cwd } = {}) => { const id = addSession(`session-${++n}`, cwd ?? '/home'); log.created.push({ id, cwd: cwd ?? null }); return { sessionId: id } },
-      fork: async ({ sessionId, atSeq }) => { const id = addSession(`session-${++n}`, sessions.get(sessionId).header.meta.cwd); log.forks.push({ from: sessionId, atSeq, id }); return { sessionId: id } },
+      // a harness whose cut runs to the next turn's start hands the child
+      // what the parent had queued for that turn — the sibling's question
+      fork: async ({ sessionId, atSeq }) => { const id = addSession(`session-${++n}`, sessions.get(sessionId).header.meta.cwd, [], pendingOf(sessionId)); log.forks.push({ from: sessionId, atSeq, id }); return { sessionId: id } },
       selectModel: async (x) => { log.selected.push(x) },
       prompt: async ({ sessionId, content }) => {
         log.prompts.push({ sessionId, text: content[0].text })
@@ -47,7 +56,7 @@ function fakeHarness({ turn } = {}) {
     },
     handlers,
   }
-  return { ctx, log, addSession }
+  return { ctx, log, addSession, pendingOf }
 }
 
 function defaultTurn(id, fire) {
@@ -130,6 +139,27 @@ test('forking after a turn cuts at that turn\'s end and sends the question alone
   assert.equal(session.forkedFrom, 'session-a')
   assert.equal(session.cwd, '/proj')
   assert.equal(session.continued, false)
+})
+
+test('a fork starts with the parent\'s turn alone: what the parent had queued does not come along', async () => {
+  const { ctx, log, addSession, pendingOf } = fakeHarness()
+  // the sibling question, asked off the same parent earlier and still queued
+  // in what a wide fork cut hands the child
+  addSession('session-a', '/proj', twoTurns, [{ id: 'sibling' }])
+  const { events } = await runToEnd(createDshRuntime(ctx), { runtime: 'dsh', cwd: '', prompt: 'Q?', context: 'CTX', question: 'Q?', sessionPath: '~/.dsh/sessions/session-a/session.jsonl.zstd', forkAfterTurn: ['m1', 'x'] })
+  const child = events.find(e => e.type === 'session').sessionId
+  assert.deepEqual(log.cleared, [child])
+  assert.deepEqual(pendingOf(child), [])
+  assert.deepEqual(pendingOf('session-a'), [{ id: 'sibling' }]) // the parent keeps its own
+  assert.deepEqual(log.prompts, [{ sessionId: child, text: 'Q?' }])
+})
+
+test('a continued session keeps whatever it has queued', async () => {
+  const { ctx, log, addSession, pendingOf } = fakeHarness()
+  addSession('session-a', '/proj', twoTurns, [{ id: 'queued-in-the-harness' }])
+  await runToEnd(createDshRuntime(ctx), { runtime: 'dsh', cwd: '', prompt: 'Q?', question: 'Q?', sessionPath: '~/.dsh/sessions/session-a/session.jsonl.zstd' })
+  assert.deepEqual(log.cleared, [])
+  assert.deepEqual(pendingOf('session-a'), [{ id: 'queued-in-the-harness' }])
 })
 
 test('a turn that cannot be cut falls back to a fresh session carrying the context', async () => {
