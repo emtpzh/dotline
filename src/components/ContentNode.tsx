@@ -38,14 +38,10 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
   const zoomedOut = zoomTier !== 'work';
   const rf = useReactFlow();
   const nodePos = useStore((s) => { const n = s.nodes.find((x) => x.id === id); return n ? n.position : null; });
-  // Does this material actually reach any context? 'none' and 'quote' are
-  // the two silent traps a card must confess to (One Rule's honest face).
-  const wireState = useStore((s) => {
-    const outs = s.edges.filter((e) => e.source === id);
-    if (outs.length === 0) return 'none:0';
-    const full = outs.filter((e) => !e.data?.isCrossLink).length;
-    return full > 0 ? `full:${full}` : 'quote:0';
-  });
+  // Does this material actually reach any context? Unwired is the silent
+  // trap a card must confess to (One Rule's honest face). Every wire out of
+  // a material carries its whole text, whatever an old canvas drew it as.
+  const wireCount = useStore((s) => s.edges.filter((e) => e.source === id).length);
   const glyphTier = zoomTier === 'glyph';
   const updateNodeInternals = useUpdateNodeInternals();
   useEffect(() => { updateNodeInternals(id); }, [glyphTier, id, updateNodeInternals]);
@@ -120,9 +116,7 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
   const materialLine = kind === 'file'
     ? (data.summaries?.[0] ?? (attachments.length === 1 ? fileKind(attachments[0]) : attachments.map((a) => a.name).join(' · ')))
     : (kind === 'link' ? (data.summaries?.[0] ?? data.question) : data.question).replace(/^#+\s*/gm, '');
-  const wireLine = wireState === 'none:0'
-    ? t('content.wireNone')
-    : wireState === 'quote:0' ? t('content.wireQuoteOnly') : fmt(t('content.wireFull'), { n: wireState.split(':')[1] });
+  const wireLine = wireCount === 0 ? t('content.wireNone') : fmt(t('content.wireFull'), { n: wireCount });
   const openMaterial = (e: React.MouseEvent) => {
     e.stopPropagation();
     // documents open where they are read; notes fly to working scale
@@ -428,12 +422,10 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
         )}
         {(
           <div className="px-1 pt-2" data-wire-status>
-            {wireState === 'none:0' ? (
+            {wireCount === 0 ? (
               <p className="text-2xs text-warning leading-snug">{t('content.wireNone')}</p>
-            ) : wireState === 'quote:0' ? (
-              <p className="text-2xs text-warning leading-snug">{t('content.wireQuoteOnly')}</p>
             ) : (
-              <p className="text-2xs text-muted-foreground leading-snug">{fmt(t('content.wireFull'), { n: wireState.split(':')[1] })}</p>
+              <p className="text-2xs text-muted-foreground leading-snug">{fmt(t('content.wireFull'), { n: wireCount })}</p>
             )}
           </div>
         )}

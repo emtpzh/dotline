@@ -226,11 +226,10 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
     // (context walks are visited-guarded, and auto-chains are budgeted).
     const exists = edges.some((e) => e.source === sourceId && e.target === targetId);
     if (exists) return;
-    // MATERIAL sources wire SOLID by default. A dashed reference carries a
-    // node's Q/A transcript — a material has none, so a dashed wire from a
-    // material is a nearly-empty gesture that LOOKS like "file connected"
-    // (the exact misreading a real canvas produced). Solid is the only
-    // honest default; the toast offers the way back down.
+    // A MATERIAL is wired solid, always. A reference carries a node's Q/A
+    // — a material has none, and its whole text reaches the target either
+    // way (graph.ts reads a hand-wired material as material). A dashed wire
+    // from one would only claim a weight the model never sees.
     const srcNode = nodes.find((x) => x.id === sourceId);
     if (srcNode && ['note', 'file', 'link'].includes(srcNode.data.stepKind ?? '')) {
       get().pushHistory();
@@ -239,24 +238,18 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
         source: sourceId, sourceHandle: 'continue',
         target: targetId, targetHandle: 'top',
         type: 'smoothstep',
-        style: { stroke: COLORS.accent, strokeDasharray: '8 4', strokeWidth: 2 },
-        animated: true,
-        data: { isCrossLink: true, createdAt: new Date().toISOString() },
+        style: { stroke: COLORS.accent, strokeWidth: 2 },
+        markerEnd: { type: 'arrowclosed' as const, color: COLORS.accent, width: 18, height: 18 },
+        data: { createdAt: new Date().toISOString() },
       };
+      // nothing flows INTO a material, so a solid wire out of one cannot close a cycle
       set((state) => ({ edges: [...state.edges, matEdge] }));
+      set((state) => ({ nodes: reseatSubtree(state.nodes, state.edges, targetId) }));
       get().logEvent('connect', matEdge.id);
-      // structural conversion reuses the cycle guard, styling, layout and
-      // staleness reaction in one place; on refusal the edge stays dashed.
-      get().setEdgeStructural(matEdge.id, true);
-      const converted = get().edges.find((e) => e.id === matEdge.id);
-      if (converted && !converted.data?.isCrossLink) {
-        const ctx = buildContext(sourceId, get().nodes, get().edges);
-        const tok = ctx.messages.reduce((s2, m) => s2 + countTokens(m.content), 0);
-        toast('success', fmt(t('edge.materialWiredFull'), { n: tok.toLocaleString() }), 8000, {
-          label: t('edge.materialMakeQuote'),
-          run: () => get().setEdgeStructural(matEdge.id, false),
-        });
-      }
+      get().pushHistory();
+      const ctx = buildContext(sourceId, get().nodes, get().edges);
+      const tok = ctx.messages.reduce((s2, m) => s2 + countTokens(m.content), 0);
+      toast('success', fmt(t('edge.materialWiredFull'), { n: tok.toLocaleString() }), 8000);
       return;
     }
     get().pushHistory();
@@ -329,6 +322,9 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
     const { nodes, edges } = get();
     const edge = edges.find((e) => e.id === edgeId);
     if (!edge) return;
+    // a material's wire has one weight: its whole text
+    const src = nodes.find((n) => n.id === edge.source);
+    if (!structural && ['note', 'file', 'link'].includes(src?.data.stepKind ?? '')) return;
     if (structural) {
       // Dashed → solid: the target will read the source's whole upstream.
       // Guard the DAG: if the source already sits downstream of the target

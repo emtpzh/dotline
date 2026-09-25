@@ -931,8 +931,11 @@ function Canvas() {
     // Theme mapping happens here too: storage keeps the canonical light hex
     // as the edge's semantic identity, the render layer resolves it against
     // the active theme — old backups need no migration.
+    // A material's wire is solid too: whatever an old canvas stored, its
+    // whole text reaches the target (graph.ts), so it draws as what it is.
+    const materialIds = new Set(nodes.filter((n) => isContentKind(n.data.stepKind)).map((n) => n.id));
     const base = edges.map((raw) => {
-      const e = raw.data?.isBranchFromSelection
+      const e = raw.data?.isBranchFromSelection || (raw.data?.isCrossLink && materialIds.has(raw.source))
         ? { ...raw, animated: false, style: { ...raw.style, strokeDasharray: undefined } }
         : raw;
       const strokeSlot = typeof e.style?.stroke === 'string' ? LEGACY_EDGE_HEX[e.style.stroke.toUpperCase()] : undefined;
