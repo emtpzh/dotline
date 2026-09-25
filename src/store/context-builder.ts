@@ -10,7 +10,7 @@ import type { ContextMessage, ImageAttachment } from '../lib/api';
 // The order rule, in one sentence: materials → reference blocks → the live
 // conversation in chain order → the current question last. Solid edges are
 // the conversation (full turns); dashed edges become fenced [Reference]
-// blocks (quote by default, whole chain when the edge says 'full'); content
+// blocks (the source's own Q/A and a trail of its upstream questions); content
 // nodes are identity-prefixed material blocks. Amounts are controlled on
 // NODES (collapse+summary, highlight filter, archive) — edges only decide
 // identity. This ordering is deliberately independent of edge creation
@@ -77,18 +77,11 @@ function transcriptLines(node: ThoughtNode): string[] {
     chip and the follow-up preview can price a reference without drift. */
 export function referenceBlockContent(ref: ContextReference): string {
   const lines: string[] = [`[Reference: ${nodeTitle(ref.source)}]`];
-  if (ref.depth === 'quote') {
-    const trail = ref.chain
-      .filter((n) => !n.data.archived)
-      .map((n) => nodeTitle(n));
-    if (trail.length > 0) lines.push(`Trail (upstream questions): ${trail.join(' → ')}`);
-    lines.push(...transcriptLines(ref.source));
-  } else {
-    for (const n of [...ref.chain, ref.source]) {
-      if (n.data.archived) continue;
-      lines.push(...transcriptLines(n));
-    }
-  }
+  const trail = ref.chain
+    .filter((n) => !n.data.archived)
+    .map((n) => nodeTitle(n));
+  if (trail.length > 0) lines.push(`Trail (upstream questions): ${trail.join(' → ')}`);
+  lines.push(...transcriptLines(ref.source));
   return lines.join('\n');
 }
 
@@ -313,7 +306,7 @@ export function buildContext(
   // ── L2: the conversation — structural chain, current node last.
   // Collapse is PURELY visual: the solid chain always flows full text
   // (One Rule without asterisks). Budget control lives in the explicit
-  // dials — archive, highlight filter, reference depth.
+  // dials — archive, highlight filter, the line kind of each wire.
   for (const node of mainline) {
     // Archived = pruned-but-kept: contributes NOTHING to context (the walk
     // itself already passed through it, so descendants keep their ancestry)

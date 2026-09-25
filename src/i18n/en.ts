@@ -624,7 +624,6 @@ export const en = {
   'chain.materials': 'Materials',
   'chain.references': 'References',
   'chain.refDepthQuote': 'quote',
-  'chain.refDepthFull': 'full',
   'chain.conversation': 'Conversation',
   'edge.cycleBlocked': 'Cannot go solid: that would close a cycle in the graph',
   'edge.materialWiredFull': 'Material wired in FULL (~{n} tokens flow downstream along this wire).',
@@ -635,7 +634,6 @@ export const en = {
   'edge.linkedQuote': "Linked as a summary reference (dashed, ~{n} tok): this node's Q&A plus its question trail",
   'edge.makeFull': 'Wire in full (solid, ~{m} tok, files included)',
   'edge.quoteChip': 'Summary · {n} tok · click for solid',
-  'edge.fullChip': 'Full transcript · {n} tok · click for solid',
   'edge.depthToggleTitle': "Dashed = summary reference (Q&A excerpt only). Click to go solid: downstream reads the whole context of this line, files included.",
 
   // Follow-up input

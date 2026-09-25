@@ -72,8 +72,6 @@ function edge(source: string, target: string): ThoughtEdge {
     type: 'smoothstep',
     sourceHandle: 'continue',
     targetHandle: 'top',
-    style: { stroke: '#6B5CE7', strokeWidth: 2 },
-    markerEnd: { type: 'arrowclosed', color: '#6B5CE7', width: 18, height: 18 } as ThoughtEdge['markerEnd'],
     data: {},
   };
 }

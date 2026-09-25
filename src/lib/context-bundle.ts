@@ -147,7 +147,6 @@ export function semanticSnapshot(nodes: ThoughtNode[], edges: ThoughtEdge[]): un
       target: e.target,
       isCrossLink: e.data?.isCrossLink || undefined,
       isWatch: e.data?.isWatch || undefined,
-      contextDepth: (e.data as { contextDepth?: string } | undefined)?.contextDepth,
     }));
   return { nodes: nodePart, edges: edgePart };
 }

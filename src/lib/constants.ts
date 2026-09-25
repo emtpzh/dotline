@@ -31,19 +31,18 @@ export const COLLAPSED_NODE_HEIGHT = 80;
 // overlap the moment the user zoomed to the map.
 export const COLLAPSED_LAYOUT_HEIGHT = 240;
 
-// JS mirror of the design tokens in src/index.css — for ReactFlow edge
-// styles / markers / minimap, which take color values rather than classes.
-// These are var() references, not literals, so an edge drawn under one theme
-// repaints when the theme flips (they are persisted with the graph).
+// JS mirror of the design tokens in src/index.css — for places that take
+// color values rather than classes. Canvas wires resolve theirs at render
+// time (lib/appearance edgePalette, lib/edge-look); nothing is persisted.
 export const COLORS = {
   surface: 'var(--background)',
   card: 'var(--card)',
   line: 'var(--border)',
   inkMuted: 'var(--muted-foreground)',
-  accent: 'var(--edge-continue)',   // the conversation chain
-  warm: 'var(--edge-explore)',      // explore branch edges
+  accent: 'var(--edge-continue)',   // a wire that goes on: the conversation chain
+  warm: 'var(--edge-explore)',      // a wire that forks off beside its parent
   trace: 'var(--edge-trace)',       // ancestor-path highlight
-  watch: 'var(--edge-watch)',       // evaluator watch edges
+  material: 'var(--muted-foreground)', // a material's wire
 } as const;
 
 

@@ -30,32 +30,26 @@ export default function ThoughtEdgeView({
   const edges = useStore((s) => s.edges);
   const t = useT();
 
-  // The line kind IS the context weight: dashed = summary reference, solid
+  // The line kind IS the context weight: dashed = a reference block, solid
   // = full wiring (files included). Selected, the edge wears a chip that
-  // prices and performs the conversion. Explore and watch edges keep their
-  // own semantics and don't convert.
-  const isRef = !!data?.isCrossLink;
-  const depth = data?.contextDepth === 'full' ? 'full' : 'quote';
-  const src = nodes.find((n) => n.id === source);
-  const srcIsMaterial = !src || ['note', 'file', 'link'].includes(src.data.stepKind ?? '');
+  // prices and performs the conversion. Explored forks, wires that follow a
+  // thread's tip and material wires keep their meaning and don't convert.
+  // The render pipeline hands over what the edge means (lib/edge-look).
+  const view = data?.view;
+  const isRef = !!view?.reference;
   const convertible = isRef
-    ? !data?.isWatch && !srcIsMaterial
-    : !data?.isBranchFromSelection && !data?.isWatch && !srcIsMaterial;
+    ? !data?.followsTip && !data?.isWatch
+    : !!view && view.route !== 'material' && !data?.isBranchFromSelection;
+  const src = nodes.find((n) => n.id === source);
   const refTok = useMemo(() => {
-    if (!selected || !convertible) return 0;
-    if (!src) return 0;
-    if (isRef) {
-      const structural = edges.filter((e) => !e.data?.isCrossLink);
-      const chain = walkUpAncestors(source, nodes, structural).ordered
-        .filter((n) => n.id !== source && !['note', 'file', 'link'].includes(n.data.stepKind ?? ''));
-      return countTokens(referenceBlockContent({ source: src, edge: { id, source, target, data } as ThoughtEdge, depth, chain }));
-    }
-    // solid: price what the SUMMARY would be after demotion
-    const structural = edges.filter((e) => !e.data?.isCrossLink && e.id !== id);
+    if (!selected || !convertible || !src) return 0;
+    // a reference block's price, as the source stands (solid: what the
+    // summary would be after demotion — the edge itself leaves the chain)
+    const structural = edges.filter((e) => !e.data?.isCrossLink && (isRef || e.id !== id));
     const chain = walkUpAncestors(source, nodes, structural).ordered
       .filter((n) => n.id !== source && !['note', 'file', 'link'].includes(n.data.stepKind ?? ''));
-    return countTokens(referenceBlockContent({ source: src, edge: { id, source, target, data } as ThoughtEdge, depth: 'quote', chain }));
-  }, [selected, convertible, isRef, depth, source, target, id, nodes, edges, data, src]);
+    return countTokens(referenceBlockContent({ source: src, edge: { id, source, target, data } as ThoughtEdge, chain }));
+  }, [selected, convertible, isRef, source, target, id, nodes, edges, data, src]);
   const { path, labelX, labelY } = useMemo(
     () => routeEdge(sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, source, target, nodes),
     [sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, source, target, nodes],
@@ -102,10 +96,11 @@ export default function ThoughtEdgeView({
           </div>
         </EdgeLabelRenderer>
       )}
-      {data?.focusRole === 'path' && (
-        // Context Focus feed line: bright dots gliding INSIDE the solid
-        // stroke (narrower than it, so the line never reads as dashed —
-        // dashed is taken: references)
+      {view?.live && !isRef && (
+        // A solid wire that runs on its own (it feeds a node that reruns
+        // itself): bright dots gliding INSIDE the stroke, narrower than it,
+        // so the line never reads as dashed — dashed is taken: references.
+        // A dashed one flows by its own dashes (canvas.css .tdag-live).
         <path d={path} className="tdag-flow-ov" fill="none" />
       )}
       {selected && (
@@ -125,9 +120,7 @@ export default function ThoughtEdgeView({
                   className="shadow-md hover:border-primary/40 whitespace-nowrap"
                   title={isRef ? t('edge.depthToggleTitle') : t('edge.solidChipTitle')}
                 >
-                  {isRef
-                    ? fmt(t(depth === 'full' ? 'edge.fullChip' : 'edge.quoteChip'), { n: refTok })
-                    : fmt(t('edge.solidChip'), { n: refTok })}
+                  {fmt(t(isRef ? 'edge.quoteChip' : 'edge.solidChip'), { n: refTok })}
                 </Button>
               )}
               <Button variant="outline" size="icon-sm"

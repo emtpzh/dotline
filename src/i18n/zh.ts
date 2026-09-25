@@ -623,7 +623,6 @@ export const zh: Record<keyof typeof en, string> = {
   'chain.materials': '材料',
   'chain.references': '引用',
   'chain.refDepthQuote': '引用',
-  'chain.refDepthFull': '全量',
   'chain.conversation': '对话',
   'edge.cycleBlocked': '不能转为实线：会在图里造出循环',
   'edge.materialWiredFull': '材料已全量接入（约 {n} tokens 随此线流入下游）。',
@@ -634,7 +633,6 @@ export const zh: Record<keyof typeof en, string> = {
   'edge.linkedQuote': '已连接为摘要引用（虚线，约 {n} tok）：只带该节点的问答与来路问题',
   'edge.makeFull': '接入全量（实线，约 {m} tok，含上游文件）',
   'edge.quoteChip': '摘要 · {n} tok · 点击转实线',
-  'edge.fullChip': '全量摘录 · {n} tok · 点击转实线',
   'edge.depthToggleTitle': '虚线=摘要引用（只传问答摘录）。点击转为实线，下游将读到这条线的完整上下文，含上游文件。',
 
   // Follow-up input

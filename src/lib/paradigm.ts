@@ -1,7 +1,6 @@
 import type { ThoughtNode, ThoughtEdge, ThoughtData } from '../types';
 import { generateId } from '../utils';
 import { autoLayout } from './layout';
-import { COLORS } from './constants';
 
 // Paradigm = the score; a chat canvas = the performance. This module turns
 // an orchestration graph (steps, instructions, roles, flow kinds) into a
@@ -157,9 +156,6 @@ export function instantiateParadigm(pNodes: ThoughtNode[], pEdges: ThoughtEdge[]
           sourceHandle: 'branch',
           targetHandle: 'left',
           type: 'smoothstep',
-          style: { stroke: COLORS.watch, strokeWidth: 2, strokeDasharray: '4 4' },
-          animated: true,
-          markerEnd: { type: 'arrowclosed' as const, color: COLORS.watch, width: 18, height: 18 },
           data: { isCrossLink: true, isWatch: true, followsTip: true },
         };
       }
@@ -170,9 +166,6 @@ export function instantiateParadigm(pNodes: ThoughtNode[], pEdges: ThoughtEdge[]
         sourceHandle: 'continue',
         targetHandle: 'top',
         type: 'smoothstep',
-        style: { stroke: COLORS.accent, strokeWidth: 2 },
-        animated: false,
-        markerEnd: { type: 'arrowclosed' as const, color: COLORS.accent, width: 18, height: 18 },
         data: {},
       };
     });

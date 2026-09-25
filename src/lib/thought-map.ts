@@ -48,7 +48,8 @@ export function extractStructure(nodes: ThoughtNode[], edges: ThoughtEdge[]): Ma
     edges: edges.map((e) => ({
       s: e.source,
       t: e.target,
-      dashed: !!(e.style?.strokeDasharray) || !!e.data?.isWatch,
+      // the canvas's own rule: a reference is dashed, a material's wire never is
+      dashed: !!e.data?.isCrossLink && !MATERIAL_KINDS.has(nodes.find((n) => n.id === e.source)?.data.stepKind ?? ''),
     })),
   };
 }

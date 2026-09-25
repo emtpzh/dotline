@@ -73,25 +73,16 @@ export function initAppearance(): void {
   });
 }
 
-/** The four semantic edge colors as CURRENTLY rendered (theme-resolved).
-    Edge styles are persisted with light-theme hex values; the render layer
-    maps them through this palette so old graphs theme correctly without a
-    data migration. */
-export function edgePalette(): { accent: string; warm: string; trace: string; watch: string } {
+/** The edge colors as CURRENTLY rendered (theme-resolved). Wires are drawn
+    from their meaning at render time (lib/edge-look); this palette resolves
+    that meaning against the active theme and palette. */
+export function edgePalette(): { accent: string; warm: string; trace: string; material: string } {
   const cs = getComputedStyle(document.documentElement);
   const read = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback;
   return {
     accent: read('--edge-continue', 'var(--primary)'),
     warm: read('--edge-explore', 'oklch(0.710 0.139 59.4)'),
     trace: read('--edge-trace', 'oklch(0.769 0.165 70.1)'),
-    watch: read('--edge-watch', 'oklch(0.577 0.215 27.3)'),
+    material: read('--muted-foreground', 'oklch(0.556 0 0)'),
   };
 }
-
-/** Stored stroke hex → semantic slot, for the render-time mapping. */
-export const LEGACY_EDGE_HEX: Record<string, keyof ReturnType<typeof edgePalette>> = {
-  '#6B5CE7': 'accent',
-  '#E08A3C': 'warm',
-  '#F59E0B': 'trace',
-  '#DC2626': 'watch',
-};

@@ -46,14 +46,13 @@ export function walkUpAncestors(
 const CONTENT_KINDS = new Set(['note', 'file', 'link']);
 
 /** One dashed reference feeding a context: the node it quotes, the edge
-    that brought it, and (for depth 'full') the structural chain behind it. */
+    that brought it, and the structural chain behind it. */
 export interface ContextReference {
   source: ThoughtNode;
   edge: ThoughtEdge;
-  depth: 'quote' | 'full';
-  /** Structural ancestors of the source (roots first), source EXCLUDED.
-      Quote depth renders these as a one-line question trail; full depth
-      renders their whole Q/A transcript inside the block. */
+  /** Structural ancestors of the source (roots first), source EXCLUDED —
+      rendered as a one-line trail of their questions. A reference has one
+      weight; the whole line behind a node is what a solid wire is for. */
   chain: ThoughtNode[];
 }
 
@@ -117,7 +116,7 @@ export function partitionContext(
       if (CONTENT_KINDS.has(n.data.stepKind ?? '')) continue; // trail is Q/A only
       chain.push(n);
     }
-    references.push({ source, edge, depth: edge.data?.contextDepth === 'full' ? 'full' : 'quote', chain });
+    references.push({ source, edge, chain });
   }
 
   return { materials, references, mainline };

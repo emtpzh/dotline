@@ -1,7 +1,6 @@
 import type { StateCreator } from 'zustand';
 import type { ThoughtNode, ThoughtEdge } from '../../types';
 import { generateId, countTokens } from '../../utils';
-import { COLORS } from '../../lib/constants';
 import { healLegacyNoteEdges, autoLayout, estimateNodeHeight, nodeHeight, placeNewNodes, reseatSubtree } from '../../lib/layout';
 import { getDescendantIds, walkUpAncestors } from '../../lib/graph';
 import { referenceBlockContent, upstreamFingerprint, buildContext } from '../context-builder';
@@ -238,8 +237,6 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
         source: sourceId, sourceHandle: 'continue',
         target: targetId, targetHandle: 'top',
         type: 'smoothstep',
-        style: { stroke: COLORS.accent, strokeWidth: 2 },
-        markerEnd: { type: 'arrowclosed' as const, color: COLORS.accent, width: 18, height: 18 },
         data: { createdAt: new Date().toISOString() },
       };
       // nothing flows INTO a material, so a solid wire out of one cannot close a cycle
@@ -268,8 +265,6 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
       target: targetId,
       targetHandle: vertical ? 'top' : 'left',
       type: 'smoothstep',
-      style: { stroke: COLORS.accent, strokeDasharray: '8 4', strokeWidth: 2 },
-      animated: true,
       // createdAt only here: manual connect is the one edge born
       // independently of a node (elsewhere edge time = target's createdAt)
       data: { isCrossLink: true, createdAt: new Date().toISOString() },
@@ -284,7 +279,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
       const { ordered } = walkUpAncestors(sourceId, nodes, edges.filter((e) => !e.data?.isCrossLink));
       const chain = ordered.filter((n) => n.id !== sourceId && !['note', 'file', 'link'].includes(n.data.stepKind ?? ''));
       if (chain.length > 0) {
-        const quoteTok = countTokens(referenceBlockContent({ source: src, edge: newEdge, depth: 'quote', chain }));
+        const quoteTok = countTokens(referenceBlockContent({ source: src, edge: newEdge, chain }));
         // Full tier = SOLID wiring: the target reads the source's whole
         // upstream, files included — price the real thing, not a transcript.
         const ctx = buildContext(sourceId, nodes, edges);
@@ -343,22 +338,16 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
         if (e.id !== edgeId) return e;
         if (structural) {
           const rest = { ...(e.data ?? {}) };
-          delete rest.isCrossLink; delete rest.contextDepth; delete rest.isWatch;
+          delete rest.isCrossLink; delete rest.contextDepth; delete rest.isWatch; delete rest.followsTip;
           return {
             ...e,
             sourceHandle: 'continue', targetHandle: 'top',
-            animated: false,
-            style: { stroke: COLORS.accent, strokeWidth: 2 },
-            markerEnd: { type: 'arrowclosed' as const, color: COLORS.accent, width: 18, height: 18 },
             data: rest,
           };
         }
         return {
           ...e,
-          animated: true,
-          style: { stroke: COLORS.accent, strokeDasharray: '8 4', strokeWidth: 2 },
-          markerEnd: { type: 'arrowclosed' as const, color: COLORS.accent, width: 18, height: 18 },
-          data: { ...(e.data ?? {}), isCrossLink: true, contextDepth: undefined },
+          data: { ...(e.data ?? {}), isCrossLink: true },
         };
       }),
     }));
@@ -370,22 +359,6 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
     if (structural) {
       set((state) => ({ nodes: reseatSubtree(state.nodes, state.edges, edge.target) }));
     }
-    get().pushHistory();
-  },
-
-  setCrossLinkDepth: (edgeId: string, depth: 'quote' | 'full') => {
-    get().pushHistory();
-    set((state) => ({
-      edges: state.edges.map((e) => {
-        if (e.id !== edgeId || !e.data?.isCrossLink) return e;
-        return {
-          ...e,
-          // full = denser dash + heavier stroke; the depth is readable off the line
-          style: { ...e.style, strokeDasharray: depth === 'full' ? '12 3' : '8 4', strokeWidth: depth === 'full' ? 3 : 2 },
-          data: { ...e.data, contextDepth: depth === 'full' ? 'full' as const : undefined },
-        };
-      }),
-    }));
     get().pushHistory();
   },
 
@@ -481,7 +454,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
     // Conversation order: within the selection, an arrow-ancestor comes
     // before its descendants (structural + adopted links); ties break by y.
     const depth = new Map<string, number>();
-    const structural = edges.filter((e) => !e.data?.isWatch);
+    const structural = edges.filter((e) => !e.data?.isWatch && !e.data?.followsTip);
     const depthOf = (id: string, seen: Set<string>): number => {
       if (depth.has(id)) return depth.get(id)!;
       if (seen.has(id)) return 0;

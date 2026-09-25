@@ -19,7 +19,8 @@ import { ArrowRight, BookOpen, Bot, Brain, CircleHelp, Download, Drama, Eye, Fil
 import './index.css';
 import ThoughtNode from './components/ThoughtNode';
 import ParadigmNode from './components/ParadigmNode';
-import { useAppearance, edgePalette, LEGACY_EDGE_HEX } from './lib/appearance';
+import { useAppearance, edgePalette } from './lib/appearance';
+import { edgeLook, edgeMeaning, routesOf } from './lib/edge-look';
 import ContentNode from './components/ContentNode';
 import FrameNode from './components/FrameNode';
 import ThoughtEdgeView from './components/ThoughtEdgeView';
@@ -49,7 +50,7 @@ import { buildContext } from './store/context-builder';
 import { exportActiveParadigm, exportActiveProjectJson, exportEventLogCsv } from './lib/export';
 import { countTokens } from './utils';
 import { buildExampleGraph } from './lib/example-graph';
-import { COLORS, FRAME_COLORS, PANEL_INSET } from './lib/constants';
+import { FRAME_COLORS, PANEL_INSET } from './lib/constants';
 import { panelShift } from './lib/panel-shift';
 import { migrateActiveCanvasToVault, gcVaultAtBoot } from './lib/attachment-vault-boot';
 import { consumeOpenRouterCallback, handMintedKeyToModal, startOpenRouterOAuth } from './lib/openrouter-oauth';
@@ -677,9 +678,6 @@ function Canvas() {
       sourceHandle: 'continue',
       targetHandle: 'top',
       type: 'smoothstep',
-      style: { stroke: COLORS.accent, strokeWidth: 2 },
-      animated: false,
-      markerEnd: { type: 'arrowclosed' as const, color: COLORS.accent, width: 18, height: 18 },
       data: {},
     }]);
     useStore.getState().pushHistory();
@@ -924,38 +922,26 @@ function Canvas() {
   }, [nodes, edges, annotationsHidden, searchHitIds, focusSets, selectedNodeId]);
 
   const highlightedEdges = useMemo((): ThoughtEdge[] => {
-    // Visual law: SOLID = structural (conversation, layout, cascade),
-    // DASHED = bypass (references, watch). Explore branches are structural,
-    // so legacy dashed-orange branch edges are normalized to solid here
-    // (styles persist per edge; this fixes old canvases centrally).
-    // Theme mapping happens here too: storage keeps the canonical light hex
-    // as the edge's semantic identity, the render layer resolves it against
-    // the active theme — old backups need no migration.
-    // A material's wire is solid too: whatever an old canvas stored, its
-    // whole text reaches the target (graph.ts), so it draws as what it is.
-    const materialIds = new Set(nodes.filter((n) => isContentKind(n.data.stepKind)).map((n) => n.id));
-    const base = edges.map((raw) => {
-      const e = raw.data?.isBranchFromSelection || (raw.data?.isCrossLink && materialIds.has(raw.source))
-        ? { ...raw, animated: false, style: { ...raw.style, strokeDasharray: undefined } }
-        : raw;
-      const strokeSlot = typeof e.style?.stroke === 'string' ? LEGACY_EDGE_HEX[e.style.stroke.toUpperCase()] : undefined;
-      const marker = e.markerEnd && typeof e.markerEnd === 'object' ? e.markerEnd : undefined;
-      const markerSlot = typeof marker?.color === 'string' ? LEGACY_EDGE_HEX[marker.color.toUpperCase()] : undefined;
-      if (!strokeSlot && !markerSlot) return e;
-      return {
-        ...e,
-        ...(strokeSlot ? { style: { ...e.style, stroke: themePalette[strokeSlot] } } : {}),
-        ...(markerSlot && marker ? { markerEnd: { ...marker, color: themePalette[markerSlot] } } : {}),
-      };
+    // Every wire is drawn from what it MEANS (lib/edge-look): dashed = a
+    // reference, color = its route (goes on / forks / material), flow =
+    // it runs on its own. Whatever style an old canvas stored is ignored,
+    // so no canvas needs migrating and the theme resolves at render time.
+    const routes = routesOf(nodes, edges);
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const base = edges.map((e): ThoughtEdge => {
+      const meaning = edgeMeaning(e, routes, byId);
+      const look = edgeLook(meaning, themePalette);
+      return { ...e, animated: false, style: look.style, markerEnd: look.markerEnd, className: look.className, data: { ...e.data, view: meaning } };
     });
     if (focusSets) {
       return base.map((e) => {
         if (focusSets.pathEdgeIds.has(e.id)) {
+          // the feed line only gets heavier: its own color and dash stay,
+          // and it never flows — flow means a wire that runs on its own
           return {
             ...e,
-            className: 'focus-e-path',
-            style: { ...e.style, stroke: themePalette.accent, strokeWidth: 3.5, opacity: 1 },
-            markerEnd: { type: 'arrowclosed' as const, ...((e.markerEnd && typeof e.markerEnd === 'object') ? e.markerEnd : {}), color: themePalette.accent },
+            className: [e.className, 'focus-e-path'].filter(Boolean).join(' '),
+            style: { ...e.style, strokeWidth: 3.5, opacity: 1 },
             zIndex: 10,
             data: { ...e.data, focusRole: 'path' as const },
           };
@@ -968,7 +954,7 @@ function Canvas() {
         if (focusSets.downEdgeIds.has(e.id)) {
           return {
             ...e,
-            className: 'focus-e-down',
+            className: [e.className, 'focus-e-down'].filter(Boolean).join(' '),
             style: { ...e.style, strokeWidth: 2.5, opacity: 0.85 },
             markerEnd: { type: 'arrowclosed' as const, ...((e.markerEnd && typeof e.markerEnd === 'object') ? e.markerEnd : {}) },
             zIndex: 5,
@@ -1174,7 +1160,9 @@ function Canvas() {
             if (sk === 'note') return '#D97706';
             if (sk === 'file' || sk === 'link') return '#64748B';
             if (Array.isArray(data.condensedFrom) && data.condensedFrom.length) return '#8B7CF0';
-            return data.isRoot ? themePalette.accent : data.isBranch ? themePalette.warm : MINIMAP_COLORS.ordinary;
+            // an origin and a fork wear their wire's color, as the card's bar does
+            const route = routesOf(nodes, edges).node.get(node.id) ?? 'origin';
+            return route === 'origin' ? themePalette.accent : route === 'fork' ? themePalette.warm : MINIMAP_COLORS.ordinary;
           }}
           maskColor={MINIMAP_COLORS.mask}
           style={{ width: 200, height: 140 }}

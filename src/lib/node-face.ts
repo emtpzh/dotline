@@ -1,6 +1,7 @@
 import type { ThoughtData } from '../types';
 import { activeSummary, activeTopic, awaitingInput } from '../utils';
 import { conclusionOf } from './turn-insight';
+import type { NodeRoute } from './edge-look';
 
 // The one display grammar every card follows, at every zoom. A card holds
 // four layers in a fixed order — name, question, conclusion, body — and
@@ -9,7 +10,7 @@ import { conclusionOf } from './turn-insight';
 // three, the far view only the name row reduced to its shape and name.
 
 export type FaceState = 'failed' | 'wait' | 'running' | 'upstream' | 'stale';
-export type FaceTone = 'primary' | 'explore' | 'watch' | 'warning' | 'muted';
+export type FaceTone = 'primary' | 'explore' | 'warning' | 'muted';
 export type FaceShape = 'round' | 'square' | 'diamond';
 
 /** The one state a card reports, highest priority first. Same mark at
@@ -26,11 +27,11 @@ export function faceState(
   return null;
 }
 
-/** Color of the chain that brought this node here — the same color as its
- *  left bar and as the wire coming into it. */
-export function faceTone(data: Pick<ThoughtData, 'isEvaluator' | 'stepKind' | 'isBranch'>): FaceTone {
-  if (data.isEvaluator) return 'watch';
-  if (data.stepKind === 'human' || data.isBranch) return 'explore';
+/** Color of the wire that brought this node here — the same color as its
+ *  left bar and as that wire (lib/edge-look). A paradigm's human turn keeps
+ *  the warm tone: the person acts there. */
+export function faceTone(route: NodeRoute, stepKind?: ThoughtData['stepKind']): FaceTone {
+  if (stepKind === 'human' || route === 'fork') return 'explore';
   return 'primary';
 }
 

@@ -106,7 +106,7 @@ export default function ContextChainSection({
             </>
           )}
 
-          {/* References: dashed edges, depth + price on each row */}
+          {/* References: dashed edges, price on each row, click to wire solid */}
           {partition.references.length > 0 && (
             <>
               <p className={groupCls}>{t('chain.references')}</p>
@@ -120,9 +120,9 @@ export default function ContextChainSection({
                   <span
                     onClick={(e) => { e.stopPropagation(); setEdgeStructural(ref.edge.id, true); }}
                     title={t('edge.depthToggleTitle')}
-                    className={`text-2xs px-1.5 py-px rounded-full shrink-0 cursor-pointer transition-shadow hover:ring-1 hover:ring-ring/40 ${ref.depth === 'full' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}
+                    className="text-2xs px-1.5 py-px rounded-full shrink-0 cursor-pointer transition-shadow hover:ring-1 hover:ring-ring/40 bg-muted text-muted-foreground"
                   >
-                    {t(ref.depth === 'full' ? 'chain.refDepthFull' : 'chain.refDepthQuote')} →—
+                    {t('chain.refDepthQuote')} →—
                   </span>
                   <span className="text-2xs text-muted-foreground font-mono shrink-0">
                     {countTokens(referenceBlockContent(ref))}

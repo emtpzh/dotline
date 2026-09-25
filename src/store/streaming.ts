@@ -15,6 +15,7 @@ import { t, fmt } from '../i18n';
 import { isViewerMode } from '../lib/viewer';
 import type { Reference } from '../types';
 import { markNaming, unmarkNaming } from '../lib/batch-naming';
+import { isAutoRerun } from '../lib/edge-look';
 import type { StoreState } from './types';
 
 // Background summary generation — fire and forget. Display channel ONLY:
@@ -544,8 +545,7 @@ function triggerAutoReruns(set: Set, get: Get, completedNodeId: string): void {
   //    within its per-wave budget (autoRerunRounds, default 1)
   const { nodes, edges } = get();
   for (const n of nodes) {
-    const auto = n.data.autoRerun ?? n.data.evaluatorTrigger === 'auto'; // legacy graphs
-    if (!auto || n.id === completedNodeId) continue;
+    if (!isAutoRerun(n.data) || n.id === completedNodeId) continue;
     if (n.data.isLoading || activeAbortControllers.has(n.id)) continue;
     const spent = autoRunCounts.get(n.id) ?? 0;
     if (spent >= (n.data.autoRerunRounds ?? 1)) continue; // budget exhausted this wave

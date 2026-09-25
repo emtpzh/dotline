@@ -1,4 +1,5 @@
 import type { Node, Edge } from '@xyflow/react';
+import type { EdgeMeaning } from './lib/edge-look';
 
 export interface Attachment {
   id: string;
@@ -296,23 +297,31 @@ export interface ThoughtData extends Record<string, unknown> {
 
 export type ThoughtNode = Node<ThoughtData, 'thought'>;
 
+/** An edge stores MEANING only — reference or not, fork or not, whether it
+    follows the tip. How it looks (dash, color, flow) is derived at render
+    time from that meaning (lib/edge-look); a `style` an older canvas stored
+    is ignored. */
 export interface ThoughtEdge extends Edge {
   data?: {
+    /** A reference (dashed): the target reads one block — the source's own
+        Q/A and a trail of its upstream questions — not the whole line. */
     isCrossLink?: boolean;
+    /** A fork: the child grows beside its parent instead of continuing its
+        column (explored from a passage, a perspective, a turn in a new agent
+        session). The passage, when there is one, lives on the child's
+        branchContext — the name is historical. */
     isBranchFromSelection?: boolean;
     /** Position of this edge's upstream BLOCK in the target's context when
         the target has several parents (set via the focus panel; creation
         order when absent). Lives on the edge — semantics drive rendering. */
     contextOrder?: number;
-    /** Watch edge: watched node → evaluator. Treated as a cross-link for
-        layout (no tree structure) but feeds context like any incoming edge. */
+    /** Legacy: the old evaluator's watch edge. New ones are a reference
+        with followsTip; old ones still never count as parentage for layout. */
     isWatch?: boolean;
     followsTip?: boolean; // edge slides forward to the newest node of its source thread
     branchYRatio?: number; // where along the parent the branch handle sits
-    /** Cross-link depth: default (absent) = quote — the source node's own
-        Q/A plus a one-line trail of its upstream questions. 'full' = the
-        whole structural chain behind the source, still fenced as one
-        reference block. Solid (structural) edges ignore this. */
+    /** Legacy: a 'full' reference depth older canvases stored. Ignored —
+        a reference is always one block; the whole line is a solid wire. */
     contextDepth?: 'full';
     /** ISO timestamp for edges wired INDEPENDENTLY of node birth (manual
         connect). Most edges are born with their target node — consumers
@@ -322,6 +331,9 @@ export interface ThoughtEdge extends Edge {
         path = structural feed line, ref = reference into the context,
         down = one step downstream. */
     focusRole?: 'path' | 'ref' | 'down';
+    /** What the canvas draws this edge as, set ONLY by the render pipeline
+        (lib/edge-look) — never persisted. */
+    view?: EdgeMeaning;
   };
 }
 

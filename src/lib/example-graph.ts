@@ -1,5 +1,4 @@
 import type { ThoughtNode, ThoughtEdge } from '../types';
-import { COLORS } from './constants';
 
 // The seeded example canvas: four framed chapters around one everyday
 // question — why saved articles stay unread. ① the conversation chain +
@@ -400,17 +399,8 @@ export function buildExampleGraph(lang: Lang): { nodes: ThoughtNode[]; edges: Th
     type: 'smoothstep',
     sourceHandle: opts.branch || opts.ref ? 'branch' : 'continue',
     targetHandle: opts.branch || opts.watch || opts.ref ? 'left' : 'top',
-    animated: !!(opts.branch || opts.watch || opts.ref),
-    style: opts.watch
-      ? { stroke: COLORS.watch, strokeWidth: 2, strokeDasharray: '4 4' }
-      : opts.branch
-        ? { stroke: COLORS.warm, strokeWidth: 2 }
-        : opts.ref
-          ? { stroke: COLORS.accent, strokeWidth: 2, strokeDasharray: '8 4' }
-          : { stroke: COLORS.accent, strokeWidth: 2 },
-    markerEnd: { type: 'arrowclosed', color: opts.watch ? COLORS.watch : opts.branch ? COLORS.warm : COLORS.accent, width: 18, height: 18 } as ThoughtEdge['markerEnd'],
     data: opts.watch
-      ? { isCrossLink: true, isWatch: true }
+      ? { isCrossLink: true, followsTip: true }
       : opts.ref
         ? { isCrossLink: true }
         : opts.branch

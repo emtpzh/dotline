@@ -3,7 +3,6 @@ import { generateId, countTokens } from '../utils';
 import { useStore } from '../store';
 import { triggerParadigmCascade } from '../store/streaming';
 import { placeNewNodes } from './layout';
-import { COLORS } from './constants';
 import { processFile } from './attachments';
 import { fetchUrlSnapshot, llmCall } from './api';
 import { getModelsOnce } from './use-models';
@@ -339,9 +338,6 @@ export async function generateDigest(nodeId: string, attId: string): Promise<boo
       sourceHandle: 'continue',
       targetHandle: 'top',
       type: 'smoothstep',
-      style: { stroke: COLORS.accent, strokeWidth: 2 },
-      animated: false,
-      markerEnd: { type: 'arrowclosed' as const, color: COLORS.accent, width: 18, height: 18 },
       data: {},
     };
     const edges = [...st.edges, edge];

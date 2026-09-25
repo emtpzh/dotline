@@ -34,8 +34,9 @@
 }
 
 
-/* Node styling — type is expressed by a left accent bar:
-   root = accent, explore branch = warm, continuation = none.
+/* Node styling — the route is expressed by a left accent bar, the same
+   color as the solid wire the card hangs from (lib/edge-look): an origin
+   (no conversation parent) = accent, a fork = warm, a continuation = none.
    The bar is a full-card layer clipped by the card's own radius (a hard
    gradient stop at 3px), not a 3px strip: the card cannot clip with
    overflow:hidden — that would cut the connection handles — so a strip
@@ -82,11 +83,6 @@
   border-color: color-mix(in srgb, var(--edge-explore) 30%, var(--border));
 }
 
-.evaluator-node {
-  --node-bar: var(--edge-watch);
-  border-color: color-mix(in srgb, var(--edge-watch) 25%, var(--border));
-}
-
 /* Instantiated paradigm human turn: the person acts here */
 .human-node {
   --node-bar: var(--edge-explore);
@@ -129,7 +125,6 @@
 .tdag-l1 { display: flex; align-items: center; gap: 0.5em; min-width: 0; padding: 0.8em 1.1em 0 1.15em; }
 .tdag-l1[data-tone='primary'], .tdag-far[data-tone='primary'] { --tone: var(--edge-continue); }
 .tdag-l1[data-tone='explore'], .tdag-far[data-tone='explore'] { --tone: var(--edge-explore); }
-.tdag-l1[data-tone='watch'], .tdag-far[data-tone='watch'] { --tone: var(--edge-watch); }
 .tdag-l1[data-tone='warning'], .tdag-far[data-tone='warning'] { --tone: var(--warning); }
 .tdag-l1[data-tone='muted'], .tdag-far[data-tone='muted'] { --tone: var(--muted-foreground); }
 .tdag-shape { width: 0.6em; height: 0.6em; flex: none; border-radius: 9999px; background: var(--tone); }
@@ -201,9 +196,14 @@
 [data-far-band='3'] .tdag-far:not([data-pri='3']) .tdag-far-label { display: none; }
 .glyph-selected .tdag-far-dot { outline: 8px solid var(--primary); outline-offset: 8px; }
 
-/* Edges thicken at far zoom so the skeleton stays legible at distance */
+/* Edges thicken at far zoom so the skeleton stays legible at distance —
+   and a reference keeps a dash you can still see there (8 4 in world units
+   closes into a solid line at 0.1) */
 [data-zoom-tier='glyph'] .react-flow__edge path.react-flow__edge-path {
   stroke-width: calc(7px * 0.32 / var(--tdag-zoom, 0.32)) !important;
+}
+[data-zoom-tier='glyph'] .react-flow__edge.tdag-ref path.react-flow__edge-path {
+  stroke-dasharray: calc(20px * 0.32 / var(--tdag-zoom, 0.32)) calc(14px * 0.32 / var(--tdag-zoom, 0.32)) !important;
 }
 /* Handles are for wiring at working distance; at far zoom they are noise */
 [data-zoom-tier='glyph'] .react-flow__handle.tdag-handle { opacity: 0; }
@@ -265,7 +265,12 @@
   stroke-width: calc(2.5px / clamp(0.3, var(--tdag-zoom, 1), 1)) !important;
 }
 
-/* feed-line flow: bright dots gliding inside the solid accent stroke */
+/* Flow means ONE thing: this wire runs on its own (it follows a thread's
+   tip, or feeds a node that reruns itself). A dashed one flows by its own
+   dashes; a solid one carries bright dots gliding inside the stroke. A
+   static reference never flows, and neither does a highlight. */
+.react-flow__edge.tdag-live .react-flow__edge-path { animation: tdag-dash 0.9s linear infinite; }
+@keyframes tdag-dash { to { stroke-dashoffset: -12px; } }
 .tdag-flow-ov {
   stroke: #fff; stroke-linecap: round; opacity: 0.9; pointer-events: none;
   stroke-width: calc(1.6px / clamp(0.15, var(--tdag-zoom, 1), 1));
@@ -275,5 +280,6 @@
 @keyframes tdag-flow { to { stroke-dashoffset: calc(-31px / clamp(0.15, var(--tdag-zoom, 1), 1)); } }
 @media (prefers-reduced-motion: reduce) {
   .tdag-flow-ov { animation: none; display: none; }
+  .react-flow__edge.tdag-live .react-flow__edge-path { animation: none; }
   .tdag-state[data-state='running']::before, .tdag-far[data-state='running'] .tdag-far-dot { animation: none; }
 }

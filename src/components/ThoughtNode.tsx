@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { describeModel } from '../lib/use-models';
 import { actionMarks, turnComposition, footprint } from '../lib/turn-insight';
 import { faceState, faceTone, farPriority, nodeConclusion, nodeName, type FaceShape } from '../lib/node-face';
+import { nodeRoute } from '../lib/edge-look';
 import { Handle, Position, useReactFlow, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
 import { AlertTriangle, Archive, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, GitBranch, Globe, Hourglass, Minimize2, RefreshCw, Send, Split, Square, Star, Trash2, X, Pencil } from 'lucide-react';
 import 'katex/dist/katex.min.css';
@@ -256,8 +257,9 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
     if (e.key === 'Escape') { setBranchFromText(''); }
   };
 
-  const isRoot = data.isRoot;
-  const isBranch = data.isBranch;
+  // Where this card sits in the grammar: the solid wire it hangs from
+  // (lib/edge-look) — its bar, its dot and that wire share one color.
+  const route = useStore((s) => nodeRoute(s.nodes, s.edges, id));
   const hasMultipleVersions = data.responses.length > 1;
 
   const highlightedTexts = new Set(data.highlights.map((h) => h.text));
@@ -309,7 +311,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // The face — name row, question, conclusion — is the same at every zoom
   // that shows text (lib/node-face): zooming out only drops layers.
   const state = faceState(data, isStale);
-  const tone = faceTone(data);
+  const tone = faceTone(route, data.stepKind);
   const shape: FaceShape = data.isEvaluator ? 'diamond' : 'round';
   // The far view always needs a label; the name row shows only a real
   // name (a fallback would just repeat the question beneath it)
@@ -365,7 +367,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
       className={glyphTier
         ? `w-[520px] ${entrance} ${isBeacon ? 'beacon-node ' : ''}${data.archived ? 'opacity-35 saturate-50 ' : ''}${selectedNodeId === id ? 'glyph-selected ' : ''}`
         : `thought-node relative rounded-xl w-[520px] ${entrance} transition-all duration-200 ${isBeacon ? 'beacon-node ' : ''}${mapMode ? 'map-node ' : ''}${condenseLit ? 'condense-lit ' : ''}${data.archived ? 'opacity-35 saturate-50 ' : ''}${isWaitingUpstream ? 'opacity-60 ' : ''}${
-        data.isEvaluator ? 'evaluator-node' : isHuman ? 'human-node' : isBranch ? 'orange-node' : isRoot ? 'root-node' : 'branch-node'
+        isHuman ? 'human-node' : route === 'fork' ? 'orange-node' : route === 'origin' ? 'root-node' : 'branch-node'
       } ${data.isLoading ? 'loading-border' : ''} ${selectedNodeId === id ? 'ring-2 ring-primary !border-primary selected-glow' : ''} ${isDropTarget ? 'ring-2 ring-primary/50 ring-dashed' : ''}`}
       onClick={() => setSelectedNodeId(id)}
       onDoubleClick={() => {
@@ -416,7 +418,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
           data-glyph-node
         >
           <FarMark shape={shape} tone={tone} name={name} state={state}
-            priority={farPriority({ isRoot, selected: selectedNodeId === id, state })} />
+            priority={farPriority({ isRoot: data.isRoot, selected: selectedNodeId === id, state })} />
         </div>
       ) : mapMode ? (
         // Map: the folded face drawn larger — same layers, same order

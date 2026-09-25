@@ -1,5 +1,4 @@
 import type { StateCreator } from 'zustand';
-import type { ThoughtData } from '../../types';
 import { buildContext } from '../context-builder';
 import { convergeRun } from '../converge';
 import { runNodeGeneration, autoRunCounts } from '../streaming';
@@ -22,11 +21,6 @@ let replayAborted = false;
 // attachEvaluator below is merely a PRESET that combines them with a
 // critic role. Any node can use either primitive for other purposes
 // (live summaries, running translations, ...).
-
-/** autoRerun with legacy fallback: old graphs stored evaluatorTrigger. */
-export function isAutoRerun(data: ThoughtData): boolean {
-  return data.autoRerun ?? data.evaluatorTrigger === 'auto';
-}
 
 export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSlice> = (set, get) => ({
   /**

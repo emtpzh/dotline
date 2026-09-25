@@ -3,7 +3,6 @@ import type { ThoughtNode, ThoughtEdge } from '../../types';
 import { generateId } from '../../utils';
 import { autoLayout, placeNewNodes } from '../../lib/layout';
 import { getDescendantIds, selectionSinks, walkUpAncestors } from '../../lib/graph';
-import { COLORS } from '../../lib/constants';
 import type { ContextMessage, ImageAttachment } from '../../lib/api';
 import { buildContext, resolveExplicitRole, applyRoleOverride, type MessageSource } from '../context-builder';
 import { activeAbortControllers, autoRunCounts, runNodeGeneration, triggerParadigmCascade } from '../streaming';
@@ -73,17 +72,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       sourceHandle: isBranch ? 'branch' : 'continue',
       targetHandle: isBranch ? 'left' : 'top',
       type: 'smoothstep',
-      ...(isBranch ? {
-        style: { stroke: COLORS.warm, strokeWidth: 2 },
-        animated: false,
-        markerEnd: { type: 'arrowclosed' as const, color: COLORS.warm, width: 18, height: 18 },
-        data: { isBranchFromSelection: true, branchYRatio: branchYRatio ?? 0.5 },
-      } : {
-        style: { stroke: COLORS.accent, strokeWidth: 2 },
-        animated: false,
-        markerEnd: { type: 'arrowclosed' as const, color: COLORS.accent, width: 18, height: 18 },
-        data: {},
-      }),
+      data: isBranch ? { isBranchFromSelection: true, branchYRatio: branchYRatio ?? 0.5 } : {},
     } : null;
 
     let newEdges: ThoughtEdge[] = newEdge ? [...get().edges, newEdge] : get().edges;
@@ -106,8 +95,6 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
           source: mid, target: id,
           sourceHandle: 'branch', targetHandle: 'left',
           type: 'smoothstep',
-          style: { stroke: COLORS.accent, strokeDasharray: '8 4', strokeWidth: 2 },
-          animated: true,
           data: { isCrossLink: true, createdAt: new Date().toISOString() },
         }];
         wired++;
@@ -235,9 +222,6 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
         sourceHandle: 'branch',
         targetHandle: 'left',
         type: 'smoothstep',
-        style: { stroke: COLORS.watch, strokeWidth: 2, strokeDasharray: '4 4' },
-        animated: true,
-        markerEnd: { type: 'arrowclosed' as const, color: COLORS.watch, width: 18, height: 18 },
         data: { isCrossLink: true, isWatch: true, followsTip: true },
       } : {
         id: `edge-${parentId}-${id}`,
@@ -246,9 +230,6 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
         sourceHandle: 'branch',
         targetHandle: 'left',
         type: 'smoothstep',
-        style: { stroke: COLORS.warm, strokeWidth: 2 },
-        animated: false,
-        markerEnd: { type: 'arrowclosed' as const, color: COLORS.warm, width: 18, height: 18 },
         data: { isBranchFromSelection: true, branchYRatio: 0.5 },
       });
     });
@@ -320,8 +301,6 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       sourceHandle: 'continue',
       targetHandle: 'top',
       type: 'smoothstep',
-      style: { stroke: COLORS.accent, strokeWidth: 2 },
-      markerEnd: { type: 'arrowclosed' as const, color: COLORS.accent, width: 18, height: 18 },
       data: {},
     }));
     const allEdges = [...edges, ...newEdges];
@@ -534,8 +513,6 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       sourceHandle: 'continue',
       targetHandle: 'top',
       type: 'smoothstep',
-      style: { stroke: COLORS.accent, strokeWidth: 2 },
-      markerEnd: { type: 'arrowclosed' as const, color: COLORS.accent, width: 18, height: 18 },
       data: {},
     }));
     set((state) => {
