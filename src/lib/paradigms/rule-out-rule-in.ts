@@ -2,8 +2,9 @@ import type { ThoughtNode, ThoughtEdge, ThoughtData } from '../../types';
 
 // Built-in paradigm: rule-out / rule-in (differential reasoning).
 // Two node kinds only: 'human' (the operator asks) and 'prompt' (a machine
-// step processing upstream context; its persona is simply the opening lines
-// of its prompt). The fan-out is drawn as graph shape — four sibling prompt
+// step processing upstream context). A step's identity is its ROLE — the
+// same role field every node has, from that step down — and its prompt is
+// the task alone. The fan-out is drawn as graph shape — four sibling prompt
 // nodes off the question — so blind isolation between candidates is
 // guaranteed by the DAG itself. Bilingual: filled from the UI language.
 
@@ -14,6 +15,7 @@ interface Step {
   kind: NonNullable<ThoughtData['stepKind']>;
   title: string;
   instruction: string;
+  role?: { name: string; prompt: string };
   x: number;
   y: number;
 }
@@ -30,27 +32,32 @@ const CONTENT: Record<Lang, { name: string; steps: Step[]; edges: [string, strin
       {
         id: 'mechA', kind: 'prompt', x: 20, y: 440,
         title: 'Candidate: Mechanism A',
-        instruction: 'You advocate a low-level mechanistic account of the phenomenon. Be concrete and falsifiable.\nFrom this lens, give the single best candidate explanation for the question above: name the mechanism, its testable predictions, and what evidence would rule it in or out.',
+        role: { name: 'Mechanist', prompt: 'You advocate a low-level mechanistic account of the phenomenon. Be concrete and falsifiable.' },
+        instruction: 'From this lens, give the single best candidate explanation for the question above: name the mechanism, its testable predictions, and what evidence would rule it in or out.',
       },
       {
         id: 'mechB', kind: 'prompt', x: 500, y: 440,
         title: 'Candidate: Mechanism B',
-        instruction: 'You advocate a higher-level / systems account. Name the mechanism and its boundary conditions.\nFrom this lens, give the single best candidate explanation for the question above: name the mechanism, its testable predictions, and what evidence would rule it in or out.',
+        role: { name: 'Systems view', prompt: 'You advocate a higher-level / systems account. Name the mechanism and its boundary conditions.' },
+        instruction: 'From this lens, give the single best candidate explanation for the question above: name the mechanism, its testable predictions, and what evidence would rule it in or out.',
       },
       {
         id: 'conf', kind: 'prompt', x: 980, y: 440,
         title: 'Candidate: Confound',
-        instruction: 'You argue the effect is an artifact or confound, not the phenomenon of interest.\nFrom this lens, give the single best candidate explanation for the question above: name the suspected artifact, its testable predictions, and what evidence would rule it in or out.',
+        role: { name: 'Artifact hunter', prompt: 'You argue the effect is an artifact or confound, not the phenomenon of interest.' },
+        instruction: 'From this lens, give the single best candidate explanation for the question above: name the suspected artifact, its testable predictions, and what evidence would rule it in or out.',
       },
       {
         id: 'null', kind: 'prompt', x: 1460, y: 440,
         title: 'Candidate: Null',
-        instruction: 'You argue the effect may not be real or is overstated. State the strongest deflationary case.\nFrom this lens, give the single best candidate explanation for the question above: what would make the effect disappear, and what evidence would rule this in or out.',
+        role: { name: 'Deflationist', prompt: 'You argue the effect may not be real or is overstated. State the strongest deflationary case.' },
+        instruction: 'From this lens, give the single best candidate explanation for the question above: what would make the effect disappear, and what evidence would rule this in or out.',
       },
       {
         id: 'rev', kind: 'prompt', x: 560, y: 920,
         title: 'Differential review',
-        instruction: 'You are a rigorous methodologist doing differential diagnosis on competing explanations.\nFor each candidate above, judge what evidence would rule it OUT and what would rule it IN. Rank by discriminability: which test best separates them?',
+        role: { name: 'Methodologist', prompt: 'You are a rigorous methodologist doing differential diagnosis on competing explanations.' },
+        instruction: 'For each candidate above, judge what evidence would rule it OUT and what would rule it IN. Rank by discriminability: which test best separates them?',
       },
       {
         id: 'syn', kind: 'prompt', x: 560, y: 1360,
@@ -75,27 +82,32 @@ const CONTENT: Record<Lang, { name: string; steps: Step[]; edges: [string, strin
       {
         id: 'mechA', kind: 'prompt', x: 20, y: 440,
         title: '候选：机制 A',
-        instruction: '你主张一个底层的机制性解释，具体、可证伪。\n严格从这个视角，为上面的问题给出唯一最佳的候选解释：说清机制、可检验的预测，以及什么证据能确认或排除它。',
+        role: { name: '机制论者', prompt: '你主张一个底层的机制性解释，具体、可证伪。' },
+        instruction: '严格从这个视角，为上面的问题给出唯一最佳的候选解释：说清机制、可检验的预测，以及什么证据能确认或排除它。',
       },
       {
         id: 'mechB', kind: 'prompt', x: 500, y: 440,
         title: '候选：机制 B',
-        instruction: '你主张一个更高层 / 系统层面的解释，说清机制及其边界条件。\n严格从这个视角，为上面的问题给出唯一最佳的候选解释：说清机制、可检验的预测，以及什么证据能确认或排除它。',
+        role: { name: '系统论者', prompt: '你主张一个更高层 / 系统层面的解释，说清机制及其边界条件。' },
+        instruction: '严格从这个视角，为上面的问题给出唯一最佳的候选解释：说清机制、可检验的预测，以及什么证据能确认或排除它。',
       },
       {
         id: 'conf', kind: 'prompt', x: 980, y: 440,
         title: '候选：混杂',
-        instruction: '你主张这个效应是假象或混杂因素，而非目标现象。\n严格从这个视角，为上面的问题给出唯一最佳的候选解释：说清疑似的混杂来源、可检验的预测，以及什么证据能确认或排除它。',
+        role: { name: '假象论者', prompt: '你主张这个效应是假象或混杂因素，而非目标现象。' },
+        instruction: '严格从这个视角，为上面的问题给出唯一最佳的候选解释：说清疑似的混杂来源、可检验的预测，以及什么证据能确认或排除它。',
       },
       {
         id: 'null', kind: 'prompt', x: 1460, y: 440,
         title: '候选：零假设',
-        instruction: '你主张这个效应可能不真实或被夸大，给出最强的收缩性论证。\n严格从这个视角回答上面的问题：什么会让效应消失，以及什么证据能确认或排除这一解释。',
+        role: { name: '收缩论者', prompt: '你主张这个效应可能不真实或被夸大，给出最强的收缩性论证。' },
+        instruction: '严格从这个视角回答上面的问题：什么会让效应消失，以及什么证据能确认或排除这一解释。',
       },
       {
         id: 'rev', kind: 'prompt', x: 560, y: 920,
         title: '鉴别评审',
-        instruction: '你是一位严谨的方法学家，正在对相互竞争的解释做鉴别诊断。\n对上面每个候选，判断什么证据能将它排除（rule out）、什么能将它确认（rule in）。按可区分度排序：哪个检验最能把它们分开？',
+        role: { name: '方法学家', prompt: '你是一位严谨的方法学家，正在对相互竞争的解释做鉴别诊断。' },
+        instruction: '对上面每个候选，判断什么证据能将它排除（rule out）、什么能将它确认（rule in）。按可区分度排序：哪个检验最能把它们分开？',
       },
       {
         id: 'syn', kind: 'prompt', x: 560, y: 1360,
@@ -122,6 +134,7 @@ export function buildRuleOutRuleIn(lang: Lang): { name: string; nodes: ThoughtNo
       question: s.title,
       instruction: s.instruction,
       stepKind: s.kind,
+      ...(s.role ? { rolePrompt: s.role.prompt, roleName: s.role.name } : {}),
       response: '', responses: [], responseIndex: -1,
       isCollapsed: false, isEditing: false, isEditingResponse: false, isLoading: false,
       tokenCount: 0, highlights: [], highlightMode: 'tag',

@@ -1243,7 +1243,7 @@ function Canvas() {
                 <circle className="dag-pop" style={{ animationDelay: '0.35s' }} cx="22" cy="22" r="3.5" fill="none" stroke="var(--primary)" strokeWidth="2.5" />
                 <line className="dag-pop" style={{ animationDelay: '0.5s' }} x1="22" y1="25" x2="22" y2="33" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" />
                 <circle className="dag-pop" style={{ animationDelay: '0.65s' }} cx="22" cy="37" r="3.5" fill="var(--primary)" opacity="0.35" />
-                <line className="dag-pop" style={{ animationDelay: '0.8s' }} x1="25.5" y1="23.5" x2="33" y2="28.5" stroke="var(--edge-explore)" strokeWidth="2" strokeLinecap="round" strokeDasharray="3 3" />
+                <line className="dag-pop" style={{ animationDelay: '0.8s' }} x1="25.5" y1="23.5" x2="33" y2="28.5" stroke="var(--edge-explore)" strokeWidth="2" strokeLinecap="round" />
                 <circle className="dag-pop" style={{ animationDelay: '0.95s' }} cx="36" cy="30" r="3.5" fill="var(--edge-explore)" />
               </svg>
               <h1 className="text-4xl font-semibold tracking-tight text-foreground mb-2.5">ThoughtDAG</h1>

@@ -68,8 +68,8 @@ const baseData = (): ThoughtData => ({
  *                     The human types here and submits WITHOUT generating —
  *                     answers belong to downstream prompt nodes.
  * - prompt          → node tagged stepKind 'prompt' (question = the prompt);
- *                     auto-runs once all its structural parents complete.
- *                     Legacy files may still carry a rolePrompt — honored.
+ *                     auto-runs once all its structural parents complete;
+ *                     its role (rolePrompt + roleName) applies from it down.
  * Legacy v1 kinds keep their behavior so old .paradigm.json files still work:
  * - step/synthesis  → ordinary node awaiting a manual first run
  * - review          → reviewer preset (role + autoRerun); incoming edges
@@ -86,18 +86,22 @@ export function instantiateParadigm(pNodes: ThoughtNode[], pEdges: ThoughtEdge[]
     const kind = pn.data.stepKind ?? 'prompt';
     const question = (pn.data.instruction?.trim() || pn.data.question || '').trim();
 
+    // A step's role is the role field every node has: identity from this
+    // step down (its prompt is the task). Files from before roleName carry
+    // the role alone, or the persona in the prompt's opening lines — both
+    // run as written.
     const data: ThoughtData = {
       ...baseData(),
       question,
       rolePrompt: pn.data.rolePrompt || undefined,
-      roleMode: pn.data.rolePrompt ? 'reset' : 'inherit',
+      roleName: (pn.data.rolePrompt && pn.data.roleName) || undefined,
     };
     if (kind === 'human') {
       data.stepKind = 'human';
       data.question = '';
       data.instruction = pn.data.instruction?.trim() || undefined; // shown as the input placeholder
       data.rolePrompt = undefined;
-      data.roleMode = 'inherit';
+      data.roleName = undefined;
     }
     if (kind === 'prompt') {
       data.stepKind = 'prompt';
@@ -127,7 +131,6 @@ export function instantiateParadigm(pNodes: ThoughtNode[], pEdges: ThoughtEdge[]
     if (kind === 'review') {
       data.autoRerun = true;
       data.autoRerunRounds = pn.data.autoRerunRounds;
-      if (!data.rolePrompt) data.roleMode = 'inherit';
     }
     if (kind === 'fanout') {
       data.stepKind = 'fanout';

@@ -2,17 +2,17 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { Globe, GraduationCap, MessageCircleQuestion, SquareTerminal, Trash2 } from 'lucide-react';
 import type { ThoughtNode as ThoughtNodeType, ThoughtData } from '../types';
 import { useStore } from '../store';
-import { effectiveRoles } from '../lib/role-templates';
-import { useUiStore } from '../lib/ui-store';
-import { useI18n, useT } from '../i18n';
+import { useT } from '../i18n';
+import { AskRoleChip, RolePickerButton } from './app/RolePicker';
 import { Button } from './ui/button';
 
 // Orchestration-view card. A paradigm has exactly two node kinds:
 //   human  — a dialogue turn: the human asks here. The card holds optional
 //            guidance for the operator; it instantiates as an EMPTY question
 //            node awaiting the human.
-//   prompt — a machine processing step: a fixed prompt (plus optional role)
-//            applied to whatever flows in from upstream nodes.
+//   prompt — a machine processing step: a fixed prompt (the task) in an
+//            optional role (who answers), applied to whatever flows in
+//            from upstream nodes.
 // Flow patterns (fan-out, review, synthesis) are drawn as graph shape, not
 // node kinds. No LLM ever runs in this view. Legacy v1 kinds render as
 // 'prompt' but keep their stored data for instantiation.
@@ -29,7 +29,6 @@ const KIND_STYLES: Record<'human' | 'prompt', string> = {
 
 export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
   const t = useT();
-  const lang = useI18n((s) => s.lang);
   const deleteNode = useStore((s) => s.deleteNode);
   const patch = (p: Partial<ThoughtData>) => {
     useStore.setState((state) => ({
@@ -84,7 +83,7 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
         />
 
         {/* body: THE prompt (machine) or operator guidance (human) — one
-            field; a persona is just the opening lines of the prompt */}
+            field; who answers is the step's role, below, not prompt text */}
         <textarea
           value={data.instruction ?? ''}
           onChange={(e) => patch({ instruction: e.target.value })}
@@ -95,18 +94,17 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
           }`}
         />
 
-        {/* persona chips: prepend a template persona into the prompt */}
+        {/* the step's role: the same role field every node has — who
+            answers, from this step down; the prompt above stays the task */}
         {kind === 'prompt' && (
-          <div className="flex flex-wrap gap-1" title={t('paradigm.insertPersona')}>
-            {effectiveRoles(lang, useUiStore.getState().roleLib).map((tpl) => (
-              <Button variant="ghost" size="xs"
-                key={tpl.id}
-                onClick={() => patch({ instruction: `${tpl.prompt}\n${data.instruction ?? ''}` })}
-                className="text-2xs bg-muted hover:bg-primary/10 hover:text-primary text-muted-foreground"
-              >
-                + {tpl.name}
-              </Button>
-            ))}
+          <div className="flex items-center gap-1.5 min-w-0" title={t('paradigm.roleTitle')}>
+            <RolePickerButton
+              value={data.rolePrompt ? { name: data.roleName ?? '', prompt: data.rolePrompt } : null}
+              onChange={(r) => patch({ rolePrompt: r?.prompt || undefined, roleName: (r?.prompt && r.name) || undefined })}
+            />
+            {data.rolePrompt
+              ? <AskRoleChip role={{ name: data.roleName ?? '', prompt: data.rolePrompt }} onClear={() => patch({ rolePrompt: undefined, roleName: undefined })} />
+              : <span className="text-2xs text-muted-foreground">{t('paradigm.roleNone')}</span>}
           </div>
         )}
 

@@ -39,7 +39,7 @@ const DIAGRAMS: Record<number, React.ReactNode> = {
       <path d={`M 34 47 L 37 52 L 40 47 Z`} fill={"var(--primary)"} />
       <Card x={20} y={52} />
       <rect x={26} y={58} width={14} height={3} rx={1.5} fill={"var(--edge-trace)"} opacity={0.6} />
-      <path d="M 54 62 C 64 62, 62 40, 72 38" stroke={"var(--edge-explore)"} strokeWidth={1.75} fill="none" strokeDasharray="4 3" />
+      <path d="M 54 62 C 64 62, 62 40, 72 38" stroke={"var(--edge-explore)"} strokeWidth={1.75} fill="none" />
       <path d={`M 69 35.5 L 74 38 L 70 41 Z`} fill={"var(--edge-explore)"} />
       <Card x={74} y={28} tone="warm" />
     </svg>
