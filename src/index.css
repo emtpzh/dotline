@@ -15,7 +15,7 @@
    shadcn's names are the vocabulary: background / foreground / card /
    popover / primary / secondary / muted / accent / destructive / border /
    input / ring. Three sets are ours: status (warning, success), the canvas
-   ground and its texture, and the four edge colors — a branch type must
+   ground and its texture, and the three edge colors — a wire's route must
    stay legible as a hue, so they do not fade into the neutral ramp.
    The JS mirror lives in src/lib/constants.ts (COLORS) — keep both in sync. */
 :root {
@@ -67,11 +67,10 @@
   --canvas-grid-fine: oklch(0.145 0 0 / 8%);
   --canvas-grid-major: oklch(0.145 0 0 / 16%);
 
-  /* edges: mainline / explore branch / ancestor path / evaluator watch */
+  /* edges: goes on / forks off / ancestor path (a material's wire is --muted-foreground; red means an error only) */
   --edge-continue: var(--primary);
   --edge-explore: oklch(0.710 0.139 59.4);
   --edge-trace: oklch(0.769 0.165 70.1);
-  --edge-watch: oklch(0.577 0.215 27.3);
 }
 
 .dark {
@@ -121,7 +120,6 @@
 
   --edge-explore: oklch(0.765 0.115 67.5);
   --edge-trace: oklch(0.758 0.133 83.2);
-  --edge-watch: oklch(0.689 0.130 26.7);
 }
 
 /* ── palette: harness — inside DeepSeek Harness the board wears the host's
@@ -150,7 +148,6 @@
   --canvas-grid-fine: #26314810;
   --canvas-grid-major: #26314824;
   --edge-trace: #22c55e;
-  --edge-watch: #ec1313;
 }
 
 .dark[data-palette='harness'] {
@@ -171,7 +168,6 @@
   --canvas: #353638;
   --canvas-dot: #ffffff1f;
   --edge-trace: #4ed17e;
-  --edge-watch: #f25a5a;
 }
 
 @theme inline {
@@ -226,7 +222,6 @@
   --color-edge-continue: var(--edge-continue);
   --color-edge-explore: var(--edge-explore);
   --color-edge-trace: var(--edge-trace);
-  --color-edge-watch: var(--edge-watch);
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);

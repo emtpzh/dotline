@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { describeModel } from '../lib/use-models';
 import { actionMarks, turnComposition, footprint } from '../lib/turn-insight';
 import { faceState, faceTone, farPriority, nodeConclusion, nodeName, roleLabel, type FaceShape } from '../lib/node-face';
-import { nodeRoute } from '../lib/edge-look';
+import { isAutoRerun, nodeRoute } from '../lib/edge-look';
 import { Handle, Position, useReactFlow, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
 import { AlertTriangle, Archive, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, GitBranch, Globe, Hourglass, Minimize2, RefreshCw, Send, Split, Square, Star, Trash2, X, Pencil } from 'lucide-react';
 import 'katex/dist/katex.min.css';
@@ -324,7 +324,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // that shows text (lib/node-face): zooming out only drops layers.
   const state = faceState(data, isStale);
   const tone = faceTone(route, data.stepKind);
-  const shape: FaceShape = data.isEvaluator ? 'diamond' : 'round';
+  const shape: FaceShape = 'round';
   // The far view always needs a label; the name row shows only a real
   // name (a fallback would just repeat the question beneath it)
   const name = nodeName(data) ?? t('face.newQuestion');
@@ -369,11 +369,17 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // of it at turn N — on the name row at every distance that shows text
   const sessionNote = useStore((s) => (data.sessionLink?.kind === 'new' ? sessionWhy(data.sessionLink, s.nodes, t) : null));
   // The node's own marks after its name: the role it was SET to (never an
-  // inherited one — only where the role changes), then the session note
-  const tags = (data.rolePrompt || data.sessionLink) ? (
+  // inherited one — only where the role changes), that it reruns itself
+  // (its answer can change while nobody touches it), then the session note
+  const auto = isAutoRerun(data);
+  const tags = (data.rolePrompt || auto || data.sessionLink) ? (
     <>
       {data.rolePrompt && (
         <span className="tdag-tag" data-tag="role" title={data.rolePrompt} data-role-tag>{roleLabel(data)}</span>
+      )}
+      {auto && (
+        <span className="tdag-tag" data-tag="auto" data-auto-tag
+          title={fmt(t('face.autoTitle'), { n: data.autoRerunRounds ?? 1 })}>↻ {t('face.auto')}</span>
       )}
       {data.sessionLink && (
         <span className="tdag-tag" data-tag={data.sessionLink.kind === 'new' ? 'warn' : undefined} data-session-link={data.sessionLink.kind}
@@ -748,8 +754,8 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                 <Button variant="ghost"
                   onClick={(e) => { e.stopPropagation(); void rerunNode(id, {}); }}
                   size="icon-xs"
-                  className={`rounded-full ${data.isEvaluator ? 'hover:text-edge-watch hover:bg-destructive/10' : 'hover:text-primary hover:bg-accent'}`}
-                  title={data.isEvaluator ? t('evaluator.rerun') : t('common.regenerate')}
+                  className="rounded-full hover:text-primary hover:bg-accent"
+                  title={t('common.regenerate')}
                 >
                   <RefreshCw strokeWidth={1.75} />
                 </Button>

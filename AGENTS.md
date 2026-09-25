@@ -29,7 +29,7 @@ npm run lint
 
 - **基础组件只从 `@/components/ui/*` 来**。缺什么用 `npx shadcn@latest add <name>` 加，不要手写。改 `components/ui/` 里的文件只允许调样式和加变体，不要塞业务逻辑。
 - **Base UI 用 `render` prop 组合，不是 Radix 的 `asChild`**。
-- **颜色只用语义 token**：shadcn 标准集加上 `warning`、`success`；画布连线用 `edge-continue` / `edge-explore` / `edge-trace` / `edge-watch`；画布底色 `canvas`。token 表在 `src/index.css`，JS 侧镜像在 `lib/constants.ts` 的 `COLORS`。原生色阶（`text-red-500`）和字面色值都会报错。画框身份色是唯一例外，集中在 `constants.ts` 的 `FRAME_COLORS`。
+- **颜色只用语义 token**：shadcn 标准集加上 `warning`、`success`；画布连线用 `edge-continue` / `edge-explore` / `edge-trace`（素材线用 `muted-foreground`；红色只表示错误，不用于连线）；连线外观由边的含义在渲染时推导（`lib/edge-look.ts`），不要往边上存样式；画布底色 `canvas`。token 表在 `src/index.css`，JS 侧镜像在 `lib/constants.ts` 的 `COLORS`。原生色阶（`text-red-500`）和字面色值都会报错。画框身份色是唯一例外，集中在 `constants.ts` 的 `FRAME_COLORS`。
 - **层级**：画布内 `z-0`–`z-10`，应用骨架到 `z-30` 为止，弹层一律由 `components/ui` 的组件处理（它们用 `z-50`）。业务代码里不要出现 `z-50` 及以上或 `z-[...]`。三个例外（教程、可拖动的 condense 窗口、阅读器的提问条）把层级定义在 `src/styles/base.css`，组件里写明了原因。
 - **弹窗用 `Dialog`**，自己写 `fixed inset-0` 遮罩会报错。每个弹窗都要有 `DialogTitle`（纯图标场景用 `sr-only`）。
 - **圆角**跟 `--radius` 派生的 token 走：按钮和输入框 `rounded-md`，卡片和弹窗 `rounded-xl`。

@@ -483,6 +483,8 @@ export const en = {
   'face.filesRead': 'Read',
   'face.expand': 'Expand',
   'face.collapse': 'Fold',
+  'face.auto': 'auto',
+  'face.autoTitle': 'Reruns itself whenever the thread above it gets a new answer (up to {n} round(s) per action of yours): its answer can change while nobody touches it',
   'palette.noteTitle': 'Add a note: feeds downstream context as [Note] once connected',
   'palette.fileTitle': 'Add a file node (images / PDF / text): feeds downstream context once connected',
   'content.unlinked': 'not in context',
@@ -972,7 +974,6 @@ export const en = {
   'export.attachmentsLabel': 'Attachments:',
 
   // Evaluator
-  'evaluator.badge': 'Evaluator',
 
   // Toolbar
   'toolbar.relayout': 'Tidy layout',
@@ -1047,7 +1048,6 @@ export const en = {
   'import.selectAll': 'Select all',
   'import.messages': '{n} messages',
   'import.confirm': 'Import {n} selected',
-  'evaluator.rerun': 'Re-critique now',
   'paradigm.emptyTitle': 'Design a paradigm',
   'paradigm.emptyHint': 'A paradigm has just two node kinds: dialogue nodes mark where the human asks; prompt nodes process upstream information with a fixed prompt. No LLM runs here \u2014 when the score is ready, instantiate it as a chat canvas and perform it live.',
   'paradigm.instantiate': 'Instantiate as canvas',
@@ -1078,7 +1078,7 @@ export const en = {
   'fanout.modeOnce': 'Answer once',
   'fanout.modeFollow': 'Keep reviewing',
   'fanout.modeOnceHint': 'Each perspective answers once, blind to its siblings \u2014 the rule-in / rule-out candidate pool.',
-  'fanout.modeFollowHint': 'Each perspective becomes a reviewer: a red edge slides with the thread tip and re-critiques whenever upstream grows.',
+  'fanout.modeFollowHint': 'Each perspective reruns itself: a flowing reference follows the thread\'s tip and it re-critiques whenever upstream grows.',
   'fanout.rounds': 'Auto-review rounds',
   'fanout.roundsHint': 'max auto re-critiques per manual action (a bounded, file-declared loop)',
   'fanout.question': 'Shared question',

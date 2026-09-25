@@ -11,7 +11,8 @@ import type { NodeRoute } from './edge-look';
 
 export type FaceState = 'failed' | 'wait' | 'running' | 'upstream' | 'stale';
 export type FaceTone = 'primary' | 'explore' | 'warning' | 'muted';
-export type FaceShape = 'round' | 'square' | 'diamond';
+/** Two kinds of things on a canvas: a turn (round) and material (square). */
+export type FaceShape = 'round' | 'square';
 
 /** The one state a card reports, highest priority first. Same mark at
  *  every zoom: a dot with a label, the far view keeps only its color. */

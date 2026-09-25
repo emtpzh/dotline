@@ -72,8 +72,8 @@ const baseData = (): ThoughtData => ({
  *                     Legacy files may still carry a rolePrompt — honored.
  * Legacy v1 kinds keep their behavior so old .paradigm.json files still work:
  * - step/synthesis  → ordinary node awaiting a manual first run
- * - review          → reviewer preset (persona + autoRerun); incoming edges
- *                     become red followsTip edges, like attachEvaluator's
+ * - review          → reviewer preset (role + autoRerun); incoming edges
+ *                     become references that follow the thread's tip
  * - fanout          → placeholder node keeping stepKind + fanoutRoles; the
  *                     canvas renders an "expand N perspectives" button and
  *                     the HUMAN decides when to fan out
@@ -125,7 +125,6 @@ export function instantiateParadigm(pNodes: ThoughtNode[], pEdges: ThoughtEdge[]
       data.frameColor = pn.data.frameColor;
     }
     if (kind === 'review') {
-      data.isEvaluator = true; // red visual identity
       data.autoRerun = true;
       data.autoRerunRounds = pn.data.autoRerunRounds;
       if (!data.rolePrompt) data.roleMode = 'inherit';
@@ -148,7 +147,8 @@ export function instantiateParadigm(pNodes: ThoughtNode[], pEdges: ThoughtEdge[]
       const source = idMap.get(e.source)!;
       const target = idMap.get(e.target)!;
       if (reviewTargets.has(target)) {
-        // reviewer wiring: red sliding edge, same as the attach preset
+        // reviewer wiring: a reference that follows the thread's tip, the same
+        // wire the perspectives dialog's "keep reviewing" lays
         return {
           id: `watch-${source}-${target}`,
           source,
@@ -156,7 +156,7 @@ export function instantiateParadigm(pNodes: ThoughtNode[], pEdges: ThoughtEdge[]
           sourceHandle: 'branch',
           targetHandle: 'left',
           type: 'smoothstep',
-          data: { isCrossLink: true, isWatch: true, followsTip: true },
+          data: { isCrossLink: true, followsTip: true },
         };
       }
       return {

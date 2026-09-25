@@ -120,11 +120,12 @@ const CONTENT: Record<Lang, { nodes: SeedNode[] }> = {
       },
       {
         id: 'evaluator',
-        q: '[Reviewer] Critique the discussion above: identify overclaims, missing evidence, and unstated assumptions. Be concise.',
-        a: '**Critique:** the argument silently equates "rarely reopened" with "worthless". Bookmarks also have **retrieval value**: for many items the correct use is "findable when needed", not "read cover to cover". No figure in this discussion separates the two populations.\n\n*Try asking me a follow-up. I\'m an ordinary node. The red edge slides forward as your thread grows, and I re-critique each new step on my own.*',
+        q: 'Critique the discussion above: identify overclaims, missing evidence, and unstated assumptions. Be concise.',
+        a: '**Critique:** the argument silently equates "rarely reopened" with "worthless". Bookmarks also have **retrieval value**: for many items the correct use is "findable when needed", not "read cover to cover". No figure in this discussion separates the two populations.\n\n*Try asking me a follow-up. I\'m an ordinary node with a role that reruns itself: the flowing dashed wire slides forward as your thread grows, and I re-critique each new step on my own.*',
         x: 700, y: 1290,
         extra: {
-          isEvaluator: true, autoRerun: true,
+          autoRerun: true,
+          roleName: 'Reviewer',
           rolePrompt: 'You are a rigorous peer reviewer. Critique the reasoning above: identify overclaims, missing evidence, and unstated assumptions.',
           summaries: ['Open: retrieval value of saves is unquantified, "worthless" is premature'], summaryTypes: ['open'],
         },
@@ -260,11 +261,12 @@ const CONTENT: Record<Lang, { nodes: SeedNode[] }> = {
       },
       {
         id: 'evaluator',
-        q: '[审稿人] 批评上面的讨论：指出夸大之处、缺失的证据和未言明的假设。保持简洁。',
-        a: '**批评**：上面的论证把「很少打开」悄悄等同于「毫无价值」，这是未言明的假设。收藏还有**检索价值**：很多条目的正确用法本来就是「需要时找得到」，而不是「通读」。整个讨论没有任何数据区分这两类收藏各占多少。\n\n*试着追问我。我是个普通节点，红色的边会随讨论延伸自动前移，每一步新内容我都会自己重新评审。*',
+        q: '批评上面的讨论：指出夸大之处、缺失的证据和未言明的假设。保持简洁。',
+        a: '**批评**：上面的论证把「很少打开」悄悄等同于「毫无价值」，这是未言明的假设。收藏还有**检索价值**：很多条目的正确用法本来就是「需要时找得到」，而不是「通读」。整个讨论没有任何数据区分这两类收藏各占多少。\n\n*试着追问我。我是个设了角色、会自己重跑的普通节点：那条流动的虚线会随讨论延伸自动前移，每一步新内容我都会自己重新评审。*',
         x: 700, y: 1290,
         extra: {
-          isEvaluator: true, autoRerun: true,
+          autoRerun: true,
+          roleName: '审稿人',
           rolePrompt: '你是一位严格的论文审稿人。批评上文的推理：指出夸大之处、缺失的证据和未言明的假设。',
           summaries: ['未解：收藏的检索价值没量化，「全无用」下结论太早'], summaryTypes: ['open'],
         },

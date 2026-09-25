@@ -12,9 +12,10 @@ import { Textarea } from './ui/textarea';
 // Perspectives dialog: N roles, ONE mechanism, two run policies.
 //   once   → each role answers the question once, blind to its siblings
 //            (the rule-in/rule-out candidate pool)
-//   follow → each role becomes a reviewer on a sliding watch edge that
-//            auto-reruns whenever the thread grows (the old "attach
-//            evaluator" is exactly this with N=1)
+//   follow → each role becomes a node that reruns itself, wired by a
+//            reference that follows the thread's tip (the old "attach
+//            evaluator" is exactly this with N=1). Neither is a kind of
+//            node: both are generic data, and their look follows from it.
 // Roles come from the template library (toggle chips) and/or free-form
 // lines ("Name: prompt"). Used from the panel and from fan-out
 // placeholder nodes instantiated out of paradigms.
@@ -103,7 +104,7 @@ export default function FanOutModal({
                   onClick={() => switchMode(m)}
                   className={`text-xs px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 ${
                     mode === m
-                      ? (m === 'follow' ? 'bg-edge-watch/10 text-edge-watch font-medium ring-1 ring-edge-watch/30' : 'bg-edge-explore/15 text-edge-explore font-medium ring-1 ring-edge-explore/30')
+                      ? (m === 'follow' ? 'bg-primary/10 text-primary font-medium ring-1 ring-primary/30' : 'bg-edge-explore/15 text-edge-explore font-medium ring-1 ring-edge-explore/30')
                       : 'bg-muted text-muted-foreground hover:bg-border'
                   }`}
                 >
@@ -123,7 +124,7 @@ export default function FanOutModal({
                     onClick={() => setRounds(r)}
                     size="icon-xs"
                     className={`text-2xs ${
-                      rounds === r ? 'bg-edge-watch/10 text-edge-watch font-medium ring-1 ring-edge-watch/30' : 'bg-muted text-muted-foreground hover:bg-border'
+                      rounds === r ? 'bg-primary/10 text-primary font-medium ring-1 ring-primary/30' : 'bg-muted text-muted-foreground hover:bg-border'
                     }`}
                   >
                     {r}×
@@ -196,7 +197,7 @@ export default function FanOutModal({
             onClick={run}
             disabled={!question.trim() || roles.length === 0}
             className={`text-xs text-white px-5 py-2 rounded-lg transition-colors disabled:opacity-30 ${
-              mode === 'follow' ? 'bg-edge-watch/90 hover:bg-edge-watch' : 'bg-edge-explore hover:bg-edge-explore/90'
+              mode === 'follow' ? 'bg-primary hover:bg-primary/90' : 'bg-edge-explore hover:bg-edge-explore/90'
             }`}
           >
             {fmt(t(mode === 'follow' ? 'fanout.confirmFollow' : 'fanout.confirm'), { n: roles.length })}

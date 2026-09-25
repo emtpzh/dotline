@@ -483,6 +483,8 @@ export const zh: Record<keyof typeof en, string> = {
   'face.filesRead': '读',
   'face.expand': '展开',
   'face.collapse': '折叠',
+  'face.auto': '自动',
+  'face.autoTitle': '上游每有新回答就自己重跑（每次你操作后最多 {n} 轮）：它的回答会在没人动它时变化',
   'palette.noteTitle': '添加便签：连线后以 [Note] 进入下游上下文',
   'palette.fileTitle': '添加文件节点（图片 / PDF / 文本）：连线后进入下游上下文',
   'content.unlinked': '未进上下文',
@@ -971,7 +973,6 @@ export const zh: Record<keyof typeof en, string> = {
   'export.attachmentsLabel': '附件：',
 
   // Evaluator
-  'evaluator.badge': '评审者',
 
   // Toolbar
   'toolbar.relayout': '一键排版',
@@ -1046,7 +1047,6 @@ export const zh: Record<keyof typeof en, string> = {
   'import.selectAll': '全选',
   'import.messages': '{n} 条消息',
   'import.confirm': '导入选中的 {n} 个',
-  'evaluator.rerun': '立即重新评审',
   'paradigm.emptyTitle': '设计一个范式',
   'paradigm.emptyHint': '范式只有两种节点：对话节点是人提问的位置，Prompt 节点用固定提示词处理上游信息。这里不运行 LLM。乐谱写好后，实例化为对话画布去现场演奏。',
   'paradigm.instantiate': '实例化为画布',
@@ -1077,7 +1077,7 @@ export const zh: Record<keyof typeof en, string> = {
   'fanout.modeOnce': '回答一次',
   'fanout.modeFollow': '持续评审',
   'fanout.modeOnceHint': '每个视角独立回答一次、彼此不可见，正是 rule-in / rule-out 的盲评候选池。',
-  'fanout.modeFollowHint': '每个视角成为评审者：红色跟随边滑向思路最新末端，上游每次更新自动重评。',
+  'fanout.modeFollowHint': '每个视角都会自己重跑：一条流动的引用线跟随思路的最新末端，上游每次更新就重新评审。',
   'fanout.rounds': '自动重评轮数',
   'fanout.roundsHint': '每次人工动作后最多自动评审几轮（有界循环，写进范式文件）',
   'fanout.question': '共同问题',

@@ -298,7 +298,8 @@ export interface ThoughtData extends Record<string, unknown> {
   includedAttachmentIds: string[]; // override ancestor exclusions (re-include)
   isRoot: boolean;
   isBranch: boolean;
-  /** Evaluator nodes subscribe to a thread via watch edges and critique it. */
+  /** Legacy: the old reviewer identity. Nothing reads it any more — a
+      reviewer is a role + autoRerun + a reference that follows the tip. */
   isEvaluator?: boolean;
   /** auto = re-critique whenever the watched subtree produces new content. */
   evaluatorTrigger?: 'auto' | 'manual';

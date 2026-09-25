@@ -224,8 +224,9 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
           rolePrompt: role.prompt,
           roleName: role.name || undefined,
           isRoot: false,
-          isBranch: !follow, // orange styling: exploratory candidates
-          isEvaluator: follow || undefined, // red styling + rerun affordance
+          isBranch: false,
+          // a perspective is no kind of node: its look follows from the role,
+          // from rerunning itself, and from the wire it hangs on (edge-look)
           autoRerun: follow || undefined,
           autoRerunRounds: rounds,
           ...intent,
@@ -240,7 +241,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
         sourceHandle: 'branch',
         targetHandle: 'left',
         type: 'smoothstep',
-        data: { isCrossLink: true, isWatch: true, followsTip: true },
+        data: { isCrossLink: true, followsTip: true },
       } : {
         id: `edge-${parentId}-${id}`,
         source: parentId,

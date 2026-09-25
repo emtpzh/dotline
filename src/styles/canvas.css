@@ -129,7 +129,6 @@
 .tdag-l1[data-tone='muted'], .tdag-far[data-tone='muted'] { --tone: var(--muted-foreground); }
 .tdag-shape { width: 0.6em; height: 0.6em; flex: none; border-radius: 9999px; background: var(--tone); }
 .tdag-shape[data-shape='square'] { border-radius: 0.12em; }
-.tdag-shape[data-shape='diamond'] { width: 0.52em; height: 0.52em; border-radius: 0.08em; transform: rotate(45deg); }
 .tdag-name {
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: 0.8em; font-weight: 600; letter-spacing: 0.02em; color: var(--muted-foreground);
@@ -138,6 +137,7 @@
    (warn = it left the session above; role = the role it was set to) */
 .tdag-tag { flex: none; max-width: 16em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.74em; font-weight: 500; color: var(--muted-foreground); }
 .tdag-tag[data-tag='warn'] { color: var(--warning); }
+.tdag-tag[data-tag='auto'] { font-variant-numeric: tabular-nums; }
 .tdag-tag[data-tag='role'] { padding: 0.05em 0.6em; border-radius: 9999px; font-weight: 600; color: var(--primary); background: color-mix(in oklch, var(--primary) 10%, transparent); }
 .tdag-acts { display: inline-flex; gap: 0.7em; flex: none; font-size: 0.76em; color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tdag-act { display: inline-flex; align-items: center; gap: 0.25em; }
@@ -183,7 +183,6 @@
   box-shadow: 0 0 0 6px var(--canvas);
 }
 .tdag-far-dot[data-shape='square'] { border-radius: 7px; }
-.tdag-far-dot[data-shape='diamond'] { left: -16px; top: -16px; width: 32px; height: 32px; border-radius: 4px; transform: rotate(45deg); }
 .tdag-far[data-state] .tdag-far-dot { box-shadow: 0 0 0 6px var(--canvas), 0 0 0 13px var(--state); }
 .tdag-far[data-state='wait'] .tdag-far-dot { background: var(--canvas); box-shadow: inset 0 0 0 7px var(--tone), 0 0 0 6px var(--canvas), 0 0 0 13px var(--state); }
 .tdag-far-label {
