@@ -6,6 +6,7 @@ import { flushPendingWrites } from '../lib/persistence';
 import { buildRuleOutRuleIn } from '../lib/paradigms/rule-out-rule-in';
 import { toast } from '../lib/ui-store';
 import { t } from '../i18n';
+import { setLedgerSource } from '../lib/agents/continuity';
 
 // Project layer: each canvas persists under its own IndexedDB key; this
 // module owns the metadata list and the switching choreography.
@@ -177,6 +178,14 @@ export const useProjects = create<ProjectsState>(() => ({
   activeId: null,
   switching: false,
 }));
+
+// The sessions the active canvas mirrors, with their tails: what decides
+// whether a question continues a session (lib/agents/continuity).
+setLedgerSource(() => {
+  const { projects, activeId } = useProjects.getState();
+  const ss = projects.find((p) => p.id === activeId)?.sourceSession;
+  return ss ? [ss, ...(ss.chapters ?? []), ...(ss.branches ?? [])].filter((e) => e.sessionId) : [];
+});
 
 async function saveMeta(): Promise<void> {
   const { projects, activeId } = useProjects.getState();

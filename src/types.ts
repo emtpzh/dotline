@@ -1,5 +1,6 @@
 import type { Node, Edge } from '@xyflow/react';
 import type { EdgeMeaning } from './lib/edge-look';
+import type { SessionLink } from './lib/agents/continuity';
 
 export interface Attachment {
   id: string;
@@ -160,6 +161,11 @@ export interface ThoughtData extends Record<string, unknown> {
     /** what changed on disk during the turn, by the file system's account */
     changes?: { changed: string[]; added: string[]; removed: string[]; truncated?: boolean };
   };
+  /** What became of the agent session above when this turn last ran (or,
+      before its first run, what its ask box predicted): it opened a new
+      session and why, or it forked the session at turn N. Absent = it went
+      on in that session, or there was none (lib/agents/continuity). */
+  sessionLink?: SessionLink;
   /** Transient: the tool calls of the agent turn running now, in order. */
   agentTrace?: AgentTraceEntry[];
   /** Transient: an agent runtime is waiting for the person's decision on one action. */

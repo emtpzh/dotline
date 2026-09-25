@@ -23,7 +23,7 @@ import type { ModelInfo } from '../use-models';
 import type { AgentRuntime, ThoughtNode } from '../../types';
 import { useUiStore } from '../ui-store';
 import { useStore } from '../../store';
-import { pristineChain } from './pristine';
+import { continuity, linkOf, type SessionLink } from './continuity';
 import { upstreamFingerprint } from '../../store/context-builder';
 import { countTokens } from '../../utils';
 
@@ -52,7 +52,11 @@ export async function agentModels(): Promise<ModelInfo[]> {
   return out;
 }
 
-export type AgentRoute = { cwd: string; sessionPath?: string; forkAfterTurn?: string[]; continue?: boolean };
+export type AgentRoute = {
+  cwd: string; sessionPath?: string; forkAfterTurn?: string[]; continue?: boolean;
+  /** what became of the session above, as the node will record it */
+  link?: SessionLink;
+};
 
 /** Where an agent turn runs: the folder the person chose for this canvas,
  *  the project its mirrored nodes came from, the canvas's own workspace —
@@ -153,46 +157,30 @@ export async function nodeCwd(nodeId: string, runtime: AgentRuntime): Promise<st
  * question travels. The same question off an earlier turn of a session
  * opens a new session holding the conversation up to that turn, where the
  * runtime can cut one. Anything else — other wiring, an edit, another
- * directory — opens a fresh session carrying the compiled context.
+ * directory — opens a fresh session carrying the compiled context. The
+ * decision is lib/agents/continuity's, the same one the ask boxes warn from.
  */
 export async function agentOutbound(model: string | undefined, nodeId?: string): Promise<AgentRoute | undefined> {
   const runtime = runtimeOf(model);
   if (!window.desktopAgents || !runtime) return undefined;
-  const { caps } = AGENT_RUNTIMES[runtime];
   if (!nodeId) {
     const choice = await resolveAgentCwd(runtime);
     return choice ? { cwd: choice.cwd } : undefined;
   }
   const cwd = await nodeCwd(nodeId, runtime);
   if (cwd === undefined) return undefined;
-  const fresh: AgentRoute = { cwd };
   try {
-    const { useProjects } = await import('../../store/projects');
-    const { nodes, edges } = useStore.getState();
-    const incoming = edges.filter((e) => e.target === nodeId);
-    if (incoming.length !== 1) return fresh;
-    if (!pristineChain(nodeId, nodes, edges)) return fresh;
-    const parent = nodes.find((n) => n.id === incoming[0].source);
-    if (!parent) return fresh;
-    // a session lives in one directory: a turn meant for another opens its own
-    const sessionCwd = parent.data.agentSession?.cwd || parent.data.importSource?.cwd || null;
-    if (sessionCwd && sessionCwd !== cwd) return fresh;
-    const { projects, activeId } = useProjects.getState();
-    const ss = projects.find((p) => p.id === activeId)?.sourceSession;
-    const entries = ss ? [ss, ...(ss.chapters ?? []), ...(ss.branches ?? [])].filter((e) => e.runner === runtime && e.sessionId) : [];
-    const entry = entries.find((e) => e.tailNodeId === parent.id);
-    if (entry) {
-      const sessionPath = await agentSessionFile(runtime, entry.sessionId, parent);
-      return sessionPath ? { cwd, sessionPath, continue: true } : fresh;
-    }
-    const src = parent.data.importSource;
-    if (caps.forkAt && src?.runner === runtime && src.sessionId && src.itemIds?.length) {
-      const sessionPath = await agentSessionFile(runtime, src.sessionId, parent);
-      if (sessionPath) return { cwd, sessionPath, forkAfterTurn: src.itemIds };
-    }
-    return fresh;
+    const { nodes } = useStore.getState();
+    const c = continuity(nodeId, nodes, useStore.getState().edges, runtime, cwd);
+    if (!c || c.kind === 'new') return { cwd, link: linkOf(c) };
+    const parent = nodes.find((n) => n.id === c.parentId);
+    const sessionPath = await agentSessionFile(runtime, c.sessionId, parent);
+    // the session is named but its record is gone: nothing to lean on
+    if (!sessionPath) return { cwd, link: { kind: 'new', reason: 'missing' } };
+    if (c.kind === 'continue') return { cwd, sessionPath, continue: true };
+    return { cwd, sessionPath, forkAfterTurn: parent?.data.importSource?.itemIds ?? [], link: linkOf(c) };
   } catch {
-    return fresh;
+    return { cwd };
   }
 }
 

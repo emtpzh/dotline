@@ -134,6 +134,10 @@
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: 0.8em; font-weight: 600; letter-spacing: 0.02em; color: var(--muted-foreground);
 }
+/* A node's own marks after its name: plain small words, one tone each
+   (warn = it left the session above; role = the role it was set to) */
+.tdag-tag { flex: none; max-width: 16em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.74em; font-weight: 500; color: var(--muted-foreground); }
+.tdag-tag[data-tag='warn'] { color: var(--warning); }
 .tdag-acts { display: inline-flex; gap: 0.7em; flex: none; font-size: 0.76em; color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tdag-act { display: inline-flex; align-items: center; gap: 0.25em; }
 .tdag-act svg { width: 1.15em; height: 1.15em; }

@@ -189,6 +189,7 @@ export default function FocusPanel({ onFocusNode }: { onFocusNode?: (id: string)
           nodeId={selectedNodeId!}
           branchContext={branchContext}
           onClearBranchContext={() => setBranchContext('')}
+          onFocusNode={onFocusNode}
         />
       )}
     </div>

@@ -16,6 +16,8 @@ import { isViewerMode } from '../lib/viewer';
 import type { Reference } from '../types';
 import { markNaming, unmarkNaming } from '../lib/batch-naming';
 import { isAutoRerun } from '../lib/edge-look';
+import { continuity, linkOf } from '../lib/agents/continuity';
+import { runtimeOf } from '../lib/agents/runtimes';
 import type { StoreState } from './types';
 
 // Background summary generation — fire and forget. Display channel ONLY:
@@ -173,6 +175,15 @@ export async function runNodeGeneration(
   // continues, forks or opens a session; the node becomes that turn's mirror
   const requestedModel = pinnedModel ?? useUiStore.getState().selectedModel ?? serverDefaultModel ?? undefined;
   const agentRoute = await agentOutbound(requestedModel, nodeId);
+  // What became of the agent session above, kept on the node: its card and
+  // its wire say "new session · why" (or "from turn N") long after the
+  // send. An ordinary model under an agent turn leaves that session too.
+  {
+    const link = agentRoute
+      ? agentRoute.link
+      : runtimeOf(requestedModel) ? undefined : linkOf(continuity(nodeId, get().nodes, get().edges, null, undefined));
+    set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId && (n.data.sessionLink || link) ? { ...n, data: { ...n.data, sessionLink: link } } : n)) }));
+  }
 
   const writeFinal = (response: string, failed = false) => {
     if (!isCurrent()) return; // superseded: a newer generation owns this node

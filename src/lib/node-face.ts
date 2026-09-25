@@ -59,6 +59,15 @@ export function nodeName(data: Pick<ThoughtData, 'summaryTopics' | 'responseInde
   return activeTopic(data) ?? (data.question.trim() ? clipName(data.question) : null);
 }
 
+/** A short name for any node, materials included — for sentences that
+ *  point at one ("wired in the material 「repro steps」"). */
+export function shortName(data: ThoughtData): string {
+  if (data.stepKind === 'file') return clipName(data.attachments?.[0]?.name ?? '');
+  if (data.stepKind === 'link') return clipName(data.linkTitle && !data.linkTitle.startsWith('⚠') ? data.linkTitle : data.linkUrl ?? '');
+  if (data.stepKind === 'note') return data.summaryTopics?.[0] ?? clipName(data.question.replace(/^#+\s*/gm, ''));
+  return nodeName(data) ?? '';
+}
+
 /** What this step yielded, in one line: the judged takeaway, or — until it
  *  arrives — the answer's close (imported agent turns state their finding
  *  last) or its opening. */

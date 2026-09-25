@@ -55,9 +55,9 @@ export function ActionMarks({ marks }: { marks: ActionMark[] }) {
   );
 }
 
-/** Layer 1, the name row: shape · name · actions · state, then whatever
- *  controls the working card needs (never shown on the map). */
-export function FaceName({ shape, tone, name, marks, state, stateMark, trailing, className = '' }: {
+/** Layer 1, the name row: shape · name · tags · actions · state, then
+ *  whatever controls the working card needs (never shown on the map). */
+export function FaceName({ shape, tone, name, marks, state, stateMark, trailing, tags, className = '' }: {
   shape: FaceShape;
   tone: FaceTone;
   /** null until the node has a real name — the question right below
@@ -68,12 +68,16 @@ export function FaceName({ shape, tone, name, marks, state, stateMark, trailing,
   /** replaces the plain state mark (the working card makes "stale" clickable) */
   stateMark?: ReactNode;
   trailing?: ReactNode;
+  /** marks that belong to this node alone, right after its name: the role
+      it was set to, that it reruns itself, the session it left */
+  tags?: ReactNode;
   className?: string;
 }) {
   return (
     <div className={`tdag-l1 ${className}`} data-tone={tone}>
       <span className="tdag-shape" data-shape={shape} />
       {name && <span className="tdag-name" title={name}>{name}</span>}
+      {tags}
       <ActionMarks marks={marks} />
       <span className="flex-1" />
       {stateMark ?? (state && <StateMark state={state} />)}

@@ -13,6 +13,8 @@ import MentionSurface from '../app/NodeMention';
 import { useMentions } from '../../lib/mentions';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import SessionNotice from '../app/SessionNotice';
+import { useContinuity } from '../../lib/use-continuity';
 
 const ROLE_STYLES: Record<string, string> = {
   system: 'bg-primary/10 text-primary',
@@ -24,11 +26,13 @@ export default function FollowUpInput({
   nodeId,
   branchContext,
   onClearBranchContext,
+  onFocusNode,
 }: {
   nodeId: string;
   /** Selected response text staged as context: submitting creates an orange explore branch. */
   branchContext: string;
   onClearBranchContext: () => void;
+  onFocusNode?: (id: string) => void;
 }) {
   const addQuestion = useStore((s) => s.addQuestion);
   const nodes = useStore((s) => s.nodes);
@@ -85,6 +89,11 @@ export default function FollowUpInput({
       fileCount: messages.filter((m) => /^\[(PDF|File): /.test(m.content)).length + images.length,
     };
   }, [nodeId, nodes, edges, staleIds]);
+
+  // Whether this question goes on in the agent session above, decided the
+  // way the send will decide it — said while it can still be changed
+  const session = useContinuity(nodeId, { branchContext: branchContext || undefined, attachments: pendingAttachments, mentions: mention.mentions.map((x) => x.nodeId) });
+  const breaks = session?.kind === 'new';
 
   // Auto-focus continue input when switching nodes or staging selected text
   useEffect(() => {
@@ -180,6 +189,7 @@ export default function FollowUpInput({
         </div>
       )}
 
+      {continueInput.trim() && <SessionNotice c={session} onLocate={onFocusNode} />}
       <MentionSurface m={mention} text={continueInput} setText={setContinueInput} />
       <div
         className="flex items-end gap-2 bg-muted rounded-xl px-4 py-2.5 transition-shadow focus-within:ring-1 focus-within:ring-ring/40"
@@ -223,7 +233,8 @@ export default function FollowUpInput({
         <Button variant="ghost" size="icon-sm"
           onClick={submit}
           disabled={!continueInput.trim()}
-          className="text-muted-foreground hover:text-primary shrink-0 hover:bg-border"
+          title={breaks ? t('session.sendNew') : undefined}
+          className={`${breaks ? 'text-warning' : 'text-muted-foreground'} hover:text-primary shrink-0 hover:bg-border`}
         >
           <Send strokeWidth={1.75} />
         </Button>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Eye, Split } from 'lucide-react';
 import { useStore } from '../store';
+import { sessionOf } from '../lib/agents/continuity';
 import { effectiveRoles } from '../lib/role-templates';
 import { useUiStore } from '../lib/ui-store';
 import { useI18n, useT, fmt } from '../i18n';
@@ -29,6 +30,12 @@ export default function FanOutModal({
   onClose: () => void;
 }) {
   const fanOut = useStore((s) => s.fanOut);
+  // Off a turn of an agent session, a perspective carries its own role — so
+  // it cannot go on in that session (lib/agents/continuity): say so first
+  const onAgentSession = useStore((s) => {
+    const parent = s.nodes.find((n) => n.id === parentId);
+    return !!parent && !!sessionOf(parent.data);
+  });
   const t = useT();
   const lang = useI18n((s) => s.lang);
   const [mode, setMode] = useState<'once' | 'follow'>('once');
@@ -126,6 +133,16 @@ export default function FanOutModal({
               </div>
             )}
           </div>
+
+          {onAgentSession && (
+            <div className="flex items-start gap-2 rounded-lg bg-warning/10 px-2.5 py-2 text-xs" role="status" data-session-notice="perspectives">
+              <span className="mt-1 size-2 shrink-0 rounded-full bg-warning" />
+              <div className="min-w-0">
+                <p className="font-medium text-warning">{t('session.perspectivesNew')}</p>
+                <p className="mt-0.5 leading-snug text-muted-foreground">{t('session.newBody')}</p>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="text-2xs text-muted-foreground uppercase tracking-wider font-medium block mb-1.5">{t(mode === 'follow' ? 'fanout.instruction' : 'fanout.question')}</label>

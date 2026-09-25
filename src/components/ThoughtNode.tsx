@@ -31,6 +31,9 @@ import { isViewerMode } from '../lib/viewer';
 import { Button } from './ui/button';
 import SelectionActions from './app/SelectionActions';
 import { FaceBody, FaceName, FarMark, StateMark } from './app/NodeFace';
+import SessionNotice from './app/SessionNotice';
+import { sessionWhy } from '../lib/session-why';
+import { useContinuity } from '../lib/use-continuity';
 import { useTextSelection } from '../lib/use-text-selection';
 import { Textarea } from './ui/textarea';
 
@@ -260,6 +263,10 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // Where this card sits in the grammar: the solid wire it hangs from
   // (lib/edge-look) — its bar, its dot and that wire share one color.
   const route = useStore((s) => nodeRoute(s.nodes, s.edges, id));
+  // The inline follow-up box, and whether its question would go on in the
+  // agent session above (lib/agents/continuity) — warned before the send
+  const showInline = !mapMode && !data.isCollapsed && !data.isLoading && !data.isEditingResponse && !isAwaitingAsk && !(isParadigmNode && runLocked) && !isViewerMode && selectedNodeId !== id;
+  const session = useContinuity(showInline ? id : null, { branchContext: branchFromText || undefined, mentions: mention.mentions.map((x) => x.nodeId) });
   const hasMultipleVersions = data.responses.length > 1;
 
   const highlightedTexts = new Set(data.highlights.map((h) => h.text));
@@ -353,6 +360,15 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
       )}
     </span>
   );
+  // What became of the agent session above: a new one and why, or a fork
+  // of it at turn N — on the name row at every distance that shows text
+  const sessionNote = useStore((s) => (data.sessionLink?.kind === 'new' ? sessionWhy(data.sessionLink, s.nodes, t) : null));
+  const tags = data.sessionLink ? (
+    <span className="tdag-tag" data-tag={data.sessionLink.kind === 'new' ? 'warn' : undefined} data-session-link={data.sessionLink.kind}
+      title={data.sessionLink.kind === 'new' ? t('session.newBody') : undefined}>
+      {data.sessionLink.kind === 'new' ? fmt(t('session.newBadge'), { why: sessionNote ?? '' }) : fmt(t('session.forkBadge'), { n: data.sessionLink.turn })}
+    </span>
+  ) : null;
   // Stale is the one state you can act on from the card: click to replay
   const stateMark = state === 'stale' && !data.isLoading ? (
     <StateMark state="stale" title={t('node.staleTitle')}
@@ -432,13 +448,13 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
             if (n) rf.setCenter(n.position.x + 260, n.position.y + 120, { zoom: 1, duration: 300 });
           }}
         >
-          <FaceName shape={shape} tone={tone} name={rowName} marks={marks} state={state} />
+          <FaceName shape={shape} tone={tone} name={rowName} marks={marks} state={state} tags={tags} />
           <FaceBody question={data.question} placeholder={t('face.noQuestion')} conclusion={conclusion} />
         </div>
       ) : (
       <div key={formKey} className="animate-in fade-in-0 duration-150">
       <FaceName className="tdag-face drag-handle cursor-grab active:cursor-grabbing"
-        shape={shape} tone={tone} name={rowName} marks={marks} state={state} stateMark={stateMark} trailing={controls} />
+        shape={shape} tone={tone} name={rowName} marks={marks} state={state} stateMark={stateMark} trailing={controls} tags={tags} />
 
       {data.isCollapsed && (
         <div className="tdag-face">
@@ -759,6 +775,12 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               {data.agentSession?.continued && (
                 <span className="text-2xs text-muted-foreground ml-1 shrink-0" title={t('agent.continuedTitle')} data-agent-continued>↩ {t('agent.continued')}</span>
               )}
+              {data.sessionLink && !data.agentSession?.continued && (
+                <span className="text-2xs text-muted-foreground ml-1 shrink-0" data-agent-new-session
+                  title={data.sessionLink.kind === 'new' ? `${sessionNote ?? ''}\n${t('session.newBody')}` : fmt(t('session.forkLine'), { n: data.sessionLink.turn })}>
+                  ↳ {data.sessionLink.kind === 'new' ? t('session.newAction') : fmt(t('session.forkBadge'), { n: data.sessionLink.turn })}
+                </span>
+              )}
               {data.importSource?.runner === 'pi' && window.desktopSessions && (
                 <Button variant="ghost" size="icon-sm"
                   onClick={(e) => { e.stopPropagation(); void window.desktopSessions!.openInCli('pi', data.importSource!.cwd ?? '', data.importSource!.sessionId, 'terminal'); }}
@@ -835,8 +857,14 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
 
           {/* Inline continue input — hidden while a paradigm run is in
               progress (the structure IS the paradigm); returns on unlock */}
-          {!data.isLoading && !data.isEditingResponse && !isAwaitingAsk && !(isParadigmNode && runLocked) && !isViewerMode && selectedNodeId !== id && (
+          {showInline && (
             <div className="mt-3 pt-3 border-t border-border relative">
+              {inputValue.trim() && (
+                <SessionNotice c={session} onLocate={(nid) => {
+                  const n = rf.getNode(nid);
+                  if (n) rf.setCenter(n.position.x + 260, n.position.y + 120, { zoom: rf.getZoom(), duration: 300 });
+                }} />
+              )}
               <MentionSurface m={mention} text={inputValue} setText={setInputValue} />
               <div className="flex items-end gap-2 bg-muted rounded-xl px-4 py-2.5 transition-shadow focus-within:ring-1 focus-within:ring-ring/40">
                 <textarea
@@ -857,7 +885,8 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                 <Button variant="ghost" size="icon-sm"
                   onClick={handleSubmitBranch}
                   disabled={!inputValue.trim()}
-                  className="text-muted-foreground hover:text-primary shrink-0 hover:bg-border"
+                  title={session?.kind === 'new' ? t('session.sendNew') : undefined}
+                  className={`${session?.kind === 'new' ? 'text-warning' : 'text-muted-foreground'} hover:text-primary shrink-0 hover:bg-border`}
                 >
                   <Send strokeWidth={1.75} />
                 </Button>

@@ -9,6 +9,7 @@ import { countTokens } from '../utils';
 import { useT, fmt } from '../i18n';
 import type { ThoughtEdge } from '../types';
 import { Button } from './ui/button';
+import { sessionWhy } from '../lib/session-why';
 
 /**
  * Custom edge registered under the 'smoothstep' type name (overrides the
@@ -70,6 +71,16 @@ export default function ThoughtEdgeView({
     return siblings.findIndex((e) => e.id === id);
   }, [edges, target, id, isRef]);
 
+  // The wire into a turn that left its agent session says why, where the
+  // line leaves the column — when the wire is long enough to carry words;
+  // the card's name row always says it too
+  const tgt = nodes.find((n) => n.id === target);
+  const roomy = Math.hypot(targetX - sourceX, targetY - sourceY) > 200;
+  const link = roomy && !isRef && view?.route !== 'material' ? tgt?.data.sessionLink : undefined;
+  const linkText = link?.kind === 'new'
+    ? fmt(t('session.newBadge'), { why: sessionWhy(link, nodes, t) })
+    : link?.kind === 'fork' ? fmt(t('session.forkBadge'), { n: link.turn }) : null;
+
   return (
     <>
       <BaseEdge
@@ -102,6 +113,17 @@ export default function ThoughtEdgeView({
         // so the line never reads as dashed — dashed is taken: references.
         // A dashed one flows by its own dashes (canvas.css .tdag-live).
         <path d={path} className="tdag-flow-ov" fill="none" />
+      )}
+      {linkText && !selected && (
+        <EdgeLabelRenderer>
+          <div
+            className="nodrag nopan pointer-events-none absolute max-w-[220px] truncate rounded-md border border-border bg-card px-1.5 py-px text-2xs text-muted-foreground shadow-sm"
+            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+            data-session-link-label={link!.kind}
+          >
+            {linkText}
+          </div>
+        </EdgeLabelRenderer>
       )}
       {selected && (
         <EdgeLabelRenderer>

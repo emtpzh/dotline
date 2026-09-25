@@ -13,6 +13,7 @@ import { condenseGuard } from '../../lib/condense-guard';
 import { isFactNode } from '../../lib/facts';
 import { lineModel, lineCwd, intentOf, inheritIntent, intentFields } from '../../lib/run-intent';
 import { runtimeOf } from '../../lib/agents/runtimes';
+import { continuity, linkOf } from '../../lib/agents/continuity';
 import { globalIntent, nodeIntent } from '../intent';
 import { convergeRun } from '../converge';
 
@@ -100,6 +101,20 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
         wired++;
       }
       if (wired > 0) toast('info', fmt(t('mention.wired'), { n: wired }), 6000);
+    }
+    // One vertical line is one agent session. A question that cannot go on
+    // in the session above opens a new one: it grows beside its parent as a
+    // fork and carries the reason (the ask box warned before the send —
+    // lib/agents/continuity; the run records what actually happened).
+    const predicted = parentId && newEdge
+      ? continuity(id, [...get().nodes, newNode], newEdges, runtimeOf(intent.model), undefined)
+      : null;
+    if (predicted && predicted.kind !== 'continue') {
+      newNode.data.sessionLink = linkOf(predicted);
+      if (predicted.kind === 'new' && !isBranch) {
+        const fork: ThoughtEdge = { ...newEdge!, sourceHandle: 'branch', targetHandle: 'left', data: { isBranchFromSelection: true, branchYRatio: 0.5 } };
+        newEdges = newEdges.map((e) => (e.id === fork.id ? fork : e));
+      }
     }
     // Auto-collapse parent node when creating a child
     const updatedNodes = parentId
