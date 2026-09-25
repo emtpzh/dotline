@@ -67,4 +67,20 @@ export const createHighlightSlice: StateCreator<StoreState, [], [], HighlightSli
       }),
     }));
   },
+
+  setTopics: (entries) => {
+    const byId = new Map(entries.map((e) => [e.nodeId, e]));
+    set((state) => ({
+      nodes: state.nodes.map((n) => {
+        const e = byId.get(n.id);
+        if (!e) return n;
+        const idx = n.data.responses.indexOf(e.forResponse);
+        if (idx === -1) return n; // the version was edited/deleted meanwhile
+        if (n.data.summaryTopics?.[idx]) return n; // a per-node judge got there first
+        const summaryTopics = [...(n.data.summaryTopics ?? [])];
+        summaryTopics[idx] = e.topic;
+        return { ...n, data: { ...n.data, summaryTopics } };
+      }),
+    }));
+  },
 });

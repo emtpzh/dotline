@@ -169,14 +169,14 @@ const CONTENT: Record<Lang, { nodes: SeedNode[] }> = {
         id: 'cmp-full',
         q: '⚖️ Same question A: summarize what we know (WITH the cooking noise in context)',
         a: 'Here\'s a summary of our discussion:\n\nWe covered why saved articles stay unread (cost asymmetry, the collector\'s fallacy, anticipatory reward), ruled out switching tools, **and also dinner plans: mushroom risotto with arborio rice**.\n\n*Notice how the noise leaks in and dilutes the summary. The model can\'t tell what matters: everything upstream is "context".*',
-        x: 2210, y: 490,
+        x: 2210, y: 580,
         extra: { summaries: ['Control group: dinner chatter leaks into the summary and dilutes it'] },
       },
       {
         id: 'cmp-pruned',
         q: '⚖️ Same question B: summarize what we know (noise edge DELETED)',
         a: 'Here\'s a summary of our discussion:\n\n**Why libraries gather dust:** saving is nearly free, reading is expensive; the pleasure of collecting impersonates the progress of understanding (the collector\'s fallacy). **Switching tools is ruled out** — the bottleneck is processing. **The way out:** move processing to the moment of capture — one written line per save.\n\n*Same question, but this node\'s incoming edge skips the cooking node. Compare with node A: this is what "you control the context" means. The **will-send preview** above the ask box shows exactly what flows in, layer by layer (materials · references · conversation), before you spend a token.*',
-        x: 2210, y: 930,
+        x: 2210, y: 1120,
         extra: { summaries: ['Delete one edge and the same question returns a clean summary'] },
       },
       // ── ④ the reading loop ──
@@ -202,7 +202,7 @@ const CONTENT: Record<Lang, { nodes: SeedNode[] }> = {
         id: 'brief-digest',
         q: 'Guided digest: unread-brief.pdf',
         a: '# Why your saved articles stay unread\n\n**In one line**: saving is nearly free and reading is expensive, so libraries inflate by default — "the act of saving is mistaken for the act of learning" (p.1).\n\n## The core concept\n\n**The collector\'s fallacy**: collecting delivers an immediate sense of progress while the understanding it promises is deferred (p.1).\n\n## Why it persists\n\nCost asymmetry: a save takes one second and pays out now; reading takes an hour and pays out later (p.2). Habits follow the cheaper loop.\n\n## What actually helps\n\nMove processing to the moment of capture: one line in your own words on why it matters, plus a scheduled review pass (p.2). A small processed library beats a complete dead one.\n\n*(I am a digest NODE, grown by the reader\'s "Guided digest" button. The reader\'s digest tab is my reading view — the (p.N) marks are clickable jump buttons there. Wire me downstream and later questions ride this compression instead of the full text.)*',
-        x: 2980, y: 690,
+        x: 2980, y: 880,
         extra: {
           digestOf: 'ex-att-brief',
           summaries: ['Digest done: saving ≠ learning, processing counts; every point page-anchored'],
@@ -211,7 +211,7 @@ const CONTENT: Record<Lang, { nodes: SeedNode[] }> = {
       // ── frames: the chapters ──
       { id: 'frame-chain', q: '① The conversation: chain · branch · reviewer', a: '', x: 0, y: 240, w: 1290, h: 1460, extra: { stepKind: 'frame', frameColor: 'violet' } },
       { id: 'frame-material', q: '② Materials & wires', a: '', x: 1400, y: 0, w: 640, h: 1560, extra: { stepKind: 'frame', frameColor: 'amber' } },
-      { id: 'frame-prune', q: '③ ⚖️ Prune the context', a: '', x: 2160, y: 0, w: 640, h: 1240, extra: { stepKind: 'frame', frameColor: 'sky' } },
+      { id: 'frame-prune', q: '③ ⚖️ Prune the context', a: '', x: 2160, y: 0, w: 640, h: 1360, extra: { stepKind: 'frame', frameColor: 'sky' } },
       { id: 'frame-read', q: '④ The reading loop: paper → dialogue', a: '', x: 2920, y: 0, w: 1270, h: 1240, extra: { stepKind: 'frame', frameColor: 'green' } },
     ],
   },
@@ -309,14 +309,14 @@ const CONTENT: Record<Lang, { nodes: SeedNode[] }> = {
         id: 'cmp-full',
         q: '⚖️ 同一问题 A：总结我们聊了什么（上下文里带着做饭闲聊）',
         a: '以下是我们讨论的总结：\n\n我们讨论了收藏夹吃灰的原因（成本不对称、收藏家谬误、预期奖励），排除了换工具这条路，**还有晚饭计划：用 Arborio 米做蘑菇烩饭**。\n\n*注意闲聊如何漏进来稀释了主题总结。模型分不清什么重要：上游的一切都是「上下文」。*',
-        x: 2210, y: 490,
+        x: 2210, y: 580,
         extra: { summaries: ['对照组：晚饭闲聊漏进总结，主题结论被稀释'] },
       },
       {
         id: 'cmp-pruned',
         q: '⚖️ 同一问题 B：总结我们聊了什么（做饭那条边已删除）',
         a: '以下是我们讨论的总结：\n\n**收藏夹为何吃灰**：存下来几乎免费、读完很贵；收集的快感冒充理解的进度（收藏家谬误）。**换工具已排除**：瓶颈在处理不在收藏。**出路**：处理前置——存的那一刻写一句为什么。\n\n*同一个问题，但这个节点的入边跳过了做饭节点。对比 A 节点：这就是「你控制上下文」的含义。追问框上方的**「将发送」预览**会按 材料 · 引用 · 对话 三层展示到底有什么会流入。花 token 之前先看账单。*',
-        x: 2210, y: 930,
+        x: 2210, y: 1120,
         extra: { summaries: ['删掉一条边，同一个问题得到干净的总结'] },
       },
       // ── ④ 阅读闭环 ──
@@ -342,7 +342,7 @@ const CONTENT: Record<Lang, { nodes: SeedNode[] }> = {
         id: 'brief-digest',
         q: '导读：unread-brief.pdf',
         a: '# 为什么收藏的文章总是没读\n\n**一句话**：存下来几乎免费、读完很贵，于是收藏夹默认膨胀——「存下来的动作被误当成学习的动作」(p.1)。\n\n## 核心概念\n\n**收藏家谬误**：收集带来即时的进度感，而它允诺的理解被无限推迟 (p.1)。\n\n## 为什么戒不掉\n\n成本不对称：收藏一秒钟、奖励当下兑现；阅读一小时、回报在远处 (p.2)。习惯永远沿着更便宜的环路走。\n\n## 有效的做法\n\n把「处理」前置到收藏那一刻：当场用自己的话写一句为什么重要，并安排定期回访，而不是指望收藏夹自己浮现 (p.2)。被处理的小书库，胜过完整的死书库。\n\n*（我是一个导读节点：在阅读器里点「生成导读」长出来的。阅读器顶部的「导读」标签页就是我的阅读视图，(p.N) 在那里是可点击的跳页按钮。把我连向下游，后续问题就以这份压缩为上下文，而不是整份原文。）*',
-        x: 2980, y: 690,
+        x: 2980, y: 880,
         extra: {
           digestOf: 'ex-att-brief',
           summaries: ['导读完成：存≠学，处理才算数；要点均带页码'],
@@ -351,7 +351,7 @@ const CONTENT: Record<Lang, { nodes: SeedNode[] }> = {
       // ── 分区框：章节 ──
       { id: 'frame-chain', q: '① 对话：主链 · 分支 · 评审', a: '', x: 0, y: 240, w: 1290, h: 1460, extra: { stepKind: 'frame', frameColor: 'violet' } },
       { id: 'frame-material', q: '② 材料与引用', a: '', x: 1400, y: 0, w: 640, h: 1560, extra: { stepKind: 'frame', frameColor: 'amber' } },
-      { id: 'frame-prune', q: '③ ⚖️ 修剪上下文', a: '', x: 2160, y: 0, w: 640, h: 1240, extra: { stepKind: 'frame', frameColor: 'sky' } },
+      { id: 'frame-prune', q: '③ ⚖️ 修剪上下文', a: '', x: 2160, y: 0, w: 640, h: 1360, extra: { stepKind: 'frame', frameColor: 'sky' } },
       { id: 'frame-read', q: '④ 阅读闭环：文献长成对话', a: '', x: 2920, y: 0, w: 1270, h: 1240, extra: { stepKind: 'frame', frameColor: 'green' } },
     ],
   },
@@ -373,7 +373,10 @@ export function buildExampleGraph(lang: Lang): { nodes: ThoughtNode[]; edges: Th
       response: a,
       responses: a ? [a] : [],
       responseIndex: a ? 0 : -1,
-      isCollapsed: false,
+      // Cards whose answer runs long start folded (name · question ·
+      // conclusion): the seats below were hand-placed for that height, and
+      // a folded card is one click from the full answer.
+      isCollapsed: !!(extra as { summaries?: string[] } | undefined)?.summaries?.[0] && a.length > 400,
       isEditing: false,
       isEditingResponse: false,
       isLoading: false,

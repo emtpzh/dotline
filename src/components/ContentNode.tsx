@@ -14,6 +14,8 @@ import { countTokens } from '../utils';
 import { useT, fmt } from '../i18n';
 import { isViewerMode } from '../lib/viewer';
 import { Button } from './ui/button';
+import { FaceBody, FaceName, FarMark } from './app/NodeFace';
+import { farPriority, type FaceTone } from '../lib/node-face';
 import { Textarea } from './ui/textarea';
 
 // Content nodes: canvas material, not turns. A note (markdown), a file
@@ -102,29 +104,72 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
       ? <Link2 size={14} strokeWidth={1.75} className="text-primary shrink-0" />
       : <Paperclip size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" />;
 
+  // The face grammar every card shares (lib/node-face): a square shape,
+  // the material's name, what it is, and — its conclusion — whether it
+  // reaches any context at all.
+  const tone: FaceTone = kind === 'note' ? 'warning' : kind === 'link' ? 'primary' : 'muted';
+  const materialName = kind === 'file'
+    ? (attachments[0]?.name ?? t('glyph.file'))
+    : kind === 'link'
+      ? (data.linkTitle && !data.linkTitle.startsWith('⚠') ? data.linkTitle : linkDomain || t('glyph.link'))
+      : (data.summaryTopics?.[0] ?? t('glyph.note'));
+  const fileKind = (a: (typeof attachments)[number]) => {
+    const ext = a.name.includes('.') ? a.name.split('.').pop()!.toUpperCase() : a.type;
+    return a.numPages != null ? `${ext} · ${a.numPages}p` : ext;
+  };
+  const materialLine = kind === 'file'
+    ? (data.summaries?.[0] ?? (attachments.length === 1 ? fileKind(attachments[0]) : attachments.map((a) => a.name).join(' · ')))
+    : (kind === 'link' ? (data.summaries?.[0] ?? data.question) : data.question).replace(/^#+\s*/gm, '');
+  const wireLine = wireState === 'none:0'
+    ? t('content.wireNone')
+    : wireState === 'quote:0' ? t('content.wireQuoteOnly') : fmt(t('content.wireFull'), { n: wireState.split(':')[1] });
+  const openMaterial = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // documents open where they are read; notes fly to working scale
+    if (kind === 'file' || kind === 'link') useUiStore.getState().setReaderNodeId(id);
+    else rf.setCenter((nodePos?.x ?? 0) + 200, (nodePos?.y ?? 0) + 120, { zoom: 1, duration: 300 });
+  };
+
   if (glyphTier) {
-    // Glyph tier: material collapses to its own icon — a note, a document,
-    // a link. The footprint stays (edge anchors must not shift); only the
-    // centered seal renders.
+    // Far: the name row's square grown into a dot, the name beside it — in
+    // the same fixed box a conversation node uses at this tier (a box with
+    // no height leaves React Flow measuring its anchors off the old size).
     return (
-      <div className={`drag-handle cursor-grab active:cursor-grabbing w-full h-full min-w-[340px] flex items-center justify-center ${selectedNodeId === id ? 'glyph-selected' : ''}`}
+      <div className={`drag-handle cursor-grab active:cursor-grabbing relative w-full h-32 min-w-[340px] ${selectedNodeId === id ? 'glyph-selected' : ''}`}
         onClick={() => setSelectedNodeId(id)} data-glyph-node
-        onDoubleClick={(e) => {
-          e.stopPropagation();
-          // documents open where they are read; notes zoom to working scale
-          if (kind === 'file' || kind === 'link') useUiStore.getState().setReaderNodeId(id);
-          else rf.setCenter((nodePos?.x ?? 0) + 200, (nodePos?.y ?? 0) + 120, { zoom: 1, duration: 300 });
-        }}
-        title={`${t(kind === 'file' ? 'glyph.file' : kind === 'link' ? 'glyph.link' : 'glyph.note')}\n${kind === 'file' ? (attachments[0]?.name ?? '') : kind === 'link' ? (data.linkTitle || data.linkUrl || '') : data.question.replace(/\s+/g, ' ').slice(0, 120)}`}>
-        <span className={`w-28 h-28 rounded-[2rem] flex items-center justify-center border-4 border-card shadow-lg text-white ${
-          kind === 'note' ? 'bg-warning' : kind === 'link' ? 'bg-cyan-600' : 'bg-slate-500'
-        }`}>
-          {kind === 'note' ? <StickyNote size={60} strokeWidth={2} /> : kind === 'link' ? <Link2 size={60} strokeWidth={2} /> : <FileText size={60} strokeWidth={2} />}
-        </span>
-        <Handle type="source" position={Position.Bottom} id="continue" className="!bg-muted-foreground !border-2 !border-white tdag-handle !w-6 !h-6 tdag-handle-lg" style={{ left: '50%' }} />
+        onDoubleClick={openMaterial}
+        title={`${t(kind === 'file' ? 'glyph.file' : kind === 'link' ? 'glyph.link' : 'glyph.note')}\n${materialName}`}>
+        <FarMark shape="square" tone={tone} name={materialName} state={null}
+          priority={farPriority({ selected: selectedNodeId === id, state: null, material: true })} />
+        <Handle type="source" position={Position.Bottom} id="continue" className="!bg-muted-foreground !border-2 !border-white tdag-handle !w-6 !h-6 tdag-handle-lg" style={{ left: '50%', top: '50%', bottom: 'auto' }} />
         {/* reader-grown branches leave through this handle — without it,
-            React Flow drops those edges entirely at glyph zoom */}
-        <Handle type="source" position={Position.Right} id="branch" isConnectable={false} className="!bg-transparent !w-0 !h-0 !border-0 !pointer-events-none" style={{ top: '50%', left: 'calc(50% + 56px)', right: 'auto' }} />
+            React Flow drops those edges entirely at far zoom */}
+        <Handle type="source" position={Position.Right} id="branch" isConnectable={false} className="!bg-transparent !w-0 !h-0 !border-0 !pointer-events-none" style={{ top: '50%', left: '50%', right: 'auto' }} />
+      </div>
+    );
+  }
+
+  if (zoomedOut) {
+    // Map: the same face as a folded card, drawn larger. A document keeps
+    // its cover under the face — a page reads as a page at any distance.
+    const cover = kind === 'file' ? attachments.find((a) => a.type.startsWith('image/') || a.pageImages?.[0]) : undefined;
+    const coverSrc = cover && (cover.type.startsWith('image/') ? `data:${cover.type};base64,${cover.content}` : `data:image/png;base64,${cover.pageImages![0]}`);
+    return (
+      <div
+        className={`content-card map-node relative w-full h-full min-w-[340px] flex flex-col overflow-hidden rounded-xl shadow-sm border-2 ${
+          kind === 'note' ? 'bg-warning/10 border-warning/30' : 'bg-card border-border'
+        } ${selectedNodeId === id ? 'ring-2 ring-primary selected-glow' : ''}`}
+        style={{ '--k': 1.75 } as React.CSSProperties}
+        onClick={() => setSelectedNodeId(id)}
+        onDoubleClick={openMaterial}
+      >
+        <div className="tdag-face drag-handle cursor-grab active:cursor-grabbing shrink-0 animate-in fade-in-0 duration-150">
+          <FaceName shape="square" tone={tone} name={materialName} marks={[]} state={null} />
+          <FaceBody question={materialLine} placeholder={t('content.notePlaceholder')} conclusion={wireLine} />
+        </div>
+        {coverSrc && <img src={coverSrc} alt={cover!.name} className="flex-1 min-h-0 w-full object-cover object-top border-t border-border/60" />}
+        <Handle type="source" position={Position.Bottom} id="continue" className="!bg-muted-foreground !border-2 !border-white tdag-handle !w-6 !h-6 tdag-handle-lg" />
+        <Handle type="source" position={Position.Right} id="branch" isConnectable={false} className="!bg-transparent !w-0 !h-0 !border-0 !pointer-events-none" style={{ top: '50%' }} />
       </div>
     );
   }

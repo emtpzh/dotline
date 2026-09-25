@@ -61,7 +61,7 @@
   inset: -1px;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(90deg, var(--node-bar, transparent) 3px, transparent 3px);
+  background: linear-gradient(90deg, var(--node-bar, transparent) calc(3px * var(--k, 1)), transparent calc(3px * var(--k, 1)));
 }
 
 /* Hover raises the card in LIGHT, not in space: the lift is the stronger
@@ -108,50 +108,109 @@
 }
 
 /* Condense hover link: while a segment row is hovered in the panel, its
-   nodes wear a loud halo — visible on full cards AND folded plaques. */
+   nodes wear a loud halo — visible on full cards AND map faces. */
 .thought-node.condense-lit {
   box-shadow:
     0 0 0 5px color-mix(in srgb, var(--primary) 60%, transparent),
     0 0 32px color-mix(in srgb, var(--primary) 45%, transparent);
 }
 
-/* ── Map mode: the card becomes a label plaque ─────────────────────
-   Same bounding box (edges and layout depend on it), different visual
-   language: pill radius, stronger type-colored edge, no document bar. */
+/* ── Card face: the layers every zoom shares ─────────────────────
+   Name row → question → conclusion → body. Zooming out removes layers from
+   the bottom and never swaps what a slot says. Everything here is sized in
+   em off the face's font size, so the map tier (--k: 1.75) is the same face
+   drawn larger — readable at map distance, identical in structure. */
+.tdag-face { font-size: calc(14px * var(--k, 1)); line-height: 1.5; }
 .thought-node.map-node {
-  border-radius: 26px;
-  border-width: 3px;
-}
-.thought-node.map-node::before {
-  display: none;
-}
-.map-node.root-node { border-color: color-mix(in srgb, var(--primary) 85%, var(--border)); }
-.map-node.orange-node { border-color: color-mix(in srgb, var(--edge-explore) 88%, var(--border)); }
-.map-node.evaluator-node { border-color: color-mix(in srgb, var(--edge-watch) 82%, var(--border)); }
-.map-node.human-node { border-color: color-mix(in srgb, #d97706 82%, var(--border)); }
-
-/* ── Glyph tier (semantic zoom L3) ────────────────────────────── */
-/* Selected glyph node: a soft ring around the seal */
-.glyph-selected > div > span {
-  outline: 3px solid var(--primary);
-  outline-offset: 3px;
-}
-/* Glyph seals keep a FIXED SCREEN SIZE (POI style, like map pins): the
-   scale cancels the viewport zoom below the glyph threshold (0.32), so
-   zooming further out tightens the map instead of shrinking the seals.
-   At zoom = 0.32 the factor is exactly 1 — the tier transition is seamless. */
-[data-zoom-tier='glyph'] [data-glyph-node] > span {
-  transform: scale(calc(0.32 / var(--tdag-zoom, 0.32)));
+  --k: 1.75;
+  border-radius: calc(var(--radius-xl) * 1.75);
 }
 
-/* Edges thicken at glyph zoom so the skeleton stays legible at distance */
+.tdag-l1 { display: flex; align-items: center; gap: 0.5em; min-width: 0; padding: 0.8em 1.1em 0 1.15em; }
+.tdag-l1[data-tone='primary'], .tdag-far[data-tone='primary'] { --tone: var(--edge-continue); }
+.tdag-l1[data-tone='explore'], .tdag-far[data-tone='explore'] { --tone: var(--edge-explore); }
+.tdag-l1[data-tone='watch'], .tdag-far[data-tone='watch'] { --tone: var(--edge-watch); }
+.tdag-l1[data-tone='warning'], .tdag-far[data-tone='warning'] { --tone: var(--warning); }
+.tdag-l1[data-tone='muted'], .tdag-far[data-tone='muted'] { --tone: var(--muted-foreground); }
+.tdag-shape { width: 0.6em; height: 0.6em; flex: none; border-radius: 9999px; background: var(--tone); }
+.tdag-shape[data-shape='square'] { border-radius: 0.12em; }
+.tdag-shape[data-shape='diamond'] { width: 0.52em; height: 0.52em; border-radius: 0.08em; transform: rotate(45deg); }
+.tdag-name {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 0.8em; font-weight: 600; letter-spacing: 0.02em; color: var(--muted-foreground);
+}
+.tdag-acts { display: inline-flex; gap: 0.7em; flex: none; font-size: 0.76em; color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tdag-act { display: inline-flex; align-items: center; gap: 0.25em; }
+.tdag-act svg { width: 1.15em; height: 1.15em; }
+.tdag-act[data-kind='edit'] { color: var(--foreground); font-weight: 600; }
+
+/* One state mark, one grammar: a dot plus its word. The far view keeps
+   the dot's color as a ring (below). */
+.tdag-state {
+  display: inline-flex; align-items: center; gap: 0.4em; flex: none;
+  font-size: 0.74em; font-weight: 500; white-space: nowrap; color: var(--muted-foreground);
+}
+.tdag-state::before { content: ''; width: 0.62em; height: 0.62em; flex: none; border-radius: 9999px; background: var(--state); }
+[data-state='failed'] { --state: var(--destructive); }
+[data-state='wait'] { --state: var(--primary); }
+[data-state='running'] { --state: var(--primary); }
+[data-state='upstream'] { --state: var(--muted-foreground); }
+[data-state='stale'] { --state: var(--warning); }
+.tdag-state[data-state='wait']::before { background: transparent; box-shadow: inset 0 0 0 0.14em var(--primary); }
+.tdag-state[data-state='running']::before, .tdag-far[data-state='running'] .tdag-far-dot { animation: tdag-state-pulse 1.2s ease-in-out infinite; }
+.tdag-state[data-state='stale'], .tdag-state[data-state='failed'] { color: var(--state); }
+@keyframes tdag-state-pulse { 50% { opacity: 0.35; } }
+
+.tdag-q { padding: 0.3em 1.1em 0 1.15em; font-size: 1.04em; font-weight: 600; line-height: 1.42; color: var(--foreground); }
+.tdag-q-empty { font-weight: 500; font-style: italic; color: var(--muted-foreground); }
+.tdag-c { display: flex; gap: 0.45em; padding: 0.3em 1.1em 0.9em 1.15em; font-size: 0.92em; color: var(--muted-foreground); }
+.tdag-c::before { content: '→'; flex: none; opacity: 0.6; }
+.tdag-c-gap { height: 0.8em; }
+.tdag-clamp-1, .tdag-clamp-2 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+.tdag-clamp-1 { -webkit-line-clamp: 1; }
+.tdag-clamp-2 { -webkit-line-clamp: 2; }
+
+/* ── Far view (semantic zoom L3): the name row's shape grown into a dot,
+   its name beside it. POI style: world position, fixed screen size — the
+   scale cancels the viewport zoom below the far threshold (0.32), where the
+   factor is exactly 1, so the tier change is seamless. Base sizes are the
+   world size at 0.32 (38px ≈ 12px on screen). */
+.tdag-far { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform-origin: 0 0; }
+[data-zoom-tier='glyph'] .tdag-far { transform: scale(calc(0.32 / var(--tdag-zoom, 0.32))); }
+.tdag-far-dot {
+  position: absolute; left: -19px; top: -19px; width: 38px; height: 38px;
+  border-radius: 9999px; background: var(--tone);
+  box-shadow: 0 0 0 6px var(--canvas);
+}
+.tdag-far-dot[data-shape='square'] { border-radius: 7px; }
+.tdag-far-dot[data-shape='diamond'] { left: -16px; top: -16px; width: 32px; height: 32px; border-radius: 4px; transform: rotate(45deg); }
+.tdag-far[data-state] .tdag-far-dot { box-shadow: 0 0 0 6px var(--canvas), 0 0 0 13px var(--state); }
+.tdag-far[data-state='wait'] .tdag-far-dot { background: var(--canvas); box-shadow: inset 0 0 0 7px var(--tone), 0 0 0 6px var(--canvas), 0 0 0 13px var(--state); }
+.tdag-far-label {
+  position: absolute; left: 34px; top: -27px;
+  max-width: 16em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 0 14px; border-radius: 14px;
+  font-size: 36px; line-height: 54px; color: var(--muted-foreground);
+  background: color-mix(in oklch, var(--canvas) 85%, transparent);
+}
+.tdag-far:is([data-pri='2'], [data-pri='3']) .tdag-far-label { color: var(--foreground); font-weight: 600; }
+/* Label thinning: the dots always stay; as the map gets dense only the
+   higher-priority names keep their labels (band set from the live zoom). */
+[data-far-band='1'] .tdag-far[data-pri='0'] .tdag-far-label,
+[data-far-band='2'] .tdag-far:is([data-pri='0'], [data-pri='1']) .tdag-far-label,
+[data-far-band='3'] .tdag-far:not([data-pri='3']) .tdag-far-label { display: none; }
+.glyph-selected .tdag-far-dot { outline: 8px solid var(--primary); outline-offset: 8px; }
+
+/* Edges thicken at far zoom so the skeleton stays legible at distance */
 [data-zoom-tier='glyph'] .react-flow__edge path.react-flow__edge-path {
   stroke-width: calc(7px * 0.32 / var(--tdag-zoom, 0.32)) !important;
 }
+/* Handles are for wiring at working distance; at far zoom they are noise */
+[data-zoom-tier='glyph'] .react-flow__handle.tdag-handle { opacity: 0; }
 
 /* Unbroken long tokens (URLs, DOIs, hashes) must wrap instead of escaping
    the card / plaque / panel box — anywhere-wrap is safe for CJK and Latin */
-.thought-node, .map-node, [data-focus-panel], .markdown-body, [data-glyph-node] {
+.thought-node, [data-focus-panel], .markdown-body, [data-glyph-node] {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -175,16 +234,16 @@
 
 /* "Continue last thread" hover beacon: a loud steady halo (same language as
    condense-lit) plus a wide ripple. The shadow follows the element's own
-   shape: full card, folded plaque (26px pill), or the glyph seal. */
+   shape: the card at work or map distance, or the far-view dot. */
 @keyframes tdag-beacon {
   0% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 55%, transparent), 0 0 34px color-mix(in srgb, var(--primary) 45%, transparent); }
   70% { box-shadow: 0 0 0 46px color-mix(in srgb, var(--primary) 0%, transparent), 0 0 34px color-mix(in srgb, var(--primary) 45%, transparent); }
   100% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 55%, transparent), 0 0 34px color-mix(in srgb, var(--primary) 45%, transparent); }
 }
 .thought-node.beacon-node { animation: tdag-beacon 1.3s ease-out infinite; }
-/* glyph tier: the visible body is the seal span inside the counter-scaled
-   wrapper, not the wrapper or the 520px box — shadow hugs the icon itself */
-.beacon-node [data-glyph-node] > span { animation: tdag-beacon 1.3s ease-out infinite; }
+/* far tier: the visible body is the dot inside the counter-scaled mark,
+   not the 520px box — the shadow hugs the dot itself */
+.beacon-node .tdag-far-dot { animation: tdag-beacon 1.3s ease-out infinite; }
 
 /* ── Context Focus ─────────────────────────────────────────────────────
    Single selection lights the node's REAL context (same partition the
@@ -216,4 +275,5 @@
 @keyframes tdag-flow { to { stroke-dashoffset: calc(-31px / clamp(0.15, var(--tdag-zoom, 1), 1)); } }
 @media (prefers-reduced-motion: reduce) {
   .tdag-flow-ov { animation: none; display: none; }
+  .tdag-state[data-state='running']::before, .tdag-far[data-state='running'] .tdag-far-dot { animation: none; }
 }

@@ -1,0 +1,79 @@
+import type { ThoughtData } from '../types';
+import { activeSummary, activeTopic, awaitingInput } from '../utils';
+import { conclusionOf } from './turn-insight';
+
+// The one display grammar every card follows, at every zoom. A card holds
+// four layers in a fixed order — name, question, conclusion, body — and
+// zooming out only takes layers away from the bottom; it never swaps what a
+// slot says. Expanded shows all four, the folded / map face the first
+// three, the far view only the name row reduced to its shape and name.
+
+export type FaceState = 'failed' | 'wait' | 'running' | 'upstream' | 'stale';
+export type FaceTone = 'primary' | 'explore' | 'watch' | 'warning' | 'muted';
+export type FaceShape = 'round' | 'square' | 'diamond';
+
+/** The one state a card reports, highest priority first. Same mark at
+ *  every zoom: a dot with a label, the far view keeps only its color. */
+export function faceState(
+  data: Pick<ThoughtData, 'stepKind' | 'question' | 'response' | 'isLoading' | 'generationFailed'>,
+  isStale: boolean,
+): FaceState | null {
+  if (data.generationFailed && !data.isLoading) return 'failed';
+  if (awaitingInput(data)) return 'wait';
+  if (data.isLoading) return 'running';
+  if (data.stepKind === 'prompt' && !data.response) return 'upstream';
+  if (isStale) return 'stale';
+  return null;
+}
+
+/** Color of the chain that brought this node here — the same color as its
+ *  left bar and as the wire coming into it. */
+export function faceTone(data: Pick<ThoughtData, 'isEvaluator' | 'stepKind' | 'isBranch'>): FaceTone {
+  if (data.isEvaluator) return 'watch';
+  if (data.stepKind === 'human' || data.isBranch) return 'explore';
+  return 'primary';
+}
+
+// A name is short enough to sit beside a dot on the far view: CJK counts
+// double, so both scripts stop at about the same printed width.
+const NAME_UNITS = 24;
+const WIDE = /[⺀-鿿가-힯豈-﫿＀-￯]/;
+
+export function clipName(text: string): string {
+  const clean = text.replace(/[#*`>_~]/g, '').replace(/\s+/g, ' ').trim();
+  let units = 0;
+  let out = '';
+  for (const ch of clean) {
+    const w = WIDE.test(ch) ? 2 : 1;
+    if (units + w > NAME_UNITS) return `${out.trimEnd()}…`;
+    units += w;
+    out += ch;
+  }
+  return out;
+}
+
+/** The node's short name: the judged topic of the active version, or the
+ *  opening of its question until a topic arrives. */
+export function nodeName(data: Pick<ThoughtData, 'summaryTopics' | 'responseIndex' | 'question'>): string | null {
+  return activeTopic(data) ?? (data.question.trim() ? clipName(data.question) : null);
+}
+
+/** What this step yielded, in one line: the judged takeaway, or — until it
+ *  arrives — the answer's close (imported agent turns state their finding
+ *  last) or its opening. */
+export function nodeConclusion(data: Pick<ThoughtData, 'summaries' | 'summary' | 'responseIndex' | 'response' | 'isLoading' | 'importSource'>): string | null {
+  const judged = activeSummary(data);
+  if (judged) return judged;
+  if (!data.response || data.isLoading) return null;
+  if (data.importSource) return conclusionOf(data.response);
+  const plain = data.response.replace(/[#*`>|_~-]/g, '').replace(/\s+/g, ' ').trim();
+  return plain.length > 140 ? `${plain.slice(0, 140)}…` : plain;
+}
+
+/** Far-view label priority: which names survive when the map gets dense.
+ *  3 root / selected, 2 needs attention, 1 an ordinary step, 0 material. */
+export function farPriority(opts: { isRoot?: boolean; selected: boolean; state: FaceState | null; material?: boolean }): number {
+  if (opts.isRoot || opts.selected) return 3;
+  if (opts.state === 'wait' || opts.state === 'running' || opts.state === 'failed') return 2;
+  return opts.material ? 0 : 1;
+}

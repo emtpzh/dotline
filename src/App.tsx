@@ -83,6 +83,7 @@ import { ToggleGroup, ToggleGroupItem } from './components/ui/toggle-group';
 import { isViewerMode, buildViewerLink } from './lib/viewer';
 import { useModels } from './lib/use-models';
 import { useZoomTier } from './lib/use-map-mode';
+import { scheduleBatchNaming } from './lib/batch-naming';
 import { TimelineBar } from './components/app/TimelineBar';
 import TimelineOverviewModal from './components/app/TimelineOverviewModal';
 import { useStore as useRfStore, useReactFlow } from '@xyflow/react';
@@ -132,6 +133,15 @@ export default function App() {
     const unsub = useStore.subscribe((s, prev) => { if (s.nodes !== prev.nodes) kick(); });
     kick();
     return () => { unsub(); clearTimeout(timer); };
+  }, [hydrated]);
+  // Every node gets a short name (the far view's only text): turns that
+  // never met the per-answer judge — imported sessions, older canvases —
+  // are named in batches once the canvas has been quiet for a moment.
+  useEffect(() => {
+    if (!hydrated || isViewerMode) return;
+    const unsub = useStore.subscribe((s, prev) => { if (s.nodes !== prev.nodes) scheduleBatchNaming(); });
+    scheduleBatchNaming();
+    return unsub;
   }, [hydrated]);
   // Sweep orphaned vault payloads once per boot, off the critical path.
   useEffect(() => {
@@ -2048,5 +2058,12 @@ function ZoomTierTag() {
   useEffect(() => {
     (document.querySelector('.react-flow') as HTMLElement | null)?.style.setProperty('--tdag-zoom', String(zoom));
   }, [zoom]);
+  // Far-view label density: the dots stay put while zooming further out
+  // packs them closer, so fewer names fit — each band hides one more
+  // priority level (canvas.css .tdag-far-label).
+  const farBand = tier !== 'glyph' ? 0 : zoom < 0.11 ? 3 : zoom < 0.16 ? 2 : zoom < 0.22 ? 1 : 0;
+  useEffect(() => {
+    document.querySelector('.react-flow')?.setAttribute('data-far-band', String(farBand));
+  }, [farBand]);
   return null;
 }

@@ -3,37 +3,40 @@ import { countTokens } from '../utils';
 
 // The self-explaining chain: everything here renders information the
 // import already carries for free — no LLM calls, no new state. A turn's
-// tool attachments become an ACTION FINGERPRINT (read-code turn? run-
-// experiment turn?), and its token split shows what is actually eating
-// the context — the pruning compass of the inspection layer.
-
-const TOOL_GLYPHS: [RegExp, string][] = [
-  [/^(Read|NotebookRead)$/i, '📖'],
-  [/^(Edit|Write|MultiEdit|NotebookEdit)$/i, '✏️'],
-  [/^(Bash|BashOutput|Shell)$/i, '⌨️'],
-  [/^(Grep|Glob|LS|Search|WebSearch)$/i, '🔍'],
-  [/^(WebFetch|Fetch)$/i, '🌐'],
-  [/^(Task|Agent)$/i, '🤖'],
-];
+// tool attachments become ACTION MARKS (read-code turn? run-experiment
+// turn?), and its token split shows what is actually eating the context —
+// the pruning compass of the inspection layer.
 
 const TOOL_PREFIX = /^tool: (\S+?)( \(truncated\))?$/;
 
-export interface ToolMark { glyph: string; name: string; count: number }
+export type ActionKind = 'edit' | 'read' | 'search' | 'run' | 'web' | 'agent' | 'other';
+export interface ActionMark { kind: ActionKind; count: number }
 
-/** Action fingerprint of one imported turn: its tool calls grouped into
- *  glyph counts, in first-appearance order. Empty for ordinary nodes. */
-export function toolFingerprint(data: Pick<ThoughtData, 'attachments'>): ToolMark[] {
-  const marks = new Map<string, ToolMark>();
+const ACTION_KINDS: [RegExp, ActionKind][] = [
+  [/^(Edit|Write|MultiEdit|NotebookEdit)$/i, 'edit'],
+  [/^(Read|NotebookRead)$/i, 'read'],
+  [/^(Grep|Glob|LS|Search|WebSearch)$/i, 'search'],
+  [/^(Bash|BashOutput|Shell)$/i, 'run'],
+  [/^(WebFetch|Fetch)$/i, 'web'],
+  [/^(Task|Agent)$/i, 'agent'],
+];
+const ACTION_ORDER: ActionKind[] = ['edit', 'read', 'search', 'run', 'web', 'agent', 'other'];
+
+/** What a turn DID, counted from its tool calls — the objective marks a
+ *  card's name row carries at every zoom that still shows text. Edits count
+ *  the distinct files changed when the footprint knows them (the number a
+ *  reader asks for), the calls otherwise. Empty for hand-made nodes. */
+export function actionMarks(data: Pick<ThoughtData, 'attachments'>): ActionMark[] {
+  const counts = new Map<ActionKind, number>();
   for (const att of data.attachments ?? []) {
     const m = att.name.match(TOOL_PREFIX);
     if (!m) continue;
-    const name = m[1];
-    const glyph = TOOL_GLYPHS.find(([re]) => re.test(name))?.[1] ?? '🔧';
-    const existing = marks.get(name);
-    if (existing) existing.count += 1;
-    else marks.set(name, { glyph, name, count: 1 });
+    const kind = ACTION_KINDS.find(([re]) => re.test(m[1]))?.[1] ?? 'other';
+    counts.set(kind, (counts.get(kind) ?? 0) + 1);
   }
-  return [...marks.values()];
+  const changed = footprint(data).filter((f) => f.op !== 'read').length;
+  if (changed > 0) counts.set('edit', changed);
+  return ACTION_ORDER.filter((k) => counts.has(k)).map((kind) => ({ kind, count: counts.get(kind)! }));
 }
 
 export interface TurnComposition {

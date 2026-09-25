@@ -14,18 +14,21 @@ import { memoryContextBlock, judgeMemory } from '../lib/memory';
 import { t, fmt } from '../i18n';
 import { isViewerMode } from '../lib/viewer';
 import type { Reference } from '../types';
+import { markNaming, unmarkNaming } from '../lib/batch-naming';
 import type { StoreState } from './types';
 
 // Background summary generation — fire and forget. Display channel ONLY:
-// the human reads the summary on the map, the model always reads the full
-// text. Short answers fit on the card as-is and skip the call.
+// the human reads it on the card, the model always reads the full text.
+// One call yields the node's name (topic) and its conclusion (takeaway).
+// Every finished answer gets it, short ones included: the name is the only
+// text the far view shows, so no node may go without one.
 // The judge sees the MAP itself as context: the takeaway lines already on
 // the ancestor path (with their tags). That keeps terminology aligned
 // across plaques and classifications aware of what the thinking already
 // ruled out or decided — the lines read as one progression, not islands.
-export const SUMMARY_MIN_CHARS = 400;
 export function generateSummary(nodeId: string, question: string, response: string, setSummary: (id: string, summary: string, forResponse: string, type?: string, topic?: string) => void, mapLines?: string[]) {
-  if (response.length < SUMMARY_MIN_CHARS) return;
+  if (!response.trim()) return;
+  markNaming(nodeId);
   const mapBlock = mapLines && mapLines.length > 0
     ? `Takeaway lines already on the map, along this node's ancestor path (oldest first):\n${mapLines.join('\n')}\n\nUse those lines ONLY to align terminology and avoid repeating them. Classify this exchange's epistemic move on its own merits, independent of the lines above.\n\n`
     : '';
@@ -45,7 +48,7 @@ export function generateSummary(nodeId: string, question: string, response: stri
     // target the version this summary was computed FOR, not whichever
     // version the user has navigated to since
     setSummary(nodeId, text, response, type, topic);
-  }).catch(() => {});
+  }).catch(() => {}).finally(() => unmarkNaming(nodeId));
 }
 
 /** The map lines a fresh takeaway should align with: the ancestor path's

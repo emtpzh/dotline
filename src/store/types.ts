@@ -109,6 +109,8 @@ export interface HighlightSlice {
   setHighlightMode: (nodeId: string, mode: 'off' | 'tag' | 'filter') => void;
   setSummary: (nodeId: string, summary: string, forResponse: string, type?: string, topic?: string) => void;
   setMaterialSummary: (nodeId: string, summary: string, topic?: string) => void;
+  /** Names from a batch naming call, each for the version it was judged on. */
+  setTopics: (entries: { nodeId: string; topic: string; forResponse: string }[]) => void;
 }
 
 export interface EvaluatorSlice {
