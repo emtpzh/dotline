@@ -14,6 +14,7 @@ import { useMentions } from '../../lib/mentions';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import SessionNotice from '../app/SessionNotice';
+import { AskRoleChip, RolePickerButton, type AskRole } from '../app/RolePicker';
 import { useContinuity } from '../../lib/use-continuity';
 
 const ROLE_STYLES: Record<string, string> = {
@@ -51,6 +52,7 @@ export default function FollowUpInput({
   const mention = useMentions(nodeId);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
+  const [role, setRole] = useState<AskRole | null>(null);
   const continueRef = useRef<HTMLTextAreaElement>(null);
   const autoGrow = (el: HTMLTextAreaElement) => {
     el.style.height = 'auto';
@@ -92,7 +94,7 @@ export default function FollowUpInput({
 
   // Whether this question goes on in the agent session above, decided the
   // way the send will decide it — said while it can still be changed
-  const session = useContinuity(nodeId, { branchContext: branchContext || undefined, attachments: pendingAttachments, mentions: mention.mentions.map((x) => x.nodeId) });
+  const session = useContinuity(nodeId, { rolePrompt: role?.prompt, roleName: role?.name, branchContext: branchContext || undefined, attachments: pendingAttachments, mentions: mention.mentions.map((x) => x.nodeId) });
   const breaks = session?.kind === 'new';
 
   // Auto-focus continue input when switching nodes or staging selected text
@@ -115,10 +117,13 @@ export default function FollowUpInput({
       excludeAllInheritedAttachments: !continueInheritAttachments,
       initialAttachments: pendingAttachments.length > 0 ? pendingAttachments : undefined,
       mentions: mention.mentions.map((x) => x.nodeId),
+      rolePrompt: role?.prompt,
+      roleName: role?.name,
     });
     mention.clear();
     setContinueInput('');
     setPendingAttachments([]);
+    setRole(null);
     setPreviewOpen(false);
     onClearBranchContext();
   };
@@ -189,7 +194,8 @@ export default function FollowUpInput({
         </div>
       )}
 
-      {continueInput.trim() && <SessionNotice c={session} onLocate={onFocusNode} />}
+      {role && <div className="mb-1.5"><AskRoleChip role={role} onClear={() => setRole(null)} /></div>}
+      {continueInput.trim() && <SessionNotice c={session} onLocate={onFocusNode} onDropRole={() => setRole(null)} />}
       <MentionSurface m={mention} text={continueInput} setText={setContinueInput} />
       <div
         className="flex items-end gap-2 bg-muted rounded-xl px-4 py-2.5 transition-shadow focus-within:ring-1 focus-within:ring-ring/40"
@@ -223,6 +229,7 @@ export default function FollowUpInput({
         <input ref={fileRef} type="file" accept={FILE_INPUT_ACCEPT} multiple className="hidden"
           onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ''; }} />
         <SearchToggles />
+        <RolePickerButton value={role} onChange={setRole} />
         <Button variant="ghost" size="icon"
           onClick={() => fileRef.current?.click()}
           title={t('followup.attach')}

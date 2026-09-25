@@ -139,6 +139,16 @@ export function resolveRoleFor(
   edges: ThoughtEdge[],
   opts?: { ignoreOwn?: boolean },
 ): string | undefined {
+  return resolveRoleSourceFor(nodeId, nodes, edges, opts)?.data.rolePrompt || undefined;
+}
+
+/** The node whose role applies — where it was set, for "inherited from…". */
+export function resolveRoleSourceFor(
+  nodeId: string,
+  nodes: ThoughtNode[],
+  edges: ThoughtEdge[],
+  opts?: { ignoreOwn?: boolean },
+): ThoughtNode | undefined {
   const { mainline } = partitionContext(nodeId, nodes, edges);
   return resolveRoleFromMainline(mainline, nodes, opts);
 }
@@ -147,13 +157,13 @@ function resolveRoleFromMainline(
   mainline: ThoughtNode[],
   nodes: ThoughtNode[],
   opts?: { ignoreOwn?: boolean },
-): string | undefined {
+): ThoughtNode | undefined {
   const self = mainline[mainline.length - 1];
   if (!self) return undefined;
   if (!opts?.ignoreOwn && self.data.roleSourceNodeId) {
     if (self.data.roleSourceNodeId === '__none__') return undefined;
     const src = nodes.find((n) => n.id === self.data.roleSourceNodeId);
-    return src?.data.rolePrompt || undefined;
+    return src?.data.rolePrompt ? src : undefined;
   }
   for (let i = mainline.length - 1; i >= 0; i--) {
     const n = mainline[i];
@@ -162,13 +172,13 @@ function resolveRoleFromMainline(
     const mode = n.data.roleMode || 'inherit';
     if (mode === 'reset') {
       // legacy "reset for this node": only self gets the role, ancestors blocked
-      return isSelf ? (own || undefined) : undefined;
+      return isSelf && own ? n : undefined;
     }
     if (mode === 'set-next' && n.data.rolePrompt) {
       if (isSelf) continue; // for descendants only
-      return n.data.rolePrompt;
+      return n;
     }
-    if (mode === 'inherit' && own) return own;
+    if (mode === 'inherit' && own) return n;
   }
   return undefined;
 }
@@ -333,7 +343,7 @@ export function buildContext(
 
   // Role: THE shared resolution (see resolveRoleFor) — display and
   // injection can never drift apart again.
-  const resolvedRole = resolveRoleFromMainline(mainline, nodes);
+  const resolvedRole = resolveRoleFromMainline(mainline, nodes)?.data.rolePrompt;
   if (resolvedRole) {
     messages.unshift({ role: 'system', content: resolvedRole });
     sources.unshift({ layer: 'system', part: 'role' });
@@ -345,16 +355,15 @@ export function buildContext(
 // Explicit role for a freshly created node (addQuestion / regenerate),
 // covering the cases buildContext can't see because it treats the parent
 // as "self":
-//   1. New node is reset → its own role
-//   2. New root with inherit + own rolePrompt (e.g. set on the landing page)
-//   3. Parent has set-next → parent's role
+//   1. The node set its own role → that role, from here down: it replaces
+//      whatever the line above carries (a role set on a follow-up used to
+//      apply only from its children on — the node itself ran in the old one)
+//   2. Parent has set-next (legacy) → parent's role
 export function resolveExplicitRole(
   selfData: { roleMode?: string; rolePrompt?: string } | undefined,
   parentData: { roleMode?: string; rolePrompt?: string } | undefined,
-  hasParent: boolean,
 ): string | undefined {
-  if (selfData?.roleMode === 'reset' && selfData.rolePrompt) return selfData.rolePrompt;
-  if (selfData?.rolePrompt && selfData.roleMode === 'inherit' && !hasParent) return selfData.rolePrompt;
+  if (selfData?.rolePrompt && selfData.roleMode !== 'set-next') return selfData.rolePrompt;
   if (parentData?.roleMode === 'set-next' && parentData.rolePrompt) return parentData.rolePrompt;
   return undefined;
 }

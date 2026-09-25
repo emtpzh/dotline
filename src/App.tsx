@@ -71,7 +71,7 @@ import { backupSupported } from './lib/local-backup';
 import LangSwitch from './components/app/LangSwitch';
 import CanvasControls from './components/app/CanvasControls';
 import ModelPicker from './components/app/ModelPicker';
-import RoleTemplateChips from './components/app/RoleTemplateChips';
+import RoleEditor from './components/app/RoleEditor';
 import SearchToggles from './components/app/SearchToggles';
 import Tutorial from './components/Tutorial';
 import WhatsNewDialog from './components/app/WhatsNewDialog';
@@ -89,7 +89,6 @@ import { TimelineBar } from './components/app/TimelineBar';
 import TimelineOverviewModal from './components/app/TimelineOverviewModal';
 import { useStore as useRfStore, useReactFlow } from '@xyflow/react';
 import { Button } from './components/ui/button';
-import { Textarea } from './components/ui/textarea';
 
 // One node type key, three renderers: content nodes (notes / files) render
 // the same in every mode; otherwise the active project's kind decides
@@ -231,6 +230,7 @@ function Canvas() {
   const [inputValue, setInputValue] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [rootRole, setRootRole] = useState('');
+  const [rootRoleName, setRootRoleName] = useState('');
   const [showRootRole, setShowRootRole] = useState(false);
   const [landingAtlas, setLandingAtlas] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
@@ -799,10 +799,12 @@ function Canvas() {
     if (!inputValue.trim()) return;
     addQuestion(inputValue.trim(), {
       rolePrompt: rootRole.trim() || undefined,
+      roleName: rootRoleName.trim() || undefined,
       initialAttachments: pendingAttachments.length > 0 ? pendingAttachments : undefined,
     });
     setInputValue('');
     setRootRole('');
+    setRootRoleName('');
     setShowRootRole(false);
     setPendingAttachments([]);
   };
@@ -1292,17 +1294,9 @@ function Canvas() {
                 <div className="space-y-1 mt-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground font-medium">{t('landing.roleLabel')}</span>
-                    <Button variant="ghost" size="sm" onClick={() => { setShowRootRole(false); setRootRole(''); }} className="text-xs text-muted-foreground hover:text-muted-foreground"><X strokeWidth={1.75} /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => { setShowRootRole(false); setRootRole(''); setRootRoleName(''); }} className="text-xs text-muted-foreground hover:text-muted-foreground"><X strokeWidth={1.75} /></Button>
                   </div>
-                  <Textarea
-                    value={rootRole}
-                    onChange={(e) => setRootRole(e.target.value)}
-                    placeholder={t('landing.rolePlaceholder')}
-                    className="w-full resize-none leading-relaxed"
-                    rows={2}
-                    autoFocus
-                  />
-                  <RoleTemplateChips onPick={setRootRole} />
+                  <RoleEditor name={rootRoleName} prompt={rootRole} onName={setRootRoleName} onPrompt={setRootRole} autoFocus />
                 </div>
               )}
               <div className="flex items-center justify-end mt-2 gap-2">

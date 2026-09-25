@@ -157,6 +157,12 @@ test('off an earlier turn: a runtime that can cut the session forks it there, on
   assert.deepEqual([noFork.kind, noFork.reason], ['new', 'no-fork']);
 });
 
+test('off the tail of a session the canvas does not follow, there is nothing to go on in', () => {
+  const cc = (id) => mirror(id, undefined, undefined, { importSource: { runner: 'claude-code', sessionId: 's2', itemIds: [id] } });
+  const c = continuity('D', [cc('A'), cc('B'), ask('D')], chain, 'claude-code', undefined, []);
+  assert.deepEqual([c.kind, c.reason], ['new', 'unfollowed']);
+});
+
 test('the fork counts turns of its own session only', () => {
   const nodes = [mirror('A'), mirror('B'), mirror('C'), ask('D')];
   const edges = [edge('A', 'B'), edge('B', 'C'), edge('B', 'D')];

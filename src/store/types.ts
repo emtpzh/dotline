@@ -67,7 +67,9 @@ export interface AddQuestionOptions {
   branchYRatio?: number;
   /** false → the new node starts with roleMode 'reset' (no inherited role). */
   inheritRole?: boolean;
+  /** The role this question is asked in, from here down (see ThoughtData.rolePrompt). */
   rolePrompt?: string;
+  roleName?: string;
   initialAttachments?: Attachment[];
   excludeAllInheritedAttachments?: boolean;
   /** @-mentioned node ids: any not already in the new node's context get a
@@ -98,7 +100,7 @@ export interface LlmSlice {
 }
 
 export interface RoleSlice {
-  setRolePrompt: (nodeId: string, rolePrompt: string) => void;
+  setRolePrompt: (nodeId: string, rolePrompt: string, roleName?: string) => void;
 }
 
 export interface HighlightSlice {

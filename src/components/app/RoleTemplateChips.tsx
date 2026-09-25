@@ -7,7 +7,7 @@ import { Button } from '../ui/button';
 // One-tap role presets shown under every role input — pick a chip to fill
 // the prompt, then edit freely. The list is the user-editable role library
 // (built-ins + custom); the pencil opens the manager.
-export default function RoleTemplateChips({ onPick }: { onPick: (prompt: string) => void }) {
+export default function RoleTemplateChips({ onPick }: { onPick: (prompt: string, name: string) => void }) {
   const lang = useI18n((s) => s.lang);
   const lib = useUiStore((s) => s.roleLib);
   const setRoleManagerOpen = useUiStore((s) => s.setRoleManagerOpen);
@@ -18,7 +18,7 @@ export default function RoleTemplateChips({ onPick }: { onPick: (prompt: string)
         <Button variant="ghost" size="xs"
           key={tpl.id}
           type="button"
-          onClick={() => onPick(tpl.prompt)}
+          onClick={() => onPick(tpl.prompt, tpl.name)}
           className="text-2xs bg-muted hover:bg-primary/10 hover:text-primary text-muted-foreground"
           title={tpl.prompt.slice(0, 140) + '…'}
         >

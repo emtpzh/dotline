@@ -14,7 +14,7 @@ import { whyNotPristine } from './pristine';
 
 export type SessionBreak =
   | 'runtime' | 'cwd' | 'role' | 'material' | 'reference' | 'merge'
-  | 'attachment' | 'passage' | 'edited' | 'no-fork' | 'missing';
+  | 'attachment' | 'passage' | 'edited' | 'no-fork' | 'unfollowed' | 'missing';
 
 export type Continuity =
   /** only the question travels: the session holds the conversation */
@@ -103,5 +103,8 @@ export function continuity(
   if (AGENT_RUNTIMES[runtime].caps.forkAt && src?.runner === runtime && src.sessionId && src.itemIds?.length) {
     return { kind: 'fork', parentId, runtime, sessionId: src.sessionId, turn: turnNumber(parent, src.sessionId, byId, edges) };
   }
-  return broken('no-fork');
+  // the parent is its session's last turn here, but the canvas does not
+  // follow that session (its ledger does not name the tail): nothing to go on in
+  const later = edges.some((e) => e.source === parentId && e.target !== nodeId && sessionOf(byId.get(e.target)?.data ?? {})?.sessionId === session.sessionId);
+  return broken(later ? 'no-fork' : 'unfollowed');
 }

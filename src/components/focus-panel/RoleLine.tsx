@@ -1,43 +1,47 @@
 import { useState } from 'react';
 import { Paperclip, UserCog } from 'lucide-react';
 import { useStore } from '../../store';
-import { isImeComposing } from '../../utils';
-import { useT } from '../../i18n';
+import { useT, fmt } from '../../i18n';
 import { isViewerMode } from '../../lib/viewer';
-import RoleTemplateChips from '../app/RoleTemplateChips';
-import type { ThoughtData } from '../../types';
+import { roleLabel, shortName } from '../../lib/node-face';
+import RoleEditor from '../app/RoleEditor';
+import type { ThoughtData, ThoughtNode } from '../../types';
 import { Button } from '../ui/button';
-import { Textarea } from '../ui/textarea';
 
 // The panel's summary kicker: role · tokens · materials, in one quiet line
-// at the top. The narrow role model: a rolePrompt on a node is the system
-// prompt for it and everything downstream (nearest ancestor wins). It is
-// edited where it lives — on the node that set it, or on a root; clicking
-// the role text opens the editor. Elsewhere it is a read-only "inherited"
-// segment. Machine-step personas don't use this at all; they live in
-// prompt text.
+// at the top. One role model: a rolePrompt on a node is the system prompt
+// for it and everything downstream along solid wires, until the next node
+// that sets one. ANY node can set, rename or clear its own; an inherited
+// role says where it was set, and that node is one click away.
 
 export default function RoleLine({
   nodeId,
   data,
-  inheritedRole,
+  inheritedFrom,
+  onJump,
 }: {
   nodeId: string;
   data: ThoughtData;
-  inheritedRole: string;
+  /** the node whose role this one inherits (none when it sets its own) */
+  inheritedFrom?: ThoughtNode;
+  onJump?: (nodeId: string) => void;
 }) {
   const setRolePrompt = useStore((s) => s.setRolePrompt);
   const t = useT();
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(data.rolePrompt ?? '');
+  const [name, setName] = useState('');
+  const [prompt, setPrompt] = useState('');
 
-  const own = data.rolePrompt;
-  const effective = own || inheritedRole;
-  const canEdit = !!own || data.isRoot;
+  const own = !!data.rolePrompt;
   const attachCount = (data.attachments || []).length;
-
+  const open = () => {
+    if (isViewerMode) return;
+    setName(data.roleName ?? '');
+    setPrompt(data.rolePrompt ?? '');
+    setEditing(true);
+  };
   const save = () => {
-    setRolePrompt(nodeId, value.trim());
+    setRolePrompt(nodeId, prompt.trim(), name);
     setEditing(false);
   };
 
@@ -46,30 +50,29 @@ export default function RoleLine({
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0 h-8">
         <UserCog size={13} strokeWidth={1.75} className="shrink-0" />
         {!editing && (<>
-        {effective ? (
-          canEdit ? (
-            <Button variant="ghost"
-              onClick={() => { if (isViewerMode) return; setValue(own ?? ''); setEditing(true); }}
-              className="text-edge-explore hover:underline decoration-dotted underline-offset-2 truncate max-w-[45%] shrink-0"
-              title={`${effective} — ${t('role.edit')}`}
-            >
-              {effective}
-            </Button>
-          ) : (
-            <span className="text-edge-explore/90 truncate max-w-[45%] shrink-0" title={effective}>{effective}</span>
-          )
-        ) : canEdit && !isViewerMode ? (
-          <Button variant="ghost"
-            onClick={() => { setValue(''); setEditing(true); }}
-            className="hover:text-edge-explore shrink-0"
+        {own ? (
+          <Button variant="ghost" size="xs" onClick={open} data-role-own
+            className="px-1 font-medium text-foreground hover:underline decoration-dotted underline-offset-2 truncate max-w-[45%] shrink-0"
+            title={`${data.rolePrompt}\n— ${t('role.setHere')}`}
           >
-            + {t('role.set')}
+            {roleLabel(data)}
           </Button>
+        ) : inheritedFrom ? (
+          <>
+            <span className="truncate max-w-[30%] shrink-0 text-foreground" title={inheritedFrom.data.rolePrompt}>{roleLabel(inheritedFrom.data)}</span>
+            <Button variant="ghost" size="xs" onClick={() => onJump?.(inheritedFrom.id)} data-role-inherited
+              className="px-1.5 text-2xs bg-border/50 rounded-full shrink min-w-0 truncate"
+            >
+              {fmt(t('role.inheritedFrom'), { x: shortName(inheritedFrom.data) })}
+            </Button>
+            {!isViewerMode && (
+              <Button variant="ghost" size="xs" onClick={open} className="px-1 hover:text-foreground shrink-0">+ {t('role.set')}</Button>
+            )}
+          </>
+        ) : !isViewerMode ? (
+          <Button variant="ghost" size="xs" onClick={open} className="px-1 hover:text-foreground shrink-0">+ {t('role.set')}</Button>
         ) : (
           <span className="italic shrink-0">{t('role.noRoleSet')}</span>
-        )}
-        {!own && effective && (
-          <span className="text-2xs bg-border/50 px-1.5 py-px rounded-full shrink-0">{t('role.inherited')}</span>
         )}
         <span className="shrink-0">·</span>
         </>)}
@@ -85,22 +88,13 @@ export default function RoleLine({
       </div>
       {editing && (
         <div className="pb-2 space-y-1.5">
-          <Textarea
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) { e.preventDefault(); save(); }
-              if (e.key === 'Escape') setEditing(false);
-            }}
-            placeholder={t('role.placeholder')}
-            className="w-full resize-none leading-relaxed"
-            rows={2}
-            autoFocus
-          />
-          <RoleTemplateChips onPick={(p) => setValue(p)} />
+          <RoleEditor name={name} prompt={prompt} onName={setName} onPrompt={setPrompt} onSubmit={save} autoFocus />
           <div className="flex justify-end gap-2">
+            {own && (
+              <Button variant="ghost" size="xs" onClick={() => { setRolePrompt(nodeId, ''); setEditing(false); }} className="mr-auto text-xs text-muted-foreground hover:text-destructive">{t('role.remove')}</Button>
+            )}
             <Button variant="ghost" size="xs" onClick={() => setEditing(false)} className="text-xs text-muted-foreground hover:text-foreground hover:bg-border/40">{t('common.cancel')}</Button>
-            <Button size="xs" onClick={save}>{t('common.save')}</Button>
+            <Button size="xs" onClick={save} disabled={!prompt.trim() && !own}>{t('common.save')}</Button>
           </div>
         </div>
       )}

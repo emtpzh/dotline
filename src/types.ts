@@ -282,7 +282,14 @@ export interface ThoughtData extends Record<string, unknown> {
       only: never enters context, fingerprints or summaries. Models that
       don't emit reasoning leave holes (undefined). */
   reasonings?: (string | undefined | null)[];
+  /** The role this node was SET to: the system prompt for it and every node
+      downstream along solid wires, until the next node that sets one. A
+      role is identity only; the task stays in the question. */
   rolePrompt?: string;
+  /** What that role is called where the canvas shows it: the template's
+      name, or the one typed with a custom role. Absent on older nodes and
+      unnamed custom roles — the prompt's opening stands in. */
+  roleName?: string;
   appliedRole?: string; // the role actually used when generating the current response
   roleSourceNodeId?: string; // user-chosen role source node (for multi-parent role conflict)
   roleMode: 'inherit' | 'set-next' | 'reset'; // inherit from ancestors / set for descendants / reset for this node

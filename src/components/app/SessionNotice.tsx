@@ -16,7 +16,7 @@ export default function SessionNotice({ c, onLocate, onDropRole }: {
   c: Continuity | null;
   /** show the node a reason points at (a material, a reference, an edit) */
   onLocate?: (nodeId: string) => void;
-  /** the role was set in this ask box: send without it and go on */
+  /** the role was picked in this ask box: send without it and go on */
   onDropRole?: () => void;
 }) {
   const t = useT();
@@ -27,7 +27,8 @@ export default function SessionNotice({ c, onLocate, onDropRole }: {
   }
   const about = c.about ? nodes.find((n) => n.id === c.about) : undefined;
   const locatable = !!about && !!onLocate && (c.reason === 'material' || c.reason === 'reference' || c.reason === 'edited');
-  const droppable = c.reason === 'role' && !!onDropRole;
+  // only a role picked in this box can be dropped here (it points at no node yet)
+  const droppable = c.reason === 'role' && !c.about && !!onDropRole;
   return (
     <div className="mb-1.5 flex items-start gap-2 rounded-lg bg-warning/10 px-2.5 py-2 text-xs" role="status" data-session-notice="new">
       <span className="mt-1 size-2 shrink-0 rounded-full bg-warning" />

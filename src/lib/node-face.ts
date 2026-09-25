@@ -59,6 +59,14 @@ export function nodeName(data: Pick<ThoughtData, 'summaryTopics' | 'responseInde
   return activeTopic(data) ?? (data.question.trim() ? clipName(data.question) : null);
 }
 
+/** What a role is called where the canvas shows it: its name, else the
+ *  opening of its prompt. */
+export function roleLabel(role: { roleName?: string; rolePrompt?: string }): string {
+  if (role.roleName?.trim()) return role.roleName.trim();
+  const prompt = (role.rolePrompt ?? '').replace(/\s+/g, ' ').trim();
+  return prompt.length > 14 ? `${prompt.slice(0, 14)}…` : prompt;
+}
+
 /** A short name for any node, materials included — for sentences that
  *  point at one ("wired in the material 「repro steps」"). */
 export function shortName(data: ThoughtData): string {

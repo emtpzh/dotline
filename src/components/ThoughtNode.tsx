@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { describeModel } from '../lib/use-models';
 import { actionMarks, turnComposition, footprint } from '../lib/turn-insight';
-import { faceState, faceTone, farPriority, nodeConclusion, nodeName, type FaceShape } from '../lib/node-face';
+import { faceState, faceTone, farPriority, nodeConclusion, nodeName, roleLabel, type FaceShape } from '../lib/node-face';
 import { nodeRoute } from '../lib/edge-look';
 import { Handle, Position, useReactFlow, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
 import { AlertTriangle, Archive, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, GitBranch, Globe, Hourglass, Minimize2, RefreshCw, Send, Split, Square, Star, Trash2, X, Pencil } from 'lucide-react';
@@ -32,6 +32,7 @@ import { Button } from './ui/button';
 import SelectionActions from './app/SelectionActions';
 import { FaceBody, FaceName, FarMark, StateMark } from './app/NodeFace';
 import SessionNotice from './app/SessionNotice';
+import { AskRoleChip, RolePickerButton, type AskRole } from './app/RolePicker';
 import { sessionWhy } from '../lib/session-why';
 import { useContinuity } from '../lib/use-continuity';
 import { useTextSelection } from '../lib/use-text-selection';
@@ -71,6 +72,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
     useUiStore.getState().setDraft(inlineDraftKey, v);
   };
   const [branchFromText, setBranchFromText] = useState('');
+  const [askRole, setAskRole] = useState<AskRole | null>(null);
   const [branchYRatio, setBranchYRatio] = useState(0.5);
   const [editValue, setEditValue] = useState(data.question);
   const [editResponseValue, setEditResponseValue] = useState(data.response);
@@ -178,10 +180,13 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
       branchContext: branchFromText || undefined,
       branchYRatio: branchFromText ? branchYRatio : undefined,
       mentions: mention.mentions.map((x) => x.nodeId),
+      rolePrompt: askRole?.prompt,
+      roleName: askRole?.name,
     });
     mention.clear();
     setInputValue('');
     setBranchFromText('');
+    setAskRole(null);
     clearSelection();
   };
 
@@ -266,7 +271,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // The inline follow-up box, and whether its question would go on in the
   // agent session above (lib/agents/continuity) — warned before the send
   const showInline = !mapMode && !data.isCollapsed && !data.isLoading && !data.isEditingResponse && !isAwaitingAsk && !(isParadigmNode && runLocked) && !isViewerMode && selectedNodeId !== id;
-  const session = useContinuity(showInline ? id : null, { branchContext: branchFromText || undefined, mentions: mention.mentions.map((x) => x.nodeId) });
+  const session = useContinuity(showInline ? id : null, { rolePrompt: askRole?.prompt, roleName: askRole?.name, branchContext: branchFromText || undefined, mentions: mention.mentions.map((x) => x.nodeId) });
   const hasMultipleVersions = data.responses.length > 1;
 
   const highlightedTexts = new Set(data.highlights.map((h) => h.text));
@@ -363,19 +368,29 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // What became of the agent session above: a new one and why, or a fork
   // of it at turn N — on the name row at every distance that shows text
   const sessionNote = useStore((s) => (data.sessionLink?.kind === 'new' ? sessionWhy(data.sessionLink, s.nodes, t) : null));
-  const tags = data.sessionLink ? (
-    <span className="tdag-tag" data-tag={data.sessionLink.kind === 'new' ? 'warn' : undefined} data-session-link={data.sessionLink.kind}
-      title={data.sessionLink.kind === 'new' ? t('session.newBody') : undefined}>
-      {data.sessionLink.kind === 'new' ? fmt(t('session.newBadge'), { why: sessionNote ?? '' }) : fmt(t('session.forkBadge'), { n: data.sessionLink.turn })}
-    </span>
+  // The node's own marks after its name: the role it was SET to (never an
+  // inherited one — only where the role changes), then the session note
+  const tags = (data.rolePrompt || data.sessionLink) ? (
+    <>
+      {data.rolePrompt && (
+        <span className="tdag-tag" data-tag="role" title={data.rolePrompt} data-role-tag>{roleLabel(data)}</span>
+      )}
+      {data.sessionLink && (
+        <span className="tdag-tag" data-tag={data.sessionLink.kind === 'new' ? 'warn' : undefined} data-session-link={data.sessionLink.kind}
+          title={data.sessionLink.kind === 'new' ? t('session.newBody') : undefined}>
+          {data.sessionLink.kind === 'new' ? fmt(t('session.newBadge'), { why: sessionNote ?? '' }) : fmt(t('session.forkBadge'), { n: data.sessionLink.turn })}
+        </span>
+      )}
+    </>
   ) : null;
   // Stale is the one state you can act on from the card: click to replay
   const stateMark = state === 'stale' && !data.isLoading ? (
     <StateMark state="stale" title={t('node.staleTitle')}
       onClick={(e) => { e.stopPropagation(); if (!isViewerMode) void rerunNode(id, {}); }} />
   ) : undefined;
-  // Provenance and role, rare enough to share one line above the answer
-  const hasMeta = (data.condensedFrom?.length ?? 0) > 0 || data.archived || (!!data.appliedRole && !data.isEvaluator);
+  // Provenance, rare enough to get one line above the answer (a role is on
+  // the name row, where it was set — not repeated under every answer)
+  const hasMeta = (data.condensedFrom?.length ?? 0) > 0 || data.archived;
 
   return (
     <div
@@ -584,11 +599,6 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               {data.archived && (
                 <span className="text-2xs bg-warning/10 text-warning px-1.5 py-0.5 rounded-md flex items-center gap-1 font-medium" title={t('archive.badgeTitle')}>
                   <Archive size={11} strokeWidth={1.75} /> {t('archive.badge')}
-                </span>
-              )}
-              {data.appliedRole && !data.isEvaluator && (
-                <span className="text-2xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-md truncate max-w-[160px]" title={data.appliedRole}>
-                  {data.appliedRole.slice(0, 24)}{data.appliedRole.length > 24 ? '…' : ''}
                 </span>
               )}
             </div>
@@ -859,8 +869,9 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               progress (the structure IS the paradigm); returns on unlock */}
           {showInline && (
             <div className="mt-3 pt-3 border-t border-border relative">
+              {askRole && <div className="mb-1.5"><AskRoleChip role={askRole} onClear={() => setAskRole(null)} /></div>}
               {inputValue.trim() && (
-                <SessionNotice c={session} onLocate={(nid) => {
+                <SessionNotice c={session} onDropRole={() => setAskRole(null)} onLocate={(nid) => {
                   const n = rf.getNode(nid);
                   if (n) rf.setCenter(n.position.x + 260, n.position.y + 120, { zoom: rf.getZoom(), duration: 300 });
                 }} />
@@ -882,6 +893,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                   className="flex-1 bg-transparent text-sm text-foreground placeholder-muted-foreground focus:outline-none resize-none leading-relaxed max-h-[120px] overflow-y-auto nowheel nopan nodrag"
                 />
                 <SearchToggles size={15} />
+                <RolePickerButton value={askRole} onChange={setAskRole} />
                 <Button variant="ghost" size="icon-sm"
                   onClick={handleSubmitBranch}
                   disabled={!inputValue.trim()}

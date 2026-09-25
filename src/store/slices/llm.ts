@@ -20,7 +20,7 @@ import { convergeRun } from '../converge';
 export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, get) => ({
   addQuestion: async (question: string, opts: AddQuestionOptions = {}) => {
     if (condenseGuard()) return;
-    const { parentId, branchContext, branchYRatio, inheritRole, rolePrompt, initialAttachments, excludeAllInheritedAttachments, mentions } = opts;
+    const { parentId, branchContext, branchYRatio, inheritRole, rolePrompt, roleName, initialAttachments, excludeAllInheritedAttachments, mentions } = opts;
     const id = generateId();
     get().logEvent('ask', id, { chars: question.length, ...(parentId ? {} : { root: true }), ...(branchContext ? { branch: true } : {}) });
     const isRoot = !parentId;
@@ -56,6 +56,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
         includedAttachmentIds: [],
         roleMode: inheritRole === false ? 'reset' : 'inherit',
         rolePrompt: rolePrompt || undefined,
+        roleName: (rolePrompt && roleName?.trim()) || undefined,
         isRoot,
         isBranch: !!branchContext,
         // Search permissions are per-ask: snapshot the toggles shown next to
@@ -133,7 +134,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     const contextMessages = ctx.messages;
     const contextImages = ctx.images;
     const parentNode = parentId ? get().nodes.find((n) => n.id === parentId) : null;
-    applyRoleOverride(contextMessages, resolveExplicitRole(selfNode?.data, parentNode?.data, !!parentId));
+    applyRoleOverride(contextMessages, resolveExplicitRole(selfNode?.data, parentNode?.data));
 
     // Collect this node's own attachments (skip if same file already from ancestors)
     const selfAttachments = selfNode?.data.attachments || [];
@@ -187,19 +188,19 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     const rounds = follow && opts.rounds && opts.rounds > 1 ? Math.min(opts.rounds, 5) : undefined;
     get().pushHistory();
 
-    // Create all nodes and edges up front. Persona lives in the question's
-    // opening lines — one home for personas — so each card shows exactly
-    // what its perspective was asked. Two run policies, one mechanism:
-    //   once   → orange candidate branches, answered once (blind pool)
-    //   follow → red reviewers on watch edges that slide with the thread
-    //            and auto-rerun whenever upstream extends
-    const created: { id: string; question: string }[] = [];
+    // Create all nodes and edges up front. Each perspective is a ROLE on its
+    // node — identity in the role field, the task in the question, which is
+    // the same for all — replacing whatever role the line above carries. Two
+    // run policies, one mechanism:
+    //   once   → forks off the parent, answered once (blind pool)
+    //   follow → nodes that rerun themselves, wired by a reference that
+    //            follows the thread's tip
+    const created: { id: string; question: string; role: string }[] = [];
     const newNodes: ThoughtNode[] = [];
     const newEdges: ThoughtEdge[] = [];
     roles.forEach((role, i) => {
       const id = generateId();
-      const branchQuestion = `${role.prompt}\n${question}`;
-      created.push({ id, question: branchQuestion });
+      created.push({ id, question, role: role.prompt });
       newNodes.push({
         id,
         type: 'thought',
@@ -208,7 +209,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
         position: follow ? { x: parent.position.x + 640, y: parent.position.y + i * 380 } : { x: 0, y: 0 },
         dragHandle: '.drag-handle',
         data: {
-          question: branchQuestion,
+          question,
           response: '',
           responses: [],
           responseIndex: -1,
@@ -220,6 +221,8 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
           branchContext: undefined,
           highlights: [], highlightMode: 'tag', attachments: [], excludedAttachmentIds: [], includedAttachmentIds: [],
           roleMode: 'inherit',
+          rolePrompt: role.prompt,
+          roleName: role.name || undefined,
           isRoot: false,
           isBranch: !follow, // orange styling: exploratory candidates
           isEvaluator: follow || undefined, // red styling + rerun affordance
@@ -263,11 +266,14 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     const ctx = follow ? null : buildContext(parentId, get().nodes, get().edges, undefined, undefined, undefined, get().staleIds);
     const worker = async () => {
       while (cursor < created.length) {
-        const { id, question: branchQuestion } = created[cursor++];
+        const { id, question: branchQuestion, role } = created[cursor++];
         if (follow) {
           await get().rerunNode(id); // standard context walk through the watch edge
         } else {
+          // the parent's line, spoken to in this perspective's role
           const messages: ContextMessage[] = [...ctx!.messages, { role: 'user', content: branchQuestion }];
+          applyRoleOverride(messages, role);
+          set((state) => ({ nodes: state.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, appliedRole: role } } : n)) }));
           await runNodeGeneration(set, get, id, { question: branchQuestion, messages, images: ctx!.images, sources: ctx!.sources });
         }
       }
@@ -490,7 +496,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       : { messages: [] as ContextMessage[], images: [] as ImageAttachment[], sources: [] as MessageSource[] };
     const contextMessages = regenCtx.messages;
     const regenParent = parentId ? get().nodes.find((n) => n.id === parentId) : null;
-    applyRoleOverride(contextMessages, resolveExplicitRole(regenSelf?.data, regenParent?.data, !!parentId));
+    applyRoleOverride(contextMessages, resolveExplicitRole(regenSelf?.data, regenParent?.data));
 
     const appliedRole = contextMessages.find((m) => m.role === 'system')?.content || undefined;
     contextMessages.push({ role: 'user', content: q });

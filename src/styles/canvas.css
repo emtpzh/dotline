@@ -138,6 +138,7 @@
    (warn = it left the session above; role = the role it was set to) */
 .tdag-tag { flex: none; max-width: 16em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.74em; font-weight: 500; color: var(--muted-foreground); }
 .tdag-tag[data-tag='warn'] { color: var(--warning); }
+.tdag-tag[data-tag='role'] { padding: 0.05em 0.6em; border-radius: 9999px; font-weight: 600; color: var(--primary); background: color-mix(in oklch, var(--primary) 10%, transparent); }
 .tdag-acts { display: inline-flex; gap: 0.7em; flex: none; font-size: 0.76em; color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tdag-act { display: inline-flex; align-items: center; gap: 0.25em; }
 .tdag-act svg { width: 1.15em; height: 1.15em; }

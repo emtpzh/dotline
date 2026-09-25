@@ -5,11 +5,13 @@ import { globalIntent } from '../store/intent';
 import { continuity, sessionOf, type Continuity } from './agents/continuity';
 import { runtimeOf } from './agents/runtimes';
 import { inheritIntent } from './run-intent';
+import { roleLabel } from './node-face';
 import type { Attachment, ThoughtData, ThoughtEdge, ThoughtNode } from '../types';
 
 /** What an ask box holds for the question it is about to send. */
 export interface AskDraft {
   rolePrompt?: string;
+  roleName?: string;
   branchContext?: string;
   attachments?: Attachment[];
   mentions?: string[];
@@ -43,7 +45,13 @@ export function predictAsk(parentId: string | null, nodes: ThoughtNode[], edges:
       .filter((m) => m !== parentId && nodes.some((n) => n.id === m))
       .map((m): ThoughtEdge => ({ id: `${DRAFT_ID}:${m}`, source: m, target: DRAFT_ID, data: { isCrossLink: true } })),
   ];
-  return continuity(DRAFT_ID, [...nodes, ask], [...edges, ...wires], runtimeOf(intent.model), undefined);
+  const c = continuity(DRAFT_ID, [...nodes, ask], [...edges, ...wires], runtimeOf(intent.model), undefined);
+  // a role picked in this very box: it has no node to point at yet, so the
+  // notice names it and can offer to drop it (no `about` = the box's own)
+  if (c?.kind === 'new' && c.about === DRAFT_ID) {
+    return { kind: 'new', parentId: c.parentId, reason: c.reason, detail: roleLabel({ roleName: draft.roleName, rolePrompt: draft.rolePrompt }) };
+  }
+  return c;
 }
 
 export function useContinuity(parentId: string | null, draft: AskDraft): Continuity | null {
@@ -51,12 +59,12 @@ export function useContinuity(parentId: string | null, draft: AskDraft): Continu
   const edges = useStore((s) => s.edges);
   // the mirrored sessions and their tails move as turns land
   const ledger = useProjects((s) => s.projects.find((p) => p.id === s.activeId)?.sourceSession);
-  const { rolePrompt, branchContext, attachments, mentions } = draft;
+  const { rolePrompt, roleName, branchContext, attachments, mentions } = draft;
   const mentionKey = (mentions ?? []).join(',');
   const attachmentKey = (attachments ?? []).map((a) => `${a.id}:${a.type}`).join(',');
   return useMemo(
-    () => predictAsk(parentId, nodes, edges, { rolePrompt, branchContext, attachments, mentions }),
+    () => predictAsk(parentId, nodes, edges, { rolePrompt, roleName, branchContext, attachments, mentions }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on what the draft actually changes
-    [parentId, nodes, edges, ledger, rolePrompt, branchContext, attachmentKey, mentionKey],
+    [parentId, nodes, edges, ledger, rolePrompt, roleName, branchContext, attachmentKey, mentionKey],
   );
 }

@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { useStore } from '../../store';
 import { useUiStore } from '../../lib/ui-store';
 import { partitionContext } from '../../lib/graph';
-import { buildContext, resolveRoleFor } from '../../store/context-builder';
+import { buildContext, resolveRoleSourceFor } from '../../store/context-builder';
 import { PANEL_WIDTH_KEY, PANEL_MIN_WIDTH, PANEL_DEFAULT_WIDTH, PANEL_INSET } from '../../lib/constants';
 import { awaitingInput } from '../../utils';
 import { useT } from '../../i18n';
@@ -83,9 +83,9 @@ export default function FocusPanel({ onFocusNode }: { onFocusNode?: (id: string)
   // Inherited role for the status line: the SAME resolution buildContext
   // injects (structural mainline, legacy roleMode honored) — what the panel
   // shows is by construction what the model receives.
-  const inheritedRole = data.rolePrompt
-    ? ''
-    : resolveRoleFor(selectedNodeId!, nodes, edges, { ignoreOwn: true }) ?? '';
+  const inheritedFrom = data.rolePrompt
+    ? undefined
+    : resolveRoleSourceFor(selectedNodeId!, nodes, edges, { ignoreOwn: true });
 
   // Layered context view — same partition the prompt builder uses, so the
   // tree the user reads and the prompt the model reads never drift apart.
@@ -115,7 +115,8 @@ export default function FocusPanel({ onFocusNode }: { onFocusNode?: (id: string)
       </div>
       {/* Header: summary kicker (role · tokens · materials) + action strip */}
       <div className="flex items-start gap-2 pl-4 pr-3 py-1.5 border-b border-border/70 shrink-0">
-        <RoleLine nodeId={selectedNodeId!} data={data} inheritedRole={inheritedRole} />
+        <RoleLine nodeId={selectedNodeId!} data={data} inheritedFrom={inheritedFrom}
+          onJump={(id) => { useStore.getState().setSelectedNodeId(id); onFocusNode?.(id); }} />
         <div className="flex items-center gap-1 shrink-0">
           {!isViewerMode && <HeaderActions nodeId={selectedNodeId!} isLoading={data.isLoading} />}
           <Button variant="ghost"
