@@ -6,6 +6,7 @@ import { bootProjects } from './store/projects'
 import { isViewerMode, bootViewer } from './lib/viewer'
 import { initAppearance } from './lib/appearance'
 import { installDshSessionsBridge } from './lib/atlas/dsh-bridge'
+import { installHostChrome } from './lib/host-chrome'
 import { API_BASE } from './lib/constants'
 
 // Theme attributes land on <html> before first paint — no wrong-theme flash
@@ -16,6 +17,7 @@ initAppearance()
 // and the live mirror light up exactly as they do in the desktop shell.
 const dshApi = import.meta.env.VITE_DSH_BRIDGE as string | undefined
 if (dshApi && !window.desktopSessions) installDshSessionsBridge(dshApi)
+if (dshApi) installHostChrome()
 if (dshApi) void import('./lib/plugin-update').then((mod) => mod.bootPluginUpdateCheck(dshApi))
 // Agent runtimes over HTTP: the harness host serves them; a local server on
 // this machine does too. The probe answers 404 everywhere else and nothing

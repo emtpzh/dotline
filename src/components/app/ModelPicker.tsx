@@ -26,13 +26,15 @@ interface PickerProps {
   hint?: string;
   /** Compact styling for embedding in panel rows. */
   compact?: boolean;
+  /** canvas top bar out of room: the icon stays, the name moves to the tooltip */
+  iconOnly?: boolean;
 }
 
 // Dropdown listing every model the server registered (driven by which API
 // keys exist in .env), grouped by provider. Without props it edits the
 // GLOBAL selection (where a new root starts); with value/onChange it edits
 // one node's intent — model and effort — and nothing else.
-export default function ModelPicker({ value, onChange, effort, onEffortChange, hint, compact }: PickerProps) {
+export default function ModelPicker({ value, onChange, effort, onEffortChange, hint, compact, iconOnly }: PickerProps) {
   const t = useT();
   const nodeMode = !!onChange;
   const selectedModel = useUiStore((s) => s.selectedModel);
@@ -126,13 +128,13 @@ export default function ModelPicker({ value, onChange, effort, onEffortChange, h
             ? <Button variant="ghost" size="sm" className={`max-w-[200px] ${hint ? 'bg-warning/10 text-warning ring-1 ring-warning/40 hover:bg-warning/20' : 'bg-primary/10 text-primary hover:bg-primary/20'}`} />
             : <Button variant="chrome" className={`max-w-[190px] ${noModels ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20' : ''}`} />
         }
-        title={noModels ? t('apikey.entryTitle') : nodeMode ? (hint ?? t('model.nodeTitle')) : t('toolbar.model')}
+        title={noModels ? t('apikey.entryTitle') : nodeMode ? (hint ?? t('model.nodeTitle')) : iconOnly && label ? `${t('toolbar.model')} · ${label}` : t('toolbar.model')}
         data-apikey-entry={noModels || undefined}
       >
         {noModels
           ? <KeyRound strokeWidth={1.75} />
           : <Cpu strokeWidth={1.75} className={compact && hint ? '' : 'text-primary'} />}
-        <span className="text-xs truncate font-medium">{noModels ? t('model.connectCta') : label}</span>
+        {!iconOnly && <span className="text-xs truncate font-medium">{noModels ? t('model.connectCta') : label}</span>}
         {!noModels && <ChevronDown strokeWidth={1.75} className="opacity-70" />}
       </PopoverTrigger>
 

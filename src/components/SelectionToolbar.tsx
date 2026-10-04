@@ -33,7 +33,7 @@ export default function SelectionToolbar() {
   const actionBtn = 'text-xs px-3 py-1.5 rounded-lg transition-colors';
 
   return (
-    <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 animate-fade-in">
+    <div className="absolute top-[calc(var(--chrome-row-top)+3rem)] left-1/2 -translate-x-1/2 z-20 animate-fade-in">
       <div className="bg-card/95 backdrop-blur border border-border rounded-xl px-4 py-3 shadow-lg space-y-2">
         {/* Header */}
         <div className="flex items-center gap-3">

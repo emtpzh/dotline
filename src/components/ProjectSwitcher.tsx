@@ -27,7 +27,8 @@ function relativeTime(ts: number): string {
   return new Date(ts).toLocaleDateString(useI18n.getState().lang === 'zh' ? 'zh-CN' : 'en-US');
 }
 
-export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void }) {
+/** iconOnly: the top bar's last resort for room — the canvas name moves to the tooltip */
+export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSwitched: () => void; iconOnly?: boolean }) {
   const t = useT();
   const projects = useProjects((s) => s.projects);
   const activeId = useProjects((s) => s.activeId);
@@ -77,21 +78,23 @@ export default function ProjectSwitcher({ onSwitched }: { onSwitched: () => void
   };
 
   return (
-    // z-20: the open dropdown must cover the content palette below (both
-    // live on the left edge; the palette is z-10)
-    <div ref={rootRef} className="absolute top-4 left-4 z-20">
+    // in flow: the top bar's left cluster places it (and gives it z-20 over
+    // the content palette); it is the cluster's one shrinkable part, so a
+    // tight row truncates the canvas name before anything overlaps
+    <div ref={rootRef} className="relative min-w-0">
       <Popover open={open} onOpenChange={setOpen}>
-      <div className="flex items-center gap-1.5">
+      <div className="flex min-w-0 items-center gap-1.5">
         <PopoverTrigger
           disabled={switching}
-          render={<Button variant="chrome" className="gap-2 px-3 text-xs text-foreground max-w-[220px]" />}
+          render={<Button variant="chrome" className={iconOnly ? 'gap-1 px-2 text-xs text-foreground' : 'gap-2 px-3 text-xs text-foreground min-w-36 max-w-[220px] shrink'} />}
+          title={iconOnly ? active?.name : undefined}
         >
           {switching
             ? <Loader2 strokeWidth={1.75} className="animate-spin text-primary" />
             : activeIsParadigm
               ? <Dna strokeWidth={1.75} className="text-primary" />
               : <FolderOpen strokeWidth={1.75} className="text-muted-foreground" />}
-          <span className="truncate font-medium">{active?.name ?? '…'}</span>
+          {!iconOnly && <span className="truncate font-medium">{active?.name ?? '…'}</span>}
           <ChevronDown strokeWidth={1.75} className="text-muted-foreground" />
         </PopoverTrigger>
         {/* the twin badge: this canvas is one face of a session — the

@@ -19,7 +19,8 @@ import { Command, CommandGroup, CommandItem, CommandList, CommandSeparator } fro
 
 const tail = (p: string) => p.split('/').filter(Boolean).slice(-1)[0] ?? p;
 
-export default function AgentCwdChip() {
+/** iconOnly: canvas top bar out of room — the folder name moves to the tooltip */
+export default function AgentCwdChip({ iconOnly = false }: { iconOnly?: boolean }) {
   const t = useT();
   const selectedModel = useUiStore((s) => s.selectedModel);
   const activeId = useProjects((s) => s.activeId);
@@ -82,7 +83,7 @@ export default function AgentCwdChip() {
         data-agent-cwd={choice.kind}
       >
         <FolderOpen strokeWidth={1.75} className="shrink-0" />
-        <span className="text-xs truncate font-medium">{chipLabel}</span>
+        {!iconOnly && <span className="text-xs truncate font-medium">{chipLabel}</span>}
         <ChevronDown strokeWidth={1.75} className="shrink-0 opacity-70" />
       </Button>
       <Popover open={open} onOpenChange={setOpen}>

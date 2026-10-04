@@ -15,7 +15,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import 'highlight.js/styles/github.css';
-import { ArrowRight, BookOpen, Bot, Brain, CircleHelp, Download, Drama, Eye, FileText, Frame, GitBranch, Highlighter, ImageDown, KeyRound, LayoutGrid, Loader2, MessageCircleQuestion, MoreHorizontal, Paperclip, Redo2, Scissors, Search, Share2, SquareTerminal, Stethoscope, StickyNote, Trash2, Undo2, Workflow, X, ListRestart, FolderSync, Minimize2, Rewind, History as HistoryIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Bot, Brain, CircleHelp, Download, Drama, Eye, FileText, Frame, GitBranch, Highlighter, ImageDown, KeyRound, LayoutGrid, Loader2, MessageCircleQuestion, MoreHorizontal, Paperclip, Redo2, Scissors, Search, Share2, SquareTerminal, Stethoscope, StickyNote, Trash2, Undo2, Workflow, X, ListRestart, FolderSync, Minimize2, Rewind, History as HistoryIcon } from 'lucide-react';
 import './index.css';
 import ThoughtNode from './components/ThoughtNode';
 import ParadigmNode from './components/ParadigmNode';
@@ -79,7 +79,9 @@ import ReleaseNotesDialog from './components/app/ReleaseNotesDialog';
 import AgentCwdChip from './components/app/AgentCwdChip';
 import { pluginUpdateCommand } from './lib/plugin-update';
 import { useT, t as ti, fmt, useI18n } from './i18n';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from './components/ui/dropdown-menu';
+import { useSqueeze } from './lib/use-squeeze';
+import { closeEmbeddedView, refreshHostDrag } from './lib/host-chrome';
 import { ToggleGroup, ToggleGroupItem } from './components/ui/toggle-group';
 import { isViewerMode, buildViewerLink } from './lib/viewer';
 import { useModels } from './lib/use-models';
@@ -102,6 +104,9 @@ const NodeDispatch = memo(function NodeDispatch(props: Parameters<typeof Thought
   return isParadigm ? <ParadigmNode {...props} /> : <ThoughtNode {...props} />;
 });
 const nodeTypes = { thought: NodeDispatch };
+// Inside DeepSeek Harness the canvas is a frame the plugin lays over the
+// chat; it draws its own way back (the host's pill is only a fallback)
+const EMBEDDED = !!import.meta.env.VITE_DSH_BRIDGE && window.parent !== window;
 // Overrides the built-in smoothstep so persisted edges need no migration
 const edgeTypes = { smoothstep: memo(ThoughtEdgeView) };
 
@@ -837,7 +842,28 @@ function Canvas() {
   // Highlight ancestor edges for selected node(s)
   // Frame navigator: named regions become a jumpable table of contents
   const frames = useMemo(() => nodes.filter((n) => n.data.stepKind === 'frame'), [nodes]);
+  const jumpToFrame = (f: (typeof frames)[number]) => {
+    rfInstance.current?.fitBounds(
+      { x: f.position.x, y: f.position.y, width: f.width ?? 640, height: f.height ?? 420 },
+      { duration: 400, padding: 0.15 },
+    );
+  };
   const [frameNavOpen, setFrameNavOpen] = useState(false);
+  // Top-bar folds, lowest priority first: each level moves one more group
+  // of tools into the ⋯ menu, then labels give way to icons — the pickers',
+  // the way back to the chat's, and last the canvas name's.
+  const [topbarRef, squeeze] = useSqueeze(8);
+  const foldLang = squeeze >= 1;
+  const foldBackup = squeeze >= 2;
+  const foldFrames = squeeze >= 3;
+  const foldSearch = squeeze >= 4;
+  const foldHistory = squeeze >= 5;
+  const foldLabels = squeeze >= 6;
+  const foldBackLabel = squeeze >= 7;
+  const foldProjectName = squeeze >= 8;
+  // embedded: the window drags from the top bar's gap, which these move or
+  // cover (the search bar opens in it)
+  useEffect(() => { refreshHostDrag(); }, [searchOpen, squeeze, panelOpen]);
 
   // Toolbar overflow menu: low-frequency actions live behind one ⋯ button
   // so the top-right row stays short in both languages and with the panel
@@ -1458,9 +1484,6 @@ function Canvas() {
         </div>
       )}
 
-      {/* Project switcher */}
-      {!isViewerMode && <ProjectSwitcher onSwitched={afterProjectSwitch} />}
-
       {/* Content palette — canvas material, both modes. Click drops at the
           viewport center; DRAG drops at the pointer. Paste works anywhere:
           text → note, a URL → link snapshot, image/files → file node. */}
@@ -1505,8 +1528,8 @@ function Canvas() {
           link — every mutating control lives in the author toolbar below. */}
       {isViewerMode && (
         <div
-          className="absolute top-4 z-10 flex gap-1.5 items-center transition-[right] duration-200"
-          style={{ right: panelOpen ? livePanelWidth + PANEL_INSET + 12 : 16 }}
+          className="absolute top-[var(--chrome-row-top)] z-10 flex gap-1.5 items-center transition-[right] duration-200"
+          style={{ right: panelOpen ? livePanelWidth + PANEL_INSET + 12 : 'max(16px, calc(var(--chrome-right) + 8px))' }}
         >
           <span className="bg-card/90 backdrop-blur border border-border rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm text-muted-foreground text-xs font-medium" data-viewer-badge>
             <Eye size={14} strokeWidth={1.75} /> {t('viewer.badge')}
@@ -1536,39 +1559,69 @@ function Canvas() {
         </div>
       )}
 
-      {/* Toolbar: web search, language, tutorial, relayout, undo/redo.
-          Positioned relative to the VISIBLE canvas: when the overlay panel
-          is open it slides left instead of hiding underneath. */}
+      {/* Top bar: one row, two clusters — the canvas switcher on the left,
+          the tools on the right — so they can never overlap. It spans the
+          VISIBLE canvas (the open panel pushes its right edge in) and, when
+          embedded in a window without a title bar, stays on the first row
+          beside that window's corner controls (lib/host-chrome.ts). When
+          the row runs out of room, useSqueeze folds the right cluster's
+          lowest-priority tools into the ⋯ menu, one step at a time (see
+          fold* below). The gap between the clusters is click-through to
+          the canvas — or, embedded, where the window is dragged from. */}
       {!isViewerMode && (
       <div
-        className="absolute top-4 z-10 flex gap-1.5 items-center transition-[right] duration-200"
-        style={{ right: panelOpen ? livePanelWidth + PANEL_INSET + 12 : 16 }}
+        ref={topbarRef}
+        className="absolute top-[var(--chrome-row-top)] z-20 flex items-center gap-2 pointer-events-none transition-[right] duration-200"
+        style={{
+          left: 'max(16px, var(--chrome-left))',
+          // the open panel ends the row; else a right window corner does
+          right: panelOpen ? livePanelWidth + PANEL_INSET + 12 : 'max(16px, calc(var(--chrome-right) + 8px))',
+        }}
+        data-topbar
+        data-squeeze={squeeze}
       >
+      <div className="flex min-w-0 items-center gap-1.5 pointer-events-auto">
+        {EMBEDDED && (
+          <Button variant="chrome"
+            onClick={closeEmbeddedView}
+            title={t('embed.backToChatTitle')}
+            className="text-xs text-foreground"
+            data-back-to-chat
+          >
+            <ArrowLeft strokeWidth={1.75} /> {!foldBackLabel && t('embed.backToChat')}
+          </Button>
+        )}
+        <ProjectSwitcher onSwitched={afterProjectSwitch} iconOnly={foldProjectName} />
+      </div>
+      <div className="min-w-0 flex-1 self-stretch" data-topbar-gap />
+      <div className="flex shrink-0 items-center gap-1.5 pointer-events-auto">
         {isParadigm && (
           <>
             <Button variant="ghost" size="sm"
               onClick={() => addStep('human')}
+              title={foldLabels ? t('paradigm.addHuman') : undefined}
               className="bg-card/90 backdrop-blur border-edge-explore/40 hover:bg-edge-explore/10 text-edge-explore text-xs"
             >
-              <MessageCircleQuestion strokeWidth={1.75} /> {t('paradigm.addHuman')}
+              <MessageCircleQuestion strokeWidth={1.75} /> {!foldLabels && t('paradigm.addHuman')}
             </Button>
             <Button variant="ghost" size="sm"
               onClick={() => addStep('prompt')}
+              title={foldLabels ? t('paradigm.addPrompt') : undefined}
               className="bg-card/90 backdrop-blur border-primary/40 hover:bg-primary/10 text-primary text-xs"
             >
-              <SquareTerminal strokeWidth={1.75} /> {t('paradigm.addPrompt')}
+              <SquareTerminal strokeWidth={1.75} /> {!foldLabels && t('paradigm.addPrompt')}
             </Button>
             <Button variant="ghost" size="sm"
               onClick={() => void instantiate()}
               title={t('paradigm.instantiateTitle')}
               className="bg-foreground text-white hover:bg-foreground/85 text-xs"
             >
-              ▶ {t('paradigm.instantiate')}
+              ▶ {!foldLabels && t('paradigm.instantiate')}
             </Button>
           </>
         )}
-        {!isParadigm && <AgentCwdChip />}
-        {!isParadigm && <ModelPicker />}
+        {!isParadigm && <AgentCwdChip iconOnly={foldLabels} />}
+        {!isParadigm && <ModelPicker iconOnly={foldLabels} />}
         {/* Landing convenience only: inside the canvas the picker's own
             empty state (Connect a model) is the door — no twin key icon */}
         {!hasNodes && (
@@ -1605,7 +1658,7 @@ function Canvas() {
             <ListRestart strokeWidth={1.75} /> {staleCount}
           </Button>
         )}
-        {hasNodes && frames.length > 0 && (
+        {hasNodes && frames.length > 0 && !foldFrames && (
           <DropdownMenu open={frameNavOpen} onOpenChange={setFrameNavOpen}>
             <DropdownMenuTrigger
               render={<Button variant="chrome" size="icon" title={t('toolbar.frames')} />}
@@ -1614,15 +1667,7 @@ function Canvas() {
             </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-[230px] max-h-[320px] overflow-y-auto">
                 {frames.map((f) => (
-                  <DropdownMenuItem
-                    key={f.id}
-                    onClick={() => {
-                      rfInstance.current?.fitBounds(
-                        { x: f.position.x, y: f.position.y, width: f.width ?? 640, height: f.height ?? 420 },
-                        { duration: 400, padding: 0.15 },
-                      );
-                    }}
-                  >
+                  <DropdownMenuItem key={f.id} onClick={() => jumpToFrame(f)}>
                     <span className={`w-2.5 h-2.5 rounded-sm shrink-0 ${(FRAME_COLORS[f.data.frameColor ?? 'gray'] ?? FRAME_COLORS.gray).dot}`} />
                     <span className="truncate">{f.data.question || t('frame.untitled')}</span>
                   </DropdownMenuItem>
@@ -1630,7 +1675,7 @@ function Canvas() {
               </DropdownMenuContent>
           </DropdownMenu>
         )}
-        {hasNodes && (
+        {hasNodes && !foldSearch && (
           <Button variant="chrome" size="icon"
             onClick={() => setSearchOpen(true)}
             title={t('search.entryTitle')}
@@ -1639,7 +1684,7 @@ function Canvas() {
             <Search strokeWidth={1.75} />
           </Button>
         )}
-        <LangSwitch />
+        {!foldLang && <LangSwitch />}
         {hasNodes && !isParadigm && (
           <DiagnosticsPanel showTrigger={false} openPing={diagPing} onLocate={(id) => {
             const n = useStore.getState().nodes.find((x) => x.id === id);
@@ -1661,7 +1706,7 @@ function Canvas() {
             <Loader2 strokeWidth={1.75} className="animate-spin" /><span className="text-2xs font-mono">{condenseRunState.current}/{condenseRunState.total}</span>
           </Button>
         )}
-        {backupSupported && (
+        {backupSupported && !foldBackup && (
           <Button variant="chrome" size="icon"
             onClick={() => useUiStore.getState().setBackupDialogOpen(true)}
             title={t('backup.dialogTitle')}
@@ -1671,7 +1716,8 @@ function Canvas() {
           </Button>
         )}
         {/* ⋯ overflow: share, memory, annotations, relayout, tutorial —
-            one slot regardless of language or panel width. */}
+            one slot regardless of language or panel width. Tools the top
+            bar folded for room come first, in the order they left. */}
         <DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
           <DropdownMenuTrigger
             render={<Button variant="chrome" size="icon" title={t('toolbar.more')} data-toolbar-more />}
@@ -1679,6 +1725,42 @@ function Canvas() {
             <MoreHorizontal strokeWidth={1.75} />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-[220px]">
+              {foldHistory && (
+                <>
+                  <DropdownMenuItem onClick={undo} disabled={historyIndex <= 0} title={t('canvas.undo')}>
+                    <Undo2 size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('toolbar.menuUndo')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={redo} disabled={historyIndex >= history.length - 1} title={t('canvas.redo')}>
+                    <Redo2 size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('toolbar.menuRedo')}
+                  </DropdownMenuItem>
+                </>
+              )}
+              {hasNodes && foldSearch && (
+                <DropdownMenuItem onClick={() => setSearchOpen(true)} title={t('search.entryTitle')}>
+                  <Search size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('toolbar.menuSearch')}
+                </DropdownMenuItem>
+              )}
+              {hasNodes && frames.length > 0 && foldFrames && (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger title={t('toolbar.frames')}>
+                    <Frame size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('toolbar.menuFrames')}
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent side="left" className="w-[230px] max-h-[320px] overflow-y-auto">
+                    {frames.map((f) => (
+                      <DropdownMenuItem key={f.id} onClick={() => jumpToFrame(f)}>
+                        <span className={`w-2.5 h-2.5 rounded-sm shrink-0 ${(FRAME_COLORS[f.data.frameColor ?? 'gray'] ?? FRAME_COLORS.gray).dot}`} />
+                        <span className="truncate">{f.data.question || t('frame.untitled')}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
+              {backupSupported && foldBackup && (
+                <DropdownMenuItem onClick={() => useUiStore.getState().setBackupDialogOpen(true)}>
+                  <FolderSync size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('backup.dialogTitle')}
+                </DropdownMenuItem>
+              )}
+              {(foldHistory || (hasNodes && (foldSearch || (foldFrames && frames.length > 0))) || (backupSupported && foldBackup)) && <DropdownMenuSeparator />}
               {hasNodes && (
                 <DropdownMenuItem
                   onClick={() => { setAnnotationsHidden(!annotationsHidden); }}
@@ -1777,6 +1859,25 @@ function Canvas() {
                 </DropdownMenuItem>
               )}
               {hasNodes && <DropdownMenuSeparator />}
+              {foldLang && (
+                <div className="px-3 pt-2 pb-1" data-menu-language>
+                  <div className="text-2xs text-muted-foreground mb-1.5">{t('toolbar.menuLanguage')}</div>
+                  <ToggleGroup
+                    variant="outline"
+                    size="sm"
+                    spacing={0}
+                    className="w-full"
+                    value={[lang]}
+                    onValueChange={(v) => { const next = v[0]; if (next === 'en' || next === 'zh') useI18n.getState().setLang(next); }}
+                  >
+                    {(['en', 'zh'] as const).map((l) => (
+                      <ToggleGroupItem key={l} value={l} className="flex-1 text-2xs">
+                        {l === 'en' ? 'EN' : '中'}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                </div>
+              )}
               {/* appearance: two independent axes — lighting remaps the
                   tokens, paper retextures the canvas (and arms snapping) */}
               <div className="px-3 pt-2 pb-1" data-appearance-lighting>
@@ -1843,20 +1944,25 @@ function Canvas() {
               </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button variant="chrome" size="icon"
-          onClick={undo}
-          disabled={historyIndex <= 0}
-          title={t('canvas.undo')}
-        >
-          <Undo2 strokeWidth={1.75} />
-        </Button>
-        <Button variant="chrome" size="icon"
-          onClick={redo}
-          disabled={historyIndex >= history.length - 1}
-          title={t('canvas.redo')}
-        >
-          <Redo2 strokeWidth={1.75} />
-        </Button>
+        {!foldHistory && (
+          <>
+            <Button variant="chrome" size="icon"
+              onClick={undo}
+              disabled={historyIndex <= 0}
+              title={t('canvas.undo')}
+            >
+              <Undo2 strokeWidth={1.75} />
+            </Button>
+            <Button variant="chrome" size="icon"
+              onClick={redo}
+              disabled={historyIndex >= history.length - 1}
+              title={t('canvas.redo')}
+            >
+              <Redo2 strokeWidth={1.75} />
+            </Button>
+          </>
+        )}
+      </div>
       </div>
       )}
 

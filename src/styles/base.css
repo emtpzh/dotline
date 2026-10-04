@@ -1,5 +1,17 @@
 /* base: document, scrollbars, focus rings, animations, tooltip — split out of index.css; the tokens stay there */
 
+/* Host window chrome: where the embedding window's own controls sit over
+   the page (the macOS traffic lights top-left, the Windows caption buttons
+   top-right). Defaults are the plain-tab layout; the dsh plugin sends the
+   real corners (lib/host-chrome.ts). The top bar stays on the first row,
+   between the corners and centred on them. */
+:root {
+  --chrome-left: 0px;
+  --chrome-right: 0px;
+  --chrome-row-top: 1rem;
+  --chrome-panel-top: 0.75rem;
+}
+
 
 html, body, #root {
   width: 100%;
