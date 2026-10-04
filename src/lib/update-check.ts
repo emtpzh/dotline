@@ -24,12 +24,15 @@ let notified = false;
 const bootParams = new URLSearchParams(window.location.search);
 const desktopVersion = bootParams.get('dv');
 const shellSelfUpdates = bootParams.get('su') === '1';
+// This fork has no release channel of its own yet, and upstream's releases
+// say nothing about what runs here: the desktop nudge is off.
+const DESKTOP_NUDGE = false;
 const DESKTOP_THROTTLE_MS = 30 * 60_000;
 let notifiedDesktop = false;
 let lastDesktopCheck = 0;
 
 async function checkDesktop(): Promise<void> {
-  if (!desktopVersion || shellSelfUpdates || notifiedDesktop) return;
+  if (!DESKTOP_NUDGE || !desktopVersion || shellSelfUpdates || notifiedDesktop) return;
   if (Date.now() - lastDesktopCheck < DESKTOP_THROTTLE_MS) return;
   lastDesktopCheck = Date.now();
   try {
@@ -88,5 +91,5 @@ export function bootUpdateCheck(): void {
   });
   setInterval(() => { void check(); void checkDesktop(); }, CHECK_INTERVAL_MS);
   // desktop: one early look shortly after boot
-  if (desktopVersion) setTimeout(() => void checkDesktop(), 5000);
+  if (DESKTOP_NUDGE && desktopVersion) setTimeout(() => void checkDesktop(), 5000);
 }

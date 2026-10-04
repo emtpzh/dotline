@@ -616,6 +616,7 @@ function setupSessionAtlas() {
 // downloads until the user clicks download; nothing installs until the user
 // clicks restart (or quits after opting in). Checking BY HAND always answers
 // out loud: found, already latest, or could not check.
+const SELF_UPDATE = false; // off in this fork until it has its own release feed
 let updater = null;        // electron-updater instance once set up
 let announced = null;      // version already toasted this session (auto checks)
 let downloading = false;
@@ -900,10 +901,12 @@ if (!lock) {
     void boot();
     setupSessionAtlas();
     setupAgents();
-    if (app.isPackaged) {
+    // This fork has no release feed of its own yet: the build config still
+    // names upstream's GitHub releases, so self-update stays off everywhere.
+    if (app.isPackaged && SELF_UPDATE) {
       setupAutoUpdate();
     } else {
-      // dev shell: the menu entry exists (preload is loaded), so answer honestly
+      // no update channel: the menu entry exists (preload is loaded), so answer honestly
       ipcMain.handle('update:check', () => { sendUpdate({ kind: 'dev' }); });
     }
   });

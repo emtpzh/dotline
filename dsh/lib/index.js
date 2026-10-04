@@ -90,7 +90,11 @@ const APP_DIR = resolve(__dirname, '../dist-app')
 // version at most once a day; a failed lookup is silence, not an error.
 const PLUGIN_VERSION = (() => { try { return require(resolve(__dirname, '..', 'package.json')).version ?? null } catch { return null } })()
 let latestLookup = { value: null, at: 0 }
+// This fork publishes no package of its own yet: the registry's
+// dsh-thoughtdag is upstream's, so the lookup is off and `latest` stays null.
+const REGISTRY_LOOKUP = false
 async function latestPluginVersion() {
+  if (!REGISTRY_LOOKUP) return null
   if (Date.now() - latestLookup.at < 24 * 60 * 60 * 1000) return latestLookup.value
   latestLookup = { value: latestLookup.value, at: Date.now() }
   try {
