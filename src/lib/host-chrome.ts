@@ -16,6 +16,12 @@
 // (td:drag) and the client half lays transparent drag blocks over them.
 // CSS variables and regions do not cross the frame boundary, hence the
 // messages.
+//
+// The same message says whether the canvas needs its own way back to the
+// chat (\`back\`): laid over the whole window it does; as a panel beside the
+// harness's sidebar it does not, the sidebar is the way back.
+
+import { useSyncExternalStore } from 'react';
 
 const SOURCE = 'dsh-thoughtdag';
 const ROW_HEIGHT = 32; // the top bar's controls (Button size default/icon)
@@ -24,6 +30,9 @@ type Chrome = { left: number; right: number; center: number; band: number };
 type Rect = { x: number; y: number; w: number; h: number };
 
 let chrome: Chrome | null = null;
+// no back button until the host asks for one: a panel never shows it
+let back = false;
+const backListeners = new Set<() => void>();
 let lastSent = '';
 let frame = 0;
 
@@ -95,6 +104,9 @@ export function installHostChrome(): void {
     const d = ev.data as ({ source?: string; type?: string } & Partial<Record<keyof Chrome, unknown>>) | null;
     if (ev.origin !== window.location.origin || d?.source !== SOURCE || d.type !== 'td:chrome') return;
     chrome = { left: num(d.left), right: num(d.right), center: num(d.center), band: num(d.band) };
+    // a host that predates the field always laid the canvas over the window
+    const nextBack = typeof (d as { back?: unknown }).back === 'boolean' ? (d as { back: boolean }).back : true;
+    if (nextBack !== back) { back = nextBack; backListeners.forEach((fn) => fn()); }
     applyChrome(chrome);
     lastSent = ''; // the host may have just (re)built its drag layer
     refreshHostDrag();
@@ -118,6 +130,14 @@ export function installHostChrome(): void {
   // ready = the canvas draws its own way back to the chat, so the host's
   // fallback pill can go; the host answers with the chrome
   post({ type: 'td:ready' });
+}
+
+/** Whether the embedded canvas draws its own way back to the chat. */
+export function useHostBack(): boolean {
+  return useSyncExternalStore(
+    (fn) => { backListeners.add(fn); return () => { backListeners.delete(fn); }; },
+    () => back,
+  );
 }
 
 /** The embedded canvas's way back to the conversation view. */

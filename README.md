@@ -17,7 +17,7 @@
 
 ## New · DeepSeek Harness Available!
 
-> ThoughtDAG runs as a view inside the DeepSeek Harness web UI: a 对话 | 思维图 switch above the chat. The canvas is where you decide what the harness sees next; the harness runs the turn.
+> ThoughtDAG runs as a view inside the DeepSeek Harness web UI: a 思维图 panel in its sidebar, beside the sessions. The canvas is where you decide what the harness sees next; the harness runs the turn.
 
 ```bash
 dsh plugin --profile web add dsh-thoughtdag

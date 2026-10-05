@@ -17,7 +17,7 @@
 
 ## 新功能 · DeepSeek Harness 插件上线！
 
-> ThoughtDAG 可以作为 DeepSeek Harness 网页界面里的一个视图运行：对话框上方多一个 对话 | 思维图 开关。画布决定 Harness 下一步看到什么，Harness 负责把这一轮跑完。
+> ThoughtDAG 可以作为 DeepSeek Harness 网页界面里的一个视图运行：侧边栏多一个「思维图」全局面板，和会话列表并列。画布决定 Harness 下一步看到什么，Harness 负责把这一轮跑完。
 
 ```bash
 dsh plugin --profile web add dsh-thoughtdag

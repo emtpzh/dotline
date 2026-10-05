@@ -81,7 +81,7 @@ import { pluginUpdateCommand } from './lib/plugin-update';
 import { useT, t as ti, fmt, useI18n } from './i18n';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from './components/ui/dropdown-menu';
 import { useSqueeze } from './lib/use-squeeze';
-import { closeEmbeddedView, refreshHostDrag } from './lib/host-chrome';
+import { closeEmbeddedView, refreshHostDrag, useHostBack } from './lib/host-chrome';
 import { ToggleGroup, ToggleGroupItem } from './components/ui/toggle-group';
 import { isViewerMode, buildViewerLink } from './lib/viewer';
 import { useModels } from './lib/use-models';
@@ -861,9 +861,11 @@ function Canvas() {
   const foldLabels = squeeze >= 6;
   const foldBackLabel = squeeze >= 7;
   const foldProjectName = squeeze >= 8;
+  // a panel beside the harness's sidebar needs no way back of its own
+  const hostBack = useHostBack();
   // embedded: the window drags from the top bar's gap, which these move or
   // cover (the search bar opens in it)
-  useEffect(() => { refreshHostDrag(); }, [searchOpen, squeeze, panelOpen]);
+  useEffect(() => { refreshHostDrag(); }, [searchOpen, squeeze, panelOpen, hostBack]);
 
   // Toolbar overflow menu: low-frequency actions live behind one ⋯ button
   // so the top-right row stays short in both languages and with the panel
@@ -1160,6 +1162,10 @@ function Canvas() {
         nodesDraggable={!isViewerMode}
         nodesConnectable={!isViewerMode}
         panOnDrag={isViewerMode ? true : [1, 2]}
+        // two fingers on a trackpad slide the canvas, as far as the fingers
+        // travel; a pinch, or the wheel with ⌘/Ctrl held, zooms
+        panOnScroll
+        panOnScrollSpeed={1}
         zoomOnDoubleClick={false}
         connectionLineStyle={{ stroke: themePalette.accent, strokeDasharray: '8 4', strokeWidth: 2 }}
         onSelectionChange={onSelectionChange}
@@ -1581,7 +1587,7 @@ function Canvas() {
         data-squeeze={squeeze}
       >
       <div className="flex min-w-0 items-center gap-1.5 pointer-events-auto">
-        {EMBEDDED && (
+        {EMBEDDED && hostBack && (
           <Button variant="chrome"
             onClick={closeEmbeddedView}
             title={t('embed.backToChatTitle')}

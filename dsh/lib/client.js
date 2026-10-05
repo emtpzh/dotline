@@ -1,19 +1,26 @@
 // dsh-thoughtdag client half — the lightest possible browser shim.
-// It renders a "对话 | 思维图" switch in the harness session header (slot
-// `conversation.session.header.actions`, so it flows with the native layout
-// on desktop and mobile web instead of floating over the title bar) and, on
-// "思维图", shows a full-screen SAME-ORIGIN iframe at /thoughtdag/ (the SPA
-// is served by the host half on the same web server — no CORS, no second
-// origin). The overlay covers the header, so the canvas draws its own way
-// back (td:close); the floating back pill here is only a fallback until the
-// canvas says it is ready.
+// The canvas is not any one session's: it lists and mirrors all of them. So
+// its entry is a global panel — a row in the sidebar's panel list
+// (`sidebar.panellist`) that swaps the centre column (`main`, keyed
+// 'thoughtdag') for the canvas, the way the harness's own global panels do;
+// opening any session from the sidebar returns the centre to the chat. Hosts
+// without global panels (no `layout` service) get the older "对话 | 思维图"
+// switch in the session header instead, with the canvas over the window.
+//
+// The canvas itself is a SAME-ORIGIN iframe at /thoughtdag/ (the SPA is
+// served by the host half on the same web server — no CORS, no second
+// origin). It lives in one fixed layer this file keeps for the page's life
+// and lays over the panel's box: the main slot unmounts a panel that is not
+// selected, and an iframe moved or rebuilt reloads the canvas. The canvas
+// draws its own way back (td:close); the back pill here is only a fallback
+// until the canvas says it is ready.
 //
 // On the desktop shell the window has no native title bar: the traffic
 // lights (macOS) float over the top-left corner, the caption buttons
 // (Windows) over the top-right. This file reads those corners from the
-// host's own markers (the ones its full-screen layers use) and sends them
-// to the canvas (td:chrome), which keeps its top bar on the first row beside
-// them. The canvas answers with the rectangles of its empty chrome
+// host's own markers (the ones its full-screen layers use) and sends the
+// part of them that falls on the canvas (td:chrome), which keeps its top bar
+// on the first row beside them. The canvas answers with the rectangles of its empty chrome
 // (td:drag) and this file lays transparent drag blocks over them — only
 // the main document's elements can be drag regions.
 //
@@ -29,7 +36,8 @@
 //
 // Same pattern as dsh-synapse: window.__ModuleLoader__.load with a module
 // whose inject lists the client services it reads (sessions, slots) and whose
-// apply registers the switch. react is a platform seed module — the loader's
+// apply registers the entry. `layout` is looked up rather than injected, so
+// a host without it still loads the plugin and falls back to the switch. react is a platform seed module — the loader's
 // require answers it from the module table, so the bundle stays tiny.
 
 window.__ModuleLoader__.load({
@@ -49,7 +57,7 @@ window.__ModuleLoader__.load({
       }
 
       const style = document.createElement('style')
-      style.textContent = '.dsh-td-switch{display:inline-flex;gap:2px;border:1px solid #d1d5db;border-radius:999px;background:rgba(255,255,255,.96);padding:3px;backdrop-filter:blur(10px)}.dsh-td-switch button{height:26px;border:0;border-radius:999px;background:transparent;padding:0 11px;color:#6b7280;font:600 12px Inter,system-ui,sans-serif;cursor:pointer;white-space:nowrap}.dsh-td-switch button:hover{background:#f3f4f6;color:#111827}.dsh-td-switch button.active{background:#111827;color:#fff}.dsh-td-back{position:fixed;z-index:130;top:calc(var(--dsh-td-band,0px) + 12px);left:50%;-webkit-app-region:no-drag;transform:translateX(-50%);border:1px solid #d1d5db;border-radius:999px;background:rgba(255,255,255,.96);padding:5px 14px;color:#374151;font:600 12px Inter,system-ui,sans-serif;cursor:pointer;backdrop-filter:blur(10px)}.dsh-td-back:hover{background:#f3f4f6;color:#111827}.dsh-td-overlay{position:fixed;z-index:100;inset:0;background:#f5f6f7}body[data-ds-dark-theme] .dsh-td-overlay{background:#353638}.dsh-td-overlay[hidden],.dsh-td-back[hidden]{display:none}.dsh-td-drag-layer{position:fixed;z-index:101;top:0;left:0;width:0;height:0}.dsh-td-drag-layer[hidden]{display:none}.dsh-td-drag-layer>div{position:fixed;-webkit-app-region:drag!important}.dsh-td-overlay iframe{display:block;width:100%;height:100%;border:0}'
+      style.textContent = '.dsh-td-switch{display:inline-flex;gap:2px;border:1px solid #d1d5db;border-radius:999px;background:rgba(255,255,255,.96);padding:3px;backdrop-filter:blur(10px)}.dsh-td-switch button{height:26px;border:0;border-radius:999px;background:transparent;padding:0 11px;color:#6b7280;font:600 12px Inter,system-ui,sans-serif;cursor:pointer;white-space:nowrap}.dsh-td-switch button:hover{background:#f3f4f6;color:#111827}.dsh-td-switch button.active{background:#111827;color:#fff}.dsh-td-back{position:absolute;z-index:1;top:calc(var(--dsh-td-band,0px) + 12px);left:50%;-webkit-app-region:no-drag;transform:translateX(-50%);border:1px solid #d1d5db;border-radius:999px;background:rgba(255,255,255,.96);padding:5px 14px;color:#374151;font:600 12px Inter,system-ui,sans-serif;cursor:pointer;backdrop-filter:blur(10px)}.dsh-td-back:hover{background:#f3f4f6;color:#111827}.dsh-td-overlay{position:fixed;z-index:100;inset:0;background:#f5f6f7}.dsh-td-overlay.dsh-td-docked{z-index:10}.dsh-td-panel{flex:1;min-height:0}.dsh-td-glyph{display:block}body[data-ds-dark-theme] .dsh-td-overlay{background:#353638}.dsh-td-overlay[hidden],.dsh-td-back[hidden]{display:none}.dsh-td-drag-layer{position:fixed;z-index:101;top:0;left:0;width:0;height:0}.dsh-td-drag-layer[hidden]{display:none}.dsh-td-drag-layer>div{position:fixed;-webkit-app-region:drag!important}.dsh-td-overlay iframe{display:block;width:100%;height:100%;border:0}'
       document.head.append(style)
 
       const overlayHost = document.createElement('div')
@@ -76,7 +84,7 @@ window.__ModuleLoader__.load({
       // `center` the line the controls sit on (the bar centres on it),
       // `band` their strip's height. Nothing in native fullscreen or in a
       // plain browser tab (no desktop markers on <html>).
-      const chromeMetrics = () => {
+      const windowMetrics = () => {
         const root = document.documentElement
         const none = { left: 0, right: 0, center: 0, band: 0 }
         if (root.hasAttribute('data-fullscreen')) return none
@@ -96,6 +104,62 @@ window.__ModuleLoader__.load({
         return none
       }
 
+      // Where the canvas sits, in page pixels: the whole window over the
+      // header switch, the centre column's box as a global panel (`docked`,
+      // kept current by the panel while it is mounted).
+      let docked = null
+      let canvasReady = false
+      const canvasBox = () => docked ?? { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }
+      // The harness's own controls over a panel's top-left corner: on macOS
+      // with the sidebar hidden, the frame's \`shell.leading\` seat (reopen the
+      // sidebar, New Session) floats beside the traffic lights over every
+      // main panel, in fullscreen too.
+      const leadingSeat = () => {
+        const r = document.querySelector('[data-shell-leading]')?.getBoundingClientRect()
+        return r && r.width > 0 && r.height > 0 ? r : null
+      }
+      // The window's corners as the canvas sees them: what of each falls on
+      // its box. A docked canvas beside an open sidebar meets neither, nor
+      // one below a title bar the harness reserves over its columns
+      // (Windows), and then has no strip to keep clear or drag the window
+      // from. \`back\`: over the whole window the canvas draws its own way
+      // back to the chat; as a panel the sidebar is the way back.
+      const chromeMetrics = () => {
+        const m = windowMetrics()
+        const box = canvasBox()
+        const back = docked === null
+        const meets = m.band > box.y
+        let left = meets ? Math.max(0, m.left - box.x) : 0
+        const right = meets ? Math.max(0, m.right - (window.innerWidth - (box.x + box.w))) : 0
+        let center = m.center - box.y
+        let band = m.band - box.y
+        const seat = docked === null ? null : leadingSeat()
+        if (seat && seat.bottom > box.y && seat.right > box.x) {
+          left = Math.max(left, Math.round(seat.right + 8 - box.x))
+          center = Math.round((seat.top + seat.bottom) / 2 - box.y)
+          // as much room under the seat as above it
+          band = Math.max(band, Math.round(seat.bottom + seat.top - box.y))
+        }
+        if (left === 0 && right === 0) return { left: 0, right: 0, center: 0, band: 0, back }
+        return { left, right, center: Math.max(0, center), band: Math.max(0, band), back }
+      }
+
+      // a drag block over the seat would swallow its clicks (the layer is
+      // last in <body> and claims drag): cut the seat out of each block
+      const cut = (r, s) => {
+        if (!s || r.x >= s.right || s.left >= r.x + r.w || r.y >= s.bottom || s.top >= r.y + r.h) return [r]
+        const bottom = r.y + r.h
+        const right = r.x + r.w
+        const top = Math.max(r.y, s.top)
+        const low = Math.min(bottom, s.bottom)
+        return [
+          { x: r.x, y: r.y, w: r.w, h: s.top - r.y },
+          { x: r.x, y: s.bottom, w: r.w, h: bottom - s.bottom },
+          { x: r.x, y: top, w: s.left - r.x, h: low - top },
+          { x: s.right, y: top, w: right - s.right, h: low - top },
+        ].filter(p => p.w > 0 && p.h > 0)
+      }
+
       // the drag blocks, in a layer kept last in <body> (see the header)
       const dragLayer = document.createElement('div')
       dragLayer.className = 'dsh-td-drag-layer'
@@ -104,8 +168,13 @@ window.__ModuleLoader__.load({
       let dragRects = null // null until the canvas reports: a plain band meanwhile
       const renderDrag = () => {
         const m = chromeMetrics()
-        const rects = dragRects ?? (m.band > 0 ? [{ x: 0, y: 0, w: window.innerWidth - m.right, h: m.band }] : [])
-        dragLayer.replaceChildren(...rects.map(r => {
+        const box = canvasBox()
+        // the canvas reports in its own viewport: shift by where it sits
+        const rects = dragRects ?? (m.band > 0 ? [{ x: 0, y: 0, w: box.w - m.right, h: m.band }] : [])
+        const seat = docked === null ? null : leadingSeat()
+        const hole = seat && { left: seat.left - 4, top: seat.top - 4, right: seat.right + 4, bottom: seat.bottom + 4 }
+        const page = rects.flatMap(r => cut({ x: box.x + r.x, y: box.y + r.y, w: r.w, h: r.h }, hole))
+        dragLayer.replaceChildren(...page.map(r => {
           const el = document.createElement('div')
           el.style.cssText = `left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px`
           return el
@@ -158,6 +227,62 @@ window.__ModuleLoader__.load({
         window.setTimeout(() => { syncCurrent(); syncChrome(); send('td:view', { shown: true }) }, 400)
       }
 
+      // the docked canvas follows the panel's box (sidebar drags and folds
+      // resize the centre column; the window resizing moves it)
+      const dock = box => {
+        docked = box
+        // a panel's way back is the sidebar: no pill there
+        backBtn.hidden = box !== null || canvasReady
+        overlay.classList.toggle('dsh-td-docked', box !== null)
+        const s = overlay.style
+        if (box === null) { s.left = s.top = s.width = s.height = ''; s.inset = '' }
+        else { s.inset = 'auto'; s.left = box.x + 'px'; s.top = box.y + 'px'; s.width = box.w + 'px'; s.height = box.h + 'px' }
+        onHostChange()
+        renderDrag()
+      }
+
+      const layout = (() => { try { return ctx.get('layout') } catch { return undefined } })()
+      const panels = layout !== undefined && layout !== null && typeof layout.selectPanel === 'function'
+      const PANEL_ID = 'thoughtdag'
+      const backToChat = () => (panels ? layout.selectPanel(null) : setMap(false))
+
+      // the panel only holds the canvas's place; the layer above it is the canvas
+      const Panel = () => {
+        const ref = React.useRef(null)
+        React.useLayoutEffect(() => {
+          const el = ref.current
+          const place = () => {
+            const r = el.getBoundingClientRect()
+            const box = { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }
+            if (docked && docked.x === box.x && docked.y === box.y && docked.w === box.w && docked.h === box.h) return
+            dock(box)
+          }
+          const observer = new ResizeObserver(place)
+          observer.observe(el)
+          window.addEventListener('resize', place)
+          place()
+          setMap(true)
+          return () => {
+            observer.disconnect()
+            window.removeEventListener('resize', place)
+            setMap(false)
+            dock(null)
+          }
+        }, [])
+        return React.createElement('div', { ref, className: 'dsh-td-panel' })
+      }
+
+      // a small graph: three nodes, the context flowing down
+      const Glyph = ({ size }) => React.createElement('svg', {
+        className: 'dsh-td-glyph', width: size, height: size, viewBox: '0 0 16 16', fill: 'none',
+        stroke: 'currentColor', strokeWidth: 1.3, strokeLinecap: 'round', 'aria-hidden': 'true',
+      },
+      React.createElement('rect', { x: 5.5, y: 1.5, width: 5, height: 3.5, rx: 1 }),
+      React.createElement('rect', { x: 1.5, y: 11, width: 5, height: 3.5, rx: 1 }),
+      React.createElement('rect', { x: 9.5, y: 11, width: 5, height: 3.5, rx: 1 }),
+      React.createElement('path', { d: 'M8 5v2.5M8 7.5 4 11M8 7.5l4 3.5' }),
+      )
+
       const Switch = () => {
         const [map, setMapState] = React.useState(mapState)
         React.useEffect(() => {
@@ -177,21 +302,30 @@ window.__ModuleLoader__.load({
         )
       }
 
-      ctx.slots.inject('conversation.session.header.actions', () =>
-        ctx.slots.register({
-          name: 'conversation.session.header.actions',
-          id: 'thoughtdag-view-switch',
-          order: 90,
-        }, Switch),
-      )
+      if (panels) {
+        ctx.slots.inject('main', () =>
+          ctx.slots.register({ name: 'main', key: PANEL_ID }, Panel),
+        )
+        ctx.slots.inject('sidebar.panellist', () =>
+          ctx.slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order: 50, label: '思维图' }, Glyph),
+        )
+      } else {
+        ctx.slots.inject('conversation.session.header.actions', () =>
+          ctx.slots.register({
+            name: 'conversation.session.header.actions',
+            id: 'thoughtdag-view-switch',
+            order: 90,
+          }, Switch),
+        )
+      }
 
-      backBtn.addEventListener('click', () => setMap(false))
+      backBtn.addEventListener('click', backToChat)
 
       window.addEventListener('message', event => {
         if (event.origin !== location.origin || event.data?.source !== 'dsh-thoughtdag') return
-        if (event.data.type === 'td:close') return setMap(false)
+        if (event.data.type === 'td:close') return backToChat()
         // the canvas is up and draws its own back button: the pill retires
-        if (event.data.type === 'td:ready') { backBtn.hidden = true; return syncChrome() }
+        if (event.data.type === 'td:ready') { canvasReady = true; backBtn.hidden = true; return syncChrome() }
         // the canvas's empty chrome, where the window is dragged from
         if (event.data.type === 'td:drag' && Array.isArray(event.data.rects)) {
           dragRects = event.data.rects
@@ -207,7 +341,7 @@ window.__ModuleLoader__.load({
           // older runtimes (0.1.1) still call it select
           const select = ctx.sessions.open ?? ctx.sessions.select
           select.call(ctx.sessions, event.data.session)
-          if (event.data.close !== false) setMap(false)
+          if (event.data.close !== false) backToChat()
           syncCurrent()
         }
       })

@@ -11,19 +11,23 @@ plugin (a Cordis plugin distributed as an npm package), built on the same shell
 pattern as [dsh-synapse](https://github.com/liangmianya/dsh-synapse): the host
 half mounts the ThoughtDAG SPA under `/thoughtdag/` on the EXISTING harness
 web server (no second process, no second port), and the client half adds a
-"对话 | 思维图" switch to the session header that shows the canvas in a
-same-origin full-screen iframe.
+"思维图" global panel to the sidebar that shows the canvas in a same-origin
+iframe in the centre column.
 
-> The switch lives in the session header: open a session first — there is
-> no switcher on the empty state. (入口在会话标题栏，需要先打开一个会话；
-> 空态下没有切换器。)
+> The canvas is not any one session's — it lists and mirrors all of them — so
+> its entry sits in the sidebar's panel list under New Session, not in a
+> session's header, and works from the empty state too. Opening a session
+> from the sidebar (or the canvas's back button) returns to the chat.
+> (入口在侧边栏「新会话」下方的全局面板列表，不属于某个会话；从侧边栏点开会话
+> 或点画布的返回按钮即回到对话。) A harness without global panels (no
+> `layout` service) gets the older "对话 | 思维图" switch in the session header.
 
 ## What works
 
 - `dsh plugin --profile web add dsh-thoughtdag` installs the plugin from npm; every GitHub release also carries `dsh-thoughtdag-<version>.tgz`, and the same command takes that file's URL (`dsh plugin` forwards to pnpm)
-- The harness GUI gains a "对话 | 思维图" switch in the session header;
-  "思维图" opens ThoughtDAG at
-  `/thoughtdag/` (same origin — no CORS, no second server)
+- The harness GUI gains a "思维图" row in the sidebar's global panels; it opens
+  ThoughtDAG at `/thoughtdag/` in the centre column (same origin — no CORS,
+  no second server), and the canvas keeps its state while the chat is shown
 - The host serves the SPA plus a read-only session bridge:
 
   | Endpoint | Purpose |
@@ -116,7 +120,7 @@ npm run dsh:build            # writes dsh/dist-app, which git ignores
 # 2. install into a profile from this directory (pnpm link)
 dsh plugin --profile web add /abs/path/to/thoughtdag/dsh
 
-# 3. restart the profile's web app; open a session and use the switch in its header
+# 3. restart the profile's web app; open "思维图" in the sidebar
 ```
 
 The script drives `tsc`, `vite` and `esbuild` through Node directly, so the
