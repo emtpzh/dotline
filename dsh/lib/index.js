@@ -437,7 +437,14 @@ function contentOf(body) {
   throw new HttpError(400, 'body needs text or blocks')
 }
 
-const SOURCE = { kind: 'plugin', plugin: 'dsh-thoughtdag' }
+/** How a message this plugin puts into a session names its producer. The
+ *  session format decides the spelling: v4 (harness 0.2) refuses the
+ *  `{ kind: 'plugin', plugin }` wrapper — the turn then ends in an error
+ *  before the model is called — and names a third-party producer
+ *  `plugin:<name>` in `kind` itself, as its migration of v3 logs does. */
+const sourceFor = (session) => (session?.header?.version ?? 0) >= 4
+  ? { kind: 'plugin:dsh-thoughtdag' }
+  : { kind: 'plugin', plugin: 'dsh-thoughtdag' }
 
 // ── the other agents' session files on this machine ────────────────────
 
@@ -668,7 +675,8 @@ function installApprovalAnswerer(ctx) {
  * fallback when the named session or turn cannot be used). Progress goes to
  * `sink` (session, text, reasoning, toolStart, toolEnd); `ask` answers this
  * turn's approvals. Resolves with the session and the final text when the
- * turn ends, `signal` aborts it, or twenty minutes pass.
+ * turn ends, `signal` aborts it, or twenty minutes pass; rejects with the
+ * harness's reason when the turn ends in an error or is blocked.
  *
  * turn: { question, context, images, model: { provider, model } | null,
  *         cwd, continueSession, fork: { session, anchor } }
@@ -713,14 +721,24 @@ async function runHarnessTurn(ctx, turn, sink, { signal, ask } = {}) {
   canvasTurns.set(sessionId, entry)
   let sawChunk = false
   let fullText = ''
+  // why the turn ended, when the harness says it failed: reported as the
+  // run's error, never as a quiet end with nothing said
+  let failure = null
   let done
   const finished = new Promise(resolve => { done = resolve })
+  const onChunk = (c) => {
+    if (c?.type === 'text-delta' && c.text) { sawChunk = true; fullText += c.text; sink.text(c.text) }
+    else if (c?.type === 'reasoning-delta' && c.text) sink.reasoning(c.text)
+  }
+  // the live stream: a session event of its own before harness 0.2, which
+  // keeps it off the log and hands it out as the agent's stream frames
+  const offStream = ctx.on('agent/assistant-stream', ({ agent: subject, frame } = {}) => {
+    if (subject?.id === sessionId) onChunk(frame?.chunk)
+  })
   const off = ctx.on('session/event', (session, event) => {
     if (session?.id !== sessionId || !event) return
     if (event.type === 'assistant/chunk') {
-      const c = event.data?.chunk
-      if (c?.type === 'text-delta' && c.text) { sawChunk = true; fullText += c.text; sink.text(c.text) }
-      else if (c?.type === 'reasoning-delta' && c.text) sink.reasoning(c.text)
+      onChunk(event.data?.chunk)
     } else if (event.type === 'assistant/message' && !sawChunk) {
       // chunks did not reach us live (e.g. a compacted row): the whole text at once
       const text = (event.data?.message?.content ?? []).filter(b => b.type === 'text').map(b => b.text).join('')
@@ -733,6 +751,9 @@ async function runHarnessTurn(ctx, turn, sink, { signal, ask } = {}) {
       const callId = event.data?.message?.source?.callId ?? null
       if (callId) sink.toolEnd({ callId, name: entry.calls.get(callId)?.name ?? 'tool', isError: !!(event.data?.message?.isError ?? event.data?.isError) })
     } else if (event.type === 'turn/end') {
+      const reason = event.data?.reason
+      if (reason?.kind === 'error') failure = String(reason.error?.message ?? 'the harness turn failed')
+      else if (reason?.kind === 'blocked') failure = 'the harness blocked this turn'
       done('end')
     }
   })
@@ -742,16 +763,18 @@ async function runHarnessTurn(ctx, turn, sink, { signal, ask } = {}) {
     if (signal?.aborted) return { sessionId, text: fullText, how: 'aborted' }
     signal?.addEventListener('abort', onAbort, { once: true })
     // a session that already holds the conversation gets only the question
-    if (!inheritsHistory && turn.context) agent.inject({ id: 'td-' + randomUUID(), role: 'user', content: [{ type: 'text', text: turn.context }], source: SOURCE })
+    if (!inheritsHistory && turn.context) agent.inject({ id: 'td-' + randomUUID(), role: 'user', content: [{ type: 'text', text: turn.context }], source: sourceFor(agent.session) })
     const promptContent = [{ type: 'text', text: turn.question }]
     for (const img of turn.images) promptContent.push({ type: 'image', mediaType: img.mimeType, data: img.data })
     await ctx.sessionController.prompt({ requestId: 'td-' + randomUUID(), sessionId, mode: 'queue', content: promptContent }, AbortSignal.timeout(30000))
     const timeout = new Promise(resolve => { const t = setTimeout(() => resolve('timeout'), 20 * 60 * 1000); t.unref?.(); finished.then(() => clearTimeout(t)) })
     const how = await Promise.race([finished, agent.whenIdle().then(() => finished), timeout])
+    if (how === 'end' && failure) throw new Error(failure)
     return { sessionId, text: fullText, how }
   } finally {
     signal?.removeEventListener('abort', onAbort)
     if (typeof off === 'function') off()
+    if (typeof offStream === 'function') offStream()
     if (canvasTurns.get(sessionId) === entry) canvasTurns.delete(sessionId)
   }
 }
@@ -1196,7 +1219,7 @@ export async function apply(ctx, config) {
         const content = contentOf(body)
         if (write[2] === 'inject') {
           const agent = await agentOf(ctx, id)
-          const message = { id: 'td-' + randomUUID(), role: 'user', content, source: SOURCE }
+          const message = { id: 'td-' + randomUUID(), role: 'user', content, source: sourceFor(agent.session) }
           agent.inject(message)
           return sendJson(res, 200, { accepted: true, session: id, messageId: message.id })
         }

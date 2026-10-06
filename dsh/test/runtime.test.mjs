@@ -11,22 +11,26 @@ import { internals } from '../lib/index.js'
 const { createDshRuntime, installApprovalAnswerer, sessionIdOfPath, sessionLogName, findSessionFiles } = internals
 
 /** A harness with just what the runtime touches. `turn(id)` scripts what an
- *  agent does after a prompt; sessions can be seeded with events. */
-function fakeHarness({ turn } = {}) {
+ *  agent does after a prompt; sessions can be seeded with events; `version`
+ *  is the session format its sessions are written in. */
+function fakeHarness({ turn, version = 3 } = {}) {
   const handlers = new Map()
   const sessions = new Map()
   const agents = new Map()
   const log = { created: [], forks: [], injected: [], prompts: [], selected: [], cancelled: [], cleared: [] }
   let n = 0
   const fire = (id, event) => { for (const h of handlers.get('session/event') ?? []) h({ id }, event) }
+  fire.stream = (id, frame) => { for (const h of handlers.get('agent/assistant-stream') ?? []) h({ agent: agents.get(id), frame }) }
   const addSession = (id, cwd, events = [], pending = []) => {
-    sessions.set(id, { id, header: { meta: { cwd } }, events, seq: events.length })
+    sessions.set(id, { id, header: { version, meta: { cwd } }, events, seq: events.length })
     const inbox = {
       pending: [...pending],
       get hasPending() { return inbox.pending.length > 0 },
       clear: () => { log.cleared.push(id); inbox.pending = [] },
     }
     agents.set(id, {
+      id,
+      session: sessions.get(id),
       inbox,
       inject: (m) => log.injected.push({ id, text: m.content[0].text, source: m.source }),
       cancel: () => { log.cancelled.push(id); fire(id, { type: 'turn/end', data: { turn: 99 } }) },
@@ -220,6 +224,36 @@ test('abort cancels the agent and ends the run', async () => {
   await ended
   assert.deepEqual(log.cancelled, ['session-1'])
   assert.equal(events.at(-1).how, 'aborted')
+})
+
+test('a v4 harness takes the context under a producer-owned source kind and streams through the agent\'s frames', async () => {
+  // harness 0.2: the live stream is no session event, and the settled
+  // message carries the same text again
+  const turn = (id, fire) => {
+    fire(id, { type: 'turn/start', data: { turn: 1 } })
+    fire.stream(id, { type: 'start' })
+    fire.stream(id, { type: 'chunk', chunk: { type: 'reasoning-delta', text: 'hm' } })
+    fire.stream(id, { type: 'chunk', chunk: { type: 'text-delta', text: 'Hel' } })
+    fire.stream(id, { type: 'chunk', chunk: { type: 'text-delta', text: 'lo' } })
+    fire.stream(id, { type: 'end' })
+    fire(id, { type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'Hello' }] } } })
+    fire(id, { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } })
+  }
+  const { ctx, log } = fakeHarness({ version: 4, turn })
+  const { events } = await runToEnd(createDshRuntime(ctx), { runtime: 'dsh', cwd: '/p', prompt: 'CTX\n\n---\n\nQ?', context: 'CTX', question: 'Q?' })
+  assert.deepEqual(log.injected[0].source, { kind: 'plugin:dsh-thoughtdag' })
+  assert.deepEqual(events.filter(e => e.type === 'message_update').map(e => [e.assistantMessageEvent.type, e.assistantMessageEvent.delta]), [['thinking_delta', 'hm'], ['text_delta', 'Hel'], ['text_delta', 'lo']])
+  assert.deepEqual(events.at(-1), { type: 'run_end', text: 'Hello', how: 'end' })
+})
+
+test('a turn the harness ends in an error is the run\'s error, not an empty answer', async () => {
+  const turn = (id, fire) => {
+    fire(id, { type: 'turn/start', data: { turn: 1 } })
+    fire(id, { type: 'turn/end', data: { turn: 1, reason: { kind: 'error', error: { message: 'no API key', code: 'UNKNOWN' } } } })
+  }
+  const { ctx } = fakeHarness({ turn })
+  const { events } = await runToEnd(createDshRuntime(ctx), { runtime: 'dsh', cwd: '/p', prompt: 'Q', question: 'Q' })
+  assert.deepEqual(events.at(-1), { type: 'run_error', message: 'no API key' })
 })
 
 test('a session path names its session', () => {
