@@ -9,13 +9,16 @@ import { runtimeOf, AGENT_RUNTIMES, resolveAgentCwd, mirroredCwd, type CwdChoice
 import { Button } from '../ui/button';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '../ui/input-group';
 import { Command, CommandGroup, CommandItem, CommandList, CommandSeparator } from '../ui/command';
+import CwdBrowser from './CwdBrowser';
 
 // Where the agent works, above the box that starts a line (and on the
 // toolbar where a host still shows it), whenever an agent model is the
 // pick: the chosen folder, the mirrored project, or the canvas's own
 // workspace — for a runtime without workspaces (the harness), the session
 // its chat shows, else its own default. One click shows the choices; the
-// folder dialog (or a typed path, where there is no dialog) adds a new one.
+// folder dialog adds a new one — the host's own, or, on a host whose dialog
+// would open where nobody looks, its folders walked in the popover — and a
+// typed path does where there is no dialog.
 // Nothing is mandatory.
 
 const tail = (p: string) => p.split('/').filter(Boolean).slice(-1)[0] ?? p;
@@ -32,6 +35,7 @@ export default function AgentCwdChip({ iconOnly = false, composer = false }: { i
   const [mirrored, setMirrored] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState('');
+  const [browsing, setBrowsing] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   // focus lands on the list, not on whatever button happens to be tabbable first
   const listRef = useRef<HTMLDivElement>(null);
@@ -62,7 +66,9 @@ export default function AgentCwdChip({ iconOnly = false, composer = false }: { i
     setOpen(false);
   };
   const nativePicker = window.desktopAgents?.capabilities?.nativePicker !== false;
+  const browseDirs = !nativePicker && !!window.desktopAgents?.capabilities?.browseDirs && !!window.desktopAgents?.listDirs;
   const pick = async () => {
+    if (browseDirs) return setBrowsing(true);
     const dir = await window.desktopAgents!.pickCwd();
     if (dir) await choose(dir);
   };
@@ -76,7 +82,7 @@ export default function AgentCwdChip({ iconOnly = false, composer = false }: { i
       {/* chrome at the default size, like the switcher and the picker it
           stands between: one row of canvas controls, one height */}
       <Button variant={composer ? 'ghost' : 'chrome'} size={composer ? 'sm' : 'default'}
-        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); setBrowsing(false); }}
         // this one opens its popover by anchor, not as a PopoverTrigger, so it
         // states the open state itself — chrome keys its accent off it
         aria-expanded={open}
@@ -90,77 +96,81 @@ export default function AgentCwdChip({ iconOnly = false, composer = false }: { i
       </Button>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverContent anchor={rootRef} align={composer ? 'start' : 'end'} sideOffset={6} className="w-[320px] gap-0 p-0" initialFocus={listRef} onClick={(e) => e.stopPropagation()}>
-          {/* a menu of folders: cmdk owns the row metrics and the tick, so a
-              two-line choice is a row that grows, not text spilling out of a button */}
-          <Command ref={listRef} shouldFilter={false} className="bg-transparent">
-            <CommandList className="max-h-[60vh]">
-              <CommandGroup heading={<span className="uppercase tracking-wider">{t('agent.cwd')}</span>}>
-                <p className="px-2 pb-1.5 text-2xs text-muted-foreground" data-agent-cwd-scope>{t('agent.cwdScope')}</p>
-                <CommandItem value="default" onSelect={() => void choose(undefined)} data-checked={!meta?.agentCwd}>
-                  <span className="flex-1 min-w-0">
-                    <span className="block truncate text-xs text-foreground">{defaultLabel}</span>
-                    <span className="block truncate text-2xs text-muted-foreground">{defaultHint}</span>
-                  </span>
-                </CommandItem>
-                {meta?.agentCwd && (
-                  <CommandItem value="current" onSelect={() => void choose(meta.agentCwd)} data-checked>
+          {browsing ? (
+            <CwdBrowser start={choice.cwd || mirrored || undefined} onUse={(dir) => { setBrowsing(false); void choose(dir); }} onBack={() => setBrowsing(false)} />
+          ) : (
+            /* a menu of folders: cmdk owns the row metrics and the tick, so a
+               two-line choice is a row that grows, not text spilling out of a button */
+            <Command ref={listRef} shouldFilter={false} className="bg-transparent">
+              <CommandList className="max-h-[60vh]">
+                <CommandGroup heading={<span className="uppercase tracking-wider">{t('agent.cwd')}</span>}>
+                  <p className="px-2 pb-1.5 text-2xs text-muted-foreground" data-agent-cwd-scope>{t('agent.cwdScope')}</p>
+                  <CommandItem value="default" onSelect={() => void choose(undefined)} data-checked={!meta?.agentCwd}>
                     <span className="flex-1 min-w-0">
-                      <span className="block truncate text-xs text-foreground">{tail(meta.agentCwd)}</span>
-                      <span className="block truncate text-2xs text-muted-foreground">{meta.agentCwd}</span>
+                      <span className="block truncate text-xs text-foreground">{defaultLabel}</span>
+                      <span className="block truncate text-2xs text-muted-foreground">{defaultHint}</span>
                     </span>
                   </CommandItem>
-                )}
-              </CommandGroup>
-              {recent.length > 0 && (
-                <CommandGroup heading={<span className="uppercase tracking-wider">{t('agent.cwdRecent')}</span>}>
-                  {recent.map((c) => (
-                    <CommandItem key={c} value={c} onSelect={() => void choose(c)}>
+                  {meta?.agentCwd && (
+                    <CommandItem value="current" onSelect={() => void choose(meta.agentCwd)} data-checked>
                       <span className="flex-1 min-w-0">
-                        <span className="block truncate text-xs text-foreground">{tail(c)}</span>
-                        <span className="block truncate text-2xs text-muted-foreground">{c}</span>
+                        <span className="block truncate text-xs text-foreground">{tail(meta.agentCwd)}</span>
+                        <span className="block truncate text-2xs text-muted-foreground">{meta.agentCwd}</span>
                       </span>
                     </CommandItem>
-                  ))}
+                  )}
                 </CommandGroup>
-              )}
-              {nativePicker && (
-                <>
-                  <CommandSeparator />
-                  <CommandGroup>
-                    <CommandItem value="pick" onSelect={() => void pick()} data-agent-cwd-pick>
-                      <FolderOpen strokeWidth={1.75} className="text-muted-foreground" />
-                      <span className="flex-1 truncate text-xs text-foreground">{t('agent.cwdPick')}</span>
-                    </CommandItem>
+                {recent.length > 0 && (
+                  <CommandGroup heading={<span className="uppercase tracking-wider">{t('agent.cwdRecent')}</span>}>
+                    {recent.map((c) => (
+                      <CommandItem key={c} value={c} onSelect={() => void choose(c)}>
+                        <span className="flex-1 min-w-0">
+                          <span className="block truncate text-xs text-foreground">{tail(c)}</span>
+                          <span className="block truncate text-2xs text-muted-foreground">{c}</span>
+                        </span>
+                      </CommandItem>
+                    ))}
                   </CommandGroup>
-                </>
+                )}
+                {(nativePicker || browseDirs) && (
+                  <>
+                    <CommandSeparator />
+                    <CommandGroup>
+                      <CommandItem value="pick" onSelect={() => void pick()} data-agent-cwd-pick>
+                        <FolderOpen strokeWidth={1.75} className="text-muted-foreground" />
+                        <span className="flex-1 truncate text-xs text-foreground">{t('agent.cwdPick')}</span>
+                      </CommandItem>
+                    </CommandGroup>
+                  </>
+                )}
+              </CommandList>
+              {/* no folder dialog on this runtime: the path is typed. The field
+                  sits outside the list so the list's keys stay the list's, and it
+                  is one control — the field and its confirm share a border. */}
+              {!nativePicker && (
+                <div className="border-t border-border/60 p-1">
+                  <InputGroup>
+                    <InputGroupInput
+                      value={typed}
+                      onChange={(e) => setTyped(e.target.value)}
+                      onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') void submitTyped(); }}
+                      placeholder={t('agent.cwdType')}
+                      // a path reads in mono; the prompt that asks for one is prose
+                      className="font-mono text-xs! placeholder:font-sans"
+                      data-agent-cwd-input
+                    />
+                    <InputGroupAddon align="inline-end">
+                      {/* only an absolute path is a directory — say so by staying dim
+                          rather than swallowing the click */}
+                      <InputGroupButton onClick={() => void submitTyped()} disabled={!typed.trim().startsWith('/')} className="text-primary">
+                        {t('agent.cwdUse')}
+                      </InputGroupButton>
+                    </InputGroupAddon>
+                  </InputGroup>
+                </div>
               )}
-            </CommandList>
-            {/* no folder dialog on this runtime: the path is typed. The field
-                sits outside the list so the list's keys stay the list's, and it
-                is one control — the field and its confirm share a border. */}
-            {!nativePicker && (
-              <div className="border-t border-border/60 p-1">
-                <InputGroup>
-                  <InputGroupInput
-                    value={typed}
-                    onChange={(e) => setTyped(e.target.value)}
-                    onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') void submitTyped(); }}
-                    placeholder={t('agent.cwdType')}
-                    // a path reads in mono; the prompt that asks for one is prose
-                    className="font-mono text-xs! placeholder:font-sans"
-                    data-agent-cwd-input
-                  />
-                  <InputGroupAddon align="inline-end">
-                    {/* only an absolute path is a directory — say so by staying dim
-                        rather than swallowing the click */}
-                    <InputGroupButton onClick={() => void submitTyped()} disabled={!typed.trim().startsWith('/')} className="text-primary">
-                      {t('agent.cwdUse')}
-                    </InputGroupButton>
-                  </InputGroupAddon>
-                </InputGroup>
-              </div>
-            )}
-          </Command>
+            </Command>
+          )}
         </PopoverContent>
       </Popover>
     </div>

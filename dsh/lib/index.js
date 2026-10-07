@@ -1043,6 +1043,16 @@ export async function apply(ctx, config) {
   let agents = null
   const agentsHttp = () => (agents ??= createAgentsHost(ctx))
   ctx.effect(() => () => { agents?.shutdown(); agents = null }, 'thoughtdag: agent runtimes')
+  // the harness's own folder chooser (ctx.directoryPicker, harness 0.1.5+): an
+  // OS dialog on the host's display, or listing primitives the canvas browses
+  // itself. Not a hard dependency — an older harness has none, and the canvas
+  // keeps its typed path.
+  let directoryPicker = null
+  ctx.inject(['directoryPicker'], (c) => c.effect(() => {
+    directoryPicker = c.directoryPicker
+    return () => { directoryPicker = null }
+  }, 'thoughtdag: directory picker'))
+  const pickerOf = () => { try { return directoryPicker?.capability() ?? null } catch { return null } }
 
   const api = async (req, res) => {
     try {
@@ -1123,6 +1133,28 @@ export async function apply(ctx, config) {
           return sendFile(res, 'application/x-ndjson; charset=utf-8', await readFile(abs))
         }
         return sendJson(res, 200, await rangeOfFile(abs, url.searchParams.get('start'), url.searchParams.get('length')))
+      }
+      // ── the working-directory chooser: which kind this host offers, then its calls ──
+      if (path === '/dir-picker' && req.method === 'GET') return sendJson(res, 200, { kind: pickerOf()?.kind ?? null })
+      if (path.startsWith('/dir-picker/')) {
+        const picker = pickerOf()
+        const op = path.slice('/dir-picker/'.length)
+        // the operator may sit at the dialog a while; a closed page closes it
+        const ac = new AbortController()
+        res.on('close', () => { if (!res.writableEnded) ac.abort() })
+        try {
+          if (op === 'pick' && req.method === 'POST' && picker?.kind === 'native') return sendJson(res, 200, { path: await picker.pick(ac.signal) })
+          if (op === 'list' && req.method === 'GET' && picker?.kind === 'browse') return sendJson(res, 200, await picker.list(url.searchParams.get('path') || undefined, ac.signal))
+          if (op === 'mkdir' && req.method === 'POST' && picker?.kind === 'browse') {
+            const body = await readJson(req)
+            return sendJson(res, 200, { path: await picker.createDirectory(String(body?.path ?? ''), String(body?.name ?? '')) })
+          }
+        } catch (error) {
+          // the picker's closed vocabulary travels; anything else is a 500 below
+          if (typeof error?.code === 'string' && error.code.startsWith('directory-')) return sendJson(res, 400, { error: error.message, code: error.code })
+          throw error
+        }
+        return sendJson(res, 404, { error: picker ? 'not offered by this host\'s picker' : 'no directory picker on this harness' })
       }
       // ── link snapshots: the SPA's /api/fetch-url on the harness's bounded fetcher ──
       if (path === '/fetch-url' && req.method === 'POST') {

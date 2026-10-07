@@ -122,9 +122,24 @@ interface DesktopAgentRunRequest {
   access?: 'read' | 'write';
 }
 
+/** one row of a folder listing: a child, or a crumb of the path above it */
+interface DesktopDirEntry { name: string; path: string; hidden: boolean }
+interface DesktopDirListing {
+  path: string;
+  home: string;
+  /** root → the listed folder, each a jump target */
+  crumbs: DesktopDirEntry[];
+  /** child folders, name-sorted */
+  entries: DesktopDirEntry[];
+  /** the host cut the children short */
+  truncated: boolean;
+}
+
 interface DesktopAgentsBridge {
-  /** what this host can do beyond the calls: a native folder dialog */
-  capabilities?: { nativePicker: boolean };
+  /** what this host can do beyond the calls: a native folder dialog, or
+   *  folder listings the page browses itself (a host whose dialog would open
+   *  on a display nobody is watching) */
+  capabilities?: { nativePicker: boolean; browseDirs?: boolean };
   /** where the runtime's binary is, or null when not installed */
   available(): Promise<Record<string, string | null>>;
   models(runtime?: 'pi' | 'codex' | 'claude-code' | 'dsh'): Promise<{ installed: boolean; models: DesktopAgentModel[]; default: string | null; thinkingLevel?: string | null; error?: string }>;
@@ -137,6 +152,10 @@ interface DesktopAgentsBridge {
   answer(runId: string, requestId: string, response: { confirmed: boolean } | { value: string } | { cancelled: true }): Promise<boolean>;
   /** a folder picked in the system dialog, or null */
   pickCwd(): Promise<string | null>;
+  /** one level of the host's folders (absent path = home); only with capabilities.browseDirs */
+  listDirs?(path?: string): Promise<DesktopDirListing>;
+  /** a new child folder under an existing one, its absolute path; only with capabilities.browseDirs */
+  createDir?(parent: string, name: string): Promise<string>;
   /** the canvas's materials written under <cwd>/.thoughtdag/materials */
   writeMaterials(cwd: string, files: { name: string; content: string; encoding?: 'utf8' | 'base64' }[]): Promise<{ dir: string | null; written: string[] }>;
   onEvent(cb: (payload: { runId: string; event: Record<string, unknown> & { type: string } }) => void): void;

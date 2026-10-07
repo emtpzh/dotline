@@ -23,6 +23,11 @@ export async function installAgentsHttpBridge(apiBase: string): Promise<boolean>
     if (!r.ok) return false;
     available = await r.json();
   } catch { return false; }
+  // the host's folder chooser: its OS dialog, or listings the page browses
+  // (a host without one — the local server, an older harness — answers no kind)
+  const dirPicker = await hostFetch(api + '/dir-picker', { credentials: 'same-origin' })
+    .then(async (r) => (r.ok ? ((await r.json()) as { kind: string | null }).kind : null))
+    .catch(() => null);
   const post = async <T,>(path: string, body: unknown): Promise<T> => {
     const r = await hostFetch(api + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body ?? {}) });
     if (!r.ok) throw new Error(`${path}: ${r.status}`);
@@ -93,7 +98,7 @@ export async function installAgentsHttpBridge(apiBase: string): Promise<boolean>
   const feedUp = () => Promise.race([ensureFeed(), new Promise<void>((r) => setTimeout(r, FEED_WAIT_MS))]);
 
   window.desktopAgents = {
-    capabilities: { nativePicker: false },
+    capabilities: { nativePicker: dirPicker === 'native', browseDirs: dirPicker === 'browse' },
     available: async () => available,
     models: async (runtime) => {
       const r = await hostFetch(api + '/agents/models' + (runtime ? `?runtime=${encodeURIComponent(runtime)}` : ''), { credentials: 'same-origin' });
@@ -103,7 +108,18 @@ export async function installAgentsHttpBridge(apiBase: string): Promise<boolean>
     abort: async (runId) => (await post<{ ok: boolean }>('/agents/abort', { runId })).ok,
     answer: async (runId, requestId, response) => (await post<{ ok: boolean }>('/agents/answer', { runId, requestId, response })).ok,
     workspace: async (canvasId) => (await post<{ dir: string }>('/agents/workspace', { canvasId })).dir,
-    pickCwd: async () => null,
+    pickCwd: async () => (dirPicker === 'native' ? (await post<{ path: string | null }>('/dir-picker/pick', {})).path : null),
+    listDirs: async (path) => {
+      const r = await hostFetch(api + '/dir-picker/list' + (path ? `?path=${encodeURIComponent(path)}` : ''), { credentials: 'same-origin' });
+      // the host's own words: an unreadable folder says which and why
+      if (!r.ok) throw new Error(((await r.json().catch(() => null)) as { error?: string } | null)?.error ?? `list: ${r.status}`);
+      return r.json();
+    },
+    createDir: async (parent, name) => {
+      const r = await hostFetch(api + '/dir-picker/mkdir', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ path: parent, name }) });
+      if (!r.ok) throw new Error(((await r.json().catch(() => null)) as { error?: string } | null)?.error ?? `mkdir: ${r.status}`);
+      return ((await r.json()) as { path: string }).path;
+    },
     writeMaterials: async (cwd, files) => post('/agents/materials', { cwd, files }),
     onEvent: (cb) => { listeners.push(cb); void ensureFeed(); },
   };
