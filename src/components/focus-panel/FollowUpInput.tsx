@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { ChevronUp, GitBranch, Paperclip, Send, X } from 'lucide-react';
+import { ChevronUp, GitBranch, Paperclip, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { isImeComposing } from '../../utils';
 import { useUiStore } from '../../lib/ui-store';
@@ -13,9 +13,10 @@ import MentionSurface from '../app/NodeMention';
 import { useMentions } from '../../lib/mentions';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import SessionNotice from '../app/SessionNotice';
-import { AskRoleChip, RolePickerButton, type AskRole } from '../app/RolePicker';
 import { useContinuity } from '../../lib/use-continuity';
+import { offersAccess, runtimeOf } from '../../lib/agents/runtimes';
+import { ModelMenu, AccessMenu, SendButton, RunStatus } from '../app/composer/RunControls';
+import { useFollowUpIntent } from '../app/composer/run-intent-hooks';
 
 const ROLE_STYLES: Record<string, string> = {
   system: 'bg-primary/10 text-primary',
@@ -52,7 +53,8 @@ export default function FollowUpInput({
   const mention = useMentions(nodeId);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
-  const [role, setRole] = useState<AskRole | null>(null);
+  // what the follow-up runs on: the line's intent, changed here if the person did
+  const run = useFollowUpIntent(nodeId);
   const continueRef = useRef<HTMLTextAreaElement>(null);
   const autoGrow = (el: HTMLTextAreaElement) => {
     el.style.height = 'auto';
@@ -94,8 +96,7 @@ export default function FollowUpInput({
 
   // Whether this question goes on in the agent session above, decided the
   // way the send will decide it — said while it can still be changed
-  const session = useContinuity(nodeId, { rolePrompt: role?.prompt, roleName: role?.name, branchContext: branchContext || undefined, attachments: pendingAttachments, mentions: mention.mentions.map((x) => x.nodeId) });
-  const breaks = session?.kind === 'new';
+  const session = useContinuity(nodeId, { model: run.intent.model, branchContext: branchContext || undefined, attachments: pendingAttachments, mentions: mention.mentions.map((x) => x.nodeId) });
 
   // Auto-focus continue input when switching nodes or staging selected text
   useEffect(() => {
@@ -117,13 +118,12 @@ export default function FollowUpInput({
       excludeAllInheritedAttachments: !continueInheritAttachments,
       initialAttachments: pendingAttachments.length > 0 ? pendingAttachments : undefined,
       mentions: mention.mentions.map((x) => x.nodeId),
-      rolePrompt: role?.prompt,
-      roleName: role?.name,
+      intent: run.intent,
     });
     mention.clear();
     setContinueInput('');
     setPendingAttachments([]);
-    setRole(null);
+    run.reset();
     setPreviewOpen(false);
     onClearBranchContext();
   };
@@ -194,13 +194,12 @@ export default function FollowUpInput({
         </div>
       )}
 
-      {role && <div className="mb-1.5"><AskRoleChip role={role} onClear={() => setRole(null)} /></div>}
-      {continueInput.trim() && <SessionNotice c={session} onLocate={onFocusNode} onDropRole={() => setRole(null)} />}
       <MentionSurface m={mention} text={continueInput} setText={setContinueInput} />
       <div
-        className="flex items-end gap-2 bg-muted rounded-xl px-4 py-2.5 transition-shadow focus-within:ring-1 focus-within:ring-ring/40"
+        className="rounded-xl border border-border bg-card px-3 pt-2.5 pb-1.5 transition-shadow focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-ring/30"
         onDrop={(e) => { e.preventDefault(); e.stopPropagation(); void addFiles(e.dataTransfer.files); }}
         onDragOver={(e) => e.preventDefault()}
+        data-composer="panel"
       >
         <textarea
           ref={(el) => { continueRef.current = el; mention.bindAnchor(el); }}
@@ -217,7 +216,7 @@ export default function FollowUpInput({
             }
           }}
           placeholder={t('common.followUp')}
-          className="flex-1 bg-transparent text-sm text-foreground placeholder-muted-foreground focus:outline-none resize-none leading-relaxed max-h-[160px] overflow-y-auto"
+          className="w-full bg-transparent text-sm text-foreground placeholder-muted-foreground focus:outline-none resize-none leading-relaxed max-h-[160px] overflow-y-auto"
           onPaste={(e) => {
             // TEXT WINS: Office copies carry text plus a bitmap of the
             // selection — only image-only clipboards become attachments.
@@ -228,23 +227,24 @@ export default function FollowUpInput({
         />
         <input ref={fileRef} type="file" accept={FILE_INPUT_ACCEPT} multiple className="hidden"
           onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ''; }} />
-        <SearchToggles />
-        <RolePickerButton value={role} onChange={setRole} />
-        <Button variant="ghost" size="icon"
-          onClick={() => fileRef.current?.click()}
-          title={t('followup.attach')}
-          className="text-muted-foreground hover:text-primary shrink-0 hover:bg-border"
-        >
-          <Paperclip strokeWidth={1.75} />
-        </Button>
-        <Button variant="ghost" size="icon-sm"
-          onClick={submit}
-          disabled={!continueInput.trim()}
-          title={breaks ? t('session.sendNew') : undefined}
-          className={`${breaks ? 'text-warning' : 'text-muted-foreground'} hover:text-primary shrink-0 hover:bg-border`}
-        >
-          <Send strokeWidth={1.75} />
-        </Button>
+        <div className="mt-1.5 flex items-center gap-0.5">
+          <Button variant="ghost" size="icon-sm"
+            onClick={() => fileRef.current?.click()}
+            title={t('followup.attach')}
+            className="rounded-full text-muted-foreground hover:text-primary shrink-0"
+          >
+            <Paperclip strokeWidth={1.75} />
+          </Button>
+          {offersAccess(run.intent.model)
+            ? <AccessMenu value={run.intent.access ?? 'read'} onChange={(access) => run.onIntent({ access })} changed={run.changed.includes('access')} />
+            : !runtimeOf(run.intent.model) && <SearchToggles size={15} model={run.intent.model} />}
+          <span className="flex-1" />
+          <ModelMenu intent={run.intent} onIntent={run.onIntent} changed={run.changed.includes('model') || run.changed.includes('effort')} offerRuntimes />
+          <SendButton onClick={submit} disabled={!continueInput.trim()} session={session} />
+        </div>
+      </div>
+      <div className="mt-1.5">
+        <RunStatus session={session} intent={run.intent} base={run.base} onIntent={run.onIntent} onLocate={onFocusNode} />
       </div>
       <div className="flex gap-4 mt-1.5 px-1">
         <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">

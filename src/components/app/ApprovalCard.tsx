@@ -3,7 +3,6 @@ import { ShieldAlert, MessageCircleQuestion, ChevronDown, ChevronRight } from 'l
 import { useT } from '../../i18n';
 import { useStore } from '../../store';
 import { answerApproval, type QuestionAnswer } from '../../lib/api';
-import { allowLocation } from '../../lib/agents/agent-runtime';
 import type { ApprovalRequest, ApprovalRecord } from '../../types';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
@@ -11,8 +10,9 @@ import { Textarea } from '../ui/textarea';
 // What an agent asks the person mid-turn, answered where the turn is shown:
 // on the node. A node is one exchange with the agent, and the agent's
 // questions are part of that exchange — so they map onto the node too.
-// Four shapes, one card: a yes/no (an approval; the guard's questions add
-// "allow this location"), a pick, a line, a text. The click is optimistic —
+// Four shapes, one card: a yes/no (the harness's own approvals, an
+// extension's question — never a permission prompt of a CLI, which runs at
+// the turn's access level instead), a pick, a line, a text. The click is optimistic —
 // controls lock at once; the runtime's answered frame moves the question
 // into the node's record. `compact` is the canvas card; the focus panel
 // shows the same with the full arguments available.
@@ -25,9 +25,8 @@ export function ApprovalCard({ nodeId, request, compact }: { nodeId: string; req
   const kind = request.kind ?? 'confirm';
   const isApproval = kind === 'confirm';
 
-  const send = async (answer: QuestionAnswer, mark: ApprovalRequest['answered'], allowDir?: string) => {
+  const send = async (answer: QuestionAnswer, mark: ApprovalRequest['answered']) => {
     if (busy) return;
-    if (allowDir) await allowLocation(allowDir);
     useStore.setState((s) => ({
       nodes: s.nodes.map((n) => n.id === nodeId
         ? { ...n, data: { ...n.data, pendingApprovals: (n.data.pendingApprovals ?? []).map((p) => p.id === request.id ? { ...p, answered: mark } : p) } }
@@ -107,20 +106,6 @@ export function ApprovalCard({ nodeId, request, compact }: { nodeId: string; req
       {isApproval && (
         <div className={`mt-2.5 flex flex-wrap items-center ${compact ? 'gap-1.5' : 'gap-2'}`}>
           <Button variant="ghost" onClick={() => void send({ confirmed: true }, 'allowed-once')} disabled={busy} className={primary} data-approval-allow>{t('approval.allowOnce')}</Button>
-          {request.rule && request.channel && (
-            <Button variant="ghost" onClick={() => void send({ confirmed: true, scope: 'session' }, 'allowed-session')} disabled={busy} className={`${btn} text-primary rounded-lg border border-primary/40 hover:bg-primary/10 transition-colors disabled:opacity-50 whitespace-nowrap`} title={t('approval.allowSessionTitle')} data-approval-allow-session>{t('approval.allowSession')}</Button>
-          )}
-          {request.suggest && request.channel && (
-            <Button variant="ghost"
-              onClick={() => void send({ confirmed: true }, 'allowed-once', request.suggest!)}
-              disabled={busy}
-              className={`${btn} text-primary rounded-lg border border-primary/40 hover:bg-primary/10 transition-colors disabled:opacity-50 truncate ${compact ? 'max-w-[150px]' : 'max-w-[240px]'}`}
-              title={`${t('approval.allowLocationTitle')} ${request.suggest}`}
-              data-approval-allow-location
-            >
-              {t('approval.allowLocation')} {request.suggest.split('/').filter(Boolean).pop()}
-            </Button>
-          )}
           <Button variant="ghost" onClick={() => void send({ confirmed: false }, 'rejected')} disabled={busy} className={secondary} data-approval-reject>{t('approval.reject')}</Button>
           {!compact && request.arguments && request.arguments !== request.query && (
             <Button variant="ghost" size="xs" onClick={() => setShowArgs((v) => !v)} className="text-2xs text-muted-foreground hover:text-foreground hover:underline ml-1">{t('approval.showArgs')}</Button>

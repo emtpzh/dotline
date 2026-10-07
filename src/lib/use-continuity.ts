@@ -10,6 +10,9 @@ import type { Attachment, ThoughtData, ThoughtEdge, ThoughtNode } from '../types
 
 /** What an ask box holds for the question it is about to send. */
 export interface AskDraft {
+  /** the model the box will send on, when the person changed it there
+      (otherwise the line's own, as a new node would inherit it) */
+  model?: string;
   rolePrompt?: string;
   roleName?: string;
   branchContext?: string;
@@ -45,7 +48,7 @@ export function predictAsk(parentId: string | null, nodes: ThoughtNode[], edges:
       .filter((m) => m !== parentId && nodes.some((n) => n.id === m))
       .map((m): ThoughtEdge => ({ id: `${DRAFT_ID}:${m}`, source: m, target: DRAFT_ID, data: { isCrossLink: true } })),
   ];
-  const c = continuity(DRAFT_ID, [...nodes, ask], [...edges, ...wires], runtimeOf(intent.model), undefined);
+  const c = continuity(DRAFT_ID, [...nodes, ask], [...edges, ...wires], runtimeOf(draft.model ?? intent.model), undefined);
   // a role picked in this very box: it has no node to point at yet, so the
   // notice names it and can offer to drop it (no `about` = the box's own)
   if (c?.kind === 'new' && c.about === DRAFT_ID) {
@@ -59,12 +62,12 @@ export function useContinuity(parentId: string | null, draft: AskDraft): Continu
   const edges = useStore((s) => s.edges);
   // the mirrored sessions and their tails move as turns land
   const ledger = useProjects((s) => s.projects.find((p) => p.id === s.activeId)?.sourceSession);
-  const { rolePrompt, roleName, branchContext, attachments, mentions } = draft;
+  const { model, rolePrompt, roleName, branchContext, attachments, mentions } = draft;
   const mentionKey = (mentions ?? []).join(',');
   const attachmentKey = (attachments ?? []).map((a) => `${a.id}:${a.type}`).join(',');
   return useMemo(
-    () => predictAsk(parentId, nodes, edges, { rolePrompt, roleName, branchContext, attachments, mentions }),
+    () => predictAsk(parentId, nodes, edges, { model, rolePrompt, roleName, branchContext, attachments, mentions }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on what the draft actually changes
-    [parentId, nodes, edges, ledger, rolePrompt, roleName, branchContext, attachmentKey, mentionKey],
+    [parentId, nodes, edges, ledger, model, rolePrompt, roleName, branchContext, attachmentKey, mentionKey],
   );
 }

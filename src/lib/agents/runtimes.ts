@@ -6,10 +6,12 @@ import type { AgentRuntime } from '../../types';
 
 /** What a runtime does beyond the contract's minimum. */
 export interface RuntimeCaps {
-  /** honors the boundary guard file the canvas writes into the working directory */
-  guard: boolean;
   /** opens a new session holding a conversation up to one of its earlier turns */
   forkAt: boolean;
+  /** runs at the canvas's access levels (read / write) because the runtime
+      itself has a read-only mode to map them onto; one without runs as it
+      would in the terminal, and the ask box offers no level */
+  access: boolean;
   /** runs in the canvas's own workspace when nothing else is chosen; without
       one the runtime's own default applies, and a directory binds a turn
       only when the person chose it */
@@ -18,11 +20,11 @@ export interface RuntimeCaps {
 
 /** The runtimes the shell can run, keyed by the prefix of their picker ids. */
 export const AGENT_RUNTIMES: Record<AgentRuntime, { prefix: string; label: string; rootKey: string; caps: RuntimeCaps }> = {
-  pi: { prefix: 'pi/', label: 'Pi', rootKey: 'pi-sessions', caps: { guard: true, forkAt: true, workspace: true } },
-  codex: { prefix: 'codex/', label: 'Codex', rootKey: 'codex-sessions', caps: { guard: true, forkAt: false, workspace: true } },
-  'claude-code': { prefix: 'claude/', label: 'Claude Code', rootKey: 'claude-projects', caps: { guard: true, forkAt: false, workspace: true } },
+  pi: { prefix: 'pi/', label: 'Pi', rootKey: 'pi-sessions', caps: { forkAt: true, access: false, workspace: true } },
+  codex: { prefix: 'codex/', label: 'Codex', rootKey: 'codex-sessions', caps: { forkAt: false, access: true, workspace: true } },
+  'claude-code': { prefix: 'claude/', label: 'Claude Code', rootKey: 'claude-projects', caps: { forkAt: false, access: true, workspace: true } },
   // the harness's agent loop, served by the harness itself (nowhere else answers for it)
-  dsh: { prefix: 'harness/agent/', label: 'Harness', rootKey: 'dsh-sessions', caps: { guard: false, forkAt: true, workspace: false } },
+  dsh: { prefix: 'harness/agent/', label: 'Harness', rootKey: 'dsh-sessions', caps: { forkAt: true, access: false, workspace: false } },
 };
 /** The runtimes the shell implements today. */
 export const LIVE_RUNTIMES: AgentRuntime[] = ['pi', 'codex', 'claude-code', 'dsh'];
@@ -40,6 +42,11 @@ export const runtimeOf = (id: string | undefined | null): AgentRuntime | null =>
   return null;
 };
 export const isAgentModel = (id: string | undefined | null): boolean => runtimeOf(id) !== null;
+/** Whether a model runs at an access level the ask box offers. */
+export const offersAccess = (id: string | undefined | null): boolean => {
+  const rt = runtimeOf(id);
+  return !!rt && AGENT_RUNTIMES[rt].caps.access;
+};
 
 /** `<runtime prefix><provider>/<model>` → the runtime and its own coordinates, or null. */
 export function agentTarget(id: string): { runtime: AgentRuntime; provider: string; id: string } | null {

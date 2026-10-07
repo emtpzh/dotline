@@ -32,11 +32,7 @@ const OFFICE_EXPORT_HINT = /\.(pptx?|key|odp|doc|rtf|odt|xlsx?|numbers|ods)$/i;
 export const FILE_INPUT_ACCEPT =
   'image/*,.pdf,.txt,.md,.js,.ts,.tsx,.jsx,.py,.json,.csv,.yaml,.yml,.toml,.sh,.c,.cpp,.h,.java,.rs,.go,.rb,.swift,.css,.html,.htm,.xml,.sql';
 
-// Identity of an attachment's content — used to dedup the same file uploaded
-// to multiple nodes or reached via multiple DAG paths.
-export function attachmentFingerprint(att: Attachment): string {
-  return `${att.name}|${att.size}|${att.content?.substring(0, 100)}`;
-}
+export { attachmentFingerprint } from './attachment-fingerprint';
 
 // Read a File into an Attachment (no server round-trip). Returns null for
 // unsupported types. PDF content is raw base64; extraction happens in processFile.

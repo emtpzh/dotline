@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { AgentAccess } from '../types';
 
 // Transient UI state (toasts, confirm dialog) — deliberately separate from
 // the main store: no persistence, no undo history, and the imperative API
@@ -24,6 +25,7 @@ const WEB_SEARCH_KEY = 'thoughtdag.webSearch';
 const SCHOLAR_SEARCH_KEY = 'thoughtdag.scholarSearch';
 const MODEL_KEY = 'thoughtdag.model';
 const EFFORT_KEY = 'thoughtdag.agentEffort';
+const ACCESS_KEY = 'thoughtdag.agentAccess';
 /** The effort level for the next agent turn, in that runtime's own words; '' = the runtime's own default. */
 export type AgentEffort = string;
 const MCP_KEY = 'thoughtdag.mcpTools';
@@ -58,6 +60,8 @@ interface UiState {
   /** Selected LLM id; null = server default. */
   selectedModel: string | null;
   agentEffort: AgentEffort;
+  /** The access level a new agent line starts at; read until the person picks write. */
+  agentAccess: AgentAccess;
   dismissToast: (id: string) => void;
   resolveConfirm: (ok: boolean) => void;
   setTutorialOpen: (open: boolean) => void;
@@ -167,6 +171,7 @@ interface UiState {
   setPanelOpen: (open: boolean) => void;
   setSelectedModel: (model: string | null) => void;
   setAgentEffort: (level: AgentEffort) => void;
+  setAgentAccess: (access: AgentAccess) => void;
 }
 
 export const useUiStore = create<UiState>((set, get) => ({
@@ -184,6 +189,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   panelWidth: (() => { const raw = localStorage.getItem('thoughtdag.panelWidth'); const n = raw ? parseInt(raw, 10) : NaN; return Number.isFinite(n) ? n : 520; })(),
   selectedModel: localStorage.getItem(MODEL_KEY) || null,
   agentEffort: localStorage.getItem(EFFORT_KEY) || '',
+  agentAccess: localStorage.getItem(ACCESS_KEY) === 'write' ? 'write' : 'read',
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   resolveConfirm: (ok) => {
     get().confirmRequest?.resolve(ok);
@@ -332,6 +338,10 @@ export const useUiStore = create<UiState>((set, get) => ({
     if (level) localStorage.setItem(EFFORT_KEY, level);
     else localStorage.removeItem(EFFORT_KEY);
     set({ agentEffort: level });
+  },
+  setAgentAccess: (access) => {
+    localStorage.setItem(ACCESS_KEY, access);
+    set({ agentAccess: access });
   },
 }));
 

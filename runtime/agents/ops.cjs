@@ -1,6 +1,6 @@
 // What every host does around a run, in plain Node: the per-canvas
 // workspace directory, the canvas's materials written where the agent can
-// read them, the boundary guard's tuning file. Used by the desktop shell,
+// read them. Used by the desktop shell,
 // the harness plugin host and the local server alike.
 'use strict';
 const path = require('node:path');
@@ -40,15 +40,4 @@ async function writeMaterials(cwd, files) {
   return { dir, written };
 }
 
-/** The guard's tuning for a working directory: <cwd>/.thoughtdag/guard.json */
-async function writeGuard(cwd, config) {
-  if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) return false;
-  const dir = path.join(cwd, '.thoughtdag');
-  await fsp.mkdir(dir, { recursive: true });
-  const mode = config?.mode === 'allow' ? 'allow' : 'ask';
-  const allow = Array.isArray(config?.allow) ? config.allow.filter((x) => typeof x === 'string' && path.isAbsolute(x)).slice(0, 100) : [];
-  await fsp.writeFile(path.join(dir, 'guard.json'), JSON.stringify({ mode, allow }, null, 2));
-  return true;
-}
-
-module.exports = { workspaceFor, writeMaterials, writeGuard };
+module.exports = { workspaceFor, writeMaterials };

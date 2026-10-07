@@ -5,6 +5,7 @@ import { sha256Hex, canonicalStringify } from '../lib/context-bundle';
 import { pruneHighlights } from '../lib/highlight-match';
 import { llmCall, llmCallStream, type ContextMessage, type ImageAttachment } from '../lib/api';
 import { agentOutbound, adoptAgentTurn, claimAgentTurn, isAgentModel } from '../lib/agents/agent-runtime';
+import { noticeTurnEnded, noticeQuestion, clearQuestionNotice } from '../lib/agents/offscreen';
 import { lineModel } from '../lib/run-intent';
 import { countTokens, activeSummary } from '../utils';
 import { toast, useUiStore } from '../lib/ui-store';
@@ -374,9 +375,10 @@ export async function runNodeGeneration(
             return { ...n, data: { ...n.data, pendingApprovals: [...cur, { ...request, askedAt }] } };
           }),
         }));
-        toast('info', t('approval.toast'), 8000);
+        // the card shows the question; a card out of sight gets a toast that stays until it is answered
+        noticeQuestion(nodeId);
       },
-      onApprovalDecided: ({ id, outcome, value, auto, name, query, rule }) => {
+      onApprovalDecided: ({ id, outcome, value }) => {
         if (!isCurrent()) return;
         const decidedAt = new Date().toISOString();
         set((state) => ({
@@ -386,9 +388,7 @@ export async function runNodeGeneration(
             const pending = cur.find((p) => p.id === id);
             const rest = cur.filter((p) => p.id !== id);
             const nextPending = rest.length ? rest : undefined;
-            // a decision made from a standing rule of this conversation: nobody was
-            // asked, but the record shows it like any other
-            if (!pending && auto) return { ...n, data: { ...n.data, pendingApprovals: nextPending, approvals: [...(n.data.approvals ?? []), { id, kind: 'confirm', toolName: n.data.agentSession?.runtime ?? 'agent', callId: null, reason: null, name: name ?? '', query: query ?? '', arguments: null, askedAt: decidedAt, decidedAt, outcome, auto: true, ...(rule ? { rule } : {}) }] } };
+            if (!nextPending) clearQuestionNotice(nodeId);
             if (!pending) return { ...n, data: { ...n.data, pendingApprovals: nextPending } };
             const asked = { ...pending };
             delete asked.answered;
@@ -433,6 +433,7 @@ export async function runNodeGeneration(
     const adopted = adoption ? await Promise.race([adoption, new Promise<null>((r) => setTimeout(() => r(null), ADOPT_WAIT_MS))]) : false;
     if (adopted === null) toast('info', t('agent.adoptLate'), 8000);
     writeFinal(response);
+    if (agentRoute) noticeTurnEnded(nodeId);
     // the node now says what the session says: the answer as shown is the
     // snapshot an edit is measured against (a follow-up continues only an unedited chain)
     const markAdopted = () => set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId && n.data.source ? { ...n, data: { ...n.data, source: { ...n.data.source, response } } } : n)) }));

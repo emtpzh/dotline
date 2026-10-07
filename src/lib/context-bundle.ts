@@ -1,6 +1,7 @@
 import type { ThoughtNode, ThoughtEdge } from '../types';
 import { buildContext, type MessageSource } from '../store/context-builder';
 import { attachmentFingerprint } from './attachments';
+import { stepAsAttachment } from './agents/steps';
 import { countTokens } from '../utils';
 
 // Context Bundle v0 — the compiler's portable output: what the target model
@@ -139,6 +140,11 @@ export function semanticSnapshot(nodes: ThoughtNode[], edges: ThoughtEdge[]): un
         extractedText: a.extractedText,
         renderMode: a.renderMode,
       })),
+      // an agent turn's steps shape context too: which went in full
+      ...(n.data.steps?.length ? {
+        steps: n.data.steps.map((st) => ({ id: st.id, tool: st.tool, fingerprint: attachmentFingerprint(stepAsAttachment(st)) })),
+        includedStepIds: n.data.includedStepIds?.length ? n.data.includedStepIds : undefined,
+      } : {}),
     }));
   const edgePart = [...edges]
     .sort((a, b) => (a.id < b.id ? -1 : 1))

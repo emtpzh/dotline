@@ -15,7 +15,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import 'highlight.js/styles/github.css';
-import { ArrowLeft, ArrowRight, BookOpen, Bot, Brain, CircleHelp, Download, Drama, Eye, FileText, Frame, GitBranch, Highlighter, ImageDown, KeyRound, LayoutGrid, Loader2, MessageCircleQuestion, MoreHorizontal, Paperclip, Redo2, Scissors, Search, Share2, SquareTerminal, Stethoscope, StickyNote, Trash2, Undo2, Workflow, X, ListRestart, FolderSync, Minimize2, Rewind, History as HistoryIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Bot, Brain, CircleHelp, Download, Eye, FileText, Frame, GitBranch, Highlighter, ImageDown, KeyRound, LayoutGrid, Loader2, MessageCircleQuestion, MoreHorizontal, Paperclip, Redo2, Scissors, Search, Share2, SquareTerminal, Stethoscope, StickyNote, Trash2, Undo2, Workflow, X, ListRestart, FolderSync, Minimize2, Rewind, History as HistoryIcon } from 'lucide-react';
 import './index.css';
 import ThoughtNode from './components/ThoughtNode';
 import ParadigmNode from './components/ParadigmNode';
@@ -70,9 +70,10 @@ import CondenseDialog from './components/app/CondenseDialog';
 import { backupSupported } from './lib/local-backup';
 import LangSwitch from './components/app/LangSwitch';
 import CanvasControls from './components/app/CanvasControls';
-import ModelPicker from './components/app/ModelPicker';
-import RoleEditor from './components/app/RoleEditor';
 import SearchToggles from './components/app/SearchToggles';
+import { RuntimeMenu, ModelMenu, AccessMenu, SendButton } from './components/app/composer/RunControls';
+import { useRootIntent } from './components/app/composer/run-intent-hooks';
+import { offersAccess, runtimeOf } from './lib/agents/runtimes';
 import Tutorial from './components/Tutorial';
 import WhatsNewDialog from './components/app/WhatsNewDialog';
 import ReleaseNotesDialog from './components/app/ReleaseNotesDialog';
@@ -234,9 +235,8 @@ function Canvas() {
   const setAnnotationsHidden = useUiStore((s) => s.setAnnotationsHidden);
   const [inputValue, setInputValue] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
-  const [rootRole, setRootRole] = useState('');
-  const [rootRoleName, setRootRoleName] = useState('');
-  const [showRootRole, setShowRootRole] = useState(false);
+  // what a new line starts on: the landing box edits the canvas's defaults
+  const rootRun = useRootIntent();
   const [landingAtlas, setLandingAtlas] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const [isDraggingLanding, setIsDraggingLanding] = useState(false);
@@ -691,8 +691,11 @@ function Canvas() {
   const selectedNodeId = useStore((s) => s.selectedNodeId);
   const selectedNodeIds = useStore((s) => s.selectedNodeIds);
   // Content nodes and frames are edited in place on the canvas — no panel.
-  // The panel is a MODE: double-click opens it, its X closes it; while on,
-  // it follows the selection. Single clicks only select (no side effects).
+  // The panel is a MODE: double-click opens it; its X, a click on empty
+  // canvas or Esc closes it; while on, it follows the selection. Single
+  // clicks only select (no side effects) — so a click on empty canvas must
+  // close the mode, not just hide the panel, or the next drag (which selects
+  // the card it moves) brings it back.
   const panelMode = useUiStore((s) => s.panelOpen);
   const viewerLoadError = useUiStore((s) => s.viewerLoadError);
   const staleCount = useStore((s) => s.staleIds.length);
@@ -771,7 +774,10 @@ function Canvas() {
         if (selectedNodeIds.length > 1) {
           setSelectedNodeIds([]);
         } else if (selectedNodeId) {
+          // the panel goes with the selection: a panel that only hid would
+          // come back on the next card a drag selects
           setSelectedNodeId(null);
+          useUiStore.getState().setPanelOpen(false);
         }
         return;
       }
@@ -803,14 +809,9 @@ function Canvas() {
   const handleSubmit = () => {
     if (!inputValue.trim()) return;
     addQuestion(inputValue.trim(), {
-      rolePrompt: rootRole.trim() || undefined,
-      roleName: rootRoleName.trim() || undefined,
       initialAttachments: pendingAttachments.length > 0 ? pendingAttachments : undefined,
     });
     setInputValue('');
-    setRootRole('');
-    setRootRoleName('');
-    setShowRootRole(false);
     setPendingAttachments([]);
   };
 
@@ -1169,7 +1170,7 @@ function Canvas() {
         zoomOnDoubleClick={false}
         connectionLineStyle={{ stroke: themePalette.accent, strokeDasharray: '8 4', strokeWidth: 2 }}
         onSelectionChange={onSelectionChange}
-        onPaneClick={() => { setSelectedNodeId(null); setSelectedNodeIds([]); setNodeMenu(null); }}
+        onPaneClick={() => { setSelectedNodeId(null); setSelectedNodeIds([]); setNodeMenu(null); useUiStore.getState().setPanelOpen(false); }}
       >
         {paperTexture === 'grid' ? (
           <>
@@ -1282,8 +1283,14 @@ function Canvas() {
               <p className="text-sm text-muted-foreground">{t('landing.tagline')}</p>
               <p className="text-xs text-muted-foreground mt-1.5 font-medium">{t('landing.mechanism')}</p>
             </div>
+            {/* where the line runs, above the box — as the agent tools' own boxes ask it */}
+            <div className="mb-1.5 flex flex-wrap items-center gap-0.5 px-1" data-composer-above>
+              {runtimeOf(rootRun.intent.model) && <AgentCwdChip composer />}
+              <RuntimeMenu intent={rootRun.intent} onIntent={rootRun.onIntent} />
+            </div>
             <div
-              className="bg-card border border-border rounded-xl px-5 py-4 shadow-lg transition-all focus-within:border-primary/50 focus-within:shadow-xl"
+              className="bg-card border border-border rounded-2xl px-4 pt-3.5 pb-2.5 shadow-lg transition-all focus-within:border-primary/50 focus-within:shadow-xl"
+              data-composer="landing"
             >
               <textarea
                 value={inputValue}
@@ -1320,36 +1327,19 @@ function Canvas() {
                   ))}
                 </div>
               )}
-              {/* Role area: opened from the tray icon — an ask-time option,
-                  not a decision the landing asks you to make up front */}
-              {showRootRole && (
-                <div className="space-y-1 mt-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground font-medium">{t('landing.roleLabel')}</span>
-                    <Button variant="ghost" size="sm" onClick={() => { setShowRootRole(false); setRootRole(''); setRootRoleName(''); }} className="text-xs text-muted-foreground hover:text-muted-foreground"><X strokeWidth={1.75} /></Button>
-                  </div>
-                  <RoleEditor name={rootRoleName} prompt={rootRole} onName={setRootRoleName} onPrompt={setRootRole} autoFocus />
-                </div>
-              )}
-              <div className="flex items-center justify-end mt-2 gap-2">
-                <SearchToggles />
-                <Button variant="ghost"
-                  onClick={() => setShowRootRole(!showRootRole)}
-                  title={t('landing.roleTrayTitle')}
-                  size="icon"
-                  className={`rounded-full shrink-0 ${
-                    showRootRole || rootRole ? 'text-primary bg-primary/10 hover:bg-primary/20' : 'text-muted-foreground hover:text-muted-foreground hover:bg-border'
-                  }`}
-                >
-                  <Drama strokeWidth={1.75} />
-                </Button>
-                <Button variant="ghost"
+              <div className="flex items-center mt-2 gap-0.5">
+                <Button variant="ghost" size="icon-sm"
                   onClick={() => landingFileRef.current?.click()}
-                  className="text-muted-foreground hover:text-primary hover:bg-accent text-sm"
+                  className="rounded-full text-muted-foreground hover:text-primary"
                   title={t('landing.attach')}
                 >
                   <Paperclip strokeWidth={1.75} />
                 </Button>
+                {offersAccess(rootRun.intent.model)
+                  ? <AccessMenu value={rootRun.intent.access ?? 'read'} onChange={(access) => rootRun.onIntent({ access })} />
+                  : !runtimeOf(rootRun.intent.model) && <SearchToggles size={15} />}
+                <span className="flex-1" />
+                <ModelMenu intent={rootRun.intent} onIntent={rootRun.onIntent} />
                 <input
                   ref={landingFileRef}
                   type="file"
@@ -1358,11 +1348,11 @@ function Canvas() {
                   className="hidden"
                   onChange={(e) => { handleFileUpload(e.target.files || []); e.target.value = ''; }}
                 />
-                <Button
+                <SendButton
                   onClick={handleSubmit}
-                  disabled={!inputValue.trim() || pendingAttachments.some(a => a.isExtracting)}>
-                  {pendingAttachments.some(a => a.isExtracting) ? t('landing.extracting') : t('landing.send')}
-                </Button>
+                  disabled={!inputValue.trim() || pendingAttachments.some(a => a.isExtracting)}
+                  title={pendingAttachments.some(a => a.isExtracting) ? t('landing.extracting') : t('landing.send')}
+                />
               </div>
             </div>
 
@@ -1626,8 +1616,6 @@ function Canvas() {
             </Button>
           </>
         )}
-        {!isParadigm && <AgentCwdChip iconOnly={foldLabels} />}
-        {!isParadigm && <ModelPicker iconOnly={foldLabels} />}
         {/* Landing convenience only: inside the canvas the picker's own
             empty state (Connect a model) is the door — no twin key icon */}
         {!hasNodes && (

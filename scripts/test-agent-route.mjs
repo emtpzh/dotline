@@ -67,13 +67,20 @@ test('a document added on the canvas, above or on the question, keeps the sessio
   // left out of context: no longer a difference
   const Bx = mirror('B', undefined, undefined, { attachments: [doc], excludedAttachmentIds: ['att1'] });
   assert.equal(pristineChain('D', [mirror('A'), Bx, ask('D')], [edge('A', 'B'), edge('B', 'D')]), true);
-  // the session's own tool footprints are part of what it recorded
-  const Bt = mirror('B', undefined, undefined, { attachments: [{ id: 't1', name: 'tool: read a.txt', type: 'text/plain', content: '…', op: 'read' }] });
+  // the session's own steps are part of what it recorded
+  const Bt = mirror('B', undefined, undefined, { steps: [{ id: 't1', tool: 'read', op: 'read', call: 'a.txt', result: '…', paths: ['a.txt'] }] });
   assert.equal(pristineChain('D', [mirror('A'), Bt, ask('D')], [edge('A', 'B'), edge('B', 'D')]), true);
   // on the question itself: a document would not travel with a continued turn
   assert.equal(pristineChain('D', [mirror('A'), mirror('B'), ask('D', { attachments: [doc] })], [edge('A', 'B'), edge('B', 'D')]), false);
   // an image does travel
   assert.equal(pristineChain('D', [mirror('A'), mirror('B'), ask('D', { attachments: [{ id: 'i1', name: 'shot.png', type: 'image/png', content: 'b64' }] })], [edge('A', 'B'), edge('B', 'D')]), true);
+  // and once it has, the turn above that carried it is still the session's
+  const shot = (addedAt) => ({ id: 'i1', name: 'shot.png', type: 'image/png', content: 'b64', addedAt });
+  const Bi = mirror('B', undefined, undefined, { attachments: [shot('2026-10-07T09:16:00Z')], lastGeneratedAt: '2026-10-07T09:16:40Z' });
+  assert.equal(pristineChain('D', [mirror('A'), Bi, ask('D')], [edge('A', 'B'), edge('B', 'D')]), true);
+  // an image added after the turn ran is the canvas's
+  const Bl = mirror('B', undefined, undefined, { attachments: [shot('2026-10-07T09:20:00Z')], lastGeneratedAt: '2026-10-07T09:16:40Z' });
+  assert.equal(pristineChain('D', [mirror('A'), Bl, ask('D')], [edge('A', 'B'), edge('B', 'D')]), false);
 });
 
 test('a note wired in or a dashed reference keeps the session out', () => {

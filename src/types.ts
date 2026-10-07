@@ -21,15 +21,37 @@ export interface Attachment {
   isExtracting?: boolean; // PDF extraction in progress
   digest?: string; // reader's guided digest (markdown, with (p.N) anchors)
   digestBy?: string; // model that wrote the digest
-  /** Footprint of an imported tool call: the files it touched and what it
-      did to them — the why layer's join key (path → the turns that touched
-      it). Set by the session adapters, never by hand. */
+  /** Canvases from before steps (lib/agents/steps): a tool call carried as
+      an attachment. Read only to lift it into `steps`; never written. */
   paths?: string[];
   op?: ToolOp;
 }
 
 /** What a tool call DID, classified from its name across runners. */
 export type ToolOp = 'read' | 'write' | 'edit' | 'run' | 'search' | 'fetch' | 'agent' | 'other';
+
+/** One tool call of an agent turn: what the agent did, not material the
+ *  person gave. Its output stays out of downstream context unless the
+ *  person brings it in (ThoughtData.includedStepIds); the turn leaves a
+ *  one-line summary of its steps instead. */
+export interface AgentStep {
+  id: string;
+  /** the runtime's own name for the tool: bash, Read, apply_patch */
+  tool: string;
+  op?: ToolOp;
+  /** the command, the diff, the query — clipped as the session adapters clip it */
+  call: string;
+  /** what came back, clipped; the whole output stays in the session file */
+  result: string;
+  truncated?: boolean;
+  /** files the call touched (absolute or relative to the turn's directory) */
+  paths?: string[];
+  /** a web resource it fetched */
+  url?: string;
+  /** a step lifted from an attachment whose text the fields do not rebuild
+      exactly: that attachment as it was, so its context never changes */
+  legacy?: { name: string; size: number; content: string };
+}
 
 export interface Highlight {
   id: string;
@@ -40,6 +62,11 @@ export interface Highlight {
 /** A web source the model consulted while generating a response. */
 /** The agent runtimes the desktop shell can run a turn on. */
 export type AgentRuntime = 'pi' | 'codex' | 'claude-code' | 'dsh';
+
+/** How far an agent turn may go, as each runtime's own permission mode:
+    read = reads and searches only; write = may change the working directory.
+    Anything beyond is refused inside the turn, never asked on the canvas. */
+export type AgentAccess = 'read' | 'write';
 
 /** An agent runtime asking the person whether one action may proceed —
     shown on the node while the turn waits. */
@@ -65,15 +92,9 @@ export interface ApprovalRequest {
   answered?: ApprovalOutcome;
   /** where the answer goes: a desktop runtime's run, else the harness bridge */
   channel?: { runId: string };
-  /** the paths outside the working directory this step reaches for */
-  paths?: string[];
-  /** a directory the person can allow from now on, instead of once */
-  suggest?: string | null;
-  /** what "allow for this conversation" would cover, as the runtime names it
-      (opaque; a later turn with the same rule is allowed without asking).
-      Absent when the runtime offers no standing allowance for this ask. */
+  /** records from before access levels: the standing rule an approval set,
+      and whether a later one was decided from it without asking */
   rule?: string | null;
-  /** the runtime decided from a standing rule of this conversation; nobody was asked */
   auto?: boolean;
 }
 
@@ -133,6 +154,9 @@ export interface ThoughtData extends Record<string, unknown> {
       canvas's default. '' = the runtime's own default. Only for agent entries;
       another runtime picked on the node clears it. */
   cwd?: string;
+  /** The access level this node's agent turn runs at next (its intent,
+      inherited like the effort). Only for agent entries. */
+  access?: AgentAccess;
   /** A converge node (merge / weave), created unasked off a selection: its
       first ask and every rerun use the converge prompt, the question being
       the person's extra request (`request`, absent = none, the default
@@ -151,6 +175,8 @@ export interface ThoughtData extends Record<string, unknown> {
     runtime: AgentRuntime; sessionId: string | null; sessionFile: string | null; cwd: string;
     /** the effort level the turn actually ran at, in the runtime's own words, from its own record */
     effort?: string;
+    /** the access level the turn ran at */
+    access?: AgentAccess;
     /** the turn continued the mirrored session instead of opening a fresh one */
     continued?: boolean;
     /** the run was still going when this record was last written: a canvas
@@ -166,6 +192,11 @@ export interface ThoughtData extends Record<string, unknown> {
       session and why, or it forked the session at turn N. Absent = it went
       on in that session, or there was none (lib/agents/continuity). */
   sessionLink?: SessionLink;
+  /** The tool calls of an agent turn, in order (lib/agents/steps). */
+  steps?: AgentStep[];
+  /** Steps whose output goes downstream in full; the others leave only
+      their line in the turn's summary. */
+  includedStepIds?: string[];
   /** Transient: the tool calls of the agent turn running now, in order. */
   agentTrace?: AgentTraceEntry[];
   /** Transient: an agent runtime is waiting for the person's decision on one action. */

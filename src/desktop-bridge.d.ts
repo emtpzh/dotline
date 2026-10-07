@@ -118,8 +118,8 @@ interface DesktopAgentRunRequest {
   /** an effort level in the runtime's own words (one it listed for the model); absent or unknown = the runtime's default */
   effort?: string;
   thinkingLevel?: string;
-  /** rules this conversation already allowed for good (the `rule` of earlier approvals): a matching ask is allowed without asking, on the record */
-  allowRules?: string[];
+  /** how far the turn may go, as the runtime's own permission mode; absent = read */
+  access?: 'read' | 'write';
 }
 
 interface DesktopAgentsBridge {
@@ -134,11 +134,9 @@ interface DesktopAgentsBridge {
   /** the shell-managed working directory of a canvas, created on demand */
   workspace(canvasId: string): Promise<string>;
   /** the person's answer to a runtime's question during a run */
-  answer(runId: string, requestId: string, response: { confirmed: boolean; scope?: 'session' } | { value: string } | { cancelled: true }): Promise<boolean>;
+  answer(runId: string, requestId: string, response: { confirmed: boolean } | { value: string } | { cancelled: true }): Promise<boolean>;
   /** a folder picked in the system dialog, or null */
   pickCwd(): Promise<string | null>;
-  /** the boundary guard's tuning for a working directory */
-  guardWrite(cwd: string, config: { mode: 'ask' | 'allow'; allow: string[] }): Promise<boolean>;
   /** the canvas's materials written under <cwd>/.thoughtdag/materials */
   writeMaterials(cwd: string, files: { name: string; content: string; encoding?: 'utf8' | 'base64' }[]): Promise<{ dir: string | null; written: string[] }>;
   onEvent(cb: (payload: { runId: string; event: Record<string, unknown> & { type: string } }) => void): void;

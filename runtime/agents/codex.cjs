@@ -4,8 +4,12 @@
 // or branched (`thread/fork`). The server's notifications become the same
 // event kinds the Pi runtime emits, so the renderer reads nothing new:
 // text and reasoning deltas, tool starts and ends, questions (the server's
-// own approval and user-input requests), run_end. Codex keeps its rollout
-// files, login and model list; the shell only asks.
+// user-input requests), run_end. The turn runs at the canvas's access level
+// as Codex's own sandbox (read: `read-only`, write: `workspace-write`) with
+// approvals never asked for: what the sandbox refuses fails inside the turn,
+// as a failed tool call, and any approval request that still arrives is
+// declined. Codex keeps its rollout files, login and model
+// list; the shell only asks.
 'use strict';
 
 const { spawn } = require('node:child_process');
@@ -31,14 +35,8 @@ function childEnv() {
   return { ...process.env, PATH: [...seen, ...CANDIDATE_DIRS.filter((d) => !seen.has(d))].join(path.delimiter) };
 }
 
-/** The guard file the canvas writes per working directory, as Codex policy. */
-async function policyFor(cwd) {
-  try {
-    const raw = JSON.parse(await fsp.readFile(path.join(cwd, '.thoughtdag', 'guard.json'), 'utf8'));
-    if (raw?.mode === 'allow') return { approvalPolicy: 'never', sandbox: 'danger-full-access' };
-  } catch { /* default */ }
-  return { approvalPolicy: 'on-request', sandbox: 'workspace-write' };
-}
+/** The canvas's access level as Codex policy: the sandbox decides, nobody is asked. */
+const policyFor = (access) => ({ approvalPolicy: 'never', sandbox: access === 'write' ? 'workspace-write' : 'read-only' });
 
 // the thread id is in the rollout's file name; take the LAST UUID in the
 // path in case a directory carries one of its own
@@ -208,40 +206,15 @@ function createCodexRuntime({ log } = {}) {
       run.waiting = true;
       run.emit({ type: 'question', id, ...question });
     };
-    const decided = (id, outcome, value, extra) => { run.waiting = false; run.emit({ type: 'question_answered', id, outcome, value: value ?? null, ...(extra ?? {}) }); };
-    // a yes/no the conversation may have settled already: `rule` names what a
-    // standing allowance covers; a match is accepted for the session without asking
-    const settle = (rule, title, message, respondYes) => {
-      if (rule && run.allowRules?.has(rule)) { respondYes(true); run.emit({ type: 'question_answered', id: `auto-${msg.id}`, outcome: 'allowed-session', value: null, auto: true, title, message, rule }); return true; }
-      return false;
-    };
-    const yesNo = (rule, respondYes, respondNo) => (a, id) => {
-      const yes = !!a?.confirmed; const forSession = yes && a?.scope === 'session' && !!rule;
-      if (forSession) run.allowRules?.add(rule);
-      if (yes) respondYes(forSession); else respondNo();
-      decided(id, yes ? (forSession ? 'allowed-session' : 'allowed-once') : 'rejected', null, forSession ? { rule } : undefined);
-    };
+    const decided = (id, outcome, value) => { run.waiting = false; run.emit({ type: 'question_answered', id, outcome, value: value ?? null }); };
+    // approvals are never asked for (policy `never`); one that arrives
+    // anyway is beyond this turn's level: declined at once
     switch (msg.method) {
-      case 'item/commandExecution/requestApproval': {
-        const cmd = Array.isArray(params.command) ? params.command.join(' ') : String(params.command ?? '');
-        const rule = cmd ? 'codex:cmd:' + cmd : null;
-        const title = 'command needs approval'; const message = [params.command, params.reason].filter(Boolean).join('\n');
-        const respondYes = (forSession) => reply({ decision: forSession ? 'acceptForSession' : 'accept' });
-        if (settle(rule, title, message, respondYes)) return;
-        return ask({ kind: 'confirm', title, message, rule, options: [], placeholder: null, prefill: null, paths: [], suggest: null },
-          yesNo(rule, respondYes, () => reply({ decision: 'decline' })));
-      }
-      case 'item/fileChange/requestApproval': {
-        const rule = 'codex:fileChange';
-        const title = 'file change needs approval'; const message = [params.reason, params.grantRoot].filter(Boolean).join('\n') || 'apply the proposed file changes';
-        const respondYes = (forSession) => reply({ decision: forSession ? 'acceptForSession' : 'accept' });
-        if (settle(rule, title, message, respondYes)) return;
-        return ask({ kind: 'confirm', title, message, rule, options: [], placeholder: null, prefill: null, paths: [], suggest: null },
-          yesNo(rule, respondYes, () => reply({ decision: 'decline' })));
-      }
+      case 'item/commandExecution/requestApproval':
+      case 'item/fileChange/requestApproval':
+        return reply({ decision: 'decline' });
       case 'item/permissions/requestApproval':
-        return ask({ kind: 'confirm', title: 'more permissions requested', message: [params.reason, JSON.stringify(params.permissions ?? {})].filter(Boolean).join('\n'), options: [], placeholder: null, prefill: null, paths: [], suggest: null },
-          (a, id) => { const yes = !!a?.confirmed; reply({ permissions: yes ? (params.permissions ?? {}) : {}, scope: 'turn' }); decided(id, yes ? 'allowed-once' : 'rejected'); });
+        return reply({ permissions: {}, scope: 'turn' });
       case 'item/tool/requestUserInput': {
         // one question at a time; the answers go back together
         const qs = Array.isArray(params.questions) ? params.questions : [];
@@ -301,9 +274,8 @@ function createCodexRuntime({ log } = {}) {
       await ensureServer();
       const runId = randomUUID();
       const emit = (event) => { try { onEvent({ runId, event }); } catch { /* renderer gone */ } };
-      const state = { runId, threadId: null, turnId: null, text: '', final: null, waiting: false, emit, end: null, done: null,
-        // what this conversation already allowed for good (see README: `rule`)
-        allowRules: new Set(Array.isArray(req.allowRules) ? req.allowRules.filter((s) => typeof s === 'string' && s.startsWith('codex:')) : []) };
+      const access = req.access === 'write' ? 'write' : 'read';
+      const state = { runId, threadId: null, turnId: null, text: '', final: null, waiting: false, emit, end: null, done: null };
       state.done = new Promise((resolve) => { state.end = (how) => { if (state.ended) return; state.ended = true; resolve(how); }; });
       runs.set(runId, state);
       void (async () => {
@@ -318,7 +290,7 @@ function createCodexRuntime({ log } = {}) {
           setTimeout(() => state.end('idle'), 5000);
         }, 15000);
         try {
-          const policy = await policyFor(cwd);
+          const policy = policyFor(access);
           const model = (req.model && typeof req.model === 'object' && req.model.id ? req.model.id : null) ?? await defaultModelId();
           let thread;
           const resumeId = req.sessionPath ? threadIdOf(req.sessionPath) : null;

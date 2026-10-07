@@ -21,9 +21,10 @@ function slimNode(n: ThoughtNode): ThoughtNode {
     id: a.id, name: a.name, type: a.type, size: a.size, content: '',
     ...(a.addedAt ? { addedAt: a.addedAt } : {}),
     ...(a.extractedText ? { extractedText: a.extractedText.slice(0, MATERIAL_HEAD) } : {}),
-    ...(a.paths ? { paths: a.paths } : {}), ...(a.op ? { op: a.op } : {}),
   }));
-  return { ...n, data: { ...n.data, attachments } };
+  // steps keep what they did and to which files, never their output
+  const steps = n.data.steps?.map((s) => ({ ...s, call: s.call.slice(0, 300), result: '', legacy: undefined }));
+  return { ...n, data: { ...n.data, attachments, ...(steps ? { steps } : {}) } };
 }
 
 export function canvasRecordPayload(): { projectId: string; json: string } | null {

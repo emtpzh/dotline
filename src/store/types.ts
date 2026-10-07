@@ -1,4 +1,4 @@
-import type { ThoughtNode, ThoughtEdge, Highlight, Attachment, CanvasEvent, CanvasOp } from '../types';
+import type { ThoughtNode, ThoughtEdge, Highlight, Attachment, CanvasEvent, CanvasOp, AgentAccess } from '../types';
 
 export interface Snapshot {
   nodes: ThoughtNode[];
@@ -51,7 +51,7 @@ export interface NodeSlice {
   alignSelection: (nodeIds: string[]) => void;
   /** Set/clear a per-node LLM override (undefined = follow the global picker). */
   /** Change what a node runs on next (its intent); only this node — what grew off it keeps its own. */
-  setNodeIntent: (nodeId: string, intent: { model?: string; effort?: string; cwd?: string }) => void;
+  setNodeIntent: (nodeId: string, intent: { model?: string; effort?: string; cwd?: string; access?: AgentAccess }) => void;
   /** Archive/unarchive nodes: dimmed on canvas, excluded from every context walk (undoable). */
   setArchived: (nodeIds: string[], archived: boolean) => void;
   /** Nodes whose answers predate upstream changes (derived, not persisted). */
@@ -75,6 +75,9 @@ export interface AddQuestionOptions {
   /** @-mentioned node ids: any not already in the new node's context get a
       real dashed reference edge (the graph stays honest). */
   mentions?: string[];
+  /** What the ask box said the question runs on, when the person changed it
+      there; otherwise the line's intent (or, for a root, the defaults). */
+  intent?: import('../lib/run-intent').RunIntent;
 }
 
 export interface LlmSlice {

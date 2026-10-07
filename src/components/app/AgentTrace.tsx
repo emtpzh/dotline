@@ -5,7 +5,7 @@ import type { AgentTraceEntry } from '../../types';
 // What the agent is doing right now, one line per tool call, newest at the
 // bottom — the transcript a terminal would show, on the node. Replaces the
 // single progress line for agent lanes while the turn runs; the finished
-// turn's calls become attachments (footprints) and this list goes away.
+// turn's calls become the node's steps and this list goes away.
 
 export function AgentTrace({ entries, compact }: { entries: AgentTraceEntry[]; compact?: boolean }) {
   const t = useT();

@@ -800,7 +800,6 @@ function setupAgents() {
   ipcMain.handle('agents:abort', async (_e, runId) => agentsRuntime(runOwners.get(String(runId))).abort(String(runId)));
   ipcMain.handle('agents:workspace', async (_e, canvasId) => workspaceFor(canvasId));
   ipcMain.handle('agents:answer', async (_e, runId, requestId, response) => agentsRuntime(runOwners.get(String(runId))).answer(String(runId), String(requestId), response));
-  ipcMain.handle('agents:guard-write', async (_e, cwd, config) => agentOps.writeGuard(cwd, config));
   // a folder the person picks as a canvas's working directory
   ipcMain.handle('agents:pick-cwd', async () => {
     const r = await dialog.showOpenDialog(win ?? undefined, { properties: ['openDirectory', 'createDirectory'] });

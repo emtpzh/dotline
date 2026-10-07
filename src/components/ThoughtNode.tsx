@@ -17,12 +17,18 @@ import { collectExploreMarksKey, type ExploreMark } from '../lib/explore-marks';
 import { useUiStore, toast } from '../lib/ui-store';
 import { isFactNode } from '../lib/facts';
 import SearchToggles from './app/SearchToggles';
+import { RuntimeMenu, ModelMenu, AccessMenu, SendButton, RunStatus } from './app/composer/RunControls';
+import { useFollowUpIntent, useRootIntent } from './app/composer/run-intent-hooks';
+import AgentCwdChip from './app/AgentCwdChip';
+import { offersAccess, runtimeOf } from '../lib/agents/runtimes';
+import { intentFields } from '../lib/run-intent';
 import { useEntranceFade } from '../lib/use-entrance-fade';
 import { Markdown, HighlightedMarkdown } from './Markdown';
 import FanOutModal from './FanOutModal';
 import ReasoningDisclosure from './app/ReasoningDisclosure';
 import { ApprovalCard } from './app/ApprovalCard';
 import { AgentTrace } from './app/AgentTrace';
+import { continueInTerminal, terminalTarget } from '../lib/agents/terminal';
 import { SquareTerminal } from 'lucide-react';
 import { useT, fmt } from '../i18n';
 import MentionSurface from './app/NodeMention';
@@ -31,8 +37,6 @@ import { isViewerMode } from '../lib/viewer';
 import { Button } from './ui/button';
 import SelectionActions from './app/SelectionActions';
 import { FaceBody, FaceName, FarMark, StateMark } from './app/NodeFace';
-import SessionNotice from './app/SessionNotice';
-import { AskRoleChip, RolePickerButton, type AskRole } from './app/RolePicker';
 import { sessionWhy } from '../lib/session-why';
 import { useContinuity } from '../lib/use-continuity';
 import { useTextSelection } from '../lib/use-text-selection';
@@ -72,7 +76,6 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
     useUiStore.getState().setDraft(inlineDraftKey, v);
   };
   const [branchFromText, setBranchFromText] = useState('');
-  const [askRole, setAskRole] = useState<AskRole | null>(null);
   const [branchYRatio, setBranchYRatio] = useState(0.5);
   const [editValue, setEditValue] = useState(data.question);
   const [editResponseValue, setEditResponseValue] = useState(data.response);
@@ -180,13 +183,12 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
       branchContext: branchFromText || undefined,
       branchYRatio: branchFromText ? branchYRatio : undefined,
       mentions: mention.mentions.map((x) => x.nodeId),
-      rolePrompt: askRole?.prompt,
-      roleName: askRole?.name,
+      intent: followUp.intent,
     });
     mention.clear();
     setInputValue('');
     setBranchFromText('');
-    setAskRole(null);
+    followUp.reset();
     clearSelection();
   };
 
@@ -219,6 +221,8 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
       // downstream prompt steps answer (and the cascade advances).
       submitHumanTurn(id, editValue.trim());
     } else {
+      // an empty ask node runs on what its box showed — the defaults a line starts with
+      if (isAwaitingAsk && !data.converge && root.intent.model) useStore.getState().setNodeIntent(id, intentFields(root.intent));
       editQuestion(id, editValue.trim());
     }
   };
@@ -270,8 +274,15 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   const route = useStore((s) => nodeRoute(s.nodes, s.edges, id));
   // The inline follow-up box, and whether its question would go on in the
   // agent session above (lib/agents/continuity) — warned before the send
-  const showInline = !mapMode && !data.isCollapsed && !data.isLoading && !data.isEditingResponse && !isAwaitingAsk && !(isParadigmNode && runLocked) && !isViewerMode && selectedNodeId !== id;
-  const session = useContinuity(showInline ? id : null, { rolePrompt: askRole?.prompt, roleName: askRole?.name, branchContext: branchFromText || undefined, mentions: mention.mentions.map((x) => x.nodeId) });
+  // hidden only while the panel is open on this card (its own box takes
+  // over); selecting the card — a click into this very box does — keeps it
+  const panelOnThis = useUiStore((s) => s.panelOpen) && selectedNodeId === id;
+  const showInline = !mapMode && !data.isCollapsed && !data.isLoading && !data.isEditingResponse && !isAwaitingAsk && !(isParadigmNode && runLocked) && !isViewerMode && !panelOnThis;
+  // what the follow-up runs on (the line's intent, changed in the box if
+  // the person did), and for an empty ask node, the defaults a line starts with
+  const followUp = useFollowUpIntent(showInline ? id : null);
+  const root = useRootIntent();
+  const session = useContinuity(showInline ? id : null, { model: followUp.intent.model, branchContext: branchFromText || undefined, mentions: mention.mentions.map((x) => x.nodeId) });
   const hasMultipleVersions = data.responses.length > 1;
 
   const highlightedTexts = new Set(data.highlights.map((h) => h.text));
@@ -299,11 +310,11 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // token split and the files it touched — all computed from data the
   // import already carries, free.
   // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the exact fields read
-  const marks = useMemo(() => actionMarks(data), [data.attachments]);
+  const marks = useMemo(() => actionMarks(data), [data.steps]);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the exact fields read
-  const composition = useMemo(() => turnComposition(data), [data.question, data.response, data.attachments]);
+  const composition = useMemo(() => turnComposition(data), [data.question, data.response, data.steps]);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the exact fields read
-  const prints = useMemo(() => footprint(data), [data.attachments]);
+  const prints = useMemo(() => footprint(data), [data.steps]);
   const compBar = composition && (
     <span
       className="inline-flex h-1.5 w-14 rounded-full overflow-hidden shrink-0 self-center"
@@ -525,6 +536,18 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                 autoFocus
               />
               {isFactNode({ data }) && !isHuman && !isAwaitingAsk && <p className="text-2xs text-muted-foreground mt-1.5" data-fact-note>{t('fact.editQuestionNote')}</p>}
+              {/* an empty ask node starts a line: where it runs and on what, as the landing asks */}
+              {isAwaitingAsk && !data.converge && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-0.5 nopan nodrag" data-composer="ask">
+                  {runtimeOf(root.intent.model) && <AgentCwdChip composer />}
+                  <RuntimeMenu intent={root.intent} onIntent={root.onIntent} />
+                  {offersAccess(root.intent.model)
+                    ? <AccessMenu value={root.intent.access ?? 'read'} onChange={(access) => root.onIntent({ access })} />
+                    : !runtimeOf(root.intent.model) && <SearchToggles size={14} />}
+                  <span className="flex-1" />
+                  <ModelMenu intent={root.intent} onIntent={root.onIntent} />
+                </div>
+              )}
               {/* Revision confirms explicitly: visible exits instead of an
                   invisible Enter contract. mousedown-preventDefault keeps the
                   textarea's blur from racing the click. */}
@@ -706,6 +729,8 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
             </div>
           )}
 
+          {/* Steps the turn's access level refused, and the ways on */}
+
           {/* Fan-out placeholder: the human decides when to expand */}
           {data.stepKind === 'fanout' && !hasFanoutChildren && !data.isLoading && (
             <div className="mt-2">
@@ -797,11 +822,11 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                   ↳ {data.sessionLink.kind === 'new' ? t('session.newAction') : fmt(t('session.forkBadge'), { n: data.sessionLink.turn })}
                 </span>
               )}
-              {data.importSource?.runner === 'pi' && window.desktopSessions && (
+              {terminalTarget(data) && (
                 <Button variant="ghost" size="icon-sm"
-                  onClick={(e) => { e.stopPropagation(); void window.desktopSessions!.openInCli('pi', data.importSource!.cwd ?? '', data.importSource!.sessionId, 'terminal'); }}
+                  onClick={(e) => { e.stopPropagation(); void continueInTerminal(data); }}
                   className="hover:text-primary hover:bg-accent"
-                  title={t('agent.openInTerminal')}
+                  title={t('agent.continueInTerminalTitle')}
                   data-open-in-terminal
                 >
                   <SquareTerminal strokeWidth={1.75} />
@@ -875,15 +900,8 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               progress (the structure IS the paradigm); returns on unlock */}
           {showInline && (
             <div className="mt-3 pt-3 border-t border-border relative">
-              {askRole && <div className="mb-1.5"><AskRoleChip role={askRole} onClear={() => setAskRole(null)} /></div>}
-              {inputValue.trim() && (
-                <SessionNotice c={session} onDropRole={() => setAskRole(null)} onLocate={(nid) => {
-                  const n = rf.getNode(nid);
-                  if (n) rf.setCenter(n.position.x + 260, n.position.y + 120, { zoom: rf.getZoom(), duration: 300 });
-                }} />
-              )}
               <MentionSurface m={mention} text={inputValue} setText={setInputValue} />
-              <div className="flex items-end gap-2 bg-muted rounded-xl px-4 py-2.5 transition-shadow focus-within:ring-1 focus-within:ring-ring/40">
+              <div className="rounded-xl border border-border bg-card px-3 pt-2 pb-1.5 transition-shadow focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-ring/30" data-composer="card">
                 <textarea
                   rows={1}
                   ref={mention.bindAnchor}
@@ -896,19 +914,24 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                   }}
                   onKeyDown={handleInputKeyDown}
                   placeholder={t('common.followUp')}
-                  className="flex-1 bg-transparent text-sm text-foreground placeholder-muted-foreground focus:outline-none resize-none leading-relaxed max-h-[120px] overflow-y-auto nowheel nopan nodrag"
+                  className="w-full bg-transparent text-sm text-foreground placeholder-muted-foreground focus:outline-none resize-none leading-relaxed max-h-[120px] overflow-y-auto nowheel nopan nodrag"
                 />
-                <SearchToggles size={15} />
-                <RolePickerButton value={askRole} onChange={setAskRole} />
-                <Button variant="ghost" size="icon-sm"
-                  onClick={handleSubmitBranch}
-                  disabled={!inputValue.trim()}
-                  title={session?.kind === 'new' ? t('session.sendNew') : undefined}
-                  className={`${session?.kind === 'new' ? 'text-warning' : 'text-muted-foreground'} hover:text-primary shrink-0 hover:bg-border`}
-                >
-                  <Send strokeWidth={1.75} />
-                </Button>
+                <div className="mt-1 flex items-center gap-0.5 nopan nodrag">
+                  {offersAccess(followUp.intent.model)
+                    ? <AccessMenu value={followUp.intent.access ?? 'read'} onChange={(access) => followUp.onIntent({ access })} changed={followUp.changed.includes('access')} />
+                    : !runtimeOf(followUp.intent.model) && <SearchToggles size={14} model={followUp.intent.model} />}
+                  <span className="flex-1" />
+                  <ModelMenu intent={followUp.intent} onIntent={followUp.onIntent} changed={followUp.changed.includes('model') || followUp.changed.includes('effort')} offerRuntimes />
+                  <SendButton onClick={handleSubmitBranch} disabled={!inputValue.trim()} session={session} />
+                </div>
               </div>
+              {/* on the card the line speaks up once a question is being written */}
+              {inputValue.trim() && <div className="mt-1">
+                <RunStatus session={session} intent={followUp.intent} base={followUp.base} onIntent={followUp.onIntent} onLocate={(nid) => {
+                  const n = rf.getNode(nid);
+                  if (n) rf.setCenter(n.position.x + 260, n.position.y + 120, { zoom: rf.getZoom(), duration: 300 });
+                }} />
+              </div>}
             </div>
           )}
         </div>

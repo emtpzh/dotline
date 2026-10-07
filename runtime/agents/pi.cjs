@@ -20,7 +20,6 @@ const os = require('node:os');
 const { randomUUID } = require('node:crypto');
 
 const fsp = fs.promises;
-const GUARD = path.join(__dirname, 'pi-guard.mjs');
 const IDLE_MS = Number(process.env.TD_AGENT_IDLE_MS) || 10 * 60 * 1000; // a Pi process (session or catalog) retires after this long without a listener
 const RESPONSE_MS = 30 * 1000;
 const CANDIDATE_DIRS = [
@@ -65,7 +64,7 @@ class PiProcess {
     this.idleTimer = null;
     // extra extensions for development and tests (colon-separated paths)
     const extra = (process.env.TD_PI_EXTRA_EXTENSIONS || '').split(':').filter(Boolean).flatMap((e) => ['-e', e]);
-    const args = ['--mode', 'rpc', ...(opts.noSession ? ['--no-session'] : ['-e', GUARD, ...extra])];
+    const args = ['--mode', 'rpc', ...(opts.noSession ? ['--no-session'] : extra)];
     this.proc = spawn(bin, args, { cwd, env: childEnv(), stdio: ['pipe', 'pipe', 'pipe'] });
     this.proc.stdout.on('data', (d) => this.feed(d.toString()));
     this.proc.stderr.on('data', (d) => this.log('[pi stderr] ' + d.toString().trim().slice(0, 400)));
@@ -106,18 +105,11 @@ class PiProcess {
       const KINDS = { confirm: 'confirm', select: 'select', input: 'input', editor: 'editor' };
       if (KINDS[method] && this.listener) {
         this.openDialogs.add(String(msg.id));
-        // the guard appends a structured tail (paths, a directory to offer)
-        // after U+241F; the person sees only the text before it
-        const raw = String(msg.message ?? '');
-        const cut = raw.indexOf('\u241F');
-        let extra = {};
-        if (cut >= 0) { try { extra = JSON.parse(raw.slice(cut + 1)); } catch { extra = {}; } }
         this.listener({
-          type: 'question', kind: KINDS[method], id: msg.id, title: msg.title ?? '', message: cut >= 0 ? raw.slice(0, cut) : raw,
+          type: 'question', kind: KINDS[method], id: msg.id, title: msg.title ?? '', message: String(msg.message ?? ''),
           options: Array.isArray(msg.options) ? msg.options.map(String) : [],
           placeholder: typeof msg.placeholder === 'string' ? msg.placeholder : null,
           prefill: typeof msg.prefill === 'string' ? msg.prefill : null,
-          paths: Array.isArray(extra.paths) ? extra.paths : [], suggest: typeof extra.suggest === 'string' ? extra.suggest : null,
         });
         return;
       }

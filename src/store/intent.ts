@@ -6,11 +6,11 @@ import { effectiveIntent, type RunIntent } from '../lib/run-intent';
 // The store-side half of lib/run-intent: where the defaults come from (the
 // global picker) and which nodes count as a node's parents.
 
-/** Where a root starts: the global pick and, for an agent entry, its effort. */
+/** Where a root starts: the global pick and, for an agent entry, its effort and access level. */
 export function globalIntent(): RunIntent {
-  const { selectedModel, agentEffort } = useUiStore.getState();
+  const { selectedModel, agentEffort, agentAccess } = useUiStore.getState();
   if (!selectedModel) return {};
-  return isAgentModel(selectedModel) ? { model: selectedModel, effort: agentEffort } : { model: selectedModel };
+  return isAgentModel(selectedModel) ? { model: selectedModel, effort: agentEffort, access: agentAccess } : { model: selectedModel };
 }
 
 /** The nodes a node grows off: its incoming edges, references and watch edges aside. */

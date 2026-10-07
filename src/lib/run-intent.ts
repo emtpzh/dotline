@@ -3,7 +3,7 @@
 // where a ROOT starts; everything else inherits from the line it grows off,
 // so nothing already on the canvas changes when the global pick moves on.
 //
-//   intent  — model / effort on the node: what its next run uses
+//   intent  — model / effort / access on the node: what its next run uses
 //   record  — generatedBy / generatedEfforts / agentSession, per version:
 //             what actually ran (never rewritten)
 //
@@ -11,14 +11,14 @@
 // a rerun reproduces what it answered with. Pure: no store, no picker state
 // — callers pass the defaults in.
 
-import type { ThoughtNode, AgentRuntime } from '../types';
-import { isAgentModel, runtimeOf } from './agents/runtimes';
+import type { ThoughtNode, AgentRuntime, AgentAccess } from '../types';
+import { isAgentModel, offersAccess, runtimeOf } from './agents/runtimes';
 
 type Data = ThoughtNode['data'];
-type IntentSource = Pick<Data, 'model' | 'effort' | 'agentSession' | 'generatedBy' | 'generatedEfforts' | 'responseIndex'>;
+type IntentSource = Pick<Data, 'model' | 'effort' | 'access' | 'agentSession' | 'generatedBy' | 'generatedEfforts' | 'responseIndex'>;
 type CwdSource = Pick<Data, 'model' | 'cwd' | 'agentSession' | 'importSource' | 'generatedBy' | 'responseIndex'>;
 
-export type RunIntent = { model?: string; effort?: string };
+export type RunIntent = { model?: string; effort?: string; access?: AgentAccess };
 
 /** Kinds that never generate: they carry material into a line, not a model. */
 const INERT = new Set(['note', 'file', 'link', 'frame', 'human']);
@@ -30,13 +30,15 @@ export function lineModel(data: IntentSource | undefined): string | undefined {
 }
 
 /** A node's intent, read from its record where it predates intents. Effort
- *  belongs to agent entries only; '' is the runtime's own default. */
+ *  and access belong to agent entries only; '' is the runtime's own default
+ *  effort, and a node with no level of its own has none (the default applies). */
 export function intentOf(data: IntentSource | undefined): RunIntent {
   const model = lineModel(data);
   if (!data || !model) return {};
   if (!isAgentModel(model)) return { model };
   const effort = data.effort !== undefined ? data.effort : (data.agentSession?.effort ?? data.generatedEfforts?.[data.responseIndex] ?? undefined);
-  return effort ? { model, effort } : { model };
+  const access = data.access ?? data.agentSession?.access;
+  return { model, ...(effort ? { effort } : {}), ...(access ? { access } : {}) };
 }
 
 /** The intent a node asked off these parents starts with: one generating
@@ -50,8 +52,11 @@ export function inheritIntent(parents: (Data | undefined)[], defaults: RunIntent
   if (own.length === 0) return defaults;
   const [first] = own;
   if (!own.every((i) => i.model === first.model)) return { ...defaults, mixed: true };
-  // same model, different levels: the runtime's default rather than a guess
-  return own.every((i) => (i.effort ?? '') === (first.effort ?? '')) ? first : { model: first.model };
+  // same model, different levels: the runtime's default rather than a guess;
+  // the access level only when every parent agrees, else the default's
+  const access = own.every((i) => i.access === first.access) ? first.access ?? defaults.access : defaults.access;
+  const effort = own.every((i) => (i.effort ?? '') === (first.effort ?? '')) ? first.effort : undefined;
+  return { model: first.model, ...(effort ? { effort } : {}), ...(access && isAgentModel(first.model) ? { access } : {}) };
 }
 
 /** What a node will run on when it is asked or rerun: its own intent (or
@@ -82,6 +87,8 @@ export function inheritCwd(parents: (Data | undefined)[], runtime: AgentRuntime)
 }
 
 /** The intent fields a node carries, written without undefined keys. */
-export function intentFields(i: RunIntent): Pick<Data, 'model' | 'effort'> {
-  return { model: i.model, ...(i.model && isAgentModel(i.model) ? { effort: i.effort ?? '' } : { effort: undefined }) };
+export function intentFields(i: RunIntent): Pick<Data, 'model' | 'effort' | 'access'> {
+  return i.model && isAgentModel(i.model)
+    ? { model: i.model, effort: i.effort ?? '', access: offersAccess(i.model) ? i.access ?? 'read' : undefined }
+    : { model: i.model, effort: undefined, access: undefined };
 }

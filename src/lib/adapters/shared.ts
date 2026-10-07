@@ -1,4 +1,4 @@
-import type { ThoughtNode, ThoughtEdge, Attachment, ToolOp } from '../../types';
+import type { ThoughtNode, ThoughtEdge, AgentStep, ToolOp } from '../../types';
 import { makeNode } from '../import-chat';
 import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
@@ -6,7 +6,7 @@ import { conclusionOf } from '../turn-insight';
 
 // Shared projection pieces for runner session adapters. Every runner's
 // collector reduces its native format to this Turn shape; everything
-// downstream (branch building, plaques, tool attachments) is common.
+// downstream (branch building, plaques, steps) is common.
 
 export interface RunnerTool {
   name: string;
@@ -87,15 +87,17 @@ export function seedPlaque(node: ThoughtNode): void {
   if (line) node.data.summaries = [line];
 }
 
-export function toolAttachments(turn: RunnerTurn): Attachment[] {
-  return turn.tools.map((tool): Attachment => ({
+/** A turn's tool calls as the node's steps (lib/agents/steps). */
+export function toolSteps(turn: RunnerTurn): AgentStep[] {
+  return turn.tools.map((tool): AgentStep => ({
     id: generateId(),
-    name: `tool: ${tool.name}${tool.truncated ? ' (truncated)' : ''}`,
-    type: 'text/plain',
-    size: tool.call.length + tool.result.length,
-    content: `[call] ${tool.call}\n[result]\n${tool.result}`,
-    ...(tool.paths?.length ? { paths: tool.paths } : {}),
+    tool: tool.name,
     ...(tool.op ? { op: tool.op } : {}),
+    call: tool.call,
+    result: tool.result,
+    ...(tool.truncated ? { truncated: true } : {}),
+    ...(tool.paths?.length ? { paths: tool.paths } : {}),
+    ...(tool.url ? { url: tool.url } : {}),
   }));
 }
 
@@ -117,7 +119,7 @@ export function turnsToBranch(
     const node = makeNode(turn.question || '(tool-only turn)', turn.response, false);
     node.data.importSource = { runner, sessionId, itemIds: turn.itemIds, ...(cwd ? { cwd } : {}) };
     node.data.source = { question: node.data.question, response: node.data.response };
-    node.data.attachments = toolAttachments(turn);
+    node.data.steps = toolSteps(turn);
     seedPlaque(node);
     if (nodes.length === 0) node.data.isBranch = true; // the experiment forks off sideways
     nodes.push(node);

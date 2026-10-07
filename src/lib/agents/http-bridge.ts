@@ -104,7 +104,6 @@ export async function installAgentsHttpBridge(apiBase: string): Promise<boolean>
     answer: async (runId, requestId, response) => (await post<{ ok: boolean }>('/agents/answer', { runId, requestId, response })).ok,
     workspace: async (canvasId) => (await post<{ dir: string }>('/agents/workspace', { canvasId })).dir,
     pickCwd: async () => null,
-    guardWrite: async (cwd, config) => (await post<{ ok: boolean }>('/agents/guard', { cwd, config })).ok,
     writeMaterials: async (cwd, files) => post('/agents/materials', { cwd, files }),
     onEvent: (cb) => { listeners.push(cb); void ensureFeed(); },
   };

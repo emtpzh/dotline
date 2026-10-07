@@ -5,6 +5,7 @@ import type {
 } from '../events/types';
 import { fragmentTag, sessionKey, urlArtifact, EXCERPT_CHARS } from '../events/project';
 import { THOUGHTDAG_MANIFEST } from '../events/manifests';
+import { isLegacyToolAttachment } from '../agents/steps';
 
 // The canvas is ThoughtDAG's own record — a backup (.thoughtdag.json) is
 // its source file. This adapter projects it onto the same contract the
@@ -94,7 +95,7 @@ export function canvasToEvents(backup: CanvasBackup, opts: { file: string; sourc
 
     // a material node has no question of its own; it answers to what it holds
     if (isMaterial) {
-      const held = (d.attachments ?? []).filter((a) => !a.name.startsWith('tool: ')).map((a) => a.name);
+      const held = (d.attachments ?? []).filter((a) => !isLegacyToolAttachment(a)).map((a) => a.name);
       texts.set(tid, { question: held.length ? `[${d.stepKind}] ${held.join(', ')}` : `[${d.stepKind}] ${clip(d.question ?? '', 80)}`, response: '' });
     }
     if (!mirror && !isMaterial) {
@@ -141,10 +142,11 @@ export function canvasToEvents(backup: CanvasBackup, opts: { file: string; sourc
       out.push(m);
     }
 
-    // materials: attachments the person placed (the runner's tool trail is not a material)
+    // materials: attachments the person placed (a canvas from before steps
+    // also carries the runner's tool trail as attachments: not a material)
     const excluded = new Set(d.excludedAttachmentIds ?? []);
     for (const att of d.attachments ?? []) {
-      if (att.name.startsWith('tool: ') || att.op) continue;
+      if (isLegacyToolAttachment(att)) continue;
       const artifact: ArtifactRef = {
         id: `thoughtdag:attachment/${att.id}`, observedPath: att.name,
         ...(d.anchor && d.anchor.attId === att.id ? { locator: { pages: String(d.anchor.page) } } : {}),
@@ -177,7 +179,7 @@ export function canvasToEvents(backup: CanvasBackup, opts: { file: string; sourc
     // what the node's materials SAY (their extracted text, head only): the
     // words a paper is found by, whatever the file is called now
     const material = (d.attachments ?? [])
-      .filter((a) => !a.name.startsWith('tool: ') && !a.op && typeof a.extractedText === 'string' && a.extractedText.trim())
+      .filter((a) => !isLegacyToolAttachment(a) && typeof a.extractedText === 'string' && a.extractedText.trim())
       .map((a) => `[${a.name}]\n${a.extractedText!.slice(0, 4000)}`)
       .join('\n\n');
     if (material) {

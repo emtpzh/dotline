@@ -3,11 +3,9 @@ import { countTokens } from '../utils';
 
 // The self-explaining chain: everything here renders information the
 // import already carries for free — no LLM calls, no new state. A turn's
-// tool attachments become ACTION MARKS (read-code turn? run-experiment
+// steps become ACTION MARKS (read-code turn? run-experiment
 // turn?), and its token split shows what is actually eating the context —
 // the pruning compass of the inspection layer.
-
-const TOOL_PREFIX = /^tool: (\S+?)( \(truncated\))?$/;
 
 export type ActionKind = 'edit' | 'read' | 'search' | 'run' | 'web' | 'agent' | 'other';
 export interface ActionMark { kind: ActionKind; count: number }
@@ -26,12 +24,10 @@ const ACTION_ORDER: ActionKind[] = ['edit', 'read', 'search', 'run', 'web', 'age
  *  card's name row carries at every zoom that still shows text. Edits count
  *  the distinct files changed when the footprint knows them (the number a
  *  reader asks for), the calls otherwise. Empty for hand-made nodes. */
-export function actionMarks(data: Pick<ThoughtData, 'attachments'>): ActionMark[] {
+export function actionMarks(data: Pick<ThoughtData, 'steps'>): ActionMark[] {
   const counts = new Map<ActionKind, number>();
-  for (const att of data.attachments ?? []) {
-    const m = att.name.match(TOOL_PREFIX);
-    if (!m) continue;
-    const kind = ACTION_KINDS.find(([re]) => re.test(m[1]))?.[1] ?? 'other';
+  for (const step of data.steps ?? []) {
+    const kind = ACTION_KINDS.find(([re]) => re.test(step.tool))?.[1] ?? 'other';
     counts.set(kind, (counts.get(kind) ?? 0) + 1);
   }
   const changed = footprint(data).filter((f) => f.op !== 'read').length;
@@ -50,11 +46,9 @@ export interface TurnComposition {
 
 /** Token split of one turn — null when it carries no tool output (nothing
  *  to explain: the badge row and bar only appear on imported turns). */
-export function turnComposition(data: Pick<ThoughtData, 'question' | 'response' | 'attachments'>): TurnComposition | null {
+export function turnComposition(data: Pick<ThoughtData, 'question' | 'response' | 'steps'>): TurnComposition | null {
   let tool = 0;
-  for (const att of data.attachments ?? []) {
-    if (TOOL_PREFIX.test(att.name)) tool += countTokens(att.content);
-  }
+  for (const step of data.steps ?? []) tool += countTokens(step.call) + countTokens(step.result);
   if (tool === 0) return null;
   const q = countTokens(data.question);
   const a = countTokens(data.response);
@@ -64,18 +58,18 @@ export function turnComposition(data: Pick<ThoughtData, 'question' | 'response' 
 
 export interface FootprintEntry { path: string; name: string; op: 'read' | 'write' | 'edit' }
 
-/** The files this turn touched, straight from its tool attachments —
+/** The files this turn touched, straight from its steps —
  *  writes and edits first, then reads, each path once. This is what a
  *  reader looking back needs on the card's face; the calls themselves
  *  stay in the drawer. Empty for hand-made nodes. */
-export function footprint(data: Pick<ThoughtData, 'attachments'>): FootprintEntry[] {
+export function footprint(data: Pick<ThoughtData, 'steps'>): FootprintEntry[] {
   const seen = new Map<string, FootprintEntry>();
-  for (const att of data.attachments ?? []) {
-    if (!att.paths?.length || (att.op !== 'read' && att.op !== 'write' && att.op !== 'edit')) continue;
-    for (const path of att.paths) {
+  for (const step of data.steps ?? []) {
+    if (!step.paths?.length || (step.op !== 'read' && step.op !== 'write' && step.op !== 'edit')) continue;
+    for (const path of step.paths) {
       const prev = seen.get(path);
-      if (!prev) seen.set(path, { path, name: path.split('/').filter(Boolean).pop() ?? path, op: att.op });
-      else if (prev.op === 'read' && att.op !== 'read') prev.op = att.op;
+      if (!prev) seen.set(path, { path, name: path.split('/').filter(Boolean).pop() ?? path, op: step.op });
+      else if (prev.op === 'read' && step.op !== 'read') prev.op = step.op;
     }
   }
   return [...seen.values()].sort((a, b) => (a.op === 'read' ? 1 : 0) - (b.op === 'read' ? 1 : 0));

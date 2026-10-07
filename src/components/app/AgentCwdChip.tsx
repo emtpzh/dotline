@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { FolderOpen, ChevronDown, ShieldCheck, ShieldOff, X } from 'lucide-react';
+import { FolderOpen, ChevronDown } from 'lucide-react';
 import { useT } from '../../i18n';
 import { Popover, PopoverContent } from '../ui/popover';
 import { useUiStore } from '../../lib/ui-store';
 import { useProjects, setProjectAgentCwd } from '../../store/projects';
 import { useStore } from '../../store';
-import { runtimeOf, AGENT_RUNTIMES, resolveAgentCwd, mirroredCwd, setGuardMode, allowLocation, type CwdChoice } from '../../lib/agents/agent-runtime';
+import { runtimeOf, AGENT_RUNTIMES, resolveAgentCwd, mirroredCwd, type CwdChoice } from '../../lib/agents/agent-runtime';
 import { Button } from '../ui/button';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '../ui/input-group';
 import { Command, CommandGroup, CommandItem, CommandList, CommandSeparator } from '../ui/command';
 
-// Where the agent works, on the toolbar, whenever an agent model is the
+// Where the agent works, above the box that starts a line (and on the
+// toolbar where a host still shows it), whenever an agent model is the
 // pick: the chosen folder, the mirrored project, or the canvas's own
 // workspace — for a runtime without workspaces (the harness), the session
 // its chat shows, else its own default. One click shows the choices; the
@@ -19,8 +20,9 @@ import { Command, CommandGroup, CommandItem, CommandList, CommandSeparator } fro
 
 const tail = (p: string) => p.split('/').filter(Boolean).slice(-1)[0] ?? p;
 
-/** iconOnly: canvas top bar out of room — the folder name moves to the tooltip */
-export default function AgentCwdChip({ iconOnly = false }: { iconOnly?: boolean }) {
+/** iconOnly: canvas top bar out of room — the folder name moves to the tooltip;
+ *  composer: the borderless control above an ask box */
+export default function AgentCwdChip({ iconOnly = false, composer = false }: { iconOnly?: boolean; composer?: boolean }) {
   const t = useT();
   const selectedModel = useUiStore((s) => s.selectedModel);
   const activeId = useProjects((s) => s.activeId);
@@ -73,21 +75,21 @@ export default function AgentCwdChip({ iconOnly = false }: { iconOnly?: boolean 
     <div ref={rootRef} className="relative">
       {/* chrome at the default size, like the switcher and the picker it
           stands between: one row of canvas controls, one height */}
-      <Button variant="chrome"
+      <Button variant={composer ? 'ghost' : 'chrome'} size={composer ? 'sm' : 'default'}
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         // this one opens its popover by anchor, not as a PopoverTrigger, so it
         // states the open state itself — chrome keys its accent off it
         aria-expanded={open}
-        className="max-w-[220px]"
+        className={composer ? 'max-w-[220px] gap-1.5 rounded-md px-2 text-xs font-normal text-foreground hover:bg-muted aria-expanded:bg-muted' : 'max-w-[220px]'}
         title={`${t('agent.cwd')} · ${choice.cwd || t('agent.cwdSessionHint')}`}
         data-agent-cwd={choice.kind}
       >
         <FolderOpen strokeWidth={1.75} className="shrink-0" />
-        {!iconOnly && <span className="text-xs truncate font-medium">{chipLabel}</span>}
+        {!iconOnly && <span className={`text-xs truncate ${composer ? '' : 'font-medium'}`}>{chipLabel}</span>}
         <ChevronDown strokeWidth={1.75} className="shrink-0 opacity-70" />
       </Button>
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverContent anchor={rootRef} align="end" sideOffset={6} className="w-[320px] gap-0 p-0" initialFocus={listRef} onClick={(e) => e.stopPropagation()}>
+        <PopoverContent anchor={rootRef} align={composer ? 'start' : 'end'} sideOffset={6} className="w-[320px] gap-0 p-0" initialFocus={listRef} onClick={(e) => e.stopPropagation()}>
           {/* a menu of folders: cmdk owns the row metrics and the tick, so a
               two-line choice is a row that grows, not text spilling out of a button */}
           <Command ref={listRef} shouldFilter={false} className="bg-transparent">
@@ -129,52 +131,6 @@ export default function AgentCwdChip({ iconOnly = false }: { iconOnly?: boolean 
                       <FolderOpen strokeWidth={1.75} className="text-muted-foreground" />
                       <span className="flex-1 truncate text-xs text-foreground">{t('agent.cwdPick')}</span>
                     </CommandItem>
-                  </CommandGroup>
-                </>
-              )}
-              {/* the boundary guard: only a runtime that reads the guard file */}
-              {caps?.guard && (
-                <>
-                  <CommandSeparator />
-                  <CommandGroup heading={<span className="uppercase tracking-wider">{t('agent.guard')}</span>}>
-                    <CommandItem
-                      value="guard-ask"
-                      onSelect={() => { void setGuardMode('ask'); setOpen(false); }}
-                      data-checked={(meta?.agentGuard?.mode ?? 'ask') === 'ask'}
-                      data-agent-guard="ask"
-                    >
-                      <ShieldCheck strokeWidth={1.75} className="text-muted-foreground" />
-                      <span className="flex-1 min-w-0">
-                        <span className="block truncate text-xs text-foreground">{t('agent.guardAsk')}</span>
-                        <span className="block text-2xs text-muted-foreground">{t('agent.guardAskHint')}</span>
-                      </span>
-                    </CommandItem>
-                    <CommandItem
-                      value="guard-allow"
-                      onSelect={() => { void setGuardMode('allow'); setOpen(false); }}
-                      data-checked={meta?.agentGuard?.mode === 'allow'}
-                      data-agent-guard="allow"
-                    >
-                      <ShieldOff strokeWidth={1.75} className="text-muted-foreground" />
-                      <span className="flex-1 min-w-0">
-                        <span className="block truncate text-xs text-foreground">{t('agent.guardAllow')}</span>
-                        <span className="block text-2xs text-muted-foreground">{t('agent.guardAllowHint')}</span>
-                      </span>
-                    </CommandItem>
-                    {(meta?.agentGuard?.allow?.length ?? 0) > 0 && (
-                      <>
-                        <p className="px-2 pt-2 pb-1 text-2xs text-muted-foreground">{t('agent.guardAllowed')}</p>
-                        {meta!.agentGuard!.allow.map((a) => (
-                          // a standing exception is a record with an undo, not a choice to re-pick
-                          <div key={a} className="flex min-w-0 items-center gap-1 px-2 py-1" data-agent-guard-allowed={a}>
-                            <span className="min-w-0 flex-1 truncate font-mono text-2xs text-muted-foreground" title={a}>{a}</span>
-                            <Button variant="ghost" size="icon-xs" onClick={() => void allowLocation(a, true)} className="text-muted-foreground hover:text-destructive/90" title={t('agent.guardRemove')}>
-                              <X strokeWidth={2} />
-                            </Button>
-                          </div>
-                        ))}
-                      </>
-                    )}
                   </CommandGroup>
                 </>
               )}

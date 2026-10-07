@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand';
-import type { ThoughtNode, ThoughtEdge } from '../../types';
+import type { ThoughtNode, ThoughtEdge, AgentAccess } from '../../types';
 import { generateId, countTokens } from '../../utils';
 import { healLegacyNoteEdges, autoLayout, estimateNodeHeight, nodeHeight, placeNewNodes, reseatSubtree } from '../../lib/layout';
 import { getDescendantIds, walkUpAncestors } from '../../lib/graph';
@@ -438,7 +438,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
     get().pushHistory();
   },
 
-  setNodeIntent: (nodeId: string, intent: { model?: string; effort?: string; cwd?: string }) => {
+  setNodeIntent: (nodeId: string, intent: { model?: string; effort?: string; cwd?: string; access?: AgentAccess }) => {
     set((state) => ({
       nodes: state.nodes.map((n) =>
         n.id === nodeId ? { ...n, data: { ...n.data, ...intent } } : n

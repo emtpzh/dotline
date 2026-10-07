@@ -1,7 +1,8 @@
-import type { ThoughtNode } from '../types';
+import type { AgentStep, ThoughtNode } from '../types';
 import type { ThoughtEdge } from '../types';
 import { partitionContext, type ContextReference } from '../lib/graph';
-import { attachmentFingerprint } from '../lib/attachments';
+import { attachmentFingerprint } from '../lib/attachment-fingerprint';
+import { stepAsAttachment, stepSummary, legacyStepSummary } from '../lib/agents/steps';
 import { countTokens } from '../utils';
 import { fuzzyHighlightRegex } from '../lib/highlight-match';
 import type { ContextMessage, ImageAttachment } from '../lib/api';
@@ -25,7 +26,7 @@ export interface MessageSource {
   attachmentId?: string;
   /** reference blocks: the referenced (dashed-edge source) node */
   refSourceId?: string;
-  part?: 'role' | 'attachment' | 'question' | 'response' | 'reference' | 'passage';
+  part?: 'role' | 'attachment' | 'step' | 'question' | 'response' | 'reference' | 'passage';
 }
 
 interface BuildContextResult {
@@ -101,7 +102,12 @@ export function hashContext(messages: ContextMessage[], images: ImageAttachment[
  * drifts from the recorded one, the answer is STALE: it was written
  * against upstream content that no longer exists.
  */
-export function upstreamFingerprint(nodeId: string, nodes: ThoughtNode[], edges: ThoughtEdge[]): string {
+export function upstreamFingerprint(
+  nodeId: string, nodes: ThoughtNode[], edges: ThoughtEdge[],
+  /** the steps' summary line as canvases from before steps wrote it — only
+      to check those canvases' recorded fingerprints (store/lift) */
+  opts?: { legacySummary?: boolean },
+): string {
   // Fingerprints track CONTENT and STRUCTURE, never the compression view:
   // collapse state and auto-generated summaries are normalized away, so a
   // background summary arriving (or a card being folded) never fakes an
@@ -115,10 +121,10 @@ export function upstreamFingerprint(nodeId: string, nodes: ThoughtNode[], edges:
       summaries: undefined,
       summaryTypes: undefined,
       generatedBy: undefined,
-      ...(n.id === nodeId ? { question: '', response: '', attachments: [] } : {}),
+      ...(n.id === nodeId ? { question: '', response: '', attachments: [], steps: [], includedStepIds: undefined } : {}),
     },
   }));
-  const { messages } = buildContext(nodeId, normalized, edges);
+  const { messages } = buildContext(nodeId, normalized, edges, undefined, undefined, undefined, undefined, opts);
   return hashContext(messages);
 }
 
@@ -194,6 +200,7 @@ export function buildContext(
       enter downstream context with an explicit stale mark, so the
       transcript never silently contradicts itself. */
   staleIds?: ReadonlySet<string> | string[],
+  format?: { legacySummary?: boolean },
 ): BuildContextResult {
   const messages: ContextMessage[] = [];
   const images: ImageAttachment[] = [];
@@ -220,21 +227,8 @@ export function buildContext(
 
   const pushAttachments = (node: ThoughtNode, layer: 'material' | 'chain') => {
     const attSource = (att: { id: string }): MessageSource => ({ layer, nodeId: node.id, attachmentId: att.id, part: 'attachment' });
-    // an agent turn's tool outputs left out of context still leave their
-    // footprint: which files the turn touched, so the model can ask for
-    // the current contents instead of trusting a stale copy
-    const pointers = new Map<string, Set<string>>();
-    let pointerSource: { id: string } | null = null;
     for (const att of node.data.attachments || []) {
-      if (excludeSet.has(att.id)) {
-        if (att.op && att.paths?.length) {
-          pointerSource ??= att;
-          const set = pointers.get(att.op) ?? new Set<string>();
-          for (const p of att.paths) set.add(p.split('/').filter(Boolean).pop() ?? p);
-          pointers.set(att.op, set);
-        }
-        continue;
-      }
+      if (excludeSet.has(att.id)) continue;
       const fp = attachmentFingerprint(att);
       if (seenAttachmentFingerprints.has(fp)) continue;
       seenAttachmentFingerprints.add(fp);
@@ -277,11 +271,32 @@ export function buildContext(
         sources.push(attSource(att));
       }
     }
-    if (pointers.size > 0 && pointerSource) {
-      const parts = [...pointers.entries()].map(([op, set]) => `${op}: ${[...set].join(', ')}`);
-      const where = node.data.agentSession?.cwd ?? node.data.importSource?.cwd;
-      messages.push({ role: 'user', content: `[Files this turn touched${where ? ` in ${where}` : ''} — contents not included] ${parts.join('; ')}` });
-      sources.push(attSource(pointerSource));
+    pushSteps(node, layer);
+  };
+
+  // An agent turn's steps: the ones the person brought in go in full (an
+  // imported turn's, from before steps, by default); the rest leave one
+  // line saying what the turn did, outputs left out, so the model can ask
+  // for current contents instead of trusting a stale copy.
+  const pushSteps = (node: ThoughtNode, layer: 'material' | 'chain') => {
+    const steps = node.data.steps ?? [];
+    if (steps.length === 0) return;
+    const own = new Set(node.data.includedStepIds ?? []);
+    const left: AgentStep[] = [];
+    for (const step of steps) {
+      if (excludeSet.has(step.id) || !(own.has(step.id) || includeOverrides.has(step.id))) { left.push(step); continue; }
+      const att = stepAsAttachment(step);
+      const fp = attachmentFingerprint(att);
+      if (seenAttachmentFingerprints.has(fp)) continue;
+      seenAttachmentFingerprints.add(fp);
+      messages.push({ role: 'user', content: `[File: ${att.name}]\n${att.content}` });
+      sources.push({ layer, nodeId: node.id, part: 'step' });
+    }
+    const where = node.data.agentSession?.cwd ?? node.data.importSource?.cwd;
+    const line = (format?.legacySummary ? legacyStepSummary : stepSummary)(left, where);
+    if (line) {
+      messages.push({ role: 'user', content: line });
+      sources.push({ layer, nodeId: node.id, part: 'step' });
     }
   };
 

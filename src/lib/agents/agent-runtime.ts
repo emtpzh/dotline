@@ -8,8 +8,11 @@
 // THE CONTRACT — the only things this file asks of a runtime, whichever it
 // is (Pi, Codex, Claude Code, and the harness's own agent loop when the
 // canvas runs inside it):
-//   1. start a run on a working directory with one prompt (and, if the
-//      person chose one, an effort level in the runtime's own words); abort it
+//   1. start a run on a working directory with one prompt at an access level
+//      (read / write, as the runtime's own permission mode, for a runtime
+//      that has one; nothing beyond it is asked on the canvas — the CLI
+//      refuses it, a failed tool call like any other) and, if the person
+//      chose one, an effort level in the runtime's own words; abort it
 //   2. an event stream carrying eight kinds, nothing else is read:
 //        session · text · reasoning · tool_start · tool_end · question ·
 //        end · error  (plus fs_changes, which the shell produces itself)
@@ -20,7 +23,7 @@
 
 import type { ContextMessage, ImageAttachment, StreamCallbacks } from '../api';
 import type { ModelInfo } from '../use-models';
-import type { AgentRuntime, ThoughtNode } from '../../types';
+import type { AgentRuntime, AgentStep, ThoughtNode } from '../../types';
 import { useUiStore } from '../ui-store';
 import { useStore } from '../../store';
 import { continuity, linkOf, type SessionLink } from './continuity';
@@ -229,7 +232,6 @@ async function materialsToDisk(nodeId: string | undefined, cwd: string): Promise
     for (const n of nodes) {
       if (!seen.has(n.id)) continue;
       for (const att of n.data.attachments ?? []) {
-        if (att.op || /^(tool|🔧|⌨️)/.test(att.name)) continue; // tool footprints are not materials
         if (names.has(att.name) || files.length >= 40) continue;
         const isPdf = /^application\/pdf/.test(att.type);
         const isImage = att.type.startsWith('image/');
@@ -335,7 +337,12 @@ export async function agentCallStream(
   // '' leaves the directory to a runtime that has a default of its own
   if (cwd === undefined || (!cwd && caps.workspace)) throw new Error('no working directory for this canvas');
   const { question, context } = compileForAgent(messages);
-  if (caps.guard) await writeGuard(cwd);
+  // the node's own level and access (its intent, or what its last turn ran
+  // at), the global ones only for a node that has neither
+  const data = nodeId ? useStore.getState().nodes.find((n) => n.id === nodeId)?.data : undefined;
+  const intent = intentOf(data);
+  // a runtime without levels runs as it would in the terminal
+  const access = caps.access ? intent.access ?? (intent.model ? 'read' : useUiStore.getState().agentAccess) : undefined;
   // a continued or forked session already holds the conversation: only the
   // question travels (the context rides along for a runtime that has to
   // fall back to a fresh session)
@@ -343,14 +350,7 @@ export async function agentCallStream(
   const materials = inherits || !cwd ? '' : await materialsToDisk(nodeId, cwd);
   const ahead = [context, materials].filter(Boolean).join('\n\n');
   const prompt = !inherits && ahead ? `${ahead}\n\n---\n\n${question}` : question;
-  // the node's own level (its intent, or what its last turn ran at), the
-  // global one only for a node that has neither
-  const data = nodeId ? useStore.getState().nodes.find((n) => n.id === nodeId)?.data : undefined;
-  const intent = intentOf(data);
   const effort = data?.effort !== undefined || intent.model ? intent.effort : (useUiStore.getState().agentEffort || undefined);
-  // what this conversation already allowed for good: every 'allowed-session'
-  // decision on this canvas whose rule belongs to this runtime
-  const allowRules = [...new Set(useStore.getState().nodes.flatMap((n) => (n.data.approvals ?? []).filter((a) => a.outcome === 'allowed-session' && typeof a.rule === 'string' && a.rule.startsWith(target.runtime === 'claude-code' ? 'claude:' : target.runtime + ':')).map((a) => a.rule as string)))];
   subscribe();
 
   let full = '';
@@ -366,7 +366,7 @@ export async function agentCallStream(
       // the bare harness entry names no model: the session keeps its own
       ...(target.id ? { model: { provider: target.provider, id: target.id } } : {}),
       ...(effort ? { effort } : {}),
-      ...(allowRules.length ? { allowRules } : {}),
+      ...(access ? { access } : {}),
     }).then((runId) => {
       const stop = () => { void bridge.abort(runId); };
       if (signal?.aborted) { stop(); }
@@ -382,6 +382,7 @@ export async function agentCallStream(
               sessionId: (event.sessionId as string | null) ?? null,
               sessionFile: (event.sessionFile as string | null) ?? null,
               cwd: (event.cwd as string) ?? cwd,
+              ...(access ? { access } : {}),
               ...(typeof event.effort === 'string' && event.effort ? { effort: event.effort } : {}),
             });
             break;
@@ -412,7 +413,7 @@ export async function agentCallStream(
             break;
           }
           case 'question_answered':
-            callbacks?.onApprovalDecided?.({ ...(event.auto ? { auto: true, name: String(event.title ?? ''), query: String(event.message ?? ''), rule: typeof event.rule === 'string' ? event.rule : null } : {}), id: String(event.id), outcome: (event.outcome as import('../../types').ApprovalOutcome) ?? 'cancelled', value: typeof event.value === 'string' ? event.value : null });
+            callbacks?.onApprovalDecided?.({ id: String(event.id), outcome: (event.outcome as import('../../types').ApprovalOutcome) ?? 'cancelled', value: typeof event.value === 'string' ? event.value : null });
             break;
           case 'question':
             callbacks?.onApproval?.({
@@ -423,9 +424,6 @@ export async function agentCallStream(
               placeholder: typeof event.placeholder === 'string' ? event.placeholder : null,
               prefill: typeof event.prefill === 'string' ? event.prefill : null,
               channel: { runId },
-              paths: Array.isArray(event.paths) ? (event.paths as string[]) : [],
-              suggest: typeof event.suggest === 'string' ? event.suggest : null,
-              rule: typeof event.rule === 'string' ? event.rule : null,
             });
             break;
           case 'fs_changes':
@@ -489,7 +487,7 @@ async function turnInFile(loc: { rootKey: string; rel: string }, question: strin
 }
 
 /** After an agent run: the node becomes the mirror of the turn the runtime just wrote —
- *  the turn's tool calls as attachments (footprints), provenance
+ *  the turn's tool calls as its steps, provenance
  *  (runner, session, item ids, cwd), the source snapshot — and the canvas
  *  subscribes to the session so turns added later, from the terminal,
  *  append here. The live sweep never appends this turn a second time: the
@@ -505,19 +503,18 @@ export async function adoptAgentTurn(nodeId: string, session: AgentSessionRef, q
     if (typeof found === 'string') return why(found);
     const { idx, turn } = found;
     const conv = { sessionId: found.sessionId };
-    const toolAtts = turn.data.attachments ?? [];
+    const toolSteps = turn.data.steps ?? [];
     // what the file system saw change, beyond what the tools declared:
-    // a shell redirect, a script's output — one footprint attachment
-    const fsAtt = fsFootprint(session, toolAtts);
-    const agentAtts = fsAtt ? [...toolAtts, fsAtt] : toolAtts;
+    // a shell redirect, a script's output — one more step
+    const fsStep = fsFootprint(session, toolSteps);
     useStore.setState((st) => ({
       nodes: st.nodes.map((n) => n.id === nodeId
         ? { ...n, data: {
             ...n.data,
-            attachments: [...(n.data.attachments ?? []).filter((a) => !a.op), ...agentAtts],
-            // footprints are pointers, not contents: an agent turn's tool
-            // outputs stay out of downstream context unless brought back by hand
-            excludedAttachmentIds: [...new Set([...(n.data.excludedAttachmentIds ?? []), ...agentAtts.map((a) => a.id)])],
+            // the turn's own steps, replacing an earlier run's: their
+            // outputs stay out of downstream context unless brought in by hand
+            steps: fsStep ? [...toolSteps, fsStep] : toolSteps,
+            includedStepIds: undefined,
             importSource: turn.data.importSource,
             // the snapshot is what Pi recorded — the compiled context ahead of
             // the question — so the node reads as edited (the question as
@@ -625,58 +622,17 @@ export async function reconcilePendingAgentTurns(): Promise<void> {
   recheck = again ? setTimeout(() => { recheck = null; void reconcilePendingAgentTurns(); }, SETTLE_MS / 2) : null;
 }
 
-/** The active canvas's guard tuning, as the guard file expects it. */
-export async function guardConfig(): Promise<{ mode: 'ask' | 'allow'; allow: string[] }> {
-  try {
-    const { useProjects } = await import('../../store/projects');
-    const { projects, activeId } = useProjects.getState();
-    const g = projects.find((p) => p.id === activeId)?.agentGuard;
-    return { mode: g?.mode === 'allow' ? 'allow' : 'ask', allow: g?.allow ?? [] };
-  } catch { return { mode: 'ask', allow: [] }; }
-}
-
-/** Write the guard file for a working directory (the run's, or the
- *  canvas's current one when omitted). */
-export async function writeGuard(cwd?: string): Promise<void> {
-  if (!window.desktopAgents) return;
-  const dir = cwd ?? (await resolveAgentCwd())?.cwd;
-  if (!dir) return;
-  try { await window.desktopAgents.guardWrite(dir, await guardConfig()); } catch { /* the guard falls back to asking */ }
-}
-
-/** Switch the active canvas's guard mode, effective for the run in progress. */
-export async function setGuardMode(mode: 'ask' | 'allow'): Promise<void> {
-  const { useProjects, setProjectAgentGuard } = await import('../../store/projects');
-  const { projects, activeId } = useProjects.getState();
-  if (!activeId) return;
-  const g = projects.find((p) => p.id === activeId)?.agentGuard;
-  await setProjectAgentGuard(activeId, { mode, allow: g?.allow ?? [] });
-  await writeGuard();
-}
-
-/** Let a directory through from now on for the active canvas (and the
- *  run in progress); `remove` takes it back. */
-export async function allowLocation(dir: string, remove = false): Promise<void> {
-  const { useProjects, setProjectAgentGuard } = await import('../../store/projects');
-  const { projects, activeId } = useProjects.getState();
-  if (!activeId) return;
-  const g = projects.find((p) => p.id === activeId)?.agentGuard;
-  const allow = remove ? (g?.allow ?? []).filter((a) => a !== dir) : [...new Set([...(g?.allow ?? []), dir])];
-  await setProjectAgentGuard(activeId, { mode: g?.mode ?? 'ask', allow });
-  await writeGuard();
-}
-
-/** One attachment naming the files the file system saw change during the
- *  turn that the tools did not already declare — absolute paths, op
- *  "write", the why layer's join key like any footprint. */
+/** One step naming the files the file system saw change during the turn
+ *  that the tools did not already declare — absolute paths, op "write",
+ *  the why layer's join key like any footprint. */
 function fsFootprint(
   session: { cwd: string; changes?: { changed: string[]; added: string[]; removed: string[]; truncated?: boolean } },
-  toolAtts: import('../../types').Attachment[],
-): import('../../types').Attachment | null {
+  steps: AgentStep[],
+): AgentStep | null {
   const ch = session.changes;
   if (!ch) return null;
   const declared = new Set<string>();
-  for (const a of toolAtts) for (const p of a.paths ?? []) declared.add(p.startsWith('/') ? p : `${session.cwd.replace(/\/$/, '')}/${p}`);
+  for (const a of steps) for (const p of a.paths ?? []) declared.add(p.startsWith('/') ? p : `${session.cwd.replace(/\/$/, '')}/${p}`);
   const changed = [...ch.changed, ...ch.added].filter((p) => !declared.has(p));
   const removed = ch.removed.filter((p) => !declared.has(p));
   if (changed.length === 0 && removed.length === 0 && !ch.truncated) return null;
@@ -685,8 +641,5 @@ function fsFootprint(
   if (changed.length) lines.push('Changed on disk during this turn (seen by the file system, not declared by a tool):', ...changed.map((p) => '- ' + rel(p)));
   if (removed.length) lines.push('Removed:', ...removed.map((p) => '- ' + rel(p)));
   if (ch.truncated) lines.push('(the directory was too large to scan completely)');
-  return {
-    id: `fs-${Date.now().toString(36)}`, name: 'tool: fs-changes', type: 'text/plain', size: 0,
-    content: lines.join('\n'), op: 'write', paths: [...changed, ...removed],
-  } as import('../../types').Attachment;
+  return { id: `fs-${Date.now().toString(36)}`, tool: 'fs-changes', op: 'write', call: '', result: lines.join('\n'), paths: [...changed, ...removed] };
 }

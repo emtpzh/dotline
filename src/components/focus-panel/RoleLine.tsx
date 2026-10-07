@@ -11,8 +11,10 @@ import { Button } from '../ui/button';
 // The panel's summary kicker: role · tokens · materials, in one quiet line
 // at the top. One role model: a rolePrompt on a node is the system prompt
 // for it and everything downstream along solid wires, until the next node
-// that sets one. ANY node can set, rename or clear its own; an inherited
-// role says where it was set, and that node is one click away.
+// that sets one. A node that has one can rename or clear it; an inherited
+// role says where it was set, and that node is one click away. Setting a
+// new one is no longer offered here: the ask boxes have no roles either
+// (perspectives still set them).
 
 export default function RoleLine({
   nodeId,
@@ -48,8 +50,8 @@ export default function RoleLine({
   return (
     <div className="flex-1 min-w-0">
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0 h-8">
-        <UserCog size={13} strokeWidth={1.75} className="shrink-0" />
-        {!editing && (<>
+        {(own || inheritedFrom) && <UserCog size={13} strokeWidth={1.75} className="shrink-0" />}
+        {!editing && (own || inheritedFrom) && (<>
         {own ? (
           <Button variant="ghost" size="xs" onClick={open} data-role-own
             className="px-1 font-medium text-foreground hover:underline decoration-dotted underline-offset-2 truncate max-w-[45%] shrink-0"
@@ -65,15 +67,8 @@ export default function RoleLine({
             >
               {fmt(t('role.inheritedFrom'), { x: shortName(inheritedFrom.data) })}
             </Button>
-            {!isViewerMode && (
-              <Button variant="ghost" size="xs" onClick={open} className="px-1 hover:text-foreground shrink-0">+ {t('role.set')}</Button>
-            )}
           </>
-        ) : !isViewerMode ? (
-          <Button variant="ghost" size="xs" onClick={open} className="px-1 hover:text-foreground shrink-0">+ {t('role.set')}</Button>
-        ) : (
-          <span className="italic shrink-0">{t('role.noRoleSet')}</span>
-        )}
+        ) : null}
         <span className="shrink-0">·</span>
         </>)}
         <span className="shrink-0 text-muted-foreground">{data.tokenCount} tok</span>

@@ -5,6 +5,7 @@ import { isViewerMode } from '../lib/viewer';
 import type { ThoughtNode } from '../types';
 import type { StoreState, PersistedState } from './types';
 import { buildContext } from './context-builder';
+import { liftCanvas } from './lift';
 import { createHistorySlice } from './slices/history';
 import { createNodeSlice } from './slices/nodes';
 import { createLlmSlice } from './slices/llm';
@@ -64,8 +65,8 @@ export const useStore = create<StoreState>()(persist((...a) => ({
   }),
   merge: (persisted, current) => {
     const p = (persisted ?? { nodes: [], edges: [] }) as PersistedState;
-    const nodes = stripTransient(p.nodes ?? []);
     const edges = (p.edges ?? []).map((e) => e.selected ? { ...e, selected: false } : e);
+    const nodes = liftCanvas(stripTransient(p.nodes ?? []), edges);
     return {
       ...current,
       nodes,

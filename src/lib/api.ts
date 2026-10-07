@@ -24,10 +24,10 @@ const PDF_EXTRACT_URL = `${API_BASE}/api/pdf-extract`;
     withdrawal, through the agent lane that runs the turn. False when
     nothing was waiting under that id any more — the runtime withdrew it,
     or the turn ended. */
-export type QuestionAnswer = { confirmed: boolean; /** 'session': allow this for the rest of the conversation, not once */ scope?: 'session' } | { value: string } | { cancelled: true };
-export async function answerApproval(request: { id: string; channel?: { runId: string } }, answer: QuestionAnswer | 'allowed-once' | 'allowed-session' | 'rejected'): Promise<boolean> {
+export type QuestionAnswer = { confirmed: boolean } | { value: string } | { cancelled: true };
+export async function answerApproval(request: { id: string; channel?: { runId: string } }, answer: QuestionAnswer | 'allowed-once' | 'rejected'): Promise<boolean> {
   const id = request.id;
-  const a: QuestionAnswer = typeof answer === 'string' ? { confirmed: answer !== 'rejected', ...(answer === 'allowed-session' ? { scope: 'session' as const } : {}) } : answer;
+  const a: QuestionAnswer = typeof answer === 'string' ? { confirmed: answer !== 'rejected' } : answer;
   if (!request.channel?.runId || !window.desktopAgents) return false;
   try { return await window.desktopAgents.answer(request.channel.runId, id, a); } catch { return false; }
 }
@@ -183,11 +183,11 @@ export interface StreamCallbacks {
   /** An agent runtime in the desktop app: what changed on disk during the turn. */
   onAgentChanges?: (changes: { changed: string[]; added: string[]; removed: string[]; truncated?: boolean }) => void;
   /** An agent runtime in the desktop app: which session this turn ran in. */
-  onAgentSession?: (session: { runtime: import('../types').AgentRuntime; sessionId: string | null; sessionFile: string | null; cwd: string }) => void;
-  /** An agent runtime asks whether one action may proceed; the turn waits. */
+  onAgentSession?: (session: { runtime: import('../types').AgentRuntime; sessionId: string | null; sessionFile: string | null; cwd: string; access?: import('../types').AgentAccess; effort?: string }) => void;
+  /** An agent runtime asks the person something (a pick, a text, an extension's yes/no); the turn waits. */
   onApproval?: (request: Omit<import('../types').ApprovalRequest, 'askedAt'>) => void;
   /** The runtime learned the decision (the person's, or a cancellation). */
-  onApprovalDecided?: (decision: { id: string; outcome: import('../types').ApprovalOutcome; value?: string | null; /** decided by a standing rule, nobody asked: the record is made from these */ auto?: boolean; name?: string; query?: string; rule?: string | null }) => void;
+  onApprovalDecided?: (decision: { id: string; outcome: import('../types').ApprovalOutcome; value?: string | null }) => void;
   /** The chosen model cannot see images: a vision model answers instead. */
   onRerouted?: (from: string, to: string) => void;
   /** The request is leaving — exactly this payload, after every image

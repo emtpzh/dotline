@@ -3,7 +3,7 @@ import { makeNode, type ImportableConversation } from '../import-chat';
 import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
 import {
-  turnsToBranch, seedPlaque, toolAttachments, dropSelfCommandTurns, toolOpOf, clipText,
+  turnsToBranch, seedPlaque, toolSteps, dropSelfCommandTurns, toolOpOf, clipText,
   toolPaths, toolScope, renderCall as renderArgCall,
   ARTIFACT_CALL_LIMIT, TOOL_CALL_LIMIT, TOOL_RESULT_LIMIT, type RunnerTool,
 } from './shared';
@@ -317,7 +317,7 @@ export function buildGraphFromTurns(turns: DshTurn[], sessionId: string, cwd?: s
     const node = makeNode(turn.question || '(tool-only turn)', turn.response, prev === null);
     node.data.importSource = { runner: 'dsh', sessionId, itemIds: turn.itemIds, ...origin };
     node.data.source = { question: node.data.question, response: node.data.response };
-    node.data.attachments = toolAttachments(turn);
+    node.data.steps = toolSteps(turn);
     seedPlaque(node);
     nodes.push(node);
     if (prev) edges.push({ id: generateId(), source: prev.id, target: node.id, type: 'smoothstep' } as ThoughtEdge);

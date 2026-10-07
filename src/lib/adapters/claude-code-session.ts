@@ -3,7 +3,7 @@ import { makeNode, type ImportableConversation } from '../import-chat';
 import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
 import { toolScope, toolPaths, renderCall,
-  turnsToBranch, seedPlaque, toolAttachments, dropSelfCommandTurns, markImporterNote, toolOpOf, clipText,
+  turnsToBranch, seedPlaque, toolSteps, dropSelfCommandTurns, markImporterNote, toolOpOf, clipText,
   TOOL_CALL_LIMIT, ARTIFACT_CALL_LIMIT, TOOL_RESULT_LIMIT, type RunnerTool,
 } from './shared';
 
@@ -292,7 +292,7 @@ function buildGraphFromTurns(turns: Turn[], sessionId: string, cwd?: string): { 
     node.data.importSource = { runner: 'claude-code', sessionId, itemIds: turn.itemIds, ...origin };
     node.data.source = { question: node.data.question, response: node.data.response };
     seedPlaque(node);
-    node.data.attachments = toolAttachments(turn);
+    node.data.steps = toolSteps(turn);
     nodes.push(node);
     // the REAL parent first (Esc-rewind forks the session tree; the
     // wire must fork with it — a line to the abandoned turn would put

@@ -1,8 +1,12 @@
 // Claude Code as an agent runtime: one `claude -p` process per turn, spoken
 // to in stream-json both ways. The turn's text and thinking arrive as
 // content-block deltas, tool calls as tool_use blocks with their
-// tool_result, permission prompts as control requests answered on stdin
-// (`--permission-prompt-tool stdio`), the end as a result message. A session
+// tool_result, the end as a result message. The turn runs at the canvas's
+// access level as Claude Code's own permission mode (read: `default`, where
+// only reads go through; write: `acceptEdits`). Nobody is asked on the
+// canvas: what that mode would ask about, Claude Code refuses by itself in
+// print mode, and the model hears so as a failed tool call. The person's
+// own allow rules in Claude Code's settings still apply. A session
 // continues with `--resume`, branches with `--fork-session`. Claude Code
 // keeps its session files under ~/.claude/projects, its login and its model
 // aliases; the shell only asks. Same event kinds as the other runtimes.
@@ -101,14 +105,8 @@ async function sessionFileFor(cwd, sessionId) {
 // UUID of its own (a project path that names a session), so take the LAST
 const sessionIdOf = (sessionPath) => { const all = String(sessionPath ?? '').match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi); return all && all.length ? all[all.length - 1] : null; };
 
-/** The guard file the canvas writes per working directory, as a permission mode. */
-async function permissionModeFor(cwd) {
-  try {
-    const raw = JSON.parse(await fsp.readFile(path.join(cwd, '.thoughtdag', 'guard.json'), 'utf8'));
-    if (raw?.mode === 'allow') return 'bypassPermissions';
-  } catch { /* default */ }
-  return 'default';
-}
+/** The permission mode for the canvas's access level. */
+const permissionModeFor = (access) => (access === 'write' ? 'acceptEdits' : 'default');
 
 function createClaudeRuntime({ log } = {}) {
   const say = log || (() => {});
@@ -134,9 +132,8 @@ function createClaudeRuntime({ log } = {}) {
       if (!b) throw new Error('claude is not installed (no `claude` on PATH or in the usual places)');
       const runId = randomUUID();
       const emit = (event) => { try { onEvent({ runId, event }); } catch { /* renderer gone */ } };
-      const state = { runId, proc: null, asks: new Map(), text: '', final: null, sessionId: null, waiting: false, ended: false, aborted: false,
-        // what this conversation already allowed for good (see README: `rule`)
-        allowRules: new Set(Array.isArray(req.allowRules) ? req.allowRules.filter((s) => typeof s === 'string' && s.startsWith('claude:')) : []) };
+      const access = req.access === 'write' ? 'write' : 'read';
+      const state = { runId, proc: null, asks: new Map(), text: '', final: null, sessionId: null, waiting: false, ended: false, aborted: false };
       runs.set(runId, state);
 
       void (async () => {
@@ -146,11 +143,10 @@ function createClaudeRuntime({ log } = {}) {
         let watchdog = null;
         const before = await snapshotDir(cwd).catch(() => null);
         try {
-          const mode = await permissionModeFor(cwd);
+          const mode = permissionModeFor(access);
           const model = req.model && typeof req.model === 'object' && req.model.id && req.model.id !== 'default' ? req.model.id : null;
           const resumeId = req.sessionPath ? sessionIdOf(req.sessionPath) : null;
           const args = ['-p', '--output-format', 'stream-json', '--input-format', 'stream-json', '--verbose', '--include-partial-messages', '--permission-mode', mode];
-          if (mode !== 'bypassPermissions') args.push('--permission-prompt-tool', 'stdio');
           if (model) args.push('--model', model);
           // only a level the CLI itself lists; anything else means its default
           if (req.effort && (await effortsOf(b)).includes(req.effort)) args.push('--effort', req.effort);
@@ -209,33 +205,10 @@ function createClaudeRuntime({ log } = {}) {
               case 'user':
                 for (const b of m.message?.content ?? []) if (b.type === 'tool_result') mark({ type: 'tool_execution_end', toolCallId: b.tool_use_id, toolName: '', result: typeof b.content === 'string' ? b.content : JSON.stringify(b.content ?? null).slice(0, 4000), isError: !!b.is_error });
                 break;
-              case 'control_request': {
-                const r = m.request ?? {};
-                if (r.subtype !== 'can_use_tool') { write(proc, { type: 'control_response', response: { subtype: 'error', request_id: m.request_id, error: 'unsupported request' } }); break; }
-                const id = `q-${m.request_id}`;
-                const input = r.input ?? {};
-                const line = typeof input.command === 'string' ? input.command : (input.file_path ?? input.path ?? JSON.stringify(input).slice(0, 200));
-                // the CLI's own "don't ask again" suggestion names what a standing
-                // allowance covers; sent back scoped to the session, never to settings
-                const suggest = (Array.isArray(r.permission_suggestions) ? r.permission_suggestions : []).find((s) => s && s.type === 'addRules' && Array.isArray(s.rules) && s.rules.length);
-                const rule = suggest ? 'claude:' + JSON.stringify(suggest.rules.map((x) => ({ toolName: x.toolName, ...(x.ruleContent ? { ruleContent: x.ruleContent } : {}) }))) : null;
-                const allow = (forSession) => write(proc, { type: 'control_response', response: { subtype: 'success', request_id: m.request_id, response: { behavior: 'allow', updatedInput: input, ...(forSession && suggest ? { updatedPermissions: [{ ...suggest, destination: 'session' }] } : {}) } } });
-                const title = `${r.tool_name ?? 'tool'} needs approval`;
-                if (rule && state.allowRules.has(rule)) {
-                  allow(true);
-                  mark({ type: 'question_answered', id, outcome: 'allowed-session', value: null, auto: true, title, message: line, rule });
-                  break;
-                }
-                state.asks.set(id, (answer) => {
-                  const yes = !!answer?.confirmed;
-                  const forSession = yes && answer?.scope === 'session' && !!rule;
-                  if (forSession) state.allowRules.add(rule);
-                  if (yes) allow(forSession); else write(proc, { type: 'control_response', response: { subtype: 'success', request_id: m.request_id, response: { behavior: 'deny', message: 'the person did not allow this step' } } });
-                  mark({ type: 'question_answered', id, outcome: yes ? (forSession ? 'allowed-session' : 'allowed-once') : 'rejected', value: null, ...(forSession ? { rule } : {}) });
-                });
-                mark({ type: 'question', kind: 'confirm', id, rule, title, message: [line, r.description].filter(Boolean).join('\n'), options: [], placeholder: null, prefill: null, paths: [], suggest: null });
+              case 'control_request':
+                // nothing is handed to the canvas to decide
+                write(proc, { type: 'control_response', response: { subtype: 'error', request_id: m.request_id, error: 'unsupported request' } });
                 break;
-              }
               case 'result':
                 state.final = typeof m.result === 'string' ? m.result : null;
                 if (m.subtype && m.subtype !== 'success') mark({ type: 'run_error', message: String(m.result ?? m.subtype) });

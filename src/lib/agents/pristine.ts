@@ -5,10 +5,6 @@
 import type { ThoughtEdge, ThoughtNode } from '../../types';
 import { partitionContext } from '../graph';
 
-/** An attachment that came out of the session itself (a tool call's
- *  footprint), not one the person added on the canvas. */
-const fromSession = (a: { op?: unknown; name: string }): boolean => !!a.op || /^(tool|🔧|⌨️)/.test(a.name);
-
 /** Why the canvas's context for a node has moved away from what its session
  *  recorded — each one a reason a follow-up cannot lean on that session. */
 export type Unpristine =
@@ -55,7 +51,12 @@ export function whyNotPristine(nodeId: string, nodes: ThoughtNode[], edges: Thou
     if (d.question !== src.question && !(q && src.question.trimEnd().endsWith(q))) return true;
     if (d.response !== src.response) return true;
     const excluded = new Set(d.excludedAttachmentIds ?? []);
-    return !(d.attachments ?? []).every((a) => excluded.has(a.id) || fromSession(a));
+    // an image the question carried went into the session with it; one
+    // added after the turn last ran is the canvas's own
+    const sentImage = (a: { type: string; addedAt?: string }) =>
+      a.type.startsWith('image/') && (!a.addedAt || !d.lastGeneratedAt || a.addedAt <= d.lastGeneratedAt);
+    // the turn's steps are the session's own record: only attachments can differ
+    return !(d.attachments ?? []).every((a) => excluded.has(a.id) || sentImage(a));
   });
   return edited ? { reason: 'edited', nodeId: edited.id } : null;
 }

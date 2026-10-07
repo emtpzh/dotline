@@ -3,7 +3,7 @@ import { makeNode, type ImportableConversation } from '../import-chat';
 import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
 import {
-  turnsToBranch, seedPlaque, toolAttachments, dropSelfCommandTurns, toolOpOf, clipText,
+  turnsToBranch, seedPlaque, toolSteps, dropSelfCommandTurns, toolOpOf, clipText,
   ARTIFACT_CALL_LIMIT, TOOL_CALL_LIMIT, TOOL_RESULT_LIMIT, type RunnerTool,
 } from './shared';
 
@@ -215,7 +215,7 @@ export function buildGraphFromTurns(turns: PiTurn[], sessionId: string, cwd?: st
     const node = makeNode(turn.question || '(tool-only turn)', turn.response, prev === null);
     node.data.importSource = { runner: 'pi', sessionId, itemIds: turn.itemIds, ...origin };
     node.data.source = { question: node.data.question, response: node.data.response };
-    node.data.attachments = toolAttachments(turn);
+    node.data.steps = toolSteps(turn);
     seedPlaque(node);
     nodes.push(node);
     const parent = turn.parentItemId ? byItem.get(turn.parentItemId) : undefined;

@@ -17,8 +17,9 @@ export type SessionBreak =
   | 'attachment' | 'passage' | 'edited' | 'no-fork' | 'unfollowed' | 'missing';
 
 export type Continuity =
-  /** only the question travels: the session holds the conversation */
-  | { kind: 'continue'; parentId: string; runtime: AgentRuntime; sessionId: string }
+  /** only the question travels: the session holds the conversation; `turn`
+      is the turn of the session the question becomes */
+  | { kind: 'continue'; parentId: string; runtime: AgentRuntime; sessionId: string; turn: number }
   /** a new session holding the conversation up to the parent's turn */
   | { kind: 'fork'; parentId: string; runtime: AgentRuntime; sessionId: string; turn: number }
   /** a new session carrying the canvas's compiled text, nothing else */
@@ -98,7 +99,7 @@ export function continuity(
   if (why) return broken(why.reason, 'nodeId' in why ? { about: why.nodeId } : {});
   if (incoming.length !== 1) return broken('reference');
   const entry = ledger.find((e) => e.runner === runtime && e.sessionId && e.tailNodeId === parentId);
-  if (entry) return { kind: 'continue', parentId, runtime, sessionId: entry.sessionId };
+  if (entry) return { kind: 'continue', parentId, runtime, sessionId: entry.sessionId, turn: turnNumber(parent, session.sessionId, byId, edges) + 1 };
   const src = parent.data.importSource;
   if (AGENT_RUNTIMES[runtime].caps.forkAt && src?.runner === runtime && src.sessionId && src.itemIds?.length) {
     return { kind: 'fork', parentId, runtime, sessionId: src.sessionId, turn: turnNumber(parent, src.sessionId, byId, edges) };

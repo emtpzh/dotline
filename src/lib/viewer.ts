@@ -1,4 +1,5 @@
 import type { ThoughtNode, ThoughtEdge } from '../types';
+import { liftSteps } from './agents/steps';
 
 // Read-only viewer: the link IS the canvas. Graph data travels in the URL
 // hash (#view=<deflate+base64url>), so nothing touches a server and the
@@ -79,7 +80,10 @@ export async function bootViewer(): Promise<void> {
   // isViewerMode at creation time, so no early set() can race this boot)
   const { useStore } = await import('../store');
   try {
-    const { nodes, edges } = await decodeViewerHash(window.location.hash);
+    const decoded = await decodeViewerHash(window.location.hash);
+    const { edges } = decoded;
+    // a link made before steps carries tool calls as attachments
+    const nodes = liftSteps(decoded.nodes);
     useStore.setState({
       nodes,
       edges,

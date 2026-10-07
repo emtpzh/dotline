@@ -24,6 +24,7 @@ const { lineModel, intentOf, inheritIntent, effectiveIntent, intentFields, lineC
 const PI = 'pi/deepseek/deepseek-v4-flash';
 const HARNESS = 'harness/agent/deepseek-official/deepseek-flash';
 const API = 'deepseek-official/deepseek-flash';
+const CLAUDE = 'claude/opus';
 const GLOBAL = { model: API };
 
 /** A node's data as the canvas stores it; only the fields intents read. */
@@ -74,11 +75,27 @@ test('an unasked node reads its parents until it has an intent of its own', () =
   assert.deepEqual(effectiveIntent({ ...unasked, model: API }, [parent], GLOBAL), { model: API });
 });
 
-test('the fields a node is written with carry effort only for agent entries', () => {
-  assert.deepEqual(intentFields({ model: PI }), { model: PI, effort: '' });
-  assert.deepEqual(intentFields({ model: PI, effort: 'high' }), { model: PI, effort: 'high' });
-  assert.deepEqual(intentFields({ model: API, effort: 'high' }), { model: API, effort: undefined });
-  assert.deepEqual(intentFields({}), { model: undefined, effort: undefined });
+test('the fields a node is written with carry effort for agent entries, access for those with levels', () => {
+  assert.deepEqual(intentFields({ model: CLAUDE }), { model: CLAUDE, effort: '', access: 'read' });
+  assert.deepEqual(intentFields({ model: CLAUDE, effort: 'high', access: 'write' }), { model: CLAUDE, effort: 'high', access: 'write' });
+  // Pi has no read-only mode: it takes no level
+  assert.deepEqual(intentFields({ model: PI, effort: 'high', access: 'read' }), { model: PI, effort: 'high', access: undefined });
+  assert.deepEqual(intentFields({ model: HARNESS, access: 'write' }), { model: HARNESS, effort: '', access: undefined });
+  assert.deepEqual(intentFields({ model: API, effort: 'high', access: 'write' }), { model: API, effort: undefined, access: undefined });
+  assert.deepEqual(intentFields({}), { model: undefined, effort: undefined, access: undefined });
+});
+
+test('the access level travels down a line, and only where the parents agree', () => {
+  const defaults = { model: PI, access: 'read' };
+  // a node's own level, else the one its last turn ran at
+  assert.deepEqual(intentOf(node({ model: PI, access: 'write' })), { model: PI, access: 'write' });
+  assert.deepEqual(intentOf(node({ agentSession: { runtime: 'pi', model: PI, cwd: '/p', access: 'write' }, generatedBy: [PI] })), { model: PI, access: 'write' });
+  // a child inherits its parent's level
+  assert.deepEqual(inheritIntent([node({ model: PI, access: 'write' })], defaults), { model: PI, access: 'write' });
+  // parents that disagree start from the default level
+  assert.deepEqual(inheritIntent([node({ model: PI, access: 'write' }), node({ model: PI, access: 'read' })], defaults), { model: PI, access: 'read' });
+  // a plain model has no level
+  assert.deepEqual(intentOf(node({ model: API, access: 'write' })), { model: API });
 });
 
 test('a node keeps the directory it runs in, whatever the canvas default says later', () => {

@@ -44,10 +44,6 @@ export interface ProjectMeta {
       person chose one; absent = the mirrored project, else the canvas's
       own workspace. */
   agentCwd?: string;
-  /** How the agent's boundary guard behaves for this canvas: ask on every
-      step outside the working directory (default), or let everything
-      through; `allow` lists directories that never ask. */
-  agentGuard?: { mode: 'ask' | 'allow'; allow: string[] };
   /** Archived = hidden from the dropdown and Recent work, data untouched.
       Tidying and destroying are different verbs. */
   archived?: boolean;
@@ -284,13 +280,6 @@ export async function createProject(name = 'Untitled', kind: 'chat' | 'paradigm'
 export async function setProjectAgentCwd(id: string, cwd: string | undefined): Promise<void> {
   useProjects.setState((s) => ({
     projects: s.projects.map((p) => (p.id === id ? { ...p, agentCwd: cwd } : p)),
-  }));
-  await saveMeta();
-}
-
-export async function setProjectAgentGuard(id: string, guard: { mode: 'ask' | 'allow'; allow: string[] } | undefined): Promise<void> {
-  useProjects.setState((s) => ({
-    projects: s.projects.map((p) => (p.id === id ? { ...p, agentGuard: guard } : p)),
   }));
   await saveMeta();
 }

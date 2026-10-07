@@ -20,14 +20,15 @@ import { convergeRun } from '../converge';
 export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, get) => ({
   addQuestion: async (question: string, opts: AddQuestionOptions = {}) => {
     if (condenseGuard()) return;
-    const { parentId, branchContext, branchYRatio, inheritRole, rolePrompt, roleName, initialAttachments, excludeAllInheritedAttachments, mentions } = opts;
+    const { parentId, branchContext, branchYRatio, inheritRole, rolePrompt, roleName, initialAttachments, excludeAllInheritedAttachments, mentions, intent: asked } = opts;
     const id = generateId();
     get().logEvent('ask', id, { chars: question.length, ...(parentId ? {} : { root: true }), ...(branchContext ? { branch: true } : {}) });
     const isRoot = !parentId;
     // Model follows the LINE, not the toolbar: a child takes its parent's
     // intent (model and effort), so a Pi thread stays Pi even while the
     // global picker sits on something else; only a root starts from the pick.
-    const intent = intentFields(parentId ? inheritIntent([get().nodes.find((n) => n.id === parentId)?.data], globalIntent()) : globalIntent());
+    // The ask box may have changed it for this question: what it showed is what runs.
+    const intent = intentFields(asked?.model ? asked : parentId ? inheritIntent([get().nodes.find((n) => n.id === parentId)?.data], globalIntent()) : globalIntent());
     const newNode: ThoughtNode = {
       id,
       type: 'thought',
