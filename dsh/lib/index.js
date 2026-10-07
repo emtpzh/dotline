@@ -189,14 +189,22 @@ function allEvents(session) {
   return session.events ?? []
 }
 
+/** A live session's title: the session's own field where it has one; harness
+ *  0.2 keeps it only as the log's latest session/title event. */
+function titleOfSession(session) {
+  if (session.displayTitle !== undefined) return session.displayTitle
+  const events = allEvents(session)
+  for (let i = events.length - 1; i >= 0; i--) if (events[i]?.type === 'session/title') return events[i].data?.title ?? null
+  return null
+}
+
 /** Session list the bridge exposes: identity + a cheap title, never the log. */
 function sessionSummary(session) {
   const header = session.header ?? {}
-  const meta = header.meta ?? {}
   return {
     id: session.id,
-    title: session.displayTitle ?? null,
-    cwd: meta.cwd ?? null,
+    title: titleOfSession(session),
+    cwd: cwdOfSession(session),
     parentSession: header.parentSession ?? undefined,
     createdAt: header.createdAt ?? null,
     firstLiveSeq: session.firstLiveSeq ?? null,
@@ -215,8 +223,8 @@ function sessionToJsonl(session) {
   const header = session.header ?? {}
   const hdr = { type: 'session', version: 0, id: session.id }
   if (header.createdAt !== undefined) hdr.createdAt = header.createdAt
-  const meta = header.meta
-  if (meta?.cwd !== undefined) hdr.cwd = meta.cwd
+  const cwd = cwdOfSession(session)
+  if (cwd !== null) hdr.cwd = cwd
   // fork lineage, exactly as the on-disk header carries it: who the parent
   // is and how many leading events are inherited (a reader of the log tells
   // the child's own turns from the prefix by seq >= seedLength)
@@ -699,7 +707,7 @@ async function runHarnessTurn(ctx, turn, sink, { signal, ask } = {}) {
   if (!sessionId) sessionId = (await ctx.sessionController.create({ ...(turn.cwd ? { cwd: turn.cwd } : {}) })).sessionId
   const hasImages = turn.images.length > 0
   if (hasImages) {
-    const vm = await visionModel(ctx).catch(() => null)
+    const vm = await visionModel(ctx, turn.model).catch(() => null)
     if (vm) await ctx.sessionController.selectModel({ sessionId, provider: vm.provider, model: vm.model }).catch(() => {})
   }
   // the model the canvas picked for this turn, unless images already moved
@@ -906,10 +914,19 @@ function argsObject(a) {
   return {}
 }
 
-/** A vision-capable model id ("provider/model") from the catalog, or null. */
-async function visionModel(ctx) {
+/** A model that takes images, by the same test the model list marks them
+ *  with: the one the canvas picked when it can, else the catalog's first.
+ *  Names say nothing — no model in harness 0.2's catalog is called "vision". */
+async function visionModel(ctx, preferred = null) {
   const cat = await ctx.sessionController.modelCatalog()
-  for (const g of cat.groups ?? []) for (const m of g.models ?? []) if (/vision/i.test(m.id) || /vision/i.test(m.name ?? '')) return { provider: g.id, model: m.id }
+  const groups = cat.groups ?? []
+  const pick = preferred && groups.find(g => g.id === preferred.provider)
+  if (pick && (await visionIdsOf(ctx, pick.id, pick.models ?? [])).has(preferred.model)) return preferred
+  for (const g of groups) {
+    const vision = await visionIdsOf(ctx, g.id, g.models ?? [])
+    const m = (g.models ?? []).find(x => vision.has(x.id))
+    if (m) return { provider: g.id, model: m.id }
+  }
   return null
 }
 

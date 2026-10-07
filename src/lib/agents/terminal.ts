@@ -10,17 +10,23 @@ import { t } from '../../i18n';
 
 /** Runtimes whose CLI the host can resume in a terminal (runtime/terminal.cjs). */
 const TERMINAL_RUNNERS = new Set(['claude-code', 'codex', 'pi']);
+/** Inside the harness a harness session has no terminal: the bridge stages it
+ *  in the harness's own chat instead (dsh-bridge's openInCli). */
+const IN_HARNESS = !!import.meta.env.VITE_DSH_BRIDGE;
 
 type Source = Pick<ThoughtData, 'agentSession' | 'importSource'>;
 
 /** The session a node's turn lives in, as a terminal would resume it; null
- *  when there is none, or its runtime has no terminal to resume in. */
-export function terminalTarget(data: Source | undefined): { runner: string; cwd: string | null; sessionId: string } | null {
+ *  when there is none, or its runtime has no terminal to resume in. `inChat`:
+ *  a harness session inside the harness, which opens back in its chat. */
+export function terminalTarget(data: Source | undefined): { runner: string; cwd: string | null; sessionId: string; inChat: boolean } | null {
   if (!data || !window.desktopSessions) return null;
   const runner = data.agentSession?.runtime ?? data.importSource?.runner;
   const sessionId = data.agentSession?.sessionId ?? data.importSource?.sessionId;
-  if (!runner || !sessionId || !TERMINAL_RUNNERS.has(runner)) return null;
-  return { runner, cwd: data.agentSession?.cwd ?? data.importSource?.cwd ?? null, sessionId };
+  if (!runner || !sessionId) return null;
+  const inChat = IN_HARNESS && runner === 'dsh';
+  if (!inChat && !TERMINAL_RUNNERS.has(runner)) return null;
+  return { runner, cwd: data.agentSession?.cwd ?? data.importSource?.cwd ?? null, sessionId, inChat };
 }
 
 /** Resume the node's session in a terminal; where no terminal opens, the
@@ -30,6 +36,7 @@ export async function continueInTerminal(data: Source | undefined): Promise<void
   if (!target) return;
   const r = await window.desktopSessions!.openInCli(target.runner, target.cwd, target.sessionId, 'terminal')
     .catch(() => ({ opened: false, via: '' as const, command: '' }));
+  if (target.inChat) return; // the harness switches to the chat in plain view
   if (r.opened) toast('success', t('atlas.opened'));
   else if (r.command) {
     await navigator.clipboard.writeText(r.command).catch(() => {});

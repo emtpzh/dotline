@@ -256,6 +256,18 @@ test('a turn the harness ends in an error is the run\'s error, not an empty answ
   assert.deepEqual(events.at(-1), { type: 'run_error', message: 'no API key' })
 })
 
+test('a question with images runs on a model that takes them, whatever it is called', async () => {
+  const png = { type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' }
+  // the picked model cannot see: the catalog's model that can takes the turn
+  const a = fakeHarness()
+  await runToEnd(createDshRuntime(a.ctx), { runtime: 'dsh', cwd: '/p', prompt: 'Q', question: 'Q', images: [png], model: { provider: 'ds', id: 'lite' } })
+  assert.deepEqual(a.log.selected, [{ sessionId: 'session-1', provider: 'ds', model: 'v4' }])
+  // the picked model can: it keeps the turn
+  const b = fakeHarness()
+  await runToEnd(createDshRuntime(b.ctx), { runtime: 'dsh', cwd: '/p', prompt: 'Q', question: 'Q', images: [png], model: { provider: 'ds', id: 'v4' } })
+  assert.deepEqual(b.log.selected, [{ sessionId: 'session-1', provider: 'ds', model: 'v4' }])
+})
+
 test('a session path names its session', () => {
   assert.equal(sessionIdOfPath('~/.dsh/sessions/session-a/session.jsonl.zstd'), 'session-a')
   assert.equal(sessionIdOfPath('/Users/x/.dsh/sessions/-Users-x-proj/session-b/session.jsonl.zstd'), 'session-b')

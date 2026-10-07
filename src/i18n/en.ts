@@ -230,6 +230,7 @@ export const en = {
   'access.ranWrite': 'ran with edits allowed',
   'agent.continueInTerminal': 'Continue in terminal',
   'agent.continueInTerminalTitle': 'Open this session in the terminal with its own CLI; what you approve there and the turns you add grow back onto this line',
+  'agent.openInChatTitle': 'Back to this session in the chat; turns you add there grow back onto this line',
   'composer.runtime': 'Runs on',
   'composer.chatModels': 'Chat model',
   'composer.chatHint': 'Runs elsewhere: no directory, no session',

@@ -1,4 +1,4 @@
-import { FolderOpen, SquareTerminal, Pin } from 'lucide-react';
+import { FolderOpen, MessageSquare, SquareTerminal, Pin } from 'lucide-react';
 import { useT } from '../../i18n';
 import { useProjects, setProjectAgentCwd } from '../../store/projects';
 import { toast } from '../../lib/ui-store';
@@ -26,6 +26,7 @@ export default function AgentSessionLine({ data }: { data: ThoughtData }) {
   const isOwnWorkspace = !chosen && !!activeId && cwd.endsWith(`/workspaces/${activeId}`);
   const canPin = !!window.desktopAgents && !!activeId && chosen !== cwd && !isOwnWorkspace;
   const short = cwd.split('/').filter(Boolean).slice(-2).join('/');
+  const target = terminalTarget(data);
 
   return (
     <div className="rounded-xl border border-border bg-card px-3 py-2 flex items-center gap-2 text-xs min-w-0" data-agent-session-line>
@@ -40,9 +41,9 @@ export default function AgentSessionLine({ data }: { data: ThoughtData }) {
           <FolderOpen strokeWidth={1.75} />
         </Button>
       )}
-      {terminalTarget(data) && (
-        <Button variant="ghost" onClick={() => void continueInTerminal(data)} disabled={data.isLoading} className="text-muted-foreground hover:text-primary shrink-0" title={t('agent.continueInTerminalTitle')}>
-          <SquareTerminal strokeWidth={1.75} />
+      {target && (
+        <Button variant="ghost" onClick={() => void continueInTerminal(data)} disabled={data.isLoading} className="text-muted-foreground hover:text-primary shrink-0" title={target.inChat ? t('agent.openInChatTitle') : t('agent.continueInTerminalTitle')}>
+          {target.inChat ? <MessageSquare strokeWidth={1.75} /> : <SquareTerminal strokeWidth={1.75} />}
         </Button>
       )}
       {canPin && (

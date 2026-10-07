@@ -230,6 +230,7 @@ export const zh: Record<keyof typeof en, string> = {
   'access.ranWrite': '可改运行',
   'agent.continueInTerminal': '在终端继续',
   'agent.continueInTerminalTitle': '用原生命令行在终端里打开这个会话；在那里批准的操作和新的回合会接回这一列',
+  'agent.openInChatTitle': '回到对话里的这个会话；在那里接着问的回合会接回这一列',
   'composer.runtime': '在哪运行',
   'composer.chatModels': '对话模型',
   'composer.chatHint': '不在本机运行，没有目录和会话',

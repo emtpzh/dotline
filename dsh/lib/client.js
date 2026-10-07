@@ -36,8 +36,8 @@
 //
 // Same pattern as dsh-synapse: window.__ModuleLoader__.load with a module
 // whose inject lists the client services it reads (sessions, slots) and whose
-// apply registers the entry. `layout` is looked up rather than injected, so
-// a host without it still loads the plugin and falls back to the switch. react is a platform seed module — the loader's
+// apply registers the entry. `layout` is awaited inside apply rather than
+// injected, so a host without it still loads the plugin and keeps the switch. react is a platform seed module — the loader's
 // require answers it from the module table, so the bundle stays tiny.
 
 window.__ModuleLoader__.load({
@@ -48,9 +48,16 @@ window.__ModuleLoader__.load({
 
     module.exports.inject = ['sessions', 'slots']
     module.exports.apply = ctx => {
+      const lookup = name => { try { return ctx.get(name) ?? undefined } catch { return undefined } }
+      // 0.2 moved the chat's session out of the sessions service: the
+      // workspace UI (`uiWorkspace`) opens one and remembers which is shown
+      const workspaceUi = () => {
+        const ui = lookup('uiWorkspace')
+        return typeof ui?.openSession === 'function' ? ui : undefined
+      }
       const currentSession = () => {
         const snapshot = ctx.sessions.list.getSnapshot()
-        const id = snapshot.current
+        const id = snapshot.current ?? workspaceUi()?.selection?.getSnapshot?.()?.sessionId
         if (id === undefined) return null
         const session = snapshot.byId[id]
         return session === undefined ? null : { id, title: session.displayTitle ?? null, cwd: session.cwd ?? null }
@@ -241,10 +248,10 @@ window.__ModuleLoader__.load({
         renderDrag()
       }
 
-      const layout = (() => { try { return ctx.get('layout') } catch { return undefined } })()
-      const panels = layout !== undefined && layout !== null && typeof layout.selectPanel === 'function'
       const PANEL_ID = 'thoughtdag'
-      const backToChat = () => (panels ? layout.selectPanel(null) : setMap(false))
+      // the host's global panels, while its layout service is there
+      let layout = null
+      const backToChat = () => (layout ? layout.selectPanel(null) : setMap(false))
 
       // the panel only holds the canvas's place; the layer above it is the canvas
       const Panel = () => {
@@ -302,15 +309,14 @@ window.__ModuleLoader__.load({
         )
       }
 
-      if (panels) {
-        ctx.slots.inject('main', () =>
-          ctx.slots.register({ name: 'main', key: PANEL_ID }, Panel),
-        )
-        ctx.slots.inject('sidebar.panellist', () =>
-          ctx.slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order: 50, label: '思维图' }, Glyph),
-        )
-      } else {
-        ctx.slots.inject('conversation.session.header.actions', () =>
+      // The entry follows the layout service, not what was there when this
+      // file ran: at boot the layout plugin may provide it after this one is
+      // applied, and a one-time look then found nothing and left the canvas
+      // without its sidebar row until the plugin was reloaded. The header
+      // switch stands in while no layout service is there.
+      let disposeSwitch = null
+      const showSwitch = () => {
+        disposeSwitch ??= ctx.slots.inject('conversation.session.header.actions', () =>
           ctx.slots.register({
             name: 'conversation.session.header.actions',
             id: 'thoughtdag-view-switch',
@@ -318,6 +324,24 @@ window.__ModuleLoader__.load({
           }, Switch),
         )
       }
+      showSwitch()
+      ctx.inject(['layout'], scope => {
+        if (typeof scope.layout?.selectPanel !== 'function') return
+        disposeSwitch?.()
+        disposeSwitch = null
+        if (mapState) setMap(false)
+        layout = scope.layout
+        scope.slots.inject('main', () =>
+          scope.slots.register({ name: 'main', key: PANEL_ID }, Panel),
+        )
+        scope.slots.inject('sidebar.panellist', () =>
+          scope.slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order: 50, label: '思维图' }, Glyph),
+        )
+        scope.effect(() => () => {
+          layout = null
+          showSwitch()
+        }, 'thoughtdag: global panel')
+      })
 
       backBtn.addEventListener('click', backToChat)
 
@@ -337,10 +361,15 @@ window.__ModuleLoader__.load({
         // the canvas forked or continued a session: stage it and go back to the
         // chat, which now shows exactly the context the canvas produced
         if (event.data.type === 'td:select-session' && typeof event.data.session === 'string') {
-          // 0.1.2 renamed the selector: the ISessions contract exposes open(id);
-          // older runtimes (0.1.1) still call it select
-          const select = ctx.sessions.open ?? ctx.sessions.select
-          select.call(ctx.sessions, event.data.session)
+          // 0.2 opens it through the workspace UI; before that the ISessions
+          // contract did (open(id) since 0.1.2, select(id) in 0.1.1)
+          try {
+            const ui = workspaceUi()
+            if (ui) ui.openSession(event.data.session)
+            else (ctx.sessions.open ?? ctx.sessions.select).call(ctx.sessions, event.data.session)
+          } catch (error) {
+            console.warn('[dsh-thoughtdag] could not open session', event.data.session, error)
+          }
           if (event.data.close !== false) backToChat()
           syncCurrent()
         }
