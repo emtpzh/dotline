@@ -26,6 +26,7 @@ const STATE_KEY = {
   running: 'face.running',
   upstream: 'paradigm.waitingUpstream',
   stale: 'node.staleBadge',
+  unlinked: 'content.unlinked',
 } as const;
 
 export function StateMark({ state, onClick, title }: { state: FaceState; onClick?: (e: React.MouseEvent) => void; title?: string }) {
@@ -57,7 +58,7 @@ export function ActionMarks({ marks }: { marks: ActionMark[] }) {
 
 /** Layer 1, the name row: shape · name · tags · actions · state, then
  *  whatever controls the working card needs (never shown on the map). */
-export function FaceName({ shape, tone, name, marks, state, stateMark, trailing, tags, className = '' }: {
+export function FaceName({ shape, tone, name, marks, state, stateMark, trailing, tags, onMarks, className = '' }: {
   shape: FaceShape;
   tone: FaceTone;
   /** null until the node has a real name — the question right below
@@ -71,14 +72,23 @@ export function FaceName({ shape, tone, name, marks, state, stateMark, trailing,
   /** marks that belong to this node alone, right after its name: the role
       it was set to, that it reruns itself, the session it left */
   tags?: ReactNode;
+  /** the working card's marks open where they are spelled out (the
+      panel's files); the map's are read only */
+  onMarks?: () => void;
   className?: string;
 }) {
+  const t = useT();
   return (
     <div className={`tdag-l1 ${className}`} data-tone={tone}>
       <span className="tdag-shape" data-shape={shape} />
       {name && <span className="tdag-name" title={name}>{name}</span>}
       {tags}
-      <ActionMarks marks={marks} />
+      {onMarks && marks.length > 0 ? (
+        <Button variant="ghost" size="xs" className="nodrag h-auto px-1 -mx-1 font-normal" title={t('node.detailsTitle')}
+          onClick={(e) => { e.stopPropagation(); onMarks(); }} data-marks-open>
+          <ActionMarks marks={marks} />
+        </Button>
+      ) : <ActionMarks marks={marks} />}
       <span className="flex-1" />
       {stateMark ?? (state && <StateMark state={state} />)}
       {trailing}
@@ -86,7 +96,9 @@ export function FaceName({ shape, tone, name, marks, state, stateMark, trailing,
   );
 }
 
-/** Layers 2 + 3 folded: the question in two lines, the conclusion in one. */
+/** Layers 2 + 3 folded: the question in two lines, the conclusion in one —
+ *  told apart by weight and tone, no marker (the line is the judged takeaway
+ *  or, until one arrives, the answer's own words). */
 export function FaceBody({ question, placeholder, conclusion }: { question: string; placeholder: string; conclusion: string | null }) {
   return (
     <>

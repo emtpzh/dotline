@@ -32,6 +32,9 @@ const MCP_KEY = 'thoughtdag.mcpTools';
 const AUTO_PAUSE_KEY = 'thoughtdag.autoRefreshPaused';
 const HIDE_ANNOTATIONS_KEY = 'thoughtdag.hideAnnotations';
 
+/** Panel sections a card can point into. */
+export type PanelSection = 'refs' | 'highlights' | 'turn';
+
 interface UiState {
   toasts: ToastItem[];
   confirmRequest: ConfirmRequest | null;
@@ -46,6 +49,9 @@ interface UiState {
   /** Panel mode: opened by double-clicking a node, closed via its X. While
    *  on, the panel follows the selection; single clicks only select. */
   panelOpen: boolean;
+  /** One-shot landing spot in the panel: the section a card's quiet line
+      ("5 sources · 2 highlights") points at, consumed once scrolled to. */
+  panelSection: PanelSection | null;
   /** Half-typed inputs keyed by surface (e.g. follow:<nodeId>) — survive
       node/panel switches within the session, cleared on submit. */
   drafts: Record<string, string>;
@@ -169,6 +175,8 @@ interface UiState {
   setViewerLoadError: (v: boolean) => void;
   setReaderNodeId: (id: string | null, jump?: { page?: number; threadId?: string }) => void;
   setPanelOpen: (open: boolean) => void;
+  /** Open the panel (on the selected node) and scroll it to a section. */
+  openPanelAt: (section: PanelSection | null) => void;
   setSelectedModel: (model: string | null) => void;
   setAgentEffort: (level: AgentEffort) => void;
   setAgentAccess: (access: AgentAccess) => void;
@@ -212,6 +220,8 @@ export const useUiStore = create<UiState>((set, get) => ({
     set({ mcpEnabled: enabled });
   },
   setPanelOpen: (open) => set({ panelOpen: open }),
+  panelSection: null,
+  openPanelAt: (section) => set({ panelOpen: true, panelSection: section }),
   setPanelWidth: (w) => set({ panelWidth: w }),
   roleLib: (() => {
     try {

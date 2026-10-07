@@ -100,7 +100,7 @@ export default function ResponseViewer() {
             {data.isLoading && (!data.response || data.restreaming) ? (
               data.reasoning ? (
                 <div>
-                  <div className="text-2xs text-muted-foreground mb-1">💭 {t('node.reasoningLive')}</div>
+                  <div className="text-2xs text-muted-foreground mb-1">{t('node.reasoningLive')}</div>
                   <div className="text-xs text-muted-foreground italic leading-relaxed whitespace-pre-wrap break-words">{data.reasoning}</div>
                 </div>
               ) : (

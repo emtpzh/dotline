@@ -15,7 +15,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import 'highlight.js/styles/github.css';
-import { ArrowLeft, ArrowRight, BookOpen, Bot, Brain, CircleHelp, Download, Eye, FileText, Frame, GitBranch, Highlighter, ImageDown, KeyRound, LayoutGrid, Loader2, MessageCircleQuestion, MoreHorizontal, Paperclip, Redo2, Scissors, Search, Share2, SquareTerminal, Stethoscope, StickyNote, Trash2, Undo2, Workflow, X, ListRestart, FolderSync, Minimize2, Rewind, History as HistoryIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Bot, Brain, CircleHelp, Download, Eye, FileText, Frame, GitBranch, Highlighter, ImageDown, KeyRound, LayoutGrid, Link2, Loader2, MessageCircleQuestion, MoreHorizontal, Paperclip, Redo2, Scissors, Search, Share2, SquareTerminal, Stethoscope, StickyNote, Trash2, Undo2, Workflow, X, ListRestart, FolderSync, Minimize2, Rewind, History as HistoryIcon } from 'lucide-react';
 import './index.css';
 import ThoughtNode from './components/ThoughtNode';
 import ParadigmNode from './components/ParadigmNode';
@@ -1132,6 +1132,9 @@ function Canvas() {
         onConnect={onConnect}
         onConnectStart={onConnectStart}
         onConnectEnd={onConnectEnd}
+        // a click on a handle is the card's "ask below" (ThoughtNode), not
+        // the first half of a click-to-connect
+        connectOnClick={false}
         onEdgeContextMenu={onEdgeContextMenu}
         onNodeContextMenu={onNodeContextMenu}
         nodeTypes={nodeTypes}
@@ -1502,6 +1505,15 @@ function Canvas() {
             className="text-warning hover:bg-warning/10"
           >
             <StickyNote strokeWidth={1.75} />
+          </Button>
+          {/* a link card starts empty: its name slot takes the address */}
+          <Button variant="ghost" size="icon"
+            onPointerDown={(e) => paletteDrag(e, (screen) => spawnContentNode('link', flowPosAt(screen)))}
+            title={t('palette.linkTitle')}
+            className="text-primary hover:bg-primary/10"
+            data-palette-link
+          >
+            <Link2 strokeWidth={1.75} />
           </Button>
           <Button variant="ghost" size="icon"
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnContentNode('file', flowPosAt(screen)))}

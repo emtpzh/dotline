@@ -45,7 +45,7 @@ export default function HighlightsSection({
   };
 
   return (
-    <div className="panel-card px-4 py-3">
+    <div className="panel-card px-4 py-3" data-panel-section="highlights">
       <details className="group">
         <summary className="text-2xs font-semibold text-warning cursor-pointer hover:text-warning/90 transition-colors flex items-center gap-1.5 select-none">
           <ChevronRight size={12} strokeWidth={1.75} className="transition-transform group-open:rotate-90" />

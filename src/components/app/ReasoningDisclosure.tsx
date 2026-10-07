@@ -18,7 +18,7 @@ export default function ReasoningDisclosure({ text }: { text: string }) {
         data-reasoning-toggle
       >
         {open ? <ChevronDown strokeWidth={1.75} /> : <ChevronRight strokeWidth={1.75} />}
-        <span>💭 {t('node.reasoning')}</span>
+        <span>{t('node.reasoning')}</span>
       </Button>
       {open && (
         <div className="mt-1.5 px-3 py-2 bg-muted/70 rounded-xl text-xs text-muted-foreground italic leading-relaxed whitespace-pre-wrap break-words max-h-[240px] overflow-y-auto nowheel nodrag cursor-text" data-reasoning-body>

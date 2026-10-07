@@ -28,7 +28,10 @@ code, pre {
 }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 5px; }
+/* height is the horizontal bar's thickness (code blocks, wide tables):
+   without it Chromium draws its ~15px default under every long line */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-corner { background: transparent; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--input); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }

@@ -18,17 +18,15 @@ const isContentKind = (node: ThoughtNode) => CONTENT_KINDS.has(node.data.stepKin
 export function estimateNodeHeight(node: ThoughtNode): number {
   if (node.data.isCollapsed) return COLLAPSED_LAYOUT_HEIGHT;
   // Calibrated against measured DOM heights (2026-08): CJK markdown renders
-  // ~1px per char at card width before the 400px CSS cap, chrome (header +
-  // takeaway line + follow-up input + paddings) runs ~215px, and each
-  // highlight row adds its own line. Under-estimating here is what made
-  // map-mode relayout overlap once zoomed back in.
+  // ~1px per char at card width before the 400px CSS cap; chrome (name row
+  // + takeaway line + the answer's one action row + paddings) runs ~130px
+  // since the follow-up box and the highlight row left the card (2026-10).
+  // Under-estimating here is what made map-mode relayout overlap once
+  // zoomed back in.
   const questionH = Math.min(180, 40 + (node.data.question || '').length / 1.2);
   const responseH = Math.min(400, (node.data.response || '').length / 1.05);
-  const highlightsH = (node.data.highlights?.length ?? 0) * 26;
-  // tool fingerprints + composition bar render an extra header row on
-  // imported turns — un-counted, tool-heavy codex cards overlapped
   const insightH = (node.data.attachments?.length ?? 0) > 0 ? 30 : 0;
-  const estimated = 215 + questionH + responseH + highlightsH + insightH;
+  const estimated = 130 + questionH + responseH + insightH;
   return Math.max(260, Math.min(930, estimated));
 }
 

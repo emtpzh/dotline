@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { describeModel } from '../../lib/use-models';
 import { AlertTriangle, ChevronLeft, ChevronRight, Copy, Maximize2, RefreshCw, Trash2, Pencil } from 'lucide-react';
 import { useStore } from '../../store';
 import { isFactNode } from '../../lib/facts';
@@ -137,7 +136,7 @@ export default function ResponseSection({
       ) : data.isLoading && (!data.response || data.restreaming) ? (
         data.reasoning ? (
           <div className="py-1">
-            <div className="text-2xs text-muted-foreground mb-1">💭 {t('node.reasoningLive')}</div>
+            <div className="text-2xs text-muted-foreground mb-1">{t('node.reasoningLive')}</div>
             <div ref={streamRef} className="text-xs text-muted-foreground italic leading-relaxed whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto">
               {data.reasoning.length > 4000 ? '…' + data.reasoning.slice(-4000) : data.reasoning}
             </div>
@@ -221,14 +220,6 @@ export default function ResponseSection({
               <Pencil strokeWidth={1.75} />
             </Button>
           )}
-          {(data.generatedBy?.[data.responseIndex]) && (
-            <span
-              className="text-2xs text-muted-foreground font-mono ml-1 truncate flex-1 min-w-0 max-w-[420px]"
-              title={`${t('node.generatedByTitle')} · ${describeModel(data.generatedBy[data.responseIndex], data.generatedEfforts?.[data.responseIndex])}`}
-            >
-              {describeModel(data.generatedBy[data.responseIndex], data.generatedEfforts?.[data.responseIndex])}
-            </span>
-          )}
           {hasMultipleVersions && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground ml-1">
               <Button variant="ghost" size="icon-sm" onClick={() => navigateVersion(nodeId, 'prev')} className="hover:text-primary hover:bg-accent"><ChevronLeft strokeWidth={1.75} /></Button>
@@ -248,7 +239,7 @@ export default function ResponseSection({
 
       {/* Web references consulted for this response */}
       {data.references && data.references.length > 0 && !data.isLoading && (
-        <div className="mt-3 pt-2 border-t border-border/60">
+        <div className="mt-3 pt-2 border-t border-border/60" data-panel-section="refs">
           <p className="text-2xs text-muted-foreground font-medium mb-1.5">{t('refs.title')}</p>
           <ol className="space-y-1">
             {data.references.map((r, i) => (

@@ -9,7 +9,8 @@ import type { NodeRoute } from './edge-look';
 // slot says. Expanded shows all four, the folded / map face the first
 // three, the far view only the name row reduced to its shape and name.
 
-export type FaceState = 'failed' | 'wait' | 'running' | 'upstream' | 'stale';
+/** 'unlinked' is material's own: on the canvas, read by no one (no wire out). */
+export type FaceState = 'failed' | 'wait' | 'running' | 'upstream' | 'stale' | 'unlinked';
 export type FaceTone = 'primary' | 'explore' | 'warning' | 'muted';
 /** Two kinds of things on a canvas: a turn (round) and material (square). */
 export type FaceShape = 'round' | 'square';

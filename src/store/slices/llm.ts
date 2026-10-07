@@ -331,6 +331,45 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     return id;
   },
 
+  askFrom: (parentId, opts = {}) => {
+    if (condenseGuard()) return null;
+    const { nodes, edges } = get();
+    const parent = nodes.find((n) => n.id === parentId);
+    if (!parent) return null;
+    get().pushHistory();
+    const id = generateId();
+    const isBranch = !!opts.branchContext;
+    const newNode: ThoughtNode = {
+      id, type: 'thought', position: { x: 0, y: 0 }, dragHandle: '.drag-handle',
+      data: {
+        question: '',
+        // the line's intent, shown (and changeable) on the new card's box
+        ...intentFields(inheritIntent([parent.data], globalIntent())),
+        createdAt: new Date().toISOString(),
+        response: '', responses: [], responseIndex: -1,
+        isCollapsed: false, isEditing: false, isEditingResponse: false, isLoading: false,
+        tokenCount: 0, branchContext: opts.branchContext,
+        highlights: [], highlightMode: 'tag',
+        attachments: [], excludedAttachmentIds: [], includedAttachmentIds: [],
+        roleMode: 'inherit', isRoot: false, isBranch,
+        webSearch: useUiStore.getState().webSearchEnabled,
+        scholarSearch: useUiStore.getState().scholarSearchEnabled,
+      },
+    };
+    const edge: ThoughtEdge = {
+      id: `edge-${parentId}-${id}`,
+      source: parentId,
+      target: id,
+      sourceHandle: isBranch ? 'branch' : 'continue',
+      targetHandle: isBranch ? 'left' : 'top',
+      type: 'smoothstep',
+      data: isBranch ? { isBranchFromSelection: true, branchYRatio: opts.branchYRatio ?? 0.5 } : {},
+    };
+    const allEdges = [...edges, edge];
+    set({ nodes: placeNewNodes([...nodes, newNode], allEdges, [id]), edges: allEdges, selectedNodeId: id, selectedNodeIds: [] });
+    return id;
+  },
+
   submitHumanTurn: (nodeId: string, question: string) => {
     if (condenseGuard()) return;
     const q = question.trim();
@@ -383,6 +422,29 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       const intent = intentFields(nodeIntent(nodeId, get().nodes, get().edges));
       set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...intent } } : n)) }));
     }
+    // The first question on an unasked card under one parent is that
+    // parent's follow-up (askFrom, a wire dragged to empty canvas): the
+    // parent folds to its conclusion, and the session above goes on or
+    // forks with the reason on the card — what addQuestion does at birth
+    const firstAsk = !target.data.question && target.data.responses.length === 0 && !target.data.converge;
+    const parentEdges = firstAsk ? get().edges.filter((e) => e.target === nodeId && !e.data?.isCrossLink) : [];
+    const parent = parentEdges.length === 1 ? get().nodes.find((n) => n.id === parentEdges[0].source) : undefined;
+    if (parent && !['note', 'file', 'link', 'frame'].includes(parent.data.stepKind ?? '')) {
+      const pe = parentEdges[0];
+      if (!parent.data.isCollapsed) get().toggleCollapse(parent.id);
+      const self = get().nodes.find((n) => n.id === nodeId)!;
+      const predicted = continuity(nodeId, get().nodes, get().edges, runtimeOf(self.data.model), undefined);
+      if (predicted && predicted.kind !== 'continue') {
+        const sessionLink = linkOf(predicted);
+        const fork = predicted.kind === 'new' && !pe.data?.isBranchFromSelection;
+        const edges = fork
+          ? get().edges.map((e) => (e.id === pe.id ? { ...e, sourceHandle: 'branch', targetHandle: 'left', data: { ...e.data, isBranchFromSelection: true, branchYRatio: 0.5 } } : e))
+          : get().edges;
+        const nodes = get().nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, sessionLink } } : n));
+        // a fork grows beside its parent, not under it
+        set({ nodes: fork ? placeNewNodes(nodes, edges, [nodeId]) : nodes, edges });
+      }
+    }
     if (target.data.converge) {
       const request = asked.trim() || undefined;
       set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId && n.data.converge ? { ...n, data: { ...n.data, converge: { ...n.data.converge, request } } } : n)) }));
@@ -418,7 +480,9 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     const editNode = get().nodes.find((n) => n.id === nodeId);
     const editCtx = buildContext(nodeId, get().nodes.map(n =>
       n.id === nodeId ? { ...n, data: { ...n.data, question: '', response: '' } } : n
-    ), get().edges, undefined, editNode?.data.excludedAttachmentIds, editNode?.data.includedAttachmentIds, get().staleIds);
+    // the passage a branch explores travels with every asking of it, the
+    // first one on an unasked card included (addQuestion passes it at birth)
+    ), get().edges, editNode?.data.branchContext, editNode?.data.excludedAttachmentIds, editNode?.data.includedAttachmentIds, get().staleIds);
     const contextMessages = editCtx.messages;
     const appliedRole = contextMessages.find((m) => m.role === 'system')?.content || undefined;
     contextMessages.push({ role: 'user', content: question });

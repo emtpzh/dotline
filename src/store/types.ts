@@ -92,6 +92,10 @@ export interface LlmSlice {
    *  `highlightIds` narrows them). The question is typed on the node — for
    *  merge / weave an optional extra request. Returns the new node's id. */
   convergeFrom: (nodeIds: string[], kind: 'explore' | 'merge' | 'weave', highlightIds?: string[]) => string | null;
+  /** An UNASKED card under one parent — the card's own follow-up: the
+   *  question is typed on the new card. With `branchContext` it explores a
+   *  passage of the parent's answer and grows beside it. Returns its id. */
+  askFrom: (parentId: string, opts?: { branchContext?: string; branchYRatio?: number }) => string | null;
   /** Fan out N perspectives: once = blind candidate branches; follow = reviewers that auto-rerun with the thread. */
   fanOut: (parentId: string, question: string, roles: { name: string; prompt: string }[], opts?: { follow?: boolean; rounds?: number }) => Promise<void>;
   /** A sibling turn under the same parent: the same question, or a new wording. */

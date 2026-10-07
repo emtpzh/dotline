@@ -1,22 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { Handle, NodeResizeControl, Position, useReactFlow, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
-import { BookOpen, ExternalLink, FileText, Link2, Link2Off, Loader2, MoveDiagonal2, Paperclip, RefreshCw, StickyNote, Trash2, X } from 'lucide-react';
+import { BookOpen, ExternalLink, FileText, Loader2, MoveDiagonal2, Plus, RefreshCw, X } from 'lucide-react';
 import type { ThoughtNode as ThoughtNodeType } from '../types';
 import { useStore } from '../store';
 import { useZoomTier } from '../lib/use-map-mode';
-import { useUiStore } from '../lib/ui-store';
+import { useUiStore, toast } from '../lib/ui-store';
 import { useEntranceFade } from '../lib/use-entrance-fade';
 import { triggerParadigmCascade } from '../store/streaming';
-import { extractImage, fetchLinkIntoNode, ingestFiles } from '../lib/content';
+import { fetchLinkIntoNode, ingestFiles } from '../lib/content';
 import { FILE_INPUT_ACCEPT } from '../lib/attachments';
 import { Markdown } from './Markdown';
-import { countTokens } from '../utils';
+import { countTokens, isImeComposing } from '../utils';
 import { useT, fmt } from '../i18n';
 import { isViewerMode } from '../lib/viewer';
 import { Button } from './ui/button';
 import { FaceBody, FaceName, FarMark } from './app/NodeFace';
 import { farPriority, type FaceTone } from '../lib/node-face';
-import { Textarea } from './ui/textarea';
 
 // Content nodes: canvas material, not turns. A note (markdown), a file
 // (attachments) or a link (stamped web snapshot) that never generates — it
@@ -38,10 +37,6 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
   const zoomedOut = zoomTier !== 'work';
   const rf = useReactFlow();
   const nodePos = useStore((s) => { const n = s.nodes.find((x) => x.id === id); return n ? n.position : null; });
-  // Does this material actually reach any context? Unwired is the silent
-  // trap a card must confess to (One Rule's honest face). Every wire out of
-  // a material carries its whole text, whatever an old canvas drew it as.
-  const wireCount = useStore((s) => s.edges.filter((e) => e.source === id).length);
   const glyphTier = zoomTier === 'glyph';
   const updateNodeInternals = useUpdateNodeInternals();
   useEffect(() => { updateNodeInternals(id); }, [glyphTier, id, updateNodeInternals]);
@@ -52,9 +47,31 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
   const kind = data.stepKind === 'file' ? 'file' : data.stepKind === 'link' ? 'link' : 'note';
   const [editing, setEditing] = useState(!isViewerMode && kind === 'note' && !data.question);
   const [draft, setDraft] = useState(data.question);
-  const [openExtract, setOpenExtract] = useState<string | null>(null); // attId whose extraction panel is open
-  const setAttachmentData = useStore((s) => s.setAttachmentData);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [isDropTarget, setIsDropTarget] = useState(false);
+  // A link card made from the toolbar starts empty: its name slot is the
+  // address box, and Enter fetches the page — written in place, like an
+  // empty question card
+  const linkDraft = kind === 'link' && !data.linkUrl;
+  const [urlDraft, setUrlDraft] = useState('');
+  const urlRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!linkDraft || isViewerMode) return;
+    // React Flow mounts nodes hidden until measured: autoFocus is dropped
+    const timer = setTimeout(() => urlRef.current?.focus(), 80);
+    return () => clearTimeout(timer);
+    // mount-only: a link card is empty exactly once, at creation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const submitUrl = () => {
+    let url = urlDraft.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    try { new URL(url); } catch { toast('info', t('content.linkUrlInvalid')); return; }
+    useStore.getState().pushHistory();
+    useStore.setState((st) => ({ nodes: st.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, linkUrl: url } } : n)) }));
+    void fetchLinkIntoNode(id, url);
+  };
 
   // Blindspot #2: undo history is a full-graph snapshot — commit the note
   // ONCE on blur, never per keystroke.
@@ -71,7 +88,7 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
   };
 
   const attachments = data.attachments || [];
-  const linkLoading = kind === 'link' && !data.question && !data.linkTitle?.startsWith('⚠');
+  const linkLoading = kind === 'link' && !!data.linkUrl && !data.question && !data.linkTitle?.startsWith('⚠');
 
   // Clip provenance: an edge-less clip finds its source through anchor.attId
   const clipAnchor = data.anchor?.attId ? data.anchor : undefined;
@@ -94,29 +111,36 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
   };
   const linkDomain = (() => { try { return new URL(data.linkUrl ?? '').hostname; } catch { return data.linkUrl ?? ''; } })();
 
-  const headerIcon = kind === 'note'
-    ? <StickyNote size={14} strokeWidth={1.75} className="text-warning shrink-0" />
-    : kind === 'link'
-      ? <Link2 size={14} strokeWidth={1.75} className="text-primary shrink-0" />
-      : <Paperclip size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" />;
-
-  // The face grammar every card shares (lib/node-face): a square shape,
-  // the material's name, what it is, and — its conclusion — whether it
-  // reaches any context at all.
+  // The face grammar every card shares (lib/node-face): a square shape in
+  // the material's color, its name, a few plain words after it, and — the
+  // one state material has — that no wire takes it anywhere.
   const tone: FaceTone = kind === 'note' ? 'warning' : kind === 'link' ? 'primary' : 'muted';
+  const linkTitleOk = !!data.linkTitle && !data.linkTitle.startsWith('⚠');
   const materialName = kind === 'file'
     ? (attachments[0]?.name ?? t('glyph.file'))
     : kind === 'link'
-      ? (data.linkTitle && !data.linkTitle.startsWith('⚠') ? data.linkTitle : linkDomain || t('glyph.link'))
+      ? (linkTitleOk ? data.linkTitle! : linkDomain || t('glyph.link'))
       : (data.summaryTopics?.[0] ?? t('glyph.note'));
-  const fileKind = (a: (typeof attachments)[number]) => {
-    const ext = a.name.includes('.') ? a.name.split('.').pop()!.toUpperCase() : a.type;
-    return a.numPages != null ? `${ext} · ${a.numPages}p` : ext;
-  };
+  const fileKind = (a: (typeof attachments)[number]) => (a.name.includes('.') ? a.name.split('.').pop()!.toUpperCase() : a.type);
   const materialLine = kind === 'file'
     ? (data.summaries?.[0] ?? (attachments.length === 1 ? fileKind(attachments[0]) : attachments.map((a) => a.name).join(' · ')))
     : (kind === 'link' ? (data.summaries?.[0] ?? data.question) : data.question).replace(/^#+\s*/gm, '');
-  const wireLine = wireCount === 0 ? t('content.wireNone') : fmt(t('content.wireFull'), { n: wireCount });
+  const placeholder = t(kind === 'link' ? 'content.linkUrlPlaceholder' : kind === 'file' ? 'attach.upload' : 'content.notePlaceholder');
+  const extracting = attachments.some((a) => a.isExtracting);
+  // words after the name: how many files, a lone document's kind and pages,
+  // a link's site, a reading still running
+  const tagText = kind === 'file'
+    ? (attachments.length > 1
+      ? fmt(t('content.fileCount'), { n: attachments.length })
+      : attachments[0]?.numPages != null ? fmt(t('content.pages'), { ext: fileKind(attachments[0]), n: attachments[0].numPages }) : null)
+    : kind === 'link' && linkTitleOk ? linkDomain : null;
+  const tags = (tagText || extracting) ? (
+    <>
+      {tagText && <span className="tdag-tag" data-material-tag>{tagText}</span>}
+      {extracting && <span className="tdag-tag">{t('content.extracting')}</span>}
+    </>
+  ) : null;
+  const state = !isLinked && !linkDraft ? 'unlinked' as const : null;
   const openMaterial = (e: React.MouseEvent) => {
     e.stopPropagation();
     // documents open where they are read; notes fly to working scale
@@ -150,16 +174,14 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
     const coverSrc = cover && (cover.type.startsWith('image/') ? `data:${cover.type};base64,${cover.content}` : `data:image/png;base64,${cover.pageImages![0]}`);
     return (
       <div
-        className={`content-card map-node relative w-full h-full min-w-[340px] flex flex-col overflow-hidden rounded-xl shadow-sm border-2 ${
-          kind === 'note' ? 'bg-warning/10 border-warning/30' : 'bg-card border-border'
-        } ${selectedNodeId === id ? 'ring-2 ring-primary selected-glow' : ''}`}
+        className={`content-card map-node relative w-full h-full min-w-[340px] flex flex-col overflow-hidden rounded-xl shadow-sm border border-border bg-card ${selectedNodeId === id ? 'tdag-selected ring-2 ring-primary selected-glow' : ''}`}
         style={{ '--k': 1.75 } as React.CSSProperties}
         onClick={() => setSelectedNodeId(id)}
         onDoubleClick={openMaterial}
       >
         <div className="tdag-face drag-handle cursor-grab active:cursor-grabbing shrink-0 animate-in fade-in-0 duration-150">
-          <FaceName shape="square" tone={tone} name={materialName} marks={[]} state={null} />
-          <FaceBody question={materialLine} placeholder={t('content.notePlaceholder')} conclusion={wireLine} />
+          <FaceName shape="square" tone={tone} name={materialName} marks={[]} state={state} tags={tags} />
+          <FaceBody question={materialLine} placeholder={placeholder} conclusion={null} />
         </div>
         {coverSrc && <img src={coverSrc} alt={cover!.name} className="flex-1 min-h-0 w-full object-cover object-top border-t border-border/60" />}
         <Handle type="source" position={Position.Bottom} id="continue" className="!bg-muted-foreground !border-2 !border-white tdag-handle !w-6 !h-6 tdag-handle-lg" />
@@ -168,81 +190,124 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
     );
   }
 
+  // Working-distance controls, on intent (canvas.css .tdag-hover): add a
+  // file, read, open the page, delete
+  const controls = (
+    <span className="tdag-hover flex items-center gap-0.5 -my-1 -mr-2 shrink-0">
+      {kind === 'file' && !isViewerMode && (
+        <Button variant="ghost" size="icon-sm"
+          onClick={(e) => { e.stopPropagation(); fileRef.current?.click(); }}
+          title={t('content.addFile')}
+          className="text-muted-foreground hover:text-foreground"
+          data-add-file
+        >
+          <Plus strokeWidth={1.75} />
+        </Button>
+      )}
+      {!linkDraft && (
+        <Button variant="ghost" size="icon-sm"
+          onClick={(e) => { e.stopPropagation(); useUiStore.getState().setReaderNodeId(id); }}
+          title={t('reader.open')}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <BookOpen strokeWidth={1.75} />
+        </Button>
+      )}
+      {kind === 'link' && data.linkUrl && (
+        <a
+          href={data.linkUrl}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          title={t('content.linkOpen')}
+          className="text-muted-foreground hover:text-foreground hover:bg-accent rounded-md size-7 flex items-center justify-center transition-colors"
+        >
+          <ExternalLink size={14} strokeWidth={1.75} />
+        </a>
+      )}
+      {!isViewerMode && (
+        <Button variant="ghost" size="icon-sm"
+          onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
+          title={t('common.delete')}
+          className="text-muted-foreground hover:text-destructive/90 hover:bg-destructive/10"
+        >
+          <X strokeWidth={1.75} />
+        </Button>
+      )}
+    </span>
+  );
+  // one file of several can go on its own; a lone file goes with its card
+  const removeOne = (attId: string) => attachments.length > 1 && (
+    <Button variant="ghost" size="icon-sm"
+      onClick={(e) => { e.stopPropagation(); removeAttachment(id, attId); }}
+      title={t('common.delete')}
+      className="absolute top-1.5 right-1.5 bg-foreground/60 text-white hover:bg-foreground/80 opacity-0 group-hover:opacity-100"
+    >
+      <X strokeWidth={2} />
+    </Button>
+  );
+
   return (
     <div
-      className={`content-card w-full h-full min-w-[340px] flex flex-col rounded-xl shadow-sm border-2 ${entrance} transition-colors duration-200 ${
-        kind === 'note' ? 'bg-warning/10 border-warning/30' : 'bg-card border-border'
-      } ${selectedNodeId === id ? 'ring-2 ring-primary selected-glow' : ''}`}
+      className={`content-card relative w-full h-full min-w-[340px] flex flex-col rounded-xl shadow-sm border border-border bg-card ${entrance} transition-colors duration-200 ${
+        selectedNodeId === id ? 'tdag-selected ring-2 ring-primary selected-glow' : ''} ${isDropTarget ? 'ring-2 ring-primary/50' : ''}`}
       onClick={() => setSelectedNodeId(id)}
       onDoubleClick={() => {
         // notes keep dblclick=edit (on the body); files and links open the reader
-        if (kind !== 'note') useUiStore.getState().setReaderNodeId(id);
+        if (kind !== 'note' && !linkDraft) useUiStore.getState().setReaderNodeId(id);
       }}
       onDrop={async (e) => {
         if (kind !== 'file' || isViewerMode) return;
         e.preventDefault();
         e.stopPropagation();
+        setIsDropTarget(false);
         await ingestFiles(id, e.dataTransfer.files);
       }}
-      onDragOver={(e) => { if (kind === 'file') { e.preventDefault(); e.stopPropagation(); } }}
+      onDragOver={(e) => { if (kind === 'file' && !isViewerMode) { e.preventDefault(); e.stopPropagation(); setIsDropTarget(true); } }}
+      onDragLeave={() => setIsDropTarget(false)}
     >
       {/* Pure source: material feeds context, nothing flows INTO it — hence no target handle. */}
 
-      {/* header: drag handle + identity + linked state + delete */}
-      <div className={`flex items-center justify-between px-4 py-2 border-b cursor-grab active:cursor-grabbing drag-handle shrink-0 ${kind === 'note' ? 'border-warning/30' : 'border-border/70'}`}>
-        <div className="flex items-center gap-2 min-w-0">
-          {headerIcon}
-          {kind === 'link'
-            ? <span className="text-2xs text-muted-foreground truncate">{linkDomain}</span>
-            : <span className="text-2xs text-muted-foreground font-mono">{kind === 'note' ? `${data.tokenCount} tok` : `${attachments.length}`}</span>}
-          {clipSourceName && (
-            <Button variant="ghost" size="xs"
-              onClick={openClipSource}
-              title={t('content.clipSourceTitle')}
-              data-clip-source
-              className="text-2xs font-mono text-edge-explore bg-edge-explore/10 hover:bg-edge-explore/20 truncate max-w-[180px] shrink"
-            >
-              {clipSourceName} &middot; p.{clipAnchor!.page}
-            </Button>
-          )}
-          {!isLinked && (
-            <span className="text-2xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full flex items-center gap-1 shrink-0" title={t('content.unlinkedTitle')}>
-              <Link2Off size={11} strokeWidth={1.75} /> {t('content.unlinked')}
-            </span>
-          )}
+      {/* Name row: the same layer every card opens with */}
+      {linkDraft ? (
+        <div className="tdag-face tdag-l1 drag-handle cursor-grab active:cursor-grabbing shrink-0" data-tone={tone}>
+          <span className="tdag-shape" data-shape="square" />
+          <input
+            ref={urlRef}
+            value={urlDraft}
+            onChange={(e) => setUrlDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !isImeComposing(e)) { e.preventDefault(); submitUrl(); } }}
+            placeholder={t('content.linkUrlPlaceholder')}
+            disabled={isViewerMode}
+            className="flex-1 min-w-0 bg-transparent text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none nodrag nopan cursor-text"
+            data-link-url-input
+          />
+          {controls}
         </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <Button variant="ghost" size="icon-sm"
-            onClick={(e) => { e.stopPropagation(); useUiStore.getState().setReaderNodeId(id); }}
-            title={t('reader.open')}
-            className="text-muted-foreground hover:text-primary"
-          >
-            <BookOpen strokeWidth={1.75} />
-          </Button>
-          {kind === 'link' && data.linkUrl && (
-            <a
-              href={data.linkUrl}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              title={t('content.linkOpen')}
-              className="text-muted-foreground hover:text-primary rounded-full w-6 h-6 flex items-center justify-center transition-colors"
-            >
-              <ExternalLink size={13} strokeWidth={1.75} />
-            </a>
-          )}
-          {!isViewerMode && <Button variant="ghost" size="icon-sm"
-            onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
-            className="text-muted-foreground hover:text-destructive/90"
-          >
-            <Trash2 strokeWidth={1.75} />
-          </Button>}
-        </div>
-      </div>
+      ) : (
+        <FaceName className="tdag-face drag-handle cursor-grab active:cursor-grabbing shrink-0"
+          shape="square" tone={tone} name={materialName} marks={[]} state={state} tags={tags}
+          stateMark={state ? <span className="tdag-state" data-state="unlinked" title={t('content.unlinkedTitle')}>{t('content.unlinked')}</span> : undefined}
+          trailing={controls} />
+      )}
 
       {/* Body: grows with content by default; when the card is resized the
           body becomes the scroll region (wheel scrolls text, not zoom) */}
-      <div className="px-4 py-3 nodrag flex-1 min-h-0 overflow-y-auto nowheel">
+      <div className="px-4 pt-2 pb-3 nodrag flex-1 min-h-0 overflow-y-auto nowheel">
+        {/* where a clip was cut from: one quiet line, the page one click away */}
+        {clipSourceName && (
+          <div className="mb-2 flex items-center gap-2 min-w-0 border-l-2 border-edge-explore pl-2.5 text-xs text-muted-foreground" title={t('content.clipSourceTitle')} data-clip-source>
+            <span className="truncate min-w-0">{clipSourceName}</span>
+            <Button variant="ghost" size="xs"
+              onClick={openClipSource}
+              title={t('content.clipSourceTitle')}
+              className="ml-auto h-5 shrink-0 px-1 text-2xs font-mono font-normal text-muted-foreground hover:text-foreground"
+            >
+              p.{clipAnchor!.page}
+            </Button>
+          </div>
+        )}
+
         {kind === 'note' && (
           editing ? (
             <textarea
@@ -268,36 +333,27 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
           )
         )}
 
-        {kind === 'link' && (
+        {kind === 'link' && !linkDraft && (
           linkLoading ? (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
               <Loader2 size={14} strokeWidth={1.75} className="animate-spin text-primary" /> {t('content.linkFetching')}
             </div>
-          ) : (
-            <div className="space-y-1.5">
-              {data.linkTitle && (
-                <div className={`text-sm font-semibold leading-snug ${data.linkTitle.startsWith('⚠') ? 'text-destructive' : 'text-foreground'}`}>{data.linkTitle}</div>
-              )}
-              {data.linkTitle?.startsWith('⚠') && data.linkUrl && (
-                <Button variant="ghost" size="sm"
+          ) : data.linkTitle?.startsWith('⚠') ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-destructive leading-snug flex-1 min-w-0">{data.linkTitle}</span>
+              {data.linkUrl && !isViewerMode && (
+                <Button variant="ghost" size="xs"
                   onClick={(e) => { e.stopPropagation(); void fetchLinkIntoNode(id, data.linkUrl!); }}
-                  className="text-xs bg-muted hover:bg-border text-muted-foreground"
+                  className="shrink-0 text-muted-foreground"
                 >
                   <RefreshCw strokeWidth={1.75} /> {t('common.retry')}
                 </Button>
               )}
-              {data.question && (
-                <div className="text-xs text-muted-foreground leading-relaxed max-h-[200px] overflow-y-auto nopan nowheel whitespace-pre-wrap">
-                  {data.question.slice(0, 1200)}{data.question.length > 1200 ? '…' : ''}
-                </div>
-              )}
-              {data.linkFetchedAt && (
-                <div className="text-2xs text-muted-foreground font-mono">
-                  {fmt(t('content.linkStamp'), { date: data.linkFetchedAt.slice(0, 10) })} · {data.tokenCount} tok
-                </div>
-              )}
             </div>
-          )
+          ) : materialLine ? (
+            // what the page says, four lines; the whole page is in the reader
+            <div className="text-sm text-muted-foreground leading-relaxed line-clamp-4" data-link-excerpt>{materialLine}</div>
+          ) : null
         )}
 
         {kind === 'file' && (
@@ -305,67 +361,15 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
             {attachments.map((att) => (
               att.type.startsWith('image/') ? (
                 // Pasted images live on the canvas as the image itself —
-                // resize the card (right edge) to scale it
+                // resize the card (right edge) to scale it; what was read
+                // off it is the reader's (text view)
                 <div key={att.id} className="relative group">
                   <img
                     src={`data:${att.type};base64,${att.content}`}
                     alt={att.name}
-                    title={att.extractedText ? att.extractedText.slice(0, 400) : undefined}
                     className="w-full rounded-lg border border-border/60"
                   />
-                  {att.isExtracting ? (
-                    <span className="absolute bottom-1.5 left-1.5 text-2xs bg-foreground/60 text-white px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <Loader2 size={11} strokeWidth={1.75} className="animate-spin" /> {t('content.extracting')}
-                    </span>
-                  ) : att.extractedText ? (
-                    <Button variant="ghost" size="xs"
-                      onClick={(e) => { e.stopPropagation(); setOpenExtract(openExtract === att.id ? null : att.id); }}
-                      title={t('content.editExtractTitle')}
-                      className="absolute bottom-1.5 left-1.5 text-2xs bg-foreground/60 hover:bg-foreground/80 text-white"
-                    >
-                      {t('content.extracted')}{att.extractedBy ? ` · ${att.extractedBy}` : ''} ▾
-                    </Button>
-                  ) : (
-                    <Button variant="ghost" size="xs"
-                      onClick={(e) => { e.stopPropagation(); void extractImage(id, att.id); }}
-                      title={t('content.reExtractTitle')}
-                      className="absolute bottom-1.5 left-1.5 text-2xs bg-foreground/60 hover:bg-foreground/80 text-white opacity-0 group-hover:opacity-100"
-                    >
-                      <RefreshCw strokeWidth={1.75} /> {t('content.reExtract')}
-                    </Button>
-                  )}
-                  <Button variant="ghost" size="icon-sm"
-                    onClick={(e) => { e.stopPropagation(); removeAttachment(id, att.id); }}
-                    className="absolute top-1.5 right-1.5 bg-foreground/60 text-white opacity-0 group-hover:opacity-100"
-                  >
-                    <X strokeWidth={2} />
-                  </Button>
-                  {/* Extraction panel: SEE what the model read, fix it, or redo it —
-                      this text is what downstream context receives as the image's index */}
-                  {openExtract === att.id && (
-                    <div className="mt-1.5 space-y-1.5" onClick={(e) => e.stopPropagation()}>
-                      <Textarea
-                        defaultValue={att.extractedText}
-                        onBlur={(e) => {
-                          if (e.target.value !== att.extractedText) {
-                            useStore.getState().pushHistory();
-                            setAttachmentData(id, att.id, { extractedText: e.target.value });
-                          }
-                        }}
-                        rows={7}
-                        className="w-full resize-y leading-relaxed nopan nowheel"
-                      />
-                      <div className="flex items-center justify-between">
-                        <span className="text-2xs text-muted-foreground font-mono">{att.extractedBy}</span>
-                        <Button variant="ghost" size="xs"
-                          onClick={() => { setOpenExtract(null); void extractImage(id, att.id); }}
-                          className="text-2xs bg-muted hover:bg-border text-muted-foreground"
-                        >
-                          <RefreshCw strokeWidth={1.75} /> {t('content.reExtractAgain')}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
+                  {removeOne(att.id)}
                 </div>
               ) : att.type === 'application/pdf' && att.pageImages?.[0] ? (
                 // PDF wears its first page as a cover — same form as pasted
@@ -376,58 +380,48 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
                     alt={att.name}
                     className="w-full rounded-lg border border-border/60"
                   />
-                  <span className="absolute bottom-1.5 left-1.5 max-w-[85%] text-2xs bg-foreground/60 text-white px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <FileText size={11} strokeWidth={1.75} className="shrink-0" />
-                    <span className="truncate">{att.name}</span>
-                    {att.numPages != null && <span className="shrink-0 opacity-80">· {att.numPages}p</span>}
-                  </span>
-                  <Button variant="ghost" size="icon-sm"
-                    onClick={(e) => { e.stopPropagation(); removeAttachment(id, att.id); }}
-                    className="absolute top-1.5 right-1.5 bg-foreground/60 text-white opacity-0 group-hover:opacity-100"
-                  >
-                    <X strokeWidth={2} />
-                  </Button>
+                  {removeOne(att.id)}
                 </div>
               ) : (
-                <div key={att.id} className="flex items-center gap-2 bg-muted rounded-lg px-2.5 py-2 group">
+                <div key={att.id} className="relative flex items-center gap-2 bg-muted rounded-lg px-2.5 py-2 group">
                   <FileText size={16} strokeWidth={1.75} className="text-muted-foreground shrink-0" />
                   <span className="text-xs text-foreground flex-1 truncate">{att.name}</span>
                   {att.isExtracting && <span className="text-2xs text-primary shrink-0">{t('attach.extracting')}</span>}
                   {att.numPages != null && <span className="text-2xs text-muted-foreground shrink-0">{att.numPages}p</span>}
-                  <Button variant="ghost"
-                    onClick={(e) => { e.stopPropagation(); removeAttachment(id, att.id); }}
-                    className="text-muted-foreground hover:text-destructive/90 opacity-0 group-hover:opacity-100 shrink-0"
-                  >
-                    <X strokeWidth={1.75} />
-                  </Button>
+                  {attachments.length > 1 && (
+                    <Button variant="ghost"
+                      onClick={(e) => { e.stopPropagation(); removeAttachment(id, att.id); }}
+                      title={t('common.delete')}
+                      className="text-muted-foreground hover:text-destructive/90 opacity-0 group-hover:opacity-100 shrink-0"
+                    >
+                      <X strokeWidth={1.75} />
+                    </Button>
+                  )}
                 </div>
               )
             ))}
-            <Button variant="ghost"
-              onClick={() => fileRef.current?.click()}
-              className={`w-full border-2 border-dashed border-border hover:border-primary/40 hover:bg-primary/5 rounded-lg text-xs text-muted-foreground hover:text-muted-foreground transition-colors ${attachments.length === 0 ? 'py-6' : 'py-2'}`}
-            >
-              {t('attach.upload')}
-              {attachments.length === 0 && <span className="block text-2xs mt-1">{t('attach.types')}</span>}
-            </Button>
-            <input
-              ref={fileRef}
-              type="file"
-              multiple
-              accept={FILE_INPUT_ACCEPT}
-              className="hidden"
-              onChange={(e) => { if (e.target.files) void ingestFiles(id, e.target.files); e.target.value = ''; }}
-            />
-          </div>
-        )}
-        {(
-          <div className="px-1 pt-2" data-wire-status>
-            {wireCount === 0 ? (
-              <p className="text-2xs text-warning leading-snug">{t('content.wireNone')}</p>
-            ) : (
-              <p className="text-2xs text-muted-foreground leading-snug">{fmt(t('content.wireFull'), { n: wireCount })}</p>
+            {/* the drop box only while the card is empty; after that, the
+                name row's + and dropping onto the card add more */}
+            {attachments.length === 0 && (
+              <Button variant="ghost"
+                onClick={() => fileRef.current?.click()}
+                className="w-full h-auto py-6 flex-col border-2 border-dashed border-border hover:border-primary/40 hover:bg-primary/5 rounded-lg text-xs text-muted-foreground transition-colors"
+              >
+                {t('attach.upload')}
+                <span className="block text-2xs">{t('attach.types')}</span>
+              </Button>
             )}
           </div>
+        )}
+        {kind === 'file' && (
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            accept={FILE_INPUT_ACCEPT}
+            className="hidden"
+            onChange={(e) => { if (e.target.files) void ingestFiles(id, e.target.files); e.target.value = ''; }}
+          />
         )}
       </div>
 
@@ -445,7 +439,7 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
         </NodeResizeControl>
       )}
 
-      <Handle type="source" position={Position.Bottom} id="continue" className={`!bg-muted-foreground !border-2 !border-white tdag-handle ${zoomedOut ? '!w-6 !h-6 tdag-handle-lg' : '!w-3.5 !h-3.5'}`} />
+      <Handle type="source" position={Position.Bottom} id="continue" className="!bg-muted-foreground !border-2 !border-white tdag-handle !w-3.5 !h-3.5" />
       {/* Invisible side anchor so material references can exit sideways */}
       <Handle type="source" position={Position.Right} id="branch" isConnectable={false} className="!bg-transparent !w-0 !h-0 !border-0 !pointer-events-none" style={{ top: '50%' }} />
     </div>

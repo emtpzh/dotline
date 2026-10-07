@@ -1,11 +1,9 @@
 import type { ThoughtData } from '../types';
-import { countTokens } from '../utils';
 
 // The self-explaining chain: everything here renders information the
 // import already carries for free — no LLM calls, no new state. A turn's
-// steps become ACTION MARKS (read-code turn? run-experiment
-// turn?), and its token split shows what is actually eating the context —
-// the pruning compass of the inspection layer.
+// steps become ACTION MARKS (read-code turn? run-experiment turn?) and a
+// FOOTPRINT of the files it touched.
 
 export type ActionKind = 'edit' | 'read' | 'search' | 'run' | 'web' | 'agent' | 'other';
 export interface ActionMark { kind: ActionKind; count: number }
@@ -35,33 +33,12 @@ export function actionMarks(data: Pick<ThoughtData, 'steps'>): ActionMark[] {
   return ACTION_ORDER.filter((k) => counts.has(k)).map((kind) => ({ kind, count: counts.get(kind)! }));
 }
 
-export interface TurnComposition {
-  q: number;
-  a: number;
-  tool: number;
-  total: number;
-  /** tool output share of the turn, 0..1 — the pruning signal */
-  toolShare: number;
-}
-
-/** Token split of one turn — null when it carries no tool output (nothing
- *  to explain: the badge row and bar only appear on imported turns). */
-export function turnComposition(data: Pick<ThoughtData, 'question' | 'response' | 'steps'>): TurnComposition | null {
-  let tool = 0;
-  for (const step of data.steps ?? []) tool += countTokens(step.call) + countTokens(step.result);
-  if (tool === 0) return null;
-  const q = countTokens(data.question);
-  const a = countTokens(data.response);
-  const total = q + a + tool;
-  return { q, a, tool, total, toolShare: total > 0 ? tool / total : 0 };
-}
-
 export interface FootprintEntry { path: string; name: string; op: 'read' | 'write' | 'edit' }
 
 /** The files this turn touched, straight from its steps —
  *  writes and edits first, then reads, each path once. This is what a
- *  reader looking back needs on the card's face; the calls themselves
- *  stay in the drawer. Empty for hand-made nodes. */
+ *  reader looking back needs (the panel's "this turn" section); the calls
+ *  themselves stay in the drawer. Empty for hand-made nodes. */
 export function footprint(data: Pick<ThoughtData, 'steps'>): FootprintEntry[] {
   const seen = new Map<string, FootprintEntry>();
   for (const step of data.steps ?? []) {

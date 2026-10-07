@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useStore } from '../../store';
 import { useUiStore } from '../../lib/ui-store';
@@ -13,6 +13,7 @@ import AgentSessionLine from './AgentSessionLine';
 import AttachmentsSection from './AttachmentsSection';
 import QuestionSection from './QuestionSection';
 import ResponseSection from './ResponseSection';
+import TurnSection from './TurnSection';
 import HighlightsSection from './HighlightsSection';
 import HeaderActions from './HeaderActions';
 import ContextChainSection from './ContextChainSection';
@@ -68,6 +69,21 @@ export default function FocusPanel({ onFocusNode }: { onFocusNode?: (id: string)
     setBranchContext('');
   }
 
+  // A card's quiet line points at a section ("5 sources" → the list):
+  // scroll there once the panel shows this node, then forget it
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const panelSection = useUiStore((s) => s.panelSection);
+  useEffect(() => {
+    if (!panelSection) return;
+    const frame = requestAnimationFrame(() => {
+      const el = scrollRef.current?.querySelector(`[data-panel-section="${panelSection}"]`);
+      el?.querySelector('details:not([open])')?.setAttribute('open', ''); // a folded list opens to be seen
+      el?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      useUiStore.setState({ panelSection: null });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [panelSection, selectedNodeId]);
+
   const node = nodes.find((n) => n.id === selectedNodeId);
 
   if (!node) {
@@ -113,7 +129,7 @@ export default function FocusPanel({ onFocusNode }: { onFocusNode?: (id: string)
         {/* a visible grip: the handle exists whether or not you hover it */}
         <div className={`w-[3px] h-9 rounded-full transition-colors ${resizing ? 'bg-primary' : 'bg-input'}`} />
       </div>
-      {/* Header: summary kicker (role · tokens · materials) + action strip */}
+      {/* Header: summary kicker (role · materials) + action strip */}
       <div className="flex items-start gap-2 pl-4 pr-3 py-1.5 border-b border-border/70 shrink-0">
         <RoleLine nodeId={selectedNodeId!} data={data} inheritedFrom={inheritedFrom}
           onJump={(id) => { useStore.getState().setSelectedNodeId(id); onFocusNode?.(id); }} />
@@ -130,7 +146,7 @@ export default function FocusPanel({ onFocusNode }: { onFocusNode?: (id: string)
       </div>
 
       {/* Scrollable content: one card per section */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
         <AgentSessionLine data={data} />
         <QuestionSection
           key={`q-${selectedNodeId}`}
@@ -153,6 +169,8 @@ export default function FocusPanel({ onFocusNode }: { onFocusNode?: (id: string)
           onExploreSelection={setBranchContext}
           onFocusNode={onFocusNode}
         />
+
+        <TurnSection data={data} onFocusNode={onFocusNode} />
 
         <AttachmentsSection
           nodeId={selectedNodeId!}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Crosshair, FileText, Highlighter, Link2, Loader2, Pencil, RefreshCw, ScanText, Send, Sparkles, StickyNote, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Crosshair, ExternalLink, FileText, Highlighter, Link2, Loader2, Pencil, RefreshCw, ScanText, Send, Sparkles, StickyNote, X, ZoomIn, ZoomOut } from 'lucide-react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { Attachment, ThoughtNode } from '../types';
 import { useStore } from '../store';
@@ -7,7 +7,7 @@ import { useUiStore, toast } from '../lib/ui-store';
 import { useModels } from '../lib/use-models';
 import { generateDigest, recognizePdfPages, spawnContentNode, extractImage } from '../lib/content';
 import { Markdown, HighlightedMarkdown } from './Markdown';
-import { generateId, isImeComposing } from '../utils';
+import { countTokens, generateId, isImeComposing } from '../utils';
 import { useT, fmt } from '../i18n';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import { isViewerMode } from '../lib/viewer';
@@ -125,6 +125,8 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
     return data.question;
   }, [pdfAtt, kind, attachments, data.question]);
   const sections = useMemo(() => splitByPageMarks(textBody), [textBody]);
+  // files keep no count of their own: the readable copy is what a wire carries
+  const usage = useMemo(() => (data.tokenCount > 0 ? data.tokenCount : textBody.trim() ? countTokens(textBody) : 0), [data.tokenCount, textBody]);
   // Highlights on the MATERIAL's own text (markdown files, notes, extracted
   // PDF copy) — same data shape as answer highlights, stored on the
   // material node, rendered in the text view. A pure reading layer today:
@@ -503,6 +505,13 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
     useStore.getState().pushHistory();
     useStore.getState().setAttachmentData(node.id, pdfAtt.id, { extractedText: v, extractedBy: 'manual' });
   };
+  // an image's reading is edited here too (the canvas card shows only the
+  // picture): this text is what downstream context receives for the image
+  const commitImageText = (attId: string, before: string | undefined, v: string) => {
+    if (v === (before ?? '')) return;
+    useStore.getState().pushHistory();
+    useStore.getState().setAttachmentData(node.id, attId, { extractedText: v });
+  };
 
   // ── questions grown from this material ──
   const edges = useStore((s) => s.edges);
@@ -633,7 +642,8 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       e.stopPropagation();
-      if (editing) { commitEdit(); return; }
+      // an image's box commits on blur: blur it first, or Esc would drop the edit
+      if (editing) { if (!pdfAtt) (document.activeElement as HTMLElement | null)?.blur(); commitEdit(); return; }
       if (ask) { setAsk(null); return; }
       if (threadId) { setThreadId(null); return; }
       close();
@@ -654,6 +664,10 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
       : <FileText size={15} strokeWidth={1.75} className="text-muted-foreground shrink-0" />;
   const fileFallbackTitle = kind === 'file' && !pdfAtt ? (attachments[0]?.name ?? '') : '';
   const numPages = doc?.numPages ?? pdfAtt?.numPages ?? htmlAtt?.numPages;
+  // provenance the canvas card no longer carries: the site, when the page
+  // was saved, how much context the material takes once wired
+  const linkDomain = kind === 'link' ? (() => { try { return new URL(data.linkUrl ?? '').hostname; } catch { return data.linkUrl ?? ''; } })() : '';
+  const editableImages = !pdfAtt && imageAtts.length > 0;
 
   const askLeft = ask ? Math.max(180, Math.min(ask.x, window.innerWidth - 200)) : 0;
   const askTop = ask ? Math.min(ask.y + 10, window.innerHeight - 150) : 0;
@@ -673,6 +687,13 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
           {headerIcon}
           <span className="text-sm font-semibold text-foreground truncate min-w-0" title={title || noteTitle || fileFallbackTitle}>{title || noteTitle || fileFallbackTitle}</span>
           {numPages != null && <span className="text-2xs text-muted-foreground font-mono shrink-0">{numPages}p</span>}
+          {linkDomain && linkDomain !== title && <span className="text-2xs text-muted-foreground truncate max-w-[14rem] shrink" data-reader-domain>{linkDomain}</span>}
+          {kind === 'link' && data.linkFetchedAt && (
+            <span className="text-2xs text-muted-foreground font-mono shrink-0" data-reader-stamp>{fmt(t('content.linkStamp'), { date: data.linkFetchedAt.slice(0, 10) })}</span>
+          )}
+          {usage > 0 && (
+            <span className="text-2xs text-muted-foreground font-mono shrink-0" title={t('reader.usageTitle')} data-reader-usage>{fmt(t('turn.tokens'), { n: usage.toLocaleString() })}</span>
+          )}
           <div className="flex-1" />
           {((pdfAtt && !pdfError) || imageAtts.length > 0 || htmlAtt || linkHtml) && (
             <ToggleGroup
@@ -749,15 +770,27 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
               </Button>
             )
           )}
-          {pdfAtt && view === 'text' && recog !== 'running' && (
+          {(pdfAtt || (editableImages && !isViewerMode)) && view === 'text' && recog !== 'running' && (
             <Button variant="ghost"
-              onClick={() => (editing ? commitEdit() : setEditing(true))}
+              onClick={() => (editing ? (pdfAtt ? commitEdit() : setEditing(false)) : setEditing(true))}
               title={t('reader.editText')}
               size="icon-sm"
               className={`shrink-0 ${editing ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`}
             >
               <Pencil strokeWidth={1.75} />
             </Button>
+          )}
+          {kind === 'link' && data.linkUrl && (
+            <a
+              href={data.linkUrl}
+              target="_blank"
+              rel="noreferrer"
+              title={t('content.linkOpen')}
+              className="size-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors shrink-0"
+              data-reader-open-link
+            >
+              <ExternalLink size={14} strokeWidth={1.75} />
+            </a>
           )}
           <Button variant="ghost" size="icon-sm" onClick={close} title={t('panel.close')} className="text-muted-foreground hover:bg-accent hover:text-foreground shrink-0">
             <X strokeWidth={1.75} />
@@ -868,6 +901,24 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                   autoFocus
                   className="w-full h-[70vh] font-mono leading-relaxed resize-none"
                 />
+              ) : editing && editableImages ? (
+                <div className="space-y-5" data-reader-image-edit>
+                  {imageAtts.map((a, i) => (
+                    <div key={a.id} className="space-y-1.5">
+                      <div className="flex items-center gap-2 text-2xs text-muted-foreground">
+                        <span className="truncate min-w-0 text-foreground">{a.name}</span>
+                        {a.extractedBy && <span className="font-mono shrink-0">{a.extractedBy}</span>}
+                      </div>
+                      <Textarea
+                        defaultValue={a.extractedText ?? ''}
+                        onBlur={(e) => commitImageText(a.id, a.extractedText, e.target.value)}
+                        autoFocus={i === 0}
+                        rows={10}
+                        className="w-full leading-relaxed resize-y"
+                      />
+                    </div>
+                  ))}
+                </div>
               ) : textBody.trim() === '' ? (
                 htmlAtt?.isExtracting ? (
                   <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">

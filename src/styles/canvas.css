@@ -34,17 +34,9 @@
 }
 
 
-/* Node styling — the route is expressed by a left accent bar, the same
-   color as the solid wire the card hangs from (lib/edge-look): an origin
-   (no conversation parent) = accent, a fork = warm, a continuation = none.
-   The bar is a full-card layer clipped by the card's own radius (a hard
-   gradient stop at 3px), not a 3px strip: the card cannot clip with
-   overflow:hidden — that would cut the connection handles — so a strip
-   squares off at the corners and pokes past the rounded edge. `inset:-1px`
-   lands the layer on the card's border box and `border-radius: inherit`
-   copies the card's radius, so the bar follows the corner exactly (the
-   default 12px and the draft paper's 7px alike). The layer is transparent
-   except that left stop, and it never takes pointer events. */
+/* Node styling — a plain card. Where it sits in the grammar (origin,
+   continuation, fork) is said once, by the dot before its name (the color
+   of the wire it hangs from, lib/edge-look) — no bar, no tinted border. */
 .thought-node {
   background: var(--card);
   border: 1px solid var(--border);
@@ -56,15 +48,6 @@
   position: relative;
 }
 
-.thought-node::before {
-  content: '';
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(90deg, var(--node-bar, transparent) calc(3px * var(--k, 1)), transparent calc(3px * var(--k, 1)));
-}
-
 /* Hover raises the card in LIGHT, not in space: the lift is the stronger
    shadow and the darker border. A `translateY(-1px)` here moved the card
    under the pointer — and so under the pointer of every click that selected
@@ -72,21 +55,6 @@
 .thought-node:hover {
   border-color: var(--input);
   box-shadow: 0 4px 12px color-mix(in oklch, var(--foreground) 8%, transparent);
-}
-
-.root-node {
-  --node-bar: var(--primary);
-}
-
-.orange-node {
-  --node-bar: var(--edge-explore);
-  border-color: color-mix(in srgb, var(--edge-explore) 30%, var(--border));
-}
-
-/* Instantiated paradigm human turn: the person acts here */
-.human-node {
-  --node-bar: var(--edge-explore);
-  border-color: color-mix(in srgb, var(--edge-explore) 45%, var(--border));
 }
 
 /* Connection handles: small dot, generous finger. The visible dot stays
@@ -102,6 +70,31 @@
 .react-flow__handle.tdag-handle-lg::after {
   inset: -18px;
 }
+
+/* Controls on intent: a working card's actions (fold, delete, regenerate,
+   copy, version arrows, ask-below; a material's read, open, add, delete)
+   show while the card is hovered, holds focus or is selected. Opacity only
+   — their room is kept, so the card never changes height as they come and go. */
+.tdag-hover { opacity: 0; transition: opacity 0.15s ease; }
+:is(.thought-node, .content-card):is(:hover, :focus-within, .tdag-selected) .tdag-hover { opacity: 1; }
+
+/* A card's handles show on intent too — hovered, focused, selected — and
+   on every card while a wire is being dragged, so there is somewhere to
+   drop it. Invisible ones still anchor their edges. */
+:is(.thought-node, .content-card) > .react-flow__handle.tdag-handle { opacity: 0; transition: opacity 0.15s ease; }
+:is(.thought-node, .content-card):is(:hover, :focus-within, .tdag-selected) > .react-flow__handle.tdag-handle,
+body.tdag-connecting :is(.thought-node, .content-card) > .react-flow__handle.tdag-handle { opacity: 1; }
+
+/* Ask below: on intent the bottom handle grows into a "+" — click for a
+   new question card under this one, drag to wire as before. Width and
+   height only: React Flow centers the handle with a percentage translate,
+   so it grows around the same point. Sized here, not with Tailwind's
+   important utilities: a layered !important would beat these. */
+.react-flow__handle.tdag-ask { width: 0.875rem; height: 0.875rem; display: grid; place-items: center; transition: width 0.15s ease, height 0.15s ease; }
+.thought-node > .react-flow__handle.tdag-ask { transition: opacity 0.15s ease, width 0.15s ease, height 0.15s ease; }
+.react-flow__handle.tdag-ask > svg { width: 0; height: 0; opacity: 0; color: var(--primary-foreground); pointer-events: none; transition: opacity 0.15s ease; }
+.thought-node:is(:hover, :focus-within, .tdag-selected) > .react-flow__handle.tdag-ask { width: 1.5rem; height: 1.5rem; cursor: pointer; }
+.thought-node:is(:hover, :focus-within, .tdag-selected) > .react-flow__handle.tdag-ask > svg { width: 0.875rem; height: 0.875rem; opacity: 1; }
 
 /* Condense hover link: while a segment row is hovered in the panel, its
    nodes wear a loud halo — visible on full cards AND map faces. */
@@ -156,15 +149,18 @@
 [data-state='running'] { --state: var(--primary); }
 [data-state='upstream'] { --state: var(--muted-foreground); }
 [data-state='stale'] { --state: var(--warning); }
+[data-state='unlinked'] { --state: var(--warning); }
 .tdag-state[data-state='wait']::before { background: transparent; box-shadow: inset 0 0 0 0.14em var(--primary); }
 .tdag-state[data-state='running']::before, .tdag-far[data-state='running'] .tdag-far-dot { animation: tdag-state-pulse 1.2s ease-in-out infinite; }
-.tdag-state[data-state='stale'], .tdag-state[data-state='failed'] { color: var(--state); }
+.tdag-state:is([data-state='stale'], [data-state='failed'], [data-state='unlinked']) { color: var(--state); }
 @keyframes tdag-state-pulse { 50% { opacity: 0.35; } }
 
 .tdag-q { padding: 0.3em 1.1em 0 1.15em; font-size: 1.04em; font-weight: 600; line-height: 1.42; color: var(--foreground); }
 .tdag-q-empty { font-weight: 500; font-style: italic; color: var(--muted-foreground); }
-.tdag-c { display: flex; gap: 0.45em; padding: 0.3em 1.1em 0.9em 1.15em; font-size: 0.92em; color: var(--muted-foreground); }
-.tdag-c::before { content: '→'; flex: none; opacity: 0.6; }
+.tdag-c { display: flex; padding: 0.3em 1.1em 0.9em 1.15em; font-size: 0.92em; color: var(--muted-foreground); }
+/* inside the open card the conclusion sits under the question's own text
+   (which is inset by its edit-hover padding), close to it — no marker */
+.tdag-c.tdag-flush { padding: 0 0 0.9em 0.25rem; margin-top: -0.5rem; }
 .tdag-c-gap { height: 0.8em; }
 .tdag-clamp-1, .tdag-clamp-2 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
 .tdag-clamp-1 { -webkit-line-clamp: 1; }
@@ -286,4 +282,5 @@
   .tdag-flow-ov { animation: none; display: none; }
   .react-flow__edge.tdag-live .react-flow__edge-path { animation: none; }
   .tdag-state[data-state='running']::before, .tdag-far[data-state='running'] .tdag-far-dot { animation: none; }
+  .tdag-hover, .react-flow__handle.tdag-handle, .react-flow__handle.tdag-ask > svg { transition: none; }
 }

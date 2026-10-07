@@ -8,7 +8,7 @@ import RoleEditor from '../app/RoleEditor';
 import type { ThoughtData, ThoughtNode } from '../../types';
 import { Button } from '../ui/button';
 
-// The panel's summary kicker: role · tokens · materials, in one quiet line
+// The panel's summary kicker: role · materials, in one quiet line
 // at the top. One role model: a rolePrompt on a node is the system prompt
 // for it and everything downstream along solid wires, until the next node
 // that sets one. A node that has one can rename or clear it; an inherited
@@ -69,12 +69,10 @@ export default function RoleLine({
             </Button>
           </>
         ) : null}
-        <span className="shrink-0">·</span>
         </>)}
-        <span className="shrink-0 text-muted-foreground">{data.tokenCount} tok</span>
         {attachCount > 0 && (
           <>
-            <span className="shrink-0">·</span>
+            {(own || inheritedFrom) && <span className="shrink-0">·</span>}
             <span className="shrink-0 text-muted-foreground flex items-center gap-0.5">
               <Paperclip size={11} strokeWidth={1.75} /> {attachCount}
             </span>
