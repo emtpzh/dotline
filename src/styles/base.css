@@ -114,34 +114,20 @@ textarea:focus-visible {
   mask-image: linear-gradient(to bottom, transparent, black 1.75rem);
 }
 
-/* Selection speaks once: one ripple the moment a card is picked, then only
-   the static ring (the card's own ring-2). A ping is the larger ripple of
-   "you landed here" (continue last thread, a jump to a search hit). Both
-   ride a pseudo-element, because the card's own `animation` belongs to its
-   entrance and its states (lib/use-entrance-fade) — sharing it, one would
-   switch the other off or replay it. Ripples scale with the face (--k). */
-@keyframes tdag-ripple {
-  from { box-shadow: 0 0 0 0 color-mix(in oklch, var(--primary) 45%, transparent); }
-  to { box-shadow: 0 0 0 calc(12px * var(--k, 1)) color-mix(in oklch, var(--primary) 0%, transparent); }
-}
-@keyframes tdag-ripple-ping {
-  from { box-shadow: 0 0 0 0 color-mix(in oklch, var(--primary) 60%, transparent); }
-  to { box-shadow: 0 0 0 calc(30px * var(--k, 1)) color-mix(in oklch, var(--primary) 0%, transparent); }
-}
-.selected-glow::after, .tdag-ping::after {
-  content: ''; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
-}
-.selected-glow::after { animation: tdag-ripple 420ms var(--ease-standard); }
-.tdag-ping::after { animation: tdag-ripple-ping 640ms var(--ease-standard); }
-/* far tier: the visible body is the dot, not the 520px box */
-.tdag-ping .tdag-far-dot { animation: tdag-ripple-ping 640ms var(--ease-standard); }
-
 /* The details panel slides in from its edge and back out on the chrome's
    beat (App keeps it mounted while it leaves, lib/use-presence) */
 @keyframes tdag-panel-in { from { opacity: 0; transform: translateX(24px); } }
 @keyframes tdag-panel-out { to { opacity: 0; transform: translateX(24px); } }
 .tdag-panel-in { animation: tdag-panel-in var(--dur-base) var(--ease-standard); }
 .tdag-panel-out { animation: tdag-panel-out var(--dur-base) var(--ease-standard) forwards; pointer-events: none; }
+/* The focus panel's wash ground: --muted laid over --background. In the
+   harness's dark palette --muted is a translucent overlay (the host's own
+   #ffffff14), so on its own the panel let the canvas and the cards beneath
+   show through its header and the gaps between its sections. Over a solid
+   --background it reads the same and hides what is under it; where
+   --muted is already solid, the layer under it never shows. */
+.tdag-panel-ground { background: linear-gradient(var(--muted), var(--muted)), var(--background); }
+
 /* Focus panel: sections are white cards floating on the wash ground —
    depth does the grouping, not divider lines. */
 .panel-card {
@@ -193,10 +179,9 @@ body.tdag-connecting, body.tdag-connecting * {
 .tdag-tour { position: fixed; inset: 0; z-index: 95; }
 
 /* Reduced motion: what the duration variables above do not already cover.
-   Entrances keep only their fade; one-shot ripples, the caret blink and the
+   Entrances keep only their fade; the settle flash, the caret blink and the
    landing-logo sequence go; everything simply is where it ends up. */
 @media (prefers-reduced-motion: reduce) {
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  .dag-pop, .selected-glow::after, .tdag-ping::after, .tdag-ping .tdag-far-dot,
-  .tdag-settle::before, .tdag-caret, .tdag-panel-in { animation: none; }
+  .dag-pop, .tdag-settle::before, .tdag-caret, .tdag-panel-in { animation: none; }
 }

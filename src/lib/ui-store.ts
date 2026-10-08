@@ -1,10 +1,6 @@
 import { create } from 'zustand';
 import type { AgentAccess } from '../types';
 
-// a ripple's length (canvas.css tdag-ping) plus a frame of slack
-const PING_MS = 720;
-let pingTimer: ReturnType<typeof setTimeout> | undefined;
-
 // Transient UI state (toasts, confirm dialog) — deliberately separate from
 // the main store: no persistence, no undo history, and the imperative API
 // below works from non-React modules (e.g. store/streaming.ts).
@@ -172,13 +168,10 @@ interface UiState {
       confirmation in the ApiKeyModal (consumed on pickup, never stored). */
   oauthMintedKey: string | null;
   setOauthMintedKey: (key: string | null) => void;
-  /** Node pulsing a beacon ripple (hovering "continue last thread"). */
+  /** The destination previewed while "continue last thread" is hovered:
+   *  the map dims around it (canvas.css [data-beacon]). */
   beaconNodeId: string | null;
   setBeaconNodeId: (id: string | null) => void;
-  /** Node playing a one-shot ripple: "you landed here" (continue last
-   *  thread, a jump to a search hit). Clears itself after the ripple. */
-  pingNodeId: string | null;
-  pingNode: (id: string) => void;
   /** Share dialog: the freshly built read-only link (null = closed). */
   shareDialogUrl: string | null;
   setShareDialogUrl: (url: string | null) => void;
@@ -330,17 +323,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   setOauthMintedKey: (key) => set({ oauthMintedKey: key }),
   beaconNodeId: null,
   setBeaconNodeId: (id) => set({ beaconNodeId: id }),
-  pingNodeId: null,
-  pingNode: (id) => {
-    // off first, so a second ping on the same node replays the ripple; on
-    // in the next task (its own render), off again once it has played
-    clearTimeout(pingTimer);
-    set({ pingNodeId: null });
-    pingTimer = setTimeout(() => {
-      set({ pingNodeId: id });
-      pingTimer = setTimeout(() => set({ pingNodeId: null }), PING_MS);
-    }, 0);
-  },
+
   setBackupDialogOpen: (v) => set({ backupDialogOpen: v }),
   shareDialogUrl: null,
   setShareDialogUrl: (url) => set({ shareDialogUrl: url }),

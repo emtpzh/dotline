@@ -722,6 +722,8 @@ function Canvas() {
   // close the mode, not just hide the panel, or the next drag (which selects
   // the card it moves) brings it back.
   const panelMode = useUiStore((s) => s.panelOpen);
+  // "continue last thread" hovered: the map dims around its destination
+  const beaconActive = useUiStore((s) => s.beaconNodeId !== null);
   const viewerLoadError = useUiStore((s) => s.viewerLoadError);
   const staleCount = useStore((s) => s.staleIds.length);
   const livePanelWidth = useUiStore((s) => s.panelWidth);
@@ -925,29 +927,10 @@ function Canvas() {
     const pathEdgeIds = walkUpAncestors(selectedNodeId, nodes, structural).visitedEdgeIds;
     const refEdgeIds = new Set(part.references.map((r) => r.edge.id));
     const downOut = structural.filter((e) => e.source === selectedNodeId);
-    // The feed lines light up in the order the context flows — root first,
-    // the wire into the selected card last (canvas.css .focus-e-path):
-    // each wire's distance up from the selection, turned into a delay.
-    const depthOf = new Map<string, number>([[selectedNodeId, 0]]);
-    const edgeDepth = new Map<string, number>();
-    for (let frontier = [selectedNodeId]; frontier.length > 0;) {
-      const next: string[] = [];
-      for (const e of structural) {
-        if (!pathEdgeIds.has(e.id) || edgeDepth.has(e.id) || !frontier.includes(e.target)) continue;
-        const d = depthOf.get(e.target)!;
-        edgeDepth.set(e.id, d);
-        if (!depthOf.has(e.source)) { depthOf.set(e.source, d + 1); next.push(e.source); }
-      }
-      frontier = next;
-    }
-    const deepest = Math.max(0, ...edgeDepth.values());
-    // 90ms a step, the whole sweep never longer than 600ms
-    const step = deepest > 0 ? Math.min(90, 600 / deepest) : 0;
-    const pathDelay = new Map([...edgeDepth].map(([id, d]) => [id, Math.round((deepest - d) * step)]));
     return {
       ctx,
       down: new Set(downOut.map((e) => e.target)),
-      pathEdgeIds, refEdgeIds, pathDelay,
+      pathEdgeIds, refEdgeIds,
       downEdgeIds: new Set(downOut.map((e) => e.id)),
     };
   }, [selectedNodeId, selectedNodeIds, nodes, edges]);
@@ -1021,7 +1004,7 @@ function Canvas() {
           return {
             ...e,
             className: [e.className, 'focus-e-path'].filter(Boolean).join(' '),
-            style: { ...e.style, strokeWidth: 3.5, opacity: 1, '--focus-delay': `${focusSets.pathDelay.get(e.id) ?? 0}ms` } as React.CSSProperties,
+            style: { ...e.style, strokeWidth: 3.5, opacity: 1 },
             zIndex: 10,
             data: { ...e.data, focusRole: 'path' as const },
           };
@@ -1093,7 +1076,7 @@ function Canvas() {
   }, [panelOpen, selectedNodeId]);
 
   return (
-    <div className="relative w-full h-full" data-searching={searching || undefined}>
+    <div className="relative w-full h-full" data-searching={searching || undefined} data-beacon={beaconActive || undefined}>
       {/* Canvas — full width always; the focus panel floats on top of it */}
       <div
         className="relative h-full w-full"
@@ -2036,8 +2019,7 @@ function Canvas() {
           const n = useStore.getState().nodes.find((x) => x.id === id);
           if (n) {
             setSelectedNodeId(id);
-            // landed: one ripple says which card the hit was
-            void centerNode(n, { zoom: 1 }).then(() => useUiStore.getState().pingNode(id));
+            centerNode(n, { zoom: 1 });
           }
           // search stays open: the filter is a browsing mode, Esc ends it
         }}
@@ -2185,7 +2167,7 @@ function ThoughtMapPill({ panelShiftWidth }: { panelShiftWidth: number }) {
   };
 
   // Three beats, each waiting for the one before: the flight, then the
-  // panel with a one-shot ripple on the card, then the recap offer. The
+  // panel with the card selected, then the recap offer. The
   // camera flies once, straight to where the card sits with the panel open
   // (panel-shift's own sum, for the panel about to open), so nothing
   // re-centers after landing. A flight the user interrupts by grabbing the
@@ -2199,7 +2181,6 @@ function ThoughtMapPill({ panelShiftWidth }: { panelShiftWidth: number }) {
     await flyTo(rf, node.position.x + 260 + shift / 2, node.position.y + 110, 1);
     useStore.getState().setSelectedNodeId(node.id);
     useUiStore.getState().setPanelOpen(true);
-    useUiStore.getState().pingNode(node.id);
     window.setTimeout(() => {
       toast('success', t('continue.arrived'), 12000,
         { label: t('continue.summarize'), run: () => void recapToNote(node.id) });

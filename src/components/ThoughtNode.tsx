@@ -301,8 +301,6 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   const conclusion = nodeConclusion(data);
   // "Continue last thread" hover: this node is the flight destination
   const isBeacon = useUiStore((s) => s.beaconNodeId === id);
-  // "You landed here": a one-shot ripple (canvas.css .tdag-ping)
-  const isPing = useUiStore((s) => s.pingNodeId === id);
   // entrance, played once: the glow / loading / beacon classes own the
   // `animation` property too, and handing it back and forth replayed it
   // ...unless the card was just asked off another one: then it grows out
@@ -419,8 +417,8 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
     <div
       ref={nodeRef}
       className={glyphTier
-        ? `w-[520px] ${entrance} ${isBeacon ? 'beacon-node ' : ''}${isPing ? 'tdag-ping ' : ''}${data.archived ? 'opacity-35 saturate-50 ' : ''}${selectedNodeId === id ? 'glyph-selected ' : ''}`
-        : `thought-node relative rounded-xl w-[520px] ${entrance} transition-all duration-200 ${isBeacon ? 'beacon-node ' : ''}${isPing ? 'tdag-ping ' : ''}${mapMode ? 'map-node ' : ''}${condenseLit ? 'condense-lit ' : ''}${data.archived ? 'opacity-35 saturate-50 ' : ''}${isWaitingUpstream ? 'opacity-60 ' : ''}${data.isLoading ? 'loading-border' : ''}${justFinished ? 'tdag-settle' : ''} ${selectedNodeId === id ? 'tdag-selected ring-2 ring-primary !border-primary selected-glow' : ''} ${isDropTarget ? 'ring-2 ring-primary/50 ring-dashed' : ''}`}
+        ? `w-[520px] ${entrance} ${isBeacon ? 'beacon-node ' : ''}${data.archived ? 'opacity-35 saturate-50 ' : ''}${selectedNodeId === id ? 'glyph-selected ' : ''}`
+        : `thought-node relative rounded-xl w-[520px] ${entrance} transition-all duration-200 ${isBeacon ? 'beacon-node ' : ''}${mapMode ? 'map-node ' : ''}${condenseLit ? 'condense-lit ' : ''}${data.archived ? 'opacity-35 saturate-50 ' : ''}${isWaitingUpstream ? 'opacity-60 ' : ''}${data.isLoading ? 'loading-border' : ''}${justFinished ? 'tdag-settle' : ''} ${selectedNodeId === id ? 'tdag-selected' : ''} ${isDropTarget ? 'ring-2 ring-primary/50 ring-dashed' : ''}`}
       onClick={() => setSelectedNodeId(id)}
       onDoubleClick={() => {
         // Double-click opens the panel (single click only selects); inner

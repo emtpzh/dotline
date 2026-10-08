@@ -50,7 +50,7 @@ export default function FrameNode({ id, data, selected }: NodeProps<ThoughtNodeT
 
   return (
     <div
-      className={`relative w-full h-full rounded-2xl border-2 border-dashed flex flex-col transition-colors ${color.border} ${color.bg} ${
+      className={`tdag-frame relative w-full h-full rounded-2xl border-2 border-dashed flex flex-col transition-colors ${color.border} ${color.bg} ${
         selected ? 'ring-1 ring-primary/40' : ''
       }`}
       onClick={() => setSelectedNodeId(id)}

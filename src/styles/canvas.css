@@ -44,7 +44,7 @@
   /* the same soft elevation shadcn's Card carries, so a node on the canvas
      and a card in a dialog read as the same kind of object */
   box-shadow: 0 1px 2px color-mix(in oklch, var(--foreground) 5%, transparent);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard);
   position: relative;
 }
 
@@ -55,6 +55,18 @@
 .thought-node:hover {
   border-color: var(--input);
   box-shadow: 0 4px 12px color-mix(in oklch, var(--foreground) 8%, transparent);
+}
+
+/* Selected: a crisp 2px primary line, on the instant — no ring closing
+   in, no fade, no glow; selecting is a click, and the answer to a click is
+   immediate. It is an outline laid over the card's own border (offset -1px
+   covers it), because outline is in no transition here: the border and
+   shadow transitions belong to hover, and selection must not inherit
+   them. The destination of "continue last thread" wears the same line
+   while it is previewed. Scales with the face (--k). */
+.thought-node:is(.tdag-selected, .beacon-node) {
+  outline: calc(1px + 1px * var(--k, 1)) solid var(--primary);
+  outline-offset: -1px;
 }
 
 /* Connection handles: small dot, generous finger. The visible dot stays
@@ -234,18 +246,17 @@ body.tdag-connecting :is(.thought-node, .content-card) > .react-flow__handle.tda
 [data-searching] .react-flow__node.search-hit { opacity: 1; }
 [data-searching] .react-flow__edges { opacity: 0.18; transition: opacity 0.2s ease; }
 
-/* "Continue last thread" hover beacon: a loud steady halo (same language as
-   condense-lit) plus a wide ripple. The shadow follows the element's own
-   shape: the card at work or map distance, or the far-view dot. */
-@keyframes tdag-beacon {
-  0% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 55%, transparent), 0 0 34px color-mix(in srgb, var(--primary) 45%, transparent); }
-  70% { box-shadow: 0 0 0 46px color-mix(in srgb, var(--primary) 0%, transparent), 0 0 34px color-mix(in srgb, var(--primary) 45%, transparent); }
-  100% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 55%, transparent), 0 0 34px color-mix(in srgb, var(--primary) 45%, transparent); }
-}
-.thought-node.beacon-node { animation: tdag-beacon 1.3s ease-out infinite; }
-/* far tier: the visible body is the dot inside the counter-scaled mark,
-   not the 520px box — the shadow hugs the dot itself */
-.beacon-node .tdag-far-dot { animation: tdag-beacon 1.3s ease-out infinite; }
+/* "Continue last thread", hovered: a preview of where the button goes.
+   The rest of the map steps back (the searchlight's language) and the
+   destination stands in the full light wearing the selection line —
+   still, nothing loops. Frames stay lit: they are the ground. Off screen,
+   the dimmed map plus the edge tag (App ThoughtMapPill) say "not here,
+   there". Far tier: the dot wears the glyph selection outline. */
+.react-flow__node, .react-flow__edges { transition: opacity var(--dur-fast) var(--ease-standard); }
+[data-beacon] .react-flow__node:not(:has(.beacon-node, .tdag-frame)) { opacity: 0.3; }
+[data-beacon] .react-flow__node:has(.beacon-node) { opacity: 1; }
+[data-beacon] .react-flow__edges { opacity: 0.3; }
+.beacon-node .tdag-far-dot { outline: 8px solid var(--primary); outline-offset: 8px; }
 
 /* ── Context Focus ─────────────────────────────────────────────────────
    Single selection lights the node's REAL context (same partition the
@@ -262,10 +273,7 @@ body.tdag-connecting :is(.thought-node, .content-card) > .react-flow__handle.tda
    (clamped) so the feed line never thins into invisibility on the map */
 .react-flow__edge.focus-e-path .react-flow__edge-path {
   stroke-width: calc(3.5px / clamp(0.15, var(--tdag-zoom, 1), 1)) !important;
-  /* lit in the order the context flows: root first (App focusSets) */
-  animation: tdag-focus-in var(--dur-base) var(--ease-standard) var(--focus-delay, 0ms) backwards;
 }
-@keyframes tdag-focus-in { from { opacity: 0.2; } }
 .react-flow__edge.focus-e-down .react-flow__edge-path {
   stroke-width: calc(2.5px / clamp(0.3, var(--tdag-zoom, 1), 1)) !important;
 }
@@ -297,8 +305,7 @@ body.tdag-connecting :is(.thought-node, .content-card) > .react-flow__handle.tda
   .react-flow__edge.tdag-live .react-flow__edge-path { animation: none; }
   .tdag-state[data-state='running']::before, .tdag-far[data-state='running'] .tdag-far-dot { animation: none; }
   .tdag-hover, .react-flow__handle.tdag-handle, .react-flow__handle.tdag-ask > svg { transition: none; }
-  .react-flow__edge.focus-e-path .react-flow__edge-path, .tdag-draw { animation: none; }
-  .thought-node.beacon-node, .beacon-node .tdag-far-dot { animation: none; box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 55%, transparent); }
+  .tdag-draw { animation: none; }
   .tdag-timeline-pulse, .tdag-timeline { animation: none; }
   .react-flow__minimap { transition: none; }
   .tdag-draw { stroke-dashoffset: 0; }

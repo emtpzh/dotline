@@ -121,7 +121,7 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
   return (
     <div
       data-focus-panel
-      className={`absolute right-3 top-[var(--chrome-panel-top)] bottom-3 z-20 bg-muted border border-border rounded-2xl shadow-xl overflow-hidden flex flex-col ${leaving ? 'tdag-panel-out' : 'tdag-panel-in'} ${resizing ? 'select-none' : ''}`}
+      className={`absolute right-3 top-[var(--chrome-panel-top)] bottom-3 z-20 tdag-panel-ground border border-border rounded-2xl shadow-xl overflow-hidden flex flex-col ${leaving ? 'tdag-panel-out' : 'tdag-panel-in'} ${resizing ? 'select-none' : ''}`}
       style={{ width: panelWidth, minWidth: PANEL_MIN_WIDTH, maxWidth: '70vw' }}
     >
       {/* Resize handle on the left edge */}
