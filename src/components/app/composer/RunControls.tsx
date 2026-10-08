@@ -106,6 +106,42 @@ export function RuntimeMenu({ intent, onIntent }: { intent: RunIntent; onIntent:
   );
 }
 
+/** Beside "regenerate": the same question again on another model — a new
+ *  version in place. Every model the installation offers, grouped by where
+ *  it runs; the one the node runs on is marked. */
+export function RegenerateWith({ current, onPick }: { current: string | undefined; onPick: (model: string) => void }) {
+  const t = useT();
+  const data = useModels();
+  const engines = enginesOf(data?.models ?? []);
+  return (
+    <DropdownMenu onOpenChange={(open) => { if (open) ensureAgentsFresh(); }}>
+      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="-ml-1 text-muted-foreground hover:text-foreground" title={t('regen.withModelTitle')} data-regen-with />}>
+        <ChevronDown strokeWidth={1.75} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-60 max-h-[60vh] overflow-y-auto">
+        {engines.map(({ engine, models }, i) => (
+          <DropdownMenuGroup key={engine}>
+            {i > 0 && <DropdownMenuSeparator />}
+            <DropdownMenuLabel>{engine === 'chat' ? t('composer.chatModels') : AGENT_RUNTIMES[engine].label}</DropdownMenuLabel>
+            {models.map((m) => (
+              <DropdownMenuItem key={m.id} onClick={() => onPick(m.id)} data-regen-model={m.id}>
+                <span className="flex-1 min-w-0 truncate">{modelLabel(m, m.id)}</span>
+                {m.id === current && <span className="text-2xs text-muted-foreground shrink-0">{t('regen.current')}</span>}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
+        ))}
+        {/* no model to offer yet (none connected, or the list still loading) */}
+        {engines.length === 0 && (
+          <DropdownMenuItem onClick={() => useUiStore.getState().setApiKeyModalOpen(true)} data-regen-connect>
+            {t('composer.connect')}
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 /** Under the text, right: the model and its effort. In a box that asks off a
  *  node, the other runtimes are offered too — picking one opens a new session. */
 export function ModelMenu({ intent, onIntent, changed, offerRuntimes }: {

@@ -27,6 +27,7 @@ import ThoughtEdgeView from './components/ThoughtEdgeView';
 import FocusPanel from './components/focus-panel';
 import SelectionToolbar from './components/SelectionToolbar';
 import NodeContextMenu from './components/NodeContextMenu';
+import { FanOutHost } from './components/FanOutModal';
 import HighlightsOverviewModal from './components/app/HighlightsOverviewModal';
 import MaterialsOverviewModal from './components/app/MaterialsOverviewModal';
 import SearchBar from './components/SearchBar';
@@ -216,6 +217,7 @@ export default function App() {
       <MemoryManagerModal />
       <ApiKeyModal />
       <ResponseViewer />
+      <FanOutHost />
       <ShareDialog />
       <ThoughtMapDialog />
       <BackupDialog />

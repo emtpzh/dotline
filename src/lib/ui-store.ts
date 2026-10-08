@@ -124,6 +124,10 @@ interface UiState {
   setSearchHitIds: (ids: Set<string> | null) => void;
   /** Node whose answer is open in the large reading overlay. */
   responseViewerNodeId: string | null;
+  /** Node the perspectives dialog adds roles under (opened from the
+      right-click menu, which closes before the dialog does). */
+  fanOutNodeId: string | null;
+  setFanOutNodeId: (id: string | null) => void;
   setResponseViewerNodeId: (id: string | null) => void;
   /** Auto-backup folder name (null = off) — display only, handle lives in idb. */
   autoBackupDir: string | null;
@@ -289,6 +293,8 @@ export const useUiStore = create<UiState>((set, get) => ({
   setSearchHitIds: (ids) => set({ searchHitIds: ids }),
   pingModelPicker: () => set((s) => ({ modelPickerPing: s.modelPickerPing + 1 })),
   responseViewerNodeId: null,
+  fanOutNodeId: null,
+  setFanOutNodeId: (id) => set({ fanOutNodeId: id }),
   setResponseViewerNodeId: (id) => set({ responseViewerNodeId: id }),
   autoBackupDir: null,
   setAutoBackupDir: (name) => set({ autoBackupDir: name }),

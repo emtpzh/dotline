@@ -523,6 +523,8 @@ export const zh: Record<keyof typeof en, string> = {
   'node.detailsTitle': '在详情里查看',
   'ask.enterToSend': '回车发送',
   'ask.settingsTitle': '换运行方式或模型',
+  'regen.withModelTitle': '换个模型重新生成：这一问多一个新版本',
+  'regen.current': '当前',
   'turn.title': '这一轮',
   'turn.model': '模型',
   'turn.time': '时间',

@@ -16,6 +16,9 @@ import type { ThoughtData } from '../../types';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import SelectionActions from '../app/SelectionActions';
+import { RegenerateWith } from '../app/composer/RunControls';
+import { nodeIntent } from '../../store/intent';
+import { isAgentModel, runtimeOf } from '../../lib/agents/runtimes';
 import { useTextSelection } from '../../lib/use-text-selection';
 
 export default function ResponseSection({
@@ -41,6 +44,21 @@ export default function ResponseSection({
   const deleteVersion = useStore((s) => s.deleteVersion);
   const addHighlight = useStore((s) => s.addHighlight);
   const setSelectedNodeId = useStore((s) => s.setSelectedNodeId);
+  const setNodeIntent = useStore((s) => s.setNodeIntent);
+  // what a regenerate runs on: the node's own intent, or its line's
+  const intentModel = useStore((s) => nodeIntent(nodeId, s.nodes, s.edges).model);
+  const intentEffort = useStore((s) => nodeIntent(nodeId, s.nodes, s.edges).effort);
+  // the same question on another model: the node takes it (another model
+  // starts at its runtime's default level; another runtime settles its own
+  // directory at its first run), then answers again as a new version
+  const regenerateWith = (m: string) => {
+    setNodeIntent(nodeId, {
+      model: m,
+      effort: isAgentModel(m) ? (m === intentModel ? intentEffort ?? '' : '') : undefined,
+      ...(runtimeOf(m) !== runtimeOf(intentModel) ? { cwd: undefined } : {}),
+    });
+    void rerunNode(nodeId, {});
+  };
   // Passages child branches explore from (derived from the children).
   // Clicking a mark walks the panel to that branch and centers it. The
   // selector returns the serialized form: a fresh array from a selector
@@ -203,6 +221,7 @@ export default function ResponseSection({
           >
             <RefreshCw strokeWidth={1.75} />
           </Button>}
+          {!isViewerMode && <RegenerateWith current={intentModel} onPick={regenerateWith} />}
           <Button variant="ghost" size="icon-sm"
             onClick={() => void copyText(data.response)}
             className="hover:text-primary hover:bg-accent"

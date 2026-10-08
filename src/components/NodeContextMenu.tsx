@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Archive, ArchiveRestore, BookOpen, Copy, Files, FlaskConical, GitFork, Maximize2, RefreshCw, StickyNote, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, BookOpen, Copy, Files, FlaskConical, GitFork, Maximize2, RefreshCw, Split, StickyNote, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { useUiStore, confirmDialog, toast } from '../lib/ui-store';
 import { recapToNote } from '../lib/recap';
@@ -60,6 +60,12 @@ export default function NodeContextMenu({ x, y, nodeId, onClose }: {
         {hasResponse && (
           <DropdownMenuItem title={ti('actions.regenBranchTitle')} onClick={() => { void useStore.getState().regenerate(nodeId); }}>
             <GitFork size={14} strokeWidth={1.75} className={icon} /> {t('ctx.regenBranch')}
+          </DropdownMenuItem>
+        )}
+        {/* several roles take this question at once: candidates or reviewers */}
+        {!isContent && !!node.data.question && (
+          <DropdownMenuItem title={ti('fanout.entryTitle')} onClick={() => useUiStore.getState().setFanOutNodeId(nodeId)} data-ctx-fanout>
+            <Split size={14} strokeWidth={1.75} className={icon} /> {t('fanout.entry')}
           </DropdownMenuItem>
         )}
         {hasResponse && (

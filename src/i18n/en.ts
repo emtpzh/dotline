@@ -523,6 +523,8 @@ export const en = {
   'node.detailsTitle': 'Open in the details panel',
   'ask.enterToSend': 'Enter to send',
   'ask.settingsTitle': 'Change where it runs and on which model',
+  'regen.withModelTitle': 'Regenerate on another model: a new version of this answer',
+  'regen.current': 'current',
   'turn.title': 'This turn',
   'turn.model': 'Model',
   'turn.time': 'Time',

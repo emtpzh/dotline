@@ -1,41 +1,23 @@
 import { useState } from 'react';
-import { Archive, ArchiveRestore, ClipboardCopy, Copy, Ellipsis, FileDown, GitFork, RefreshCw, Split, Square, Trash2, Undo2 } from 'lucide-react';
+import { Archive, ArchiveRestore, ClipboardCopy, Copy, Ellipsis, FileDown, GitFork, Square, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { contextChainMarkdown, downloadMarkdown, copyText } from '../../lib/export';
-import ModelPicker from '../app/ModelPicker';
-import { inheritIntent } from '../../lib/run-intent';
-import { isAgentModel, runtimeOf } from '../../lib/agents/runtimes';
-import { globalIntent, nodeIntent, parentsOf } from '../../store/intent';
-import FanOutModal from '../FanOutModal';
-import { toast, confirmDialog, useUiStore } from '../../lib/ui-store';
+import { toast, confirmDialog } from '../../lib/ui-store';
 import { useT, fmt } from '../../i18n';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { Button } from '../ui/button';
 
-// Compact action strip: the two actions you actually reach for (regenerate,
-// archive) plus the model chip, everything else behind "…". Perspectives
-// (once = candidates, follow = reviewers) live here until the palette lands.
+// Compact action strip: archive, and everything else behind "…". What acts
+// on the answer (regenerate, on another model too) sits under the answer;
+// asking on in several roles at once is the card's right-click menu; a
+// parallel answer as its own card too.
 
 export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; isLoading: boolean }) {
-  const regenerate = useStore((s) => s.regenerate);
-  const rerunNode = useStore((s) => s.rerunNode);
   const stopGeneration = useStore((s) => s.stopGeneration);
   const duplicateNode = useStore((s) => s.duplicateNode);
   const deleteNode = useStore((s) => s.deleteNode);
   const setSelectedNodeId = useStore((s) => s.setSelectedNodeId);
-  const setNodeIntent = useStore((s) => s.setNodeIntent);
   const deleteConvergeSources = useStore((s) => s.deleteConvergeSources);
-  // what this node runs on next: its own intent, or — not asked yet — the
-  // line's (the global pick only for a root; the picker re-reads it)
-  useUiStore((s) => s.selectedModel);
-  const intentModel = useStore((s) => nodeIntent(nodeId, s.nodes, s.edges).model);
-  const intentEffort = useStore((s) => nodeIntent(nodeId, s.nodes, s.edges).effort);
-  // an unasked node whose sources disagree started from the global pick: say so until it is asked
-  const mixedSources = useStore((s) => {
-    const n = s.nodes.find((x) => x.id === nodeId);
-    if (!n || n.data.responses.length > 0 || n.data.isLoading) return false;
-    return !!inheritIntent(parentsOf(nodeId, s.nodes, s.edges), globalIntent()).mixed && n.data.model === globalIntent().model;
-  });
   // a merge that has answered can take its sources off the canvas
   const mergedSources = useStore((s) => {
     const d = s.nodes.find((x) => x.id === nodeId)?.data;
@@ -43,7 +25,6 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
   });
   const setArchived = useStore((s) => s.setArchived);
   const isArchived = useStore((s) => !!s.nodes.find((n) => n.id === nodeId)?.data.archived);
-  const nodeQuestion = useStore((s) => s.nodes.find((n) => n.id === nodeId)?.data.question ?? '');
   // fine tier of recoverability: a mirror node that drifted from its
   // frozen source snapshot can be put back — text only, never structure
   const diverged = useStore((s) => {
@@ -67,28 +48,18 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
   };
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [fanOutOpen, setFanOutOpen] = useState(false);
 
   const iconBtn = 'text-muted-foreground hover:text-foreground hover:bg-border/50';
 
   return (
     <div className="relative flex items-center gap-1 shrink-0">
-      {isLoading ? (
+      {isLoading && (
         <Button variant="ghost" size="icon"
           onClick={() => stopGeneration(nodeId)}
           title={t('actions.stop')}
           className="text-white bg-destructive hover:bg-destructive/90"
         >
           <Square strokeWidth={1.75} fill="currentColor" />
-        </Button>
-      ) : (
-        <Button variant="ghost"
-          onClick={() => void rerunNode(nodeId, {})}
-          disabled={isLoading}
-          title={isLoading ? t('node.generatingTitle') : t('common.regenerate')}
-          className={`${iconBtn} disabled:opacity-25 disabled:cursor-not-allowed`}
-        >
-          <RefreshCw strokeWidth={1.75} className={isLoading ? 'animate-spin' : ''} />
         </Button>
       )}
       <Button variant="ghost"
@@ -98,21 +69,6 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
       >
         {isArchived ? <ArchiveRestore strokeWidth={1.75} /> : <Archive strokeWidth={1.75} />}
       </Button>
-      <ModelPicker
-        compact
-        value={intentModel}
-        // another model starts at its runtime's default level (the same one
-        // keeps its level); another runtime settles its own directory at its first run
-        onChange={(m) => setNodeIntent(nodeId, {
-          model: m,
-          effort: isAgentModel(m) ? (m === intentModel ? intentEffort ?? '' : '') : undefined,
-          ...(runtimeOf(m) !== runtimeOf(intentModel) ? { cwd: undefined } : {}),
-        })}
-        effort={intentEffort}
-        onEffortChange={(level) => setNodeIntent(nodeId, { model: intentModel, effort: level })}
-        hint={mixedSources ? t('model.mixedSources') : undefined}
-      />
-
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger
           title={t('panel.more')}
@@ -121,12 +77,6 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
           <Ellipsis size={17} strokeWidth={1.75} />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[210px]">
-            <DropdownMenuItem onClick={() => { setFanOutOpen(true); }} title={t('fanout.entryTitle')}>
-              <Split size={15} strokeWidth={1.75} /> {t('fanout.entry')}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => { void regenerate(nodeId); }} title={t('actions.regenBranchTitle')}>
-              <GitFork size={15} strokeWidth={1.75} /> {t('actions.regenBranch')}
-            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => { duplicateNode(nodeId); }}>
               <Copy size={15} strokeWidth={1.75} /> {t('common.duplicate')}
             </DropdownMenuItem>
@@ -173,9 +123,6 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {fanOutOpen && (
-        <FanOutModal parentId={nodeId} initialQuestion={nodeQuestion} onClose={() => setFanOutOpen(false)} />
-      )}
     </div>
   );
 }

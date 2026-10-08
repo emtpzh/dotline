@@ -207,3 +207,11 @@ export default function FanOutModal({
     </Dialog>
   );
 }
+
+/** The perspectives dialog for the node the right-click menu named. */
+export function FanOutHost() {
+  const nodeId = useUiStore((s) => s.fanOutNodeId);
+  const question = useStore((s) => (nodeId ? s.nodes.find((n) => n.id === nodeId)?.data.question ?? '' : ''));
+  if (!nodeId) return null;
+  return <FanOutModal parentId={nodeId} initialQuestion={question} onClose={() => useUiStore.getState().setFanOutNodeId(null)} />;
+}
