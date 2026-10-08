@@ -175,7 +175,7 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
     const coverSrc = cover && (cover.type.startsWith('image/') ? `data:${cover.type};base64,${cover.content}` : `data:image/png;base64,${cover.pageImages![0]}`);
     return (
       <div
-        className={`content-card map-node relative w-full h-full min-w-[340px] flex flex-col overflow-hidden rounded-xl shadow-sm border border-border bg-card ${selectedNodeId === id ? 'tdag-selected ring-2 ring-primary selected-glow' : ''}`}
+        className={`content-card map-node relative w-full h-full min-w-[340px] flex flex-col rounded-xl shadow-sm border border-border bg-card ${selectedNodeId === id ? 'tdag-selected ring-2 ring-primary selected-glow' : ''}`}
         style={{ '--k': 1.75 } as React.CSSProperties}
         onClick={() => setSelectedNodeId(id)}
         onDoubleClick={openMaterial}
@@ -184,7 +184,7 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
           <FaceName shape="square" tone={tone} name={materialName} marks={[]} state={state} tags={tags} />
           <FaceBody question={materialLine} placeholder={placeholder} conclusion={null} />
         </div>
-        {coverSrc && <img src={coverSrc} alt={cover!.name} className="flex-1 min-h-0 w-full object-cover object-top border-t border-border/60" />}
+        {coverSrc && <img src={coverSrc} alt={cover!.name} className="flex-1 min-h-0 w-full object-cover object-top border-t border-border/60 rounded-b-xl" />}
         <Handle type="source" position={Position.Bottom} id="continue" className="!bg-muted-foreground !border-2 !border-white tdag-handle !w-6 !h-6 tdag-handle-lg" />
         <Handle type="source" position={Position.Right} id="branch" isConnectable={false} className="!bg-transparent !w-0 !h-0 !border-0 !pointer-events-none" style={{ top: '50%' }} />
       </div>
