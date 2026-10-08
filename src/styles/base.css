@@ -12,6 +12,22 @@
   --chrome-panel-top: 0.75rem;
 }
 
+/* Motion: the canvas's one beat. The JS mirror is lib/motion.ts (MOTION) —
+   keep both in sync. Reduced motion drops every duration to 0 here, so a
+   rule built on these variables needs no media query of its own. */
+:root {
+  --dur-fast: 150ms;
+  --dur-base: 220ms;
+  --dur-enter: 320ms;
+  --dur-exit: 140ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 0ms; --dur-base: 0ms; --dur-enter: 0ms; --dur-exit: 0ms; }
+}
+
 
 html, body, #root {
   width: 100%;
@@ -69,18 +85,63 @@ textarea:focus-visible {
 }
 .dag-pop { animation: dag-pop 0.45s ease-out backwards; }
 
-@keyframes pulse-border {
-  0%, 100% { border-color: var(--border); }
-  50% { border-color: var(--primary); }
+/* A card at work wears a steady primary border; the name row's running dot
+   is the one thing that pulses (canvas.css .tdag-state). When the answer
+   lands, the border lets go with one soft flash — on a pseudo-element, so
+   it never takes the card's own `animation` (lib/use-entrance-fade). */
+.loading-border { border-color: color-mix(in oklch, var(--primary) 55%, var(--border)); }
+@keyframes tdag-settle { from { opacity: 1; } to { opacity: 0; } }
+.tdag-settle::before {
+  content: ''; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
+  border: 1px solid var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 14%, transparent);
+  opacity: 0;
+  animation: tdag-settle 520ms var(--ease-standard);
 }
 
-.loading-border { animation: pulse-border 1.5s ease-in-out infinite; }
-
-@keyframes pulse-selected {
-  0%, 100% { box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 25%, transparent); }
-  50% { box-shadow: 0 0 0 5px color-mix(in oklch, var(--primary) 12%, transparent); }
+/* The typing caret: a hard one-second blink, like a text cursor — a slow
+   pulse reads as "loading", not "writing". */
+.tdag-caret {
+  display: inline-block; width: 0.5rem; height: 1rem; border-radius: 2px;
+  background: var(--primary);
+  animation: tdag-caret 1s steps(1) infinite;
 }
-.selected-glow { animation: pulse-selected 2s ease-in-out infinite; }
+@keyframes tdag-caret { 50% { opacity: 0; } }
+/* A live tail fades out at its top edge instead of being cut off: the text
+   above slides away under the fade (ThoughtNode liveTail). */
+.tdag-tail {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 1.75rem);
+  mask-image: linear-gradient(to bottom, transparent, black 1.75rem);
+}
+
+/* Selection speaks once: one ripple the moment a card is picked, then only
+   the static ring (the card's own ring-2). A ping is the larger ripple of
+   "you landed here" (continue last thread, a jump to a search hit). Both
+   ride a pseudo-element, because the card's own `animation` belongs to its
+   entrance and its states (lib/use-entrance-fade) — sharing it, one would
+   switch the other off or replay it. Ripples scale with the face (--k). */
+@keyframes tdag-ripple {
+  from { box-shadow: 0 0 0 0 color-mix(in oklch, var(--primary) 45%, transparent); }
+  to { box-shadow: 0 0 0 calc(12px * var(--k, 1)) color-mix(in oklch, var(--primary) 0%, transparent); }
+}
+@keyframes tdag-ripple-ping {
+  from { box-shadow: 0 0 0 0 color-mix(in oklch, var(--primary) 60%, transparent); }
+  to { box-shadow: 0 0 0 calc(30px * var(--k, 1)) color-mix(in oklch, var(--primary) 0%, transparent); }
+}
+.selected-glow::after, .tdag-ping::after {
+  content: ''; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
+}
+.selected-glow::after { animation: tdag-ripple 420ms var(--ease-standard); }
+.tdag-ping::after { animation: tdag-ripple-ping 640ms var(--ease-standard); }
+/* far tier: the visible body is the dot, not the 520px box */
+.tdag-ping .tdag-far-dot { animation: tdag-ripple-ping 640ms var(--ease-standard); }
+
+/* The details panel slides in from its edge and back out on the chrome's
+   beat (App keeps it mounted while it leaves, lib/use-presence) */
+@keyframes tdag-panel-in { from { opacity: 0; transform: translateX(24px); } }
+@keyframes tdag-panel-out { to { opacity: 0; transform: translateX(24px); } }
+.tdag-panel-in { animation: tdag-panel-in var(--dur-base) var(--ease-standard); }
+.tdag-panel-out { animation: tdag-panel-out var(--dur-base) var(--ease-standard) forwards; pointer-events: none; }
 /* Focus panel: sections are white cards floating on the wash ground —
    depth does the grouping, not divider lines. */
 .panel-card {
@@ -130,3 +191,12 @@ body.tdag-connecting, body.tdag-connecting * {
 .tdag-condense-window { position: fixed; z-index: 70; }
 .tdag-ask-bar { position: fixed; z-index: 95; }
 .tdag-tour { position: fixed; inset: 0; z-index: 95; }
+
+/* Reduced motion: what the duration variables above do not already cover.
+   Entrances keep only their fade; one-shot ripples, the caret blink and the
+   landing-logo sequence go; everything simply is where it ends up. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .dag-pop, .selected-glow::after, .tdag-ping::after, .tdag-ping .tdag-far-dot,
+  .tdag-settle::before, .tdag-caret, .tdag-panel-in { animation: none; }
+}

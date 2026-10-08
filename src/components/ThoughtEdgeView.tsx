@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { BaseEdge, EdgeLabelRenderer, type EdgeProps } from '@xyflow/react';
 import { X } from 'lucide-react';
 import { useStore } from '../store';
@@ -10,6 +10,8 @@ import { useT, fmt } from '../i18n';
 import type { ThoughtEdge } from '../types';
 import { Button } from './ui/button';
 import { sessionWhy } from '../lib/session-why';
+import { reducedMotion } from '../lib/motion';
+import { spawnOf, WIRE_MS } from '../lib/spawn-motion';
 
 /**
  * Custom edge registered under the 'smoothstep' type name (overrides the
@@ -60,6 +62,20 @@ export default function ThoughtEdgeView({
   // and thicken the stroke as selection feedback.
   const edgeStyle = selected ? { ...style, strokeWidth: 3, opacity: 1 } : style;
 
+  // A wire into a card born a moment ago draws itself out of the parent
+  // (lib/spawn-motion): a solid overlay grows along the path while the real
+  // wire — arrowhead included — waits hidden, then takes over.
+  const [drawDelay] = useState(() => {
+    const s = reducedMotion() ? undefined : spawnOf(target);
+    return s && s.from === source ? s.delay : null;
+  });
+  const [drawing, setDrawing] = useState(drawDelay !== null);
+  useEffect(() => {
+    if (drawDelay === null) return;
+    const timer = setTimeout(() => setDrawing(false), drawDelay + WIRE_MS);
+    return () => clearTimeout(timer);
+  }, [drawDelay]);
+
   // A merge's incoming blocks have a stated order — show it AT the join,
   // where the question "which reads first?" is asked. Only merges wear
   // numbers; a single-parent edge needs none.
@@ -85,11 +101,15 @@ export default function ThoughtEdgeView({
     <>
       <BaseEdge
         path={path}
-        style={edgeStyle}
+        style={drawing ? { ...edgeStyle, opacity: 0 } : edgeStyle}
         markerEnd={markerEnd}
         markerStart={markerStart}
         interactionWidth={interactionWidth}
       />
+      {drawing && (
+        <path d={path} pathLength={1} className="tdag-draw"
+          style={{ stroke: edgeStyle?.stroke ?? 'var(--edge-continue)', strokeWidth: edgeStyle?.strokeWidth ?? 2, animationDelay: `${drawDelay}ms` }} />
+      )}
       {mergeIndex >= 0 && (
         <EdgeLabelRenderer>
           <div

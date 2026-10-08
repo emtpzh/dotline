@@ -189,11 +189,13 @@ body.tdag-connecting :is(.thought-node, .content-card) > .react-flow__handle.tda
   background: color-mix(in oklch, var(--canvas) 85%, transparent);
 }
 .tdag-far:is([data-pri='2'], [data-pri='3']) .tdag-far-label { color: var(--foreground); font-weight: 600; }
+/* thinning fades, so a zoom step never blinks a whole band of names off */
+.tdag-far-label { transition: opacity var(--dur-fast) var(--ease-standard), visibility var(--dur-fast); }
 /* Label thinning: the dots always stay; as the map gets dense only the
    higher-priority names keep their labels (band set from the live zoom). */
 [data-far-band='1'] .tdag-far[data-pri='0'] .tdag-far-label,
 [data-far-band='2'] .tdag-far:is([data-pri='0'], [data-pri='1']) .tdag-far-label,
-[data-far-band='3'] .tdag-far:not([data-pri='3']) .tdag-far-label { display: none; }
+[data-far-band='3'] .tdag-far:not([data-pri='3']) .tdag-far-label { opacity: 0; visibility: hidden; }
 .glyph-selected .tdag-far-dot { outline: 8px solid var(--primary); outline-offset: 8px; }
 
 /* Edges thicken at far zoom so the skeleton stays legible at distance —
@@ -260,7 +262,10 @@ body.tdag-connecting :is(.thought-node, .content-card) > .react-flow__handle.tda
    (clamped) so the feed line never thins into invisibility on the map */
 .react-flow__edge.focus-e-path .react-flow__edge-path {
   stroke-width: calc(3.5px / clamp(0.15, var(--tdag-zoom, 1), 1)) !important;
+  /* lit in the order the context flows: root first (App focusSets) */
+  animation: tdag-focus-in var(--dur-base) var(--ease-standard) var(--focus-delay, 0ms) backwards;
 }
+@keyframes tdag-focus-in { from { opacity: 0.2; } }
 .react-flow__edge.focus-e-down .react-flow__edge-path {
   stroke-width: calc(2.5px / clamp(0.3, var(--tdag-zoom, 1), 1)) !important;
 }
@@ -277,10 +282,24 @@ body.tdag-connecting :is(.thought-node, .content-card) > .react-flow__handle.tda
   stroke-dasharray: calc(5px / clamp(0.15, var(--tdag-zoom, 1), 1)) calc(26px / clamp(0.15, var(--tdag-zoom, 1), 1));
   animation: tdag-flow 1.1s linear infinite;
 }
+/* A wire into a card just born draws itself out of the parent
+   (ThoughtEdgeView, lib/spawn-motion): pathLength=1, so one dash is the
+   whole path and the offset runs it out from the source. */
+.tdag-draw {
+  fill: none; stroke-linecap: round; pointer-events: none;
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+  animation: tdag-draw var(--dur-base) var(--ease-standard) forwards;
+}
+@keyframes tdag-draw { to { stroke-dashoffset: 0; } }
 @keyframes tdag-flow { to { stroke-dashoffset: calc(-31px / clamp(0.15, var(--tdag-zoom, 1), 1)); } }
 @media (prefers-reduced-motion: reduce) {
   .tdag-flow-ov { animation: none; display: none; }
   .react-flow__edge.tdag-live .react-flow__edge-path { animation: none; }
   .tdag-state[data-state='running']::before, .tdag-far[data-state='running'] .tdag-far-dot { animation: none; }
   .tdag-hover, .react-flow__handle.tdag-handle, .react-flow__handle.tdag-ask > svg { transition: none; }
+  .react-flow__edge.focus-e-path .react-flow__edge-path, .tdag-draw { animation: none; }
+  .thought-node.beacon-node, .beacon-node .tdag-far-dot { animation: none; box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 55%, transparent); }
+  .tdag-timeline-pulse, .tdag-timeline { animation: none; }
+  .react-flow__minimap { transition: none; }
+  .tdag-draw { stroke-dashoffset: 0; }
 }

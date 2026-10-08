@@ -4,6 +4,7 @@ import { useStore } from '../store';
 import { useUiStore } from '../lib/ui-store';
 import { isPinned, planRelayout } from '../lib/layout';
 import { isFrameNode } from '../lib/frames';
+import { MOTION, fitMotion, ms } from '../lib/motion';
 import { useT, fmt } from '../i18n';
 import { Button } from './ui/button';
 import type { ThoughtNode } from '../types';
@@ -61,7 +62,7 @@ function OpenPreview({ resetPins }: { resetPins: boolean }) {
     const y = Math.min(...boxes.map((b) => b.y));
     const width = Math.max(...boxes.map((b) => b.x + b.width)) - x;
     const height = Math.max(...boxes.map((b) => b.y + b.height)) - y;
-    void rf.fitBounds({ x, y, width, height }, { padding: 0.15, duration: 300 });
+    void rf.fitBounds({ x, y, width, height }, { padding: 0.15, ...fitMotion(300) });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per open
   }, []);
 
@@ -70,7 +71,7 @@ function OpenPreview({ resetPins }: { resetPins: boolean }) {
     close();
     useStore.getState().relayout(resetPins);
     // after the cards have glided into place (lib/layout-motion)
-    setTimeout(() => { void rf.fitView({ duration: 400, padding: 0.15 }); }, 260);
+    setTimeout(() => { void rf.fitView({ ...fitMotion(), padding: 0.15 }); }, ms(MOTION.base) + 40);
   };
 
   useEffect(() => {

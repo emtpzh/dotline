@@ -3,6 +3,7 @@ import { Lock, LockOpen, Maximize, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ButtonGroup } from '../ui/button-group';
 import { useT } from '../../i18n';
+import { MOTION, fitMotion } from '../../lib/motion';
 
 // React Flow's own <Controls> ships fill-based glyphs on four different
 // viewBoxes and hardcoded English labels — it took a block of !important to
@@ -22,13 +23,13 @@ export default function CanvasControls() {
   return (
     <Panel position="bottom-left">
       <ButtonGroup orientation="vertical">
-        <Button variant="chrome" size="icon" onClick={() => zoomIn()} disabled={maxZoomReached} title={t('controls.zoomIn')}>
+        <Button variant="chrome" size="icon" onClick={() => zoomIn(fitMotion(MOTION.base))} disabled={maxZoomReached} title={t('controls.zoomIn')}>
           <ZoomIn strokeWidth={1.75} />
         </Button>
-        <Button variant="chrome" size="icon" onClick={() => zoomOut()} disabled={minZoomReached} title={t('controls.zoomOut')}>
+        <Button variant="chrome" size="icon" onClick={() => zoomOut(fitMotion(MOTION.base))} disabled={minZoomReached} title={t('controls.zoomOut')}>
           <ZoomOut strokeWidth={1.75} />
         </Button>
-        <Button variant="chrome" size="icon" onClick={() => fitView()} title={t('controls.fitView')}>
+        <Button variant="chrome" size="icon" onClick={() => fitView(fitMotion())} title={t('controls.fitView')}>
           <Maximize strokeWidth={1.75} />
         </Button>
         <Button

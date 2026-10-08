@@ -1,9 +1,10 @@
 import type { ThoughtNode } from '../types';
+import { MOTION } from './motion';
 
 type Pos = { x: number; y: number };
 type SetNodes = (update: (nodes: ThoughtNode[]) => ThoughtNode[]) => void;
 
-const DURATION_MS = 220;
+const DURATION_MS = MOTION.base;
 const easeOut = (t: number) => 1 - (1 - t) ** 3;
 
 let cancelRunning: (() => void) | null = null;

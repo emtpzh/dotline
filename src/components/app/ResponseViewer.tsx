@@ -115,7 +115,7 @@ export default function ResponseViewer() {
                 ) : (
                   <Markdown base={data.importSource?.cwd}>{data.response}</Markdown>
                 )}
-                {data.isLoading && <span className="inline-block w-2 h-4 bg-primary animate-pulse rounded-sm ml-0.5" />}
+                {data.isLoading && <span className="tdag-caret ml-0.5" />}
               </div>
             )}
           </div>

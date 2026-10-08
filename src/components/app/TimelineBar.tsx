@@ -7,6 +7,7 @@ import { useZoomTier } from '../../lib/use-map-mode';
 import { useDateLocale, useT } from '../../i18n';
 import { collectTimeline } from '../../lib/timeline';
 import { panelShift } from '../../lib/panel-shift';
+import { flyTo } from '../../lib/motion';
 import { Button } from '../ui/button';
 
 // The map's second axis. Space answers "where is it in the graph"; this rail
@@ -132,11 +133,11 @@ export function TimelineBar() {
                 onClick={() => {
                   setSelectedNodeId(e.id);
                   const zoom = rf.getViewport().zoom;
-                  rf.setCenter(e.x + 260 + panelShift(e.id) / (2 * zoom), e.y + 110, { zoom, duration: 300 });
+                  void flyTo(rf, e.x + 260 + panelShift(e.id) / (2 * zoom), e.y + 110, zoom);
                 }}
                 onDoubleClick={() => {
                   setSelectedNodeId(e.id);
-                  rf.setCenter(e.x + 260 + panelShift(e.id) / 2, e.y + 110, { zoom: 1, duration: 350 });
+                  void flyTo(rf, e.x + 260 + panelShift(e.id) / 2, e.y + 110, 1);
                 }}
                 className="relative w-full h-[14px] shrink-0 pl-[29px]"
                 aria-label={e.label}

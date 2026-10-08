@@ -3,6 +3,9 @@ import type { ThoughtNode, ThoughtEdge, AgentAccess } from '../../types';
 import { generateId, countTokens } from '../../utils';
 import { nodeHeight, planRelayout, placeNewNodes, reseatSubtree, isContentKind, releasePin, tidyChain, tidyFrame, settleLayout } from '../../lib/layout';
 import { glideNodes, isLayoutHeld } from '../../lib/layout-motion';
+import { leaveThen } from '../../lib/leave-motion';
+import { noteFoldFrom } from '../../lib/fold-motion';
+import { MOTION, ms } from '../../lib/motion';
 import { useUiStore } from '../../lib/ui-store';
 import { getDescendantIds, walkUpAncestors } from '../../lib/graph';
 import { referenceBlockContent, upstreamFingerprint, buildContext } from '../context-builder';
@@ -102,18 +105,22 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
 
   deleteNode: (nodeId: string) => {
     if (condenseGuard()) return;
-    get().logEvent('delete', nodeId, { n: 1 });
-    get().pushHistory();
     const { edges } = get();
     const descendants = getDescendantIds(nodeId, edges);
     const removeIds = new Set([nodeId, ...descendants]);
-    set((state) => ({
-      nodes: state.nodes.filter((n) => !removeIds.has(n.id)),
-      edges: state.edges.filter((e) => !removeIds.has(e.source) && !removeIds.has(e.target)),
-    }));
-    get().pushHistory();
-    // deletion IS unsubscription — see canonical.unsubscribeOrphanedSessions
-    void import('../../lib/atlas/canonical').then((m) => m.unsubscribeOrphanedSessions());
+    const wires = edges.filter((e) => removeIds.has(e.source) || removeIds.has(e.target)).map((e) => e.id);
+    // the cards play their way out first (lib/leave-motion)
+    leaveThen(removeIds, wires, () => {
+      get().logEvent('delete', nodeId, { n: 1 });
+      get().pushHistory();
+      set((state) => ({
+        nodes: state.nodes.filter((n) => !removeIds.has(n.id)),
+        edges: state.edges.filter((e) => !removeIds.has(e.source) && !removeIds.has(e.target)),
+      }));
+      get().pushHistory();
+      // deletion IS unsubscription — see canonical.unsubscribeOrphanedSessions
+      void import('../../lib/atlas/canonical').then((m) => m.unsubscribeOrphanedSessions());
+    });
   },
 
   deleteEdges: (edgeIds: string[]) => {
@@ -166,11 +173,14 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
 
   toggleCollapse: (nodeId: string) => {
     if (!get().nodes.some((n) => n.id === nodeId)) return;
+    // the card's height morphs to its new size (lib/fold-motion)
+    noteFoldFrom(nodeId);
     set((state) => ({
       nodes: state.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, isCollapsed: !n.data.isCollapsed } } : n)),
     }));
-    // what hangs below re-hangs from the card's new height once it is measured
-    get().settleFrom([nodeId]);
+    // what hangs below re-hangs from the card's new height once it is
+    // measured — after the morph, or the measure would catch it midway
+    setTimeout(() => get().settleFrom([nodeId]), ms(MOTION.base));
   },
 
   settleFrom: (nodeIds: string[]) => {
@@ -529,18 +539,22 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
 
   batchDelete: (nodeIds: string[]) => {
     if (condenseGuard()) return;
-    get().logEvent('delete', nodeIds[0], { n: nodeIds.length });
-    get().pushHistory();
     const removeSet = new Set(nodeIds);
-    set((state) => ({
-      nodes: state.nodes.filter((n) => !removeSet.has(n.id)),
-      edges: state.edges.filter((e) => !removeSet.has(e.source) && !removeSet.has(e.target)),
-      selectedNodeId: null,
-      selectedNodeIds: [],
-    }));
-    get().pushHistory();
-    // deletion IS unsubscription — see canonical.unsubscribeOrphanedSessions
-    void import('../../lib/atlas/canonical').then((m) => m.unsubscribeOrphanedSessions());
+    const wires = get().edges.filter((e) => removeSet.has(e.source) || removeSet.has(e.target)).map((e) => e.id);
+    // the cards play their way out first (lib/leave-motion)
+    leaveThen(removeSet, wires, () => {
+      get().logEvent('delete', nodeIds[0], { n: nodeIds.length });
+      get().pushHistory();
+      set((state) => ({
+        nodes: state.nodes.filter((n) => !removeSet.has(n.id)),
+        edges: state.edges.filter((e) => !removeSet.has(e.source) && !removeSet.has(e.target)),
+        selectedNodeId: null,
+        selectedNodeIds: [],
+      }));
+      get().pushHistory();
+      // deletion IS unsubscription — see canonical.unsubscribeOrphanedSessions
+      void import('../../lib/atlas/canonical').then((m) => m.unsubscribeOrphanedSessions());
+    });
   },
 
   duplicateSelection: (nodeIds: string[]) => {

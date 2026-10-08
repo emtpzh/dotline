@@ -6,6 +6,7 @@ import { useStore } from '../store';
 import { useZoomTier } from '../lib/use-map-mode';
 import { useUiStore, toast } from '../lib/ui-store';
 import { useEntranceFade } from '../lib/use-entrance-fade';
+import { flyTo } from '../lib/motion';
 import { triggerParadigmCascade } from '../store/streaming';
 import { fetchLinkIntoNode, ingestFiles } from '../lib/content';
 import { FILE_INPUT_ACCEPT } from '../lib/attachments';
@@ -145,7 +146,7 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
     e.stopPropagation();
     // documents open where they are read; notes fly to working scale
     if (kind === 'file' || kind === 'link') useUiStore.getState().setReaderNodeId(id);
-    else rf.setCenter((nodePos?.x ?? 0) + 200, (nodePos?.y ?? 0) + 120, { zoom: 1, duration: 300 });
+    else void flyTo(rf, (nodePos?.x ?? 0) + 200, (nodePos?.y ?? 0) + 120, 1);
   };
 
   if (glyphTier) {

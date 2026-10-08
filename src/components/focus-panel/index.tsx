@@ -25,12 +25,20 @@ import { Button } from '../ui/button';
 // follow-up input at the bottom), INSPECT (context chain). Everything else
 // is one compact strip of actions or a collapsed section.
 
-export default function FocusPanel({ onFocusNode }: { onFocusNode?: (id: string) => void }) {
+// `leaving`: the panel is playing its way out (App keeps it mounted for
+// that, lib/use-presence) — it keeps showing `nodeId`, the card it showed,
+// while the selection may already have moved on or cleared.
+export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
+  onFocusNode?: (id: string) => void;
+  nodeId?: string | null;
+  leaving?: boolean;
+}) {
   const {
-    nodes, edges, selectedNodeId, setSelectedNodeId,
+    nodes, edges, selectedNodeId: liveSelectedId, setSelectedNodeId,
     addAttachment, removeAttachment, toggleExcludeAttachment, setAttachmentRenderMode, getInheritedAttachments,
   } = useStore();
   const t = useT();
+  const selectedNodeId = leaving ? (nodeId ?? null) : liveSelectedId;
 
   // Selected text from the response, staged as context for the follow-up
   const [branchContext, setBranchContext] = useState('');
@@ -113,7 +121,7 @@ export default function FocusPanel({ onFocusNode }: { onFocusNode?: (id: string)
   return (
     <div
       data-focus-panel
-      className={`absolute right-3 top-[var(--chrome-panel-top)] bottom-3 z-20 bg-muted border border-border rounded-2xl shadow-xl overflow-hidden flex flex-col ${resizing ? 'select-none' : ''}`}
+      className={`absolute right-3 top-[var(--chrome-panel-top)] bottom-3 z-20 bg-muted border border-border rounded-2xl shadow-xl overflow-hidden flex flex-col ${leaving ? 'tdag-panel-out' : 'tdag-panel-in'} ${resizing ? 'select-none' : ''}`}
       style={{ width: panelWidth, minWidth: PANEL_MIN_WIDTH, maxWidth: '70vw' }}
     >
       {/* Resize handle on the left edge */}

@@ -167,7 +167,7 @@ export default function ResponseSection({
       ) : data.isLoading && data.response && !data.restreaming ? (
         <div ref={streamRef} className="markdown-body text-sm text-foreground leading-relaxed max-h-[500px] overflow-y-auto py-1">
           <Markdown base={data.importSource?.cwd}>{data.response}</Markdown>
-          <span className="inline-block w-2 h-4 bg-primary animate-pulse rounded-sm ml-0.5 align-text-bottom" />
+          <span className="tdag-caret ml-0.5 align-text-bottom" />
         </div>
       ) : data.isEditingResponse ? (
         <div>

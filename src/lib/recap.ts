@@ -4,11 +4,12 @@ import { t as ti } from '../i18n';
 import { llmCall } from './api';
 import { spawnContentNode } from './content';
 import { formatStamp } from '../utils';
+import { flyTo } from './motion';
 
 // The camera lives outside the ReactFlow tree so any caller (bottom dock,
 // node context menu) can nudge the viewport; App registers it in onInit.
 export const recapCamera: {
-  current: { setCenter: (x: number, y: number, o?: object) => void } | null;
+  current: Parameters<typeof flyTo>[0] | null;
 } = { current: null };
 
 // Recap as a sticky note: one model call describing what the user was doing
@@ -65,10 +66,9 @@ export async function recapToNote(nodeId: string): Promise<void> {
     spawnContentNode('note', spot, {
       question: `**📌 ${day} · ${ti('continue.recapTag')}**\n\n${text.trim()}`,
     });
-    recapCamera.current?.setCenter(
-      (n.position.x + spot.x) / 2 + 260, (n.position.y + spot.y) / 2 + 140,
-      { zoom: 0.75, duration: 600 },
-    );
+    if (recapCamera.current) {
+      void flyTo(recapCamera.current, (n.position.x + spot.x) / 2 + 260, (n.position.y + spot.y) / 2 + 140, 0.75);
+    }
     toast('success', ti('continue.noteDropped'));
   } catch (err) {
     toast('error', err instanceof Error ? err.message : String(err));

@@ -23,6 +23,9 @@ import AgentCwdChip from './app/AgentCwdChip';
 import { offersAccess, runtimeOf } from '../lib/agents/runtimes';
 import { intentFields, intentOf } from '../lib/run-intent';
 import { useEntranceFade } from '../lib/use-entrance-fade';
+import { useSpawnEntrance } from '../lib/use-spawn-entrance';
+import { useFoldMorph } from '../lib/use-fold-morph';
+import { flyTo } from '../lib/motion';
 import { Markdown, HighlightedMarkdown } from './Markdown';
 import FanOutModal from './FanOutModal';
 import { ApprovalCard } from './app/ApprovalCard';
@@ -34,6 +37,19 @@ import SelectionActions from './app/SelectionActions';
 import { FaceBody, FaceName, FarMark, StateMark } from './app/NodeFace';
 import { sessionWhy } from '../lib/session-why';
 import { useTextSelection } from '../lib/use-text-selection';
+
+// The live tail of a streaming text: about the last `keep` characters, cut
+// at a line start so the lines on screen wrap exactly as they will in the
+// whole text — a cut mid-line re-wrapped every visible line on each chunk,
+// and the text jittered sideways as it streamed. Its top edge fades out
+// (.tdag-tail) instead of wearing an ellipsis. One long paragraph has no
+// line start to cut at: it is cut in steps, so it re-wraps once per step.
+function liveTail(text: string, keep: number): string {
+  if (text.length <= keep) return text;
+  const nl = text.lastIndexOf('\n', text.length - keep);
+  if (nl >= 0 && text.length - nl < keep * 4) return text.slice(nl + 1);
+  return text.slice(Math.floor((text.length - keep) / keep) * keep);
+}
 
 export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // Actions are stable references: selecting them one by one (instead of a
@@ -142,7 +158,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
       const { x, y, zoom } = rf.getViewport();
       const left = n.position.x * zoom + x, top = n.position.y * zoom + y;
       const off = left < 0 || top < 0 || left + 520 * zoom > window.innerWidth || top + 160 * zoom > window.innerHeight;
-      if (off) rf.setCenter(n.position.x + 260, n.position.y + 120, { zoom, duration: 300 });
+      if (off) void flyTo(rf, n.position.x + 260, n.position.y + 120, zoom);
     });
   };
 
@@ -264,7 +280,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
     const child = childId ? rf.getNode(childId) : undefined;
     if (!child || !childId) return;
     setSelectedNodeId(childId);
-    rf.setCenter(child.position.x + 260, child.position.y + 110, { zoom: rf.getZoom(), duration: 300 });
+    void flyTo(rf, child.position.x + 260, child.position.y + 110);
   };
   // What the turn did, counted from its tool calls (name row); the files
   // behind the counts are one click away, in the panel
@@ -285,9 +301,26 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   const conclusion = nodeConclusion(data);
   // "Continue last thread" hover: this node is the flight destination
   const isBeacon = useUiStore((s) => s.beaconNodeId === id);
+  // "You landed here": a one-shot ripple (canvas.css .tdag-ping)
+  const isPing = useUiStore((s) => s.pingNodeId === id);
   // entrance, played once: the glow / loading / beacon classes own the
   // `animation` property too, and handing it back and forth replayed it
-  const entrance = useEntranceFade();
+  // ...unless the card was just asked off another one: then it grows out
+  // of its parent along the new wire (lib/spawn-motion)
+  const born = useSpawnEntrance(id, nodeRef);
+  // folding plays the height change instead of jumping (lib/fold-motion)
+  useFoldMorph(id, data.isCollapsed, nodeRef);
+  // An answer that just finished settles once: the running border lets go
+  // with one soft flash (canvas.css .tdag-settle). Adjust during render:
+  // a card that mounts finished never flashes.
+  const [wasLoading, setWasLoading] = useState(data.isLoading);
+  const [justFinished, setJustFinished] = useState(false);
+  if (wasLoading !== data.isLoading) {
+    setWasLoading(data.isLoading);
+    setJustFinished(!data.isLoading && !!data.response);
+  }
+  const fade = useEntranceFade();
+  const entrance = born ? '' : fade;
   // A tier change re-keys the face so the new form fades in instead of
   // snapping over the old one
   const formKey = glyphTier ? 'far' : mapMode ? 'map' : data.isCollapsed ? 'folded' : 'open';
@@ -386,8 +419,8 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
     <div
       ref={nodeRef}
       className={glyphTier
-        ? `w-[520px] ${entrance} ${isBeacon ? 'beacon-node ' : ''}${data.archived ? 'opacity-35 saturate-50 ' : ''}${selectedNodeId === id ? 'glyph-selected ' : ''}`
-        : `thought-node relative rounded-xl w-[520px] ${entrance} transition-all duration-200 ${isBeacon ? 'beacon-node ' : ''}${mapMode ? 'map-node ' : ''}${condenseLit ? 'condense-lit ' : ''}${data.archived ? 'opacity-35 saturate-50 ' : ''}${isWaitingUpstream ? 'opacity-60 ' : ''}${data.isLoading ? 'loading-border' : ''} ${selectedNodeId === id ? 'tdag-selected ring-2 ring-primary !border-primary selected-glow' : ''} ${isDropTarget ? 'ring-2 ring-primary/50 ring-dashed' : ''}`}
+        ? `w-[520px] ${entrance} ${isBeacon ? 'beacon-node ' : ''}${isPing ? 'tdag-ping ' : ''}${data.archived ? 'opacity-35 saturate-50 ' : ''}${selectedNodeId === id ? 'glyph-selected ' : ''}`
+        : `thought-node relative rounded-xl w-[520px] ${entrance} transition-all duration-200 ${isBeacon ? 'beacon-node ' : ''}${isPing ? 'tdag-ping ' : ''}${mapMode ? 'map-node ' : ''}${condenseLit ? 'condense-lit ' : ''}${data.archived ? 'opacity-35 saturate-50 ' : ''}${isWaitingUpstream ? 'opacity-60 ' : ''}${data.isLoading ? 'loading-border' : ''}${justFinished ? 'tdag-settle' : ''} ${selectedNodeId === id ? 'tdag-selected ring-2 ring-primary !border-primary selected-glow' : ''} ${isDropTarget ? 'ring-2 ring-primary/50 ring-dashed' : ''}`}
       onClick={() => setSelectedNodeId(id)}
       onDoubleClick={() => {
         // Double-click opens the panel (single click only selects); inner
@@ -428,7 +461,8 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
       {glyphTier ? (
         // Far: the name row reduced to its shape (grown into a dot) and name
         <div
-          className="drag-handle cursor-grab active:cursor-grabbing relative w-full h-32"
+          key={formKey}
+          className="drag-handle cursor-grab active:cursor-grabbing relative w-full h-32 animate-in fade-in-0 duration-(--dur-fast)"
           title={[
             name,
             data.question ? `${t('panel.question')}: ${data.question.replace(/\s+/g, ' ').slice(0, 120)}` : null,
@@ -443,19 +477,19 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
         // Map: the folded face drawn larger — same layers, same order
         <div
           key={formKey}
-          className="tdag-face drag-handle cursor-grab active:cursor-grabbing animate-in fade-in-0 duration-150"
+          className="tdag-face drag-handle cursor-grab active:cursor-grabbing animate-in fade-in-0 duration-(--dur-fast)"
           onDoubleClick={(e) => {
             e.stopPropagation();
             // the map is read, then dived into: double-click flies to working scale
             const n = rf.getNode(id);
-            if (n) rf.setCenter(n.position.x + 260, n.position.y + 120, { zoom: 1, duration: 300 });
+            if (n) void flyTo(rf, n.position.x + 260, n.position.y + 120, 1);
           }}
         >
           <FaceName shape={shape} tone={tone} name={rowName} marks={marks} state={state} tags={tags} />
           <FaceBody question={data.question} placeholder={t('face.noQuestion')} conclusion={conclusion} />
         </div>
       ) : (
-      <div key={formKey} className="animate-in fade-in-0 duration-150">
+      <div key={formKey} className="animate-in fade-in-0 duration-(--dur-fast)">
       <FaceName className="tdag-face drag-handle cursor-grab active:cursor-grabbing"
         shape={shape} tone={tone} name={rowName} marks={marks} state={state} stateMark={stateMark} trailing={controls} tags={tags}
         onMarks={() => openPanelAt('turn')} />
@@ -606,17 +640,18 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               <AgentTrace entries={data.agentTrace} compact />
             ) : data.response && !data.restreaming ? (
               // Streaming: show the live tail of the response on the canvas
-              <div className="text-sm text-muted-foreground leading-relaxed max-h-[180px] overflow-hidden flex flex-col justify-end whitespace-pre-wrap break-words">
-                {data.response.length > 400 ? '…' + data.response.slice(-400) : data.response}
-                <span className="inline-block w-2 h-4 bg-primary animate-pulse rounded-sm" />
+              <div className="tdag-tail text-sm text-muted-foreground leading-relaxed max-h-[180px] overflow-hidden flex flex-col justify-end whitespace-pre-wrap break-words">
+                <span>{liveTail(data.response, 400)}<span className="tdag-caret ml-0.5 align-text-bottom" /></span>
               </div>
             ) : data.reasoning ? (
               // Reasoning models think before they answer — show the live
               // tail of the thinking, visually quieter than an answer
               <div className="max-h-[140px] overflow-hidden flex flex-col justify-end">
                 <div className="text-2xs text-muted-foreground mb-1">{t('node.reasoningLive')}</div>
-                <div className="text-xs text-muted-foreground italic leading-relaxed whitespace-pre-wrap break-words">
-                  {data.reasoning.length > 300 ? '…' + data.reasoning.slice(-300) : data.reasoning}
+                <div className="tdag-tail max-h-[116px] overflow-hidden flex flex-col justify-end">
+                  <div className="text-xs text-muted-foreground italic leading-relaxed whitespace-pre-wrap break-words">
+                    {liveTail(data.reasoning, 300)}
+                  </div>
                 </div>
               </div>
             ) : (

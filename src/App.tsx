@@ -15,7 +15,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import 'highlight.js/styles/github.css';
-import { ArrowLeft, ArrowRight, BookOpen, Bot, Brain, CircleHelp, Download, Eye, FileText, Frame, GitBranch, Highlighter, ImageDown, KeyRound, LayoutGrid, Link2, PinOff, Loader2, MessageCircleQuestion, MoreHorizontal, Paperclip, Redo2, Scissors, Search, Share2, SquareTerminal, Stethoscope, StickyNote, Trash2, Undo2, Workflow, X, ListRestart, FolderSync, Minimize2, Rewind, History as HistoryIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUp, BookOpen, Bot, Brain, CircleHelp, Download, Eye, FileText, Frame, GitBranch, Highlighter, ImageDown, KeyRound, LayoutGrid, Link2, PinOff, Loader2, MessageCircleQuestion, MoreHorizontal, Paperclip, Redo2, Scissors, Search, Share2, SquareTerminal, Stethoscope, StickyNote, Trash2, Undo2, Workflow, X, ListRestart, FolderSync, Minimize2, Rewind, History as HistoryIcon } from 'lucide-react';
 import './index.css';
 import ThoughtNode from './components/ThoughtNode';
 import ParadigmNode from './components/ParadigmNode';
@@ -40,6 +40,9 @@ import { useStore } from './store';
 import { frameMembers } from './lib/frames';
 import { isPinned } from './lib/layout';
 import { holdLayout, registerViewport } from './lib/layout-motion';
+import { MOTION, fitMotion, flyTo, ms, easeStandard } from './lib/motion';
+import { usePresence } from './lib/use-presence';
+import { nodeName } from './lib/node-face';
 import { useProjects, adoptImportedProject, markInstantiatedFrom } from './store/projects';
 import { projectStorageKey } from './store/projects';
 import { set as idbSet } from 'idb-keyval';
@@ -263,7 +266,7 @@ function Canvas() {
     if (!n) return;
     useUiStore.getState().setArrivalFocusNodeId(null);
     window.setTimeout(() => {
-      rfInstance.current?.setCenter(n.position.x + 260, n.position.y + 140, { zoom: 0.9, duration: 400 });
+      if (rfInstance.current) void flyTo(rfInstance.current, n.position.x + 260, n.position.y + 140, 0.9);
     }, 150);
   }, [arrivalFocus]);
   // Appearance: lighting swaps the token set, paper swaps the canvas texture
@@ -278,15 +281,12 @@ function Canvas() {
   // the visual center sits half the panel further left, so the target shifts
   // right by panelShift/2 in world units — otherwise the node parks under
   // the panel.
-  const centerNode = useCallback((n: { id: string; position: { x: number; y: number } }, opts: { zoom?: number; duration?: number; offX?: number } = {}) => {
+  // The flight's length follows the distance (lib/motion).
+  const centerNode = useCallback((n: { id: string; position: { x: number; y: number } }, opts: { zoom?: number; offX?: number } = {}) => {
     const rf = rfInstance.current;
-    if (!rf) return;
+    if (!rf) return Promise.resolve(false);
     const zoom = opts.zoom ?? rf.getZoom();
-    rf.setCenter(
-      n.position.x + (opts.offX ?? 260) + panelShift(n.id) / (2 * zoom),
-      n.position.y + 110,
-      { zoom, duration: opts.duration ?? 350 },
-    );
+    return flyTo(rf, n.position.x + (opts.offX ?? 260) + panelShift(n.id) / (2 * zoom), n.position.y + 110, zoom);
   }, []);
   const lang = useI18n((s) => s.lang);
   const condenseRunState = useUiStore((s) => s.condenseRun);
@@ -326,7 +326,7 @@ function Canvas() {
     setTimeout(() => {
       const inst = rfInstance.current;
       if (!inst) return;
-      inst.fitView({ duration: 500, padding: 0.1 });
+      inst.fitView({ ...fitMotion(500), padding: 0.1 });
       // A laptop-sized window fits the whole example only at glyph zoom,
       // where every teaching card is unreadable. After the overview beat,
       // land on the oldest node (the welcome card) at takeaway zoom.
@@ -334,7 +334,7 @@ function Canvas() {
         if (inst.getViewport().zoom < 0.34) {
           const first = [...useStore.getState().nodes]
             .sort((x, y) => (x.data.createdAt ?? '').localeCompare(y.data.createdAt ?? ''))[0];
-          if (first) inst.setCenter(first.position.x + 300, first.position.y + 240, { zoom: 0.6, duration: 550 });
+          if (first) void flyTo(inst, first.position.x + 300, first.position.y + 240, 0.6);
         }
       }, 680);
     }, 100);
@@ -366,7 +366,7 @@ function Canvas() {
   // reset the recenter baseline and refit the viewport.
   const afterProjectSwitch = useCallback(() => {
     prevNodeCount.current = useStore.getState().nodes.length;
-    setTimeout(() => rfInstance.current?.fitView({ duration: 300, padding: 0.2 }), 50);
+    setTimeout(() => rfInstance.current?.fitView({ ...fitMotion(300), padding: 0.2 }), 50);
   }, []);
 
   // ── Content palette + canvas paste/drop: material lands where you point ──
@@ -443,7 +443,7 @@ function Canvas() {
       if (!readerTarget && !f.type.startsWith('image/')) readerTarget = id;
     });
     if (readerTarget) useUiStore.getState().setReaderNodeId(readerTarget);
-    setTimeout(() => rfInstance.current?.fitView({ duration: 400, padding: 0.2 }), 120);
+    setTimeout(() => rfInstance.current?.fitView({ ...fitMotion(), padding: 0.2 }), 120);
   }, [filterDroppedFiles]);
 
   // Palette click-or-drag via pointer events (native DnD's click race lost
@@ -533,7 +533,7 @@ function Canvas() {
     await adoptImportedProject(id, `▶ ${pname}`, 'chat');
     await markInstantiatedFrom(id, pname); // provenance rides in the backup
     prevNodeCount.current = useStore.getState().nodes.length;
-    setTimeout(() => rfInstance.current?.fitView({ duration: 400, padding: 0.15 }), 150);
+    setTimeout(() => rfInstance.current?.fitView({ ...fitMotion(), padding: 0.15 }), 150);
   }, []);
 
   // First visit lands on the LANDING page — the example canvas is one
@@ -551,7 +551,7 @@ function Canvas() {
     if (nodes.length > prevNodeCount.current && rfInstance.current) {
       const newest = nodes[nodes.length - 1];
       if (newest) {
-        setTimeout(() => centerNode(newest, { zoom: 1, duration: 400, offX: 220 }), 100);
+        setTimeout(() => centerNode(newest, { zoom: 1, offX: 220 }), 100);
       }
     }
     prevNodeCount.current = nodes.length;
@@ -728,6 +728,11 @@ function Canvas() {
   const selectedKind = nodes.find((nd) => nd.id === selectedNodeId)?.data.stepKind;
   const selectedIsContent = isContentKind(selectedKind) || selectedKind === 'frame';
   const panelOpen = panelMode && !!selectedNodeId && !isParadigm && !selectedIsContent;
+  // The panel slides out on the same beat the chrome slides back, still
+  // showing the card it showed (adjust during render: remember it while open)
+  const panelPresence = usePresence(panelOpen, MOTION.base);
+  const [panelNodeId, setPanelNodeId] = useState(selectedNodeId);
+  if (panelOpen && selectedNodeId !== panelNodeId) setPanelNodeId(selectedNodeId);
   const multiSelected = selectedNodeIds.length > 1;
   const batchDelete = useStore((s) => s.batchDelete);
 
@@ -786,7 +791,7 @@ function Canvas() {
               e.preventDefault();
               setSelectedNodeId(nextId);
               const target2 = ns.find((n) => n.id === nextId);
-              if (target2) centerNode(target2, { zoom: 1, duration: 300 });
+              if (target2) centerNode(target2, { zoom: 1 });
             }
             return;
           }
@@ -871,7 +876,7 @@ function Canvas() {
   const jumpToFrame = (f: (typeof frames)[number]) => {
     rfInstance.current?.fitBounds(
       { x: f.position.x, y: f.position.y, width: f.width ?? 640, height: f.height ?? 420 },
-      { duration: 400, padding: 0.15 },
+      { ...fitMotion(), padding: 0.15 },
     );
   };
   const [frameNavOpen, setFrameNavOpen] = useState(false);
@@ -920,10 +925,29 @@ function Canvas() {
     const pathEdgeIds = walkUpAncestors(selectedNodeId, nodes, structural).visitedEdgeIds;
     const refEdgeIds = new Set(part.references.map((r) => r.edge.id));
     const downOut = structural.filter((e) => e.source === selectedNodeId);
+    // The feed lines light up in the order the context flows — root first,
+    // the wire into the selected card last (canvas.css .focus-e-path):
+    // each wire's distance up from the selection, turned into a delay.
+    const depthOf = new Map<string, number>([[selectedNodeId, 0]]);
+    const edgeDepth = new Map<string, number>();
+    for (let frontier = [selectedNodeId]; frontier.length > 0;) {
+      const next: string[] = [];
+      for (const e of structural) {
+        if (!pathEdgeIds.has(e.id) || edgeDepth.has(e.id) || !frontier.includes(e.target)) continue;
+        const d = depthOf.get(e.target)!;
+        edgeDepth.set(e.id, d);
+        if (!depthOf.has(e.source)) { depthOf.set(e.source, d + 1); next.push(e.source); }
+      }
+      frontier = next;
+    }
+    const deepest = Math.max(0, ...edgeDepth.values());
+    // 90ms a step, the whole sweep never longer than 600ms
+    const step = deepest > 0 ? Math.min(90, 600 / deepest) : 0;
+    const pathDelay = new Map([...edgeDepth].map(([id, d]) => [id, Math.round((deepest - d) * step)]));
     return {
       ctx,
       down: new Set(downOut.map((e) => e.target)),
-      pathEdgeIds, refEdgeIds,
+      pathEdgeIds, refEdgeIds, pathDelay,
       downEdgeIds: new Set(downOut.map((e) => e.id)),
     };
   }, [selectedNodeId, selectedNodeIds, nodes, edges]);
@@ -997,7 +1021,7 @@ function Canvas() {
           return {
             ...e,
             className: [e.className, 'focus-e-path'].filter(Boolean).join(' '),
-            style: { ...e.style, strokeWidth: 3.5, opacity: 1 },
+            style: { ...e.style, strokeWidth: 3.5, opacity: 1, '--focus-delay': `${focusSets.pathDelay.get(e.id) ?? 0}ms` } as React.CSSProperties,
             zIndex: 10,
             data: { ...e.data, focusRole: 'path' as const },
           };
@@ -1061,9 +1085,10 @@ function Canvas() {
       const visibleRight = window.innerWidth - useUiStore.getState().panelWidth - PANEL_INSET - 24;
       if (nodeRight > visibleRight) {
         const nodeCenter = (node.position.x + w / 2) * vp.zoom + vp.x;
-        rf.setViewport({ ...vp, x: vp.x - (nodeCenter - visibleRight / 2) }, { duration: 300 });
+        // on the panel's own beat: it slides in over the same 220ms
+        rf.setViewport({ ...vp, x: vp.x - (nodeCenter - visibleRight / 2) }, { duration: ms(MOTION.base), ease: easeStandard });
       }
-    }, 60);
+    }, 0);
     return () => clearTimeout(timer);
   }, [panelOpen, selectedNodeId]);
 
@@ -1151,7 +1176,7 @@ function Canvas() {
             const n = useStore.getState().nodes.find((x) => x.id === focusId);
             if (n) {
               window.setTimeout(() => {
-                instance.setCenter(n.position.x + 260, n.position.y + 140, { zoom: 0.9, duration: 400 });
+                void flyTo(instance, n.position.x + 260, n.position.y + 140, 0.9);
               }, 150);
             }
           }
@@ -1571,7 +1596,7 @@ function Canvas() {
           link — every mutating control lives in the author toolbar below. */}
       {isViewerMode && (
         <div
-          className="absolute top-[var(--chrome-row-top)] z-10 flex gap-1.5 items-center transition-[right] duration-200"
+          className="absolute top-[var(--chrome-row-top)] z-10 flex gap-1.5 items-center transition-[right] duration-(--dur-base) ease-(--ease-standard)"
           style={{ right: panelOpen ? livePanelWidth + PANEL_INSET + 12 : 'max(16px, calc(var(--chrome-right) + 8px))' }}
         >
           <span className="bg-card/90 backdrop-blur border border-border rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm text-muted-foreground text-xs font-medium" data-viewer-badge>
@@ -1614,7 +1639,7 @@ function Canvas() {
       {!isViewerMode && (
       <div
         ref={topbarRef}
-        className="absolute top-[var(--chrome-row-top)] z-20 flex items-center gap-2 pointer-events-none transition-[right] duration-200"
+        className="absolute top-[var(--chrome-row-top)] z-20 flex items-center gap-2 pointer-events-none transition-[right] duration-(--dur-base) ease-(--ease-standard)"
         style={{
           left: 'max(16px, var(--chrome-left))',
           // the open panel ends the row; else a right window corner does
@@ -2011,7 +2036,8 @@ function Canvas() {
           const n = useStore.getState().nodes.find((x) => x.id === id);
           if (n) {
             setSelectedNodeId(id);
-            centerNode(n, { zoom: 1 });
+            // landed: one ripple says which card the hit was
+            void centerNode(n, { zoom: 1 }).then(() => useUiStore.getState().pingNode(id));
           }
           // search stays open: the filter is a browsing mode, Esc ends it
         }}
@@ -2070,11 +2096,11 @@ function Canvas() {
         const x = Math.min(...xs), y = Math.min(...ys);
         const w = Math.max(...xs) + 520 - x, h = Math.max(...ys) + 240 - y;
         // widen rightwards: the condense panel covers the right edge
-        rf.fitBounds({ x, y, width: w + 700, height: h }, { duration: 350, padding: 0.15 });
+        rf.fitBounds({ x, y, width: w + 700, height: h }, { ...fitMotion(350), padding: 0.15 });
       }} />
-      {panelOpen && <FocusPanel onFocusNode={(id) => {
+      {panelPresence.mounted && <FocusPanel nodeId={panelNodeId} leaving={panelPresence.leaving} onFocusNode={(id) => {
         const node = nodes.find(n => n.id === id);
-        if (node) centerNode(node, { duration: 300 });
+        if (node) centerNode(node);
       }} />}
 
       {/* Material reading overlay: select a passage, ask, the node lands on
@@ -2122,30 +2148,78 @@ function ThoughtMapPill({ panelShiftWidth }: { panelShiftWidth: number }) {
     return best ? { node: best, at: bestAt } : null;
   }, [nodes]);
 
+  // Hovering "continue" lights the destination (the beacon) — but from the
+  // map the destination is often off screen, where a beacon says nothing.
+  // Then a tag sits on the screen's edge, pointing at it.
+  const [hint, setHint] = useState<{ x: number; y: number; angle: number; name: string } | null>(null);
+
   if (isViewerMode || tier === 'work' || nodeCount < 2) return null;
 
-  const flyBack = () => {
+  const showHint = () => {
     if (!lastActive) return;
-    useUiStore.getState().setBeaconNodeId(null);
     const { node } = lastActive;
-    rf.setCenter(node.position.x + 260, node.position.y + 110, { zoom: 1, duration: 1100 });
-    // three beats: flight → panel opens (recentered for its width) → recap toast
-    window.setTimeout(() => {
-      useStore.getState().setSelectedNodeId(node.id);
-      useUiStore.getState().setPanelOpen(true);
-      window.setTimeout(() => {
-        rf.setCenter(node.position.x + 260 + panelShift(node.id) / 2, node.position.y + 110, { zoom: 1, duration: 300 });
-      }, 60);
-    }, 1150);
+    useUiStore.getState().setBeaconNodeId(node.id);
+    const pane = document.querySelector('.react-flow')?.getBoundingClientRect();
+    if (!pane) return;
+    const { x: vx, y: vy, zoom } = rf.getViewport();
+    const w = (node.measured?.width ?? 520) * zoom, h = (node.measured?.height ?? 200) * zoom;
+    const left = node.position.x * zoom + vx, top = node.position.y * zoom + vy;
+    const visibleW = pane.width - panelShiftWidth;
+    if (left < visibleW && left + w > 0 && top < pane.height && top + h > 0) { setHint(null); return; }
+    const cx = left + w / 2, cy = top + h / 2;
+    // kept clear of the corners, of the dock along the bottom and of the
+    // minimap in the bottom-right corner
+    // (the tag is centered on x and up to ~240px wide: max-w-48 plus its icon)
+    const x = Math.min(visibleW - 136, Math.max(136, cx));
+    const minimap = panelShiftWidth === 0 && x > visibleW - 300;
+    const y = Math.min(pane.height - (minimap ? 210 : 110), Math.max(40, cy));
+    setHint({
+      x, y,
+      angle: (Math.atan2(cy - y, cx - x) * 180) / Math.PI + 90,
+      name: nodeName(node.data) ?? node.data.question.replace(/\s+/g, ' ').slice(0, 24),
+    });
+  };
+  const hideHint = () => {
+    useUiStore.getState().setBeaconNodeId(null);
+    setHint(null);
+  };
+
+  // Three beats, each waiting for the one before: the flight, then the
+  // panel with a one-shot ripple on the card, then the recap offer. The
+  // camera flies once, straight to where the card sits with the panel open
+  // (panel-shift's own sum, for the panel about to open), so nothing
+  // re-centers after landing. A flight the user interrupts by grabbing the
+  // canvas never resolves — and then nothing opens under their hand.
+  const flyBack = async () => {
+    if (!lastActive) return;
+    hideHint();
+    const { node } = lastActive;
+    const ui = useUiStore.getState();
+    const shift = ui.panelWidth + PANEL_INSET + 12;
+    await flyTo(rf, node.position.x + 260 + shift / 2, node.position.y + 110, 1);
+    useStore.getState().setSelectedNodeId(node.id);
+    useUiStore.getState().setPanelOpen(true);
+    useUiStore.getState().pingNode(node.id);
     window.setTimeout(() => {
       toast('success', t('continue.arrived'), 12000,
         { label: t('continue.summarize'), run: () => void recapToNote(node.id) });
-    }, 1550);
+    }, ms(MOTION.base));
   };
 
   return (
+    <>
+    {hint && (
+      <div
+        className="pointer-events-none absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 rounded-full bg-primary py-1 pr-3 pl-2 text-xs font-medium text-primary-foreground shadow-md animate-in fade-in-0 zoom-in-95 duration-(--dur-fast)"
+        style={{ left: hint.x, top: hint.y }}
+        data-continue-hint
+      >
+        <ArrowUp className="size-3.5 shrink-0" strokeWidth={2} style={{ transform: `rotate(${hint.angle}deg)` }} />
+        <span className="max-w-48 truncate">{hint.name}</span>
+      </div>
+    )}
     <div
-      className="absolute bottom-6 z-10 flex items-center gap-2 -translate-x-1/2 transition-[left] duration-300"
+      className="absolute bottom-6 z-10 flex items-center gap-2 -translate-x-1/2 transition-[left] duration-(--dur-base) ease-(--ease-standard)"
       style={{ left: `calc((100% - ${panelShiftWidth}px) / 2)` }}
       data-map-dock
     >
@@ -2159,9 +2233,11 @@ function ThoughtMapPill({ panelShiftWidth }: { panelShiftWidth: number }) {
       </Button>
       {lastActive && (
         <Button
-          onClick={flyBack}
-          onMouseEnter={() => useUiStore.getState().setBeaconNodeId(lastActive.node.id)}
-          onMouseLeave={() => useUiStore.getState().setBeaconNodeId(null)}
+          onClick={() => void flyBack()}
+          onMouseEnter={showHint}
+          onMouseLeave={hideHint}
+          onFocus={showHint}
+          onBlur={hideHint}
           title={t('continue.buttonTitle')}
           data-continue-pill
           className="shadow-lg"
@@ -2170,6 +2246,7 @@ function ThoughtMapPill({ panelShiftWidth }: { panelShiftWidth: number }) {
         </Button>
       )}
     </div>
+    </>
   );
 }
 

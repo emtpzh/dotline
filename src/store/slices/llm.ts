@@ -10,6 +10,7 @@ import { useUiStore, toast } from '../../lib/ui-store';
 import { t, fmt } from '../../i18n';
 import type { StoreState, LlmSlice, AddQuestionOptions } from '../types';
 import { condenseGuard } from '../../lib/condense-guard';
+import { noteSpawn } from '../../lib/spawn-motion';
 import { isFactNode } from '../../lib/facts';
 import { lineModel, lineCwd, intentOf, inheritIntent, intentFields } from '../../lib/run-intent';
 import { runtimeOf } from '../../lib/agents/runtimes';
@@ -259,6 +260,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     // follow mode keeps its hand-stacked reviewers (watch edges are cross-
     // links); the one-shot candidates are seated beside the parent in order
     const allNodes = follow ? merged : placeNewNodes(merged, allEdges, newNodes.map((n) => n.id));
+    noteSpawn(parentId, newNodes.map((n) => n.id), 'beside');
     set({ nodes: allNodes, edges: allEdges, selectedNodeId: null, selectedNodeIds: [] });
 
     // Bounded concurrency: free-tier providers dislike large bursts
@@ -366,6 +368,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       data: isBranch ? { isBranchFromSelection: true, branchYRatio: opts.branchYRatio ?? 0.5 } : {},
     };
     const allEdges = [...edges, edge];
+    noteSpawn(parentId, [id], isBranch ? 'beside' : 'below', opts.branchYRatio ?? 0.5);
     set({ nodes: placeNewNodes([...nodes, newNode], allEdges, [id]), edges: allEdges, selectedNodeId: id, selectedNodeIds: [] });
     return id;
   },
