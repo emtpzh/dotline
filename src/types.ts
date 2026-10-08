@@ -254,6 +254,9 @@ export interface ThoughtData extends Record<string, unknown> {
   linkSnapshotHtml?: string;
   frameColor?: string; // frame node: fixed-palette color token (wayfinding, not decoration)
   frameCarry?: boolean; // frame node: dragging carries contained nodes (absent = true; new frames start false so they can be adjusted into place first)
+  /** Card placed by hand: dragging sets it, and every layout pass keeps the
+      card where it was left (lib/layout isPinned). Absent = layout places it. */
+  layoutPinned?: boolean;
   instruction?: string; // paradigm body: the prompt (prompt node) or operator guidance (human node)
   fanoutRoles?: { name: string; prompt: string }[]; // role list carried by fanout steps/placeholders
   autoRerunRounds?: number; // max auto-triggered runs per user action (default 1); >1 enables loops

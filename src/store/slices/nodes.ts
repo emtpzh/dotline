@@ -1,7 +1,9 @@
 import type { StateCreator } from 'zustand';
 import type { ThoughtNode, ThoughtEdge, AgentAccess } from '../../types';
 import { generateId, countTokens } from '../../utils';
-import { healLegacyNoteEdges, autoLayout, estimateNodeHeight, nodeHeight, placeNewNodes, reseatSubtree } from '../../lib/layout';
+import { nodeHeight, planRelayout, placeNewNodes, reseatSubtree, isContentKind, releasePin, tidyChain, tidyFrame, settleLayout } from '../../lib/layout';
+import { glideNodes, isLayoutHeld } from '../../lib/layout-motion';
+import { useUiStore } from '../../lib/ui-store';
 import { getDescendantIds, walkUpAncestors } from '../../lib/graph';
 import { referenceBlockContent, upstreamFingerprint, buildContext } from '../context-builder';
 import { pruneHighlights } from '../../lib/highlight-match';
@@ -12,6 +14,27 @@ import { condenseGuard } from '../../lib/condense-guard';
 import { isFactNode, factless } from '../../lib/facts';
 
 export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set, get) => {
+  /** Layout results glide into place (lib/layout-motion) through this. */
+  const glideSetter = (update: (nodes: ThoughtNode[]) => ThoughtNode[]) => set((state) => ({ nodes: update(state.nodes) }));
+
+  // Settling (lib/layout settleLayout) is scheduled, not run in place: the
+  // card that changed has to be re-measured by React Flow first, or its old
+  // height decides where its chain goes. Changes arriving together settle
+  // together; a drag or a condense build in progress defers the pass.
+  const settlePending = new Set<string>();
+  let settleTimer: ReturnType<typeof setTimeout> | null = null;
+  const runSettle = () => {
+    settleTimer = null;
+    if (isLayoutHeld() || useUiStore.getState().condenseRun.status === 'building') {
+      settleTimer = setTimeout(runSettle, 200);
+      return;
+    }
+    const ids = [...settlePending];
+    settlePending.clear();
+    const { nodes, edges, selectedNodeId } = get();
+    const next = settleLayout(nodes, edges, ids);
+    if (next !== nodes) glideNodes(nodes, next, glideSetter, undefined, { anchorId: selectedNodeId });
+  };
   /** A session turn keeps its answer: the rewritten answer becomes a
    *  revision beside it — same parent, same question, the canvas's own node
    *  (no session identity, so what follows it compiles the canvas's context). */
@@ -138,33 +161,21 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
       ),
     }));
     get().pushHistory();
+    get().settleFrom([nodeId]);
   },
 
   toggleCollapse: (nodeId: string) => {
-    const node = get().nodes.find((n) => n.id === nodeId);
-    if (!node) return;
-
-    // Current height is measured; the post-toggle height must be estimated
-    const oldHeight = nodeHeight(node);
-    const newHeight = estimateNodeHeight({ ...node, data: { ...node.data, isCollapsed: !node.data.isCollapsed } });
-    const delta = newHeight - oldHeight;
-
-    // Find all descendants of this node
-    const descendants = getDescendantIds(nodeId, get().edges);
-    const descSet = new Set(descendants);
-
+    if (!get().nodes.some((n) => n.id === nodeId)) return;
     set((state) => ({
-      nodes: state.nodes.map((n) => {
-        if (n.id === nodeId) {
-          return { ...n, data: { ...n.data, isCollapsed: !n.data.isCollapsed } };
-        }
-        // Shift descendants vertically by delta
-        if (descSet.has(n.id)) {
-          return { ...n, position: { ...n.position, y: n.position.y + delta } };
-        }
-        return n;
-      }),
+      nodes: state.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, isCollapsed: !n.data.isCollapsed } } : n)),
     }));
+    // what hangs below re-hangs from the card's new height once it is measured
+    get().settleFrom([nodeId]);
+  },
+
+  settleFrom: (nodeIds: string[]) => {
+    for (const id of nodeIds) settlePending.add(id);
+    if (settleTimer === null) settleTimer = setTimeout(runSettle, 90);
   },
 
   setEditing: (nodeId: string, editing: boolean) => {
@@ -378,6 +389,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
         };
       }),
     }));
+    get().settleFrom([nodeId]);
   },
 
   deleteVersion: (nodeId: string, versionIndex: number) => {
@@ -409,19 +421,46 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
       }),
     }));
     get().pushHistory();
+    get().settleFrom([nodeId]);
   },
 
-  relayout: () => {
+  relayout: (resetPins = false) => {
     if (condenseGuard()) return;
     get().pushHistory();
-    set((state) => {
-      // one-click relayout also heals legacy mirror wiring (notes once
-      // sat INSIDE the chain) — otherwise no relayout could ever fix
-      // those canvases and the button would look broken
-      const edges = healLegacyNoteEdges(state.nodes, state.edges);
-      return { nodes: autoLayout(state.nodes, edges), edges };
-    });
+    const prev = get().nodes;
+    const plan = planRelayout(prev, get().edges, resetPins);
+    set({ edges: plan.edges });
+    glideNodes(prev, plan.nodes, glideSetter, () => get().pushHistory());
+  },
+
+  pinNodes: (nodeIds: string[]) => {
+    const ids = new Set(nodeIds);
+    set((state) => ({
+      nodes: state.nodes.map((n) => (ids.has(n.id) && !n.data.layoutPinned && !isContentKind(n)
+        ? { ...n, data: { ...n.data, layoutPinned: true } }
+        : n)),
+    }));
+  },
+
+  releasePin: (nodeId: string) => {
+    if (condenseGuard()) return;
     get().pushHistory();
+    const { nodes, edges } = get();
+    glideNodes(nodes, releasePin(nodes, edges, nodeId), glideSetter, () => get().pushHistory());
+  },
+
+  tidyChain: (nodeId: string) => {
+    if (condenseGuard()) return;
+    get().pushHistory();
+    const { nodes, edges } = get();
+    glideNodes(nodes, tidyChain(nodes, edges, nodeId), glideSetter, () => get().pushHistory());
+  },
+
+  tidyFrame: (frameId: string) => {
+    if (condenseGuard()) return;
+    get().pushHistory();
+    const { nodes, edges } = get();
+    glideNodes(nodes, tidyFrame(nodes, edges, frameId), glideSetter, () => get().pushHistory());
   },
 
   setArchived: (nodeIds: string[], archived: boolean) => {

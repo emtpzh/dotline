@@ -24,7 +24,7 @@ execFileSync(join(ROOT, 'node_modules/.bin/esbuild'), [
   `--outfile=${bundle}`, '--define:import.meta.env.VITE_API_BASE=""',
   '--define:import.meta.env.DEV=false',
 ], { stdio: ['ignore', 'ignore', 'pipe'] });
-const { autoLayout, nodeHeight, placeNewNodes, reseatSubtree } = await import(pathToFileURL(bundle).href);
+const { autoLayout, nodeHeight, placeNewNodes, reseatSubtree, releasePin, tidyChain, tidyFrame, settleLayout } = await import(pathToFileURL(bundle).href);
 const framesBundle = join(tmp, 'frames.mjs');
 execFileSync(join(ROOT, 'node_modules/.bin/esbuild'), [
   join(ROOT, 'src/lib/frames.ts'), '--bundle', '--format=esm', '--platform=node', `--outfile=${framesBundle}`,
@@ -441,6 +441,162 @@ test('the first card sits at the origin; a later root takes the next free column
   assert(at(laid, 'r').x === 1216, `root at x=${at(laid, 'r').x}, expected past both cards`);
 });
 
+// ── Pinned cards: placed by hand, held by every layout pass ──
+const pin = (node) => ({ ...node, data: { ...node.data, layoutPinned: true } });
+// a pinned card may sit anywhere relative to its parent — that is the point
+const unpinnedViolations = (laid, edges) => violations(laid,
+  edges.filter((e) => !laid.find((n) => n.id === e.target)?.data.layoutPinned));
+
+test('auto layout leaves a pinned card where it was and hangs its chain from there', () => {
+  const nodes = [th('root'), th('a'), pin(seat('p', 2400, 900)), th('pc')];
+  const edges = [ed('root', 'a'), ed('a', 'p'), ed('p', 'pc')];
+  const laid = autoLayout(nodes, edges);
+  assert(at(laid, 'p').x === 2400 && at(laid, 'p').y === 900, `pinned card moved to ${JSON.stringify(at(laid, 'p'))}`);
+  assert(at(laid, 'pc').x === 2400 && at(laid, 'pc').y >= 900 + nodeHeight(nodes[2]), 'its child did not hang below it');
+  const v = unpinnedViolations(laid, edges);
+  assert(v.length === 0, v.join('; '));
+});
+
+test('a managed column that would land on a pinned card steps below it', () => {
+  // the pinned stranger sits exactly where root's continuation goes
+  const nodes = [th('root'), th('a'), th('b'), pin(seat('stranger', 0, 300))];
+  const edges = [ed('root', 'a'), ed('a', 'b')];
+  const laid = autoLayout(nodes, edges);
+  assert(at(laid, 'stranger').y === 300, 'pinned card moved');
+  const v = violations(laid, edges);
+  assert(v.length === 0, v.join('; '));
+});
+
+test('a pinned card never pushes its own ancestor below it', () => {
+  // dragged up beside its parent, overlapping the parent's slot
+  const nodes = [th('root'), th('a'), pin(seat('b', 260, 400))];
+  const edges = [ed('root', 'a'), ed('a', 'b')];
+  const laid = autoLayout(nodes, edges);
+  const slot = nodeHeight(nodes[0]) + 72;
+  assert(at(laid, 'a').y === slot, `the parent was pushed off its slot ${slot} to ${at(laid, 'a').y}`);
+});
+
+test('a folded card clear of a pin on screen is not pushed by it', () => {
+  // folded cards render ~90px; the layout budget for one is far taller
+  const folded = (id) => ({ ...th(id), measured: { width: 520, height: 90 } });
+  const nodes = [folded('root'), folded('a'), pin({ ...seat('stranger', 0, 520), measured: { width: 520, height: 90 } })];
+  const edges = [ed('root', 'a')];
+  const laid = autoLayout(nodes, edges);
+  assert(at(laid, 'a').y === nodeHeight(nodes[0]) + 72, `a was pushed to ${at(laid, 'a').y}`);
+});
+
+test('a re-seat stops at a pinned card: it and its chain keep their place', () => {
+  const nodes = [seat('root', 0, 0), seat('a', 0, 2000), pin(seat('p', 900, 3000)), seat('pc', 900, 3400)];
+  const edges = [ed('root', 'a'), ed('a', 'p'), ed('p', 'pc')];
+  const before = spots(nodes);
+  const laid = reseatSubtree(nodes, edges, 'a');
+  assert(movedOther(before, laid, ['a']).length === 0, 'the re-seat walked into the pinned chain');
+});
+
+test('releasing a pin seats the card under its parent and its chain travels along', () => {
+  const nodes = [seat('root', 0, 0), pin(seat('p', 1600, 1400)), seat('pc', 1600, 1800), seat('other', 3000, 0)];
+  const edges = [ed('root', 'p'), ed('p', 'pc')];
+  const before = spots(nodes);
+  const laid = releasePin(nodes, edges, 'p');
+  assert(!nodeOf(laid, 'p').data.layoutPinned, 'still pinned');
+  assert(at(laid, 'p').x === 0, `released card at x=${at(laid, 'p').x}, not under its parent`);
+  assert(at(laid, 'pc').x === 0 && at(laid, 'pc').y > at(laid, 'p').y, 'its chain stayed behind');
+  assert(movedOther(before, laid, ['p', 'pc']).length === 0, 'cards outside the chain moved');
+});
+
+test('tidying what follows a card keeps the card and re-seats its chain, pins included', () => {
+  const nodes = [pin(seat('head', 700, 500)), seat('x', 2100, 40), pin(seat('y', 3000, 2200)), seat('z', 3000, 2600), seat('other', 0, 0)];
+  const edges = [ed('head', 'x'), ed('x', 'y'), ed('y', 'z')];
+  const before = spots(nodes);
+  const laid = tidyChain(nodes, edges, 'head');
+  assert(at(laid, 'head').x === 700 && at(laid, 'head').y === 500, 'the card itself moved');
+  assert(nodeOf(laid, 'head').data.layoutPinned, 'the card itself lost its pin');
+  for (const id of ['x', 'y', 'z']) assert(at(laid, id).x === 700, `${id} not in the head's column`);
+  assert(!nodeOf(laid, 'y').data.layoutPinned, 'a pinned follower kept its pin');
+  assert(movedOther(before, laid, ['x', 'y', 'z']).length === 0, 'cards outside the chain moved');
+  const v = violations(laid, edges);
+  assert(v.length === 0, v.join('; '));
+});
+
+test('tidying a chapter re-flows the cards inside it and moves nothing outside', () => {
+  const chapter = frame('ch', 1000, 0, 1400, 1600);
+  const nodes = [chapter, placed(seat('h', 1100, 100), 1100, 100), placed(seat('m1', 1700, 300), 1700, 300),
+    placed(seat('m2', 1200, 900), 1200, 900), seat('out', 0, 0), seat('outChild', 0, 500)];
+  const edges = [ed('h', 'm1'), ed('m1', 'm2'), ed('out', 'outChild')];
+  const before = spots(nodes);
+  const laid = tidyFrame(nodes, edges, 'ch');
+  assert(at(laid, 'h').x === 1100 && at(laid, 'h').y === 100, 'the chapter head moved');
+  assert(at(laid, 'm1').x === 1100 && at(laid, 'm2').x === 1100, 'the chain did not line up under its head');
+  assert(movedOther(before, laid, ['m1', 'm2', 'ch']).length === 0, 'cards outside the chapter moved');
+  const fr = nodeOf(laid, 'ch');
+  const bottom = at(laid, 'm2').y + nodeHeight(nodeOf(laid, 'm2'));
+  assert(fr.position.y + fr.height >= bottom, 'the frame does not hold its last card');
+  const v = violations(laid, edges);
+  assert(v.length === 0, v.join('; '));
+});
+
+// ── Settle: the incremental pass after a card changes size ──
+const open = (id, over = {}) => th(id, { isCollapsed: false, response: 'x'.repeat(400), ...over });
+const GAP = 72;
+
+test('settling after a card shrinks pulls its chain up to hang one gap below it', () => {
+  const big = seat('p', 0, 0, { isCollapsed: false, response: 'x'.repeat(400) });
+  const laid0 = autoLayout([big, th('c'), th('d')], [ed('p', 'c'), ed('c', 'd')]);
+  const folded = laid0.map((n) => (n.id === 'p' ? { ...n, data: { ...n.data, isCollapsed: true } } : n));
+  const laid = settleLayout(folded, [ed('p', 'c'), ed('c', 'd')], ['p']);
+  const p = nodeOf(laid, 'p');
+  assert(at(laid, 'c').y === nodeHeight(p) + GAP, `c at ${at(laid, 'c').y}, expected ${nodeHeight(p) + GAP}`);
+  assert(at(laid, 'd').y === at(laid, 'c').y + nodeHeight(nodeOf(laid, 'c')) + GAP, 'd did not follow');
+  assert(at(laid, 'c').x === 0 && at(laid, 'd').x === 0, 'a column changed');
+});
+
+test('settling after a card grows pushes its chain and an unrelated card in the way', () => {
+  const nodes = [seat('p', 0, 0), seat('c', 0, 312), seat('q', 0, 640), seat('qc', 0, 952), seat('side', 900, 0)];
+  const edges = [ed('p', 'c'), ed('q', 'qc')];
+  const grown = nodes.map((n) => (n.id === 'p' ? { ...n, data: { ...n.data, isCollapsed: false, response: 'x'.repeat(400) } } : n));
+  const laid = settleLayout(grown, edges, ['p']);
+  const v = violations(laid, edges);
+  assert(v.length === 0, v.join('; '));
+  assert(at(laid, 'c').y === nodeHeight(nodeOf(laid, 'p')) + GAP, 'c did not re-hang from the grown card');
+  assert(at(laid, 'q').y > 640, 'the unrelated card in the way was not pushed');
+  assert(at(laid, 'qc').y > at(laid, 'q').y, 'its chain did not go with it');
+  assert(at(laid, 'side').y === 0 && at(laid, 'p').y === 0, 'a card outside the change moved');
+});
+
+test('settling never pulls an unrelated card up into a hole', () => {
+  const nodes = [seat('p', 0, 0), seat('c', 0, 312), seat('lone', 0, 1400)];
+  const laid = settleLayout(nodes, [ed('p', 'c')], ['p']);
+  assert(at(laid, 'lone').y === 1400, 'a card the change does not own moved up');
+});
+
+test('settling keeps a folded chain folded: a child above its parent in another column stays', () => {
+  const nodes = [seat('a', 0, 0), seat('b', 0, 7800), seat('fold', 720, 0), seat('after', 720, 312)];
+  const edges = [ed('a', 'b'), ed('b', 'fold'), ed('fold', 'after')];
+  const laid = settleLayout(nodes, edges, ['b']);
+  assert(at(laid, 'fold').y === 0 && at(laid, 'after').y === 312, 'the fold was undone');
+});
+
+test('settling steps a card below a pin in its way, and a frame grows to keep it', () => {
+  const chapter = frame('ch', -40, -80, 600, 700);
+  const nodes = [chapter, seat('p', 0, 0), seat('c', 0, 312), pin(seat('stray', 0, 700))];
+  const grown = nodes.map((n) => (n.id === 'p' ? { ...n, data: { ...n.data, isCollapsed: false, response: 'x'.repeat(400) } } : n));
+  const laid = settleLayout(grown, [ed('p', 'c')], ['p']);
+  assert(at(laid, 'stray').y === 700, 'the pin moved');
+  assert(at(laid, 'c').y >= 700 + nodeHeight(nodeOf(laid, 'stray')), `c at ${at(laid, 'c').y} sits on the pin`);
+  const fr = nodeOf(laid, 'ch');
+  assert(fr.position.y + fr.height >= at(laid, 'c').y + nodeHeight(nodeOf(laid, 'c')), 'the chapter does not hold its card');
+});
+
+test('settling an untouched auto layout moves nothing', () => {
+  const nodes = ['root', 'a', 'b', 'alt', 'ex', 'exc', 'r2', 'r2c'].map((i) => (i === 'a' ? open(i) : th(i)));
+  const edges = [ed('root', 'a'), ed('a', 'b'), ed('root', 'alt'), ed('a', 'ex', { isBranchFromSelection: true }),
+                 ed('ex', 'exc'), ed('r2', 'r2c')];
+  const laid0 = autoLayout(nodes, edges);
+  const laid = settleLayout(laid0, edges, laid0.map((n) => n.id));
+  const moved = movedOther(spots(laid0), laid, []);
+  assert(moved.length === 0, `cards moved: ${moved.join(', ')}`);
+});
+
 test('the benchmark canvases keep the arrow order', () => {
   const dir = join(ROOT, 'benchmark/canvases/inputs');
   let checked = 0, bad = [];
@@ -452,6 +608,25 @@ test('the benchmark canvases keep the arrow order', () => {
   }
   assert(checked > 0, 'no benchmark canvases found');
   assert(bad.length === 0, `${bad.length}/${checked} canvases violate: ${bad[0]}`);
+});
+
+test('settling a benchmark canvas after its own auto layout moves nothing, as handed over neither', () => {
+  const dir = join(ROOT, 'benchmark/canvases/inputs');
+  const bad = [];
+  for (const f of readdirSync(dir).filter((n) => n.endsWith('.thoughtdag.json'))) {
+    const c = JSON.parse(readFileSync(join(dir, f), 'utf8'));
+    const edges = c.edges ?? [];
+    const laid = autoLayout(c.nodes ?? [], edges);
+    const all = laid.map((n) => n.id);
+    const moved = movedOther(spots(laid), settleLayout(laid, edges, all), []);
+    if (moved.length) bad.push(`${f}: laid out, ${moved.length} moved (${moved.slice(0, 3).join(', ')})`);
+    // as stored: settling may tidy, but never breaks the arrow order it found intact
+    const raw = c.nodes ?? [];
+    const before = violations(raw, edges).length;
+    const after = violations(settleLayout(raw, edges, raw.map((n) => n.id)), edges).length;
+    if (after > before) bad.push(`${f}: as stored, violations ${before} -> ${after}`);
+  }
+  assert(bad.length === 0, bad.join('; '));
 });
 
 rmSync(tmp, { recursive: true, force: true });

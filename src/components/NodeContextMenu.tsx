@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Archive, ArchiveRestore, BookOpen, Copy, Files, FlaskConical, GitFork, Maximize2, RefreshCw, Split, StickyNote, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, BookOpen, Copy, Files, FlaskConical, GitFork, LayoutGrid, Maximize2, PinOff, RefreshCw, Split, StickyNote, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { useUiStore, confirmDialog, toast } from '../lib/ui-store';
 import { recapToNote } from '../lib/recap';
@@ -21,6 +21,7 @@ export default function NodeContextMenu({ x, y, nodeId, onClose }: {
 }) {
   const t = useT();
   const node = useStore((s) => s.nodes.find((n) => n.id === nodeId));
+  const hasFollowers = useStore((s) => s.edges.some((e) => e.source === nodeId && !e.data?.isCrossLink));
 
   // The menu opens at the pointer, not at a trigger, so it is anchored to a
   // zero-size rectangle there; the positioner keeps it inside the viewport.
@@ -96,6 +97,21 @@ export default function NodeContextMenu({ x, y, nodeId, onClose }: {
             data-take-to-continue
           >
             <BookOpen size={14} strokeWidth={1.75} className={icon} /> {t('exp.continue')}
+          </DropdownMenuItem>
+        )}
+        {kind === 'frame' && (
+          <DropdownMenuItem title={ti('ctx.tidyFrameTitle')} onClick={() => useStore.getState().tidyFrame(nodeId)}>
+            <LayoutGrid size={14} strokeWidth={1.75} className={icon} /> {t('ctx.tidyFrame')}
+          </DropdownMenuItem>
+        )}
+        {!isContent && hasFollowers && (
+          <DropdownMenuItem title={ti('ctx.tidyChainTitle')} onClick={() => useStore.getState().tidyChain(nodeId)}>
+            <LayoutGrid size={14} strokeWidth={1.75} className={icon} /> {t('ctx.tidyChain')}
+          </DropdownMenuItem>
+        )}
+        {!isContent && node.data.layoutPinned && (
+          <DropdownMenuItem onClick={() => useStore.getState().releasePin(nodeId)}>
+            <PinOff size={14} strokeWidth={1.75} className={icon} /> {t('ctx.releasePin')}
           </DropdownMenuItem>
         )}
         <DropdownMenuItem onClick={() => useStore.getState().duplicateNode(nodeId)}>

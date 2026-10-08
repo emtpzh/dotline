@@ -223,6 +223,8 @@ export async function runNodeGeneration(
         return { ...n, data: { ...n.data, agentSession, response, responses, questions, generatedBy, gatewaySearches, generatedEfforts, reasonings, generatedAts, editedAts, reasoning: undefined, restreaming: undefined, pendingApprovals: undefined, agentTrace: undefined, responseIndex: responses.length - 1, isLoading: false, tokenCount, generationFailed: failed || undefined, references, highlights: pruneHighlights(n.data.highlights, response), lastContextHash: contextHash, lastGeneratedAt: now } };
       }),
     }));
+    // the answer has its final length: what hangs below re-hangs from it
+    get().settleFrom([nodeId]);
   };
 
   // Ambient memory rides the system layer of ordinary generations only —

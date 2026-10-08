@@ -1,7 +1,7 @@
 import type { StateCreator } from 'zustand';
 import type { ThoughtNode, ThoughtEdge } from '../../types';
 import { generateId } from '../../utils';
-import { autoLayout, placeNewNodes } from '../../lib/layout';
+import { placeNewNodes, reseatSubtree } from '../../lib/layout';
 import { getDescendantIds, selectionSinks, walkUpAncestors } from '../../lib/graph';
 import type { ContextMessage, ImageAttachment } from '../../lib/api';
 import { buildContext, resolveExplicitRole, applyRoleOverride, type MessageSource } from '../context-builder';
@@ -607,7 +607,9 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       const nodes = state.nodes
         .filter((n) => !allRemove.has(n.id))
         .map((n) => (n.id === nodeId && n.data.converge ? { ...n, data: { ...n.data, converge: { ...n.data.converge, sources: [] } } } : n));
-      return { nodes: autoLayout(nodes, edges), edges };
+      // only the synthesis lost its parents: it and what grows out of it
+      // re-seat, the rest of the canvas keeps the arrangement it was given
+      return { nodes: reseatSubtree(nodes, edges, nodeId), edges };
     });
   },
 

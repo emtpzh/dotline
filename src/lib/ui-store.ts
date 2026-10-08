@@ -128,6 +128,9 @@ interface UiState {
       right-click menu, which closes before the dialog does). */
   fanOutNodeId: string | null;
   setFanOutNodeId: (id: string | null) => void;
+  /** A relayout being previewed on the canvas before it lands (null = none). `resetPins` hands pinned cards back to layout too. */
+  layoutPreview: { resetPins: boolean } | null;
+  setLayoutPreview: (preview: { resetPins: boolean } | null) => void;
   setResponseViewerNodeId: (id: string | null) => void;
   /** Auto-backup folder name (null = off) — display only, handle lives in idb. */
   autoBackupDir: string | null;
@@ -295,6 +298,8 @@ export const useUiStore = create<UiState>((set, get) => ({
   responseViewerNodeId: null,
   fanOutNodeId: null,
   setFanOutNodeId: (id) => set({ fanOutNodeId: id }),
+  layoutPreview: null,
+  setLayoutPreview: (preview) => set({ layoutPreview: preview }),
   setResponseViewerNodeId: (id) => set({ responseViewerNodeId: id }),
   autoBackupDir: null,
   setAutoBackupDir: (name) => set({ autoBackupDir: name }),

@@ -7,7 +7,12 @@ import { COLLAPSED_LAYOUT_HEIGHT, LAYOUT_COL_WIDTH, LAYOUT_H_GAP, LAYOUT_V_GAP }
  *  Notes/files/links are content the user placed; a frame is a region rather
  *  than a card, so a card landing inside one is the point of a frame. */
 const CONTENT_KINDS = new Set(['note', 'file', 'link', 'frame']);
-const isContentKind = (node: ThoughtNode) => CONTENT_KINDS.has(node.data.stepKind ?? '');
+export const isContentKind = (node: ThoughtNode) => CONTENT_KINDS.has(node.data.stepKind ?? '');
+
+/** A card the user placed by hand (dragging pins it). Layout keeps it where
+ *  it was left and treats it as the head of its own chain: the cards grown
+ *  out of it still follow the arrow grammar, hanging from where it now is. */
+export const isPinned = (node: ThoughtNode) => !!node.data.layoutPinned && !isContentKind(node);
 
 // Estimated rendered height of a node — fallback when React Flow hasn't
 // measured the DOM yet (fresh nodes) and for collapse shifting. Every
@@ -266,19 +271,27 @@ export function placeNewNodes(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], 
  * business either.
  *
  * Order is breadth-first, parents before children, so each card is measured
- * against parents that have already landed.
+ * against parents that have already landed. A pinned card ends the walk the
+ * way material does. `keepRoot` leaves the card itself where it is and
+ * re-seats only what grows out of it (tidying a chain from one card).
  */
-export function reseatSubtree(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], nodeId: string): ThoughtNode[] {
+export function reseatSubtree(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], nodeId: string, keepRoot = false): ThoughtNode[] {
   const node = allNodes.find((n) => n.id === nodeId);
-  if (!node || isContentKind(node)) return allNodes;
+  if (!node || isContentKind(node) || (isPinned(node) && !keepRoot)) return allNodes;
+  const order = subtreeOrder(allNodes, allEdges, nodeId);
+  return placeNewNodes(allNodes, allEdges, keepRoot ? order.slice(1) : order);
+}
 
+/** The card and what grows out of it, breadth-first, parents before
+ *  children. Material ends the walk (it never moves, so neither does what
+ *  hangs off it); so does a pinned card unless `throughPins`. */
+function subtreeOrder(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], nodeId: string, throughPins = false): string[] {
   const byId = new Map(allNodes.map((n) => [n.id, n]));
   const children = new Map<string, string[]>();
   for (const e of allEdges) {
     if (e.data?.isCrossLink) continue;
     children.set(e.source, [...(children.get(e.source) ?? []), e.target]);
   }
-
   const order: string[] = [];
   const seen = new Set([nodeId]);
   let frontier = [nodeId];
@@ -289,12 +302,64 @@ export function reseatSubtree(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], 
       const current = byId.get(id);
       if (!current || isContentKind(current)) continue;
       for (const c of children.get(id) ?? []) {
-        if (!seen.has(c)) { seen.add(c); next.push(c); }
+        const child = byId.get(c);
+        if (seen.has(c) || !child || (isPinned(child) && !throughPins)) continue;
+        seen.add(c);
+        next.push(c);
       }
     }
     frontier = next;
   }
-  return placeNewNodes(allNodes, allEdges, order);
+  return order;
+}
+
+const unpin = (allNodes: ThoughtNode[], ids: ReadonlySet<string>): ThoughtNode[] =>
+  allNodes.map((n) => (ids.has(n.id) && n.data.layoutPinned
+    ? { ...n, data: { ...n.data, layoutPinned: undefined } }
+    : n));
+
+/** What the one-click relayout does, as a plan: legacy mirror wiring healed
+ *  (notes once sat INSIDE the chain — without this no relayout could ever
+ *  fix those canvases), then the column tree over every card that is not
+ *  pinned — or over all of them, when `resetPins` hands the pins back too.
+ *  The preview draws this; the store applies the same plan. */
+export function planRelayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], resetPins: boolean): { nodes: ThoughtNode[]; edges: ThoughtEdge[] } {
+  const edges = healLegacyNoteEdges(allNodes, allEdges);
+  const input = resetPins ? unpin(allNodes, new Set(allNodes.map((n) => n.id))) : allNodes;
+  return { nodes: autoLayout(input, edges), edges };
+}
+
+/** Hand a pinned card back to layout: it returns to where the arrow grammar
+ *  seats it, and the unpinned cards grown out of it travel along. */
+export function releasePin(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], nodeId: string): ThoughtNode[] {
+  return reseatSubtree(unpin(allNodes, new Set([nodeId])), allEdges, nodeId);
+}
+
+/** Tidy what follows one card: the card stays where it is, everything grown
+ *  out of it (pinned cards included — tidying is the ask) re-seats below and
+ *  beside it by the arrow grammar. The rest of the canvas does not move. */
+export function tidyChain(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], nodeId: string): ThoughtNode[] {
+  const down = subtreeOrder(allNodes, allEdges, nodeId, true).slice(1);
+  if (down.length === 0) return allNodes;
+  return reseatSubtree(unpin(allNodes, new Set(down)), allEdges, nodeId, true);
+}
+
+/** Tidy one chapter: the cards inside a frame re-flow by the arrow grammar
+ *  and the frame re-wraps them; nothing outside it moves. Each chain keeps
+ *  its head where it is — a card no other card in the chapter leads into —
+ *  so the chapter tidies in place instead of travelling to the grid origin. */
+export function tidyFrame(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], frameId: string): ThoughtNode[] {
+  const frame = allNodes.find((n) => n.id === frameId && isFrameNode(n));
+  if (!frame) return allNodes;
+  const inside = frameMembers(frame, allNodes);
+  const cards = new Set(inside.filter((n) => !isContentKind(n)).map((n) => n.id));
+  if (cards.size === 0) return allNodes;
+  const fed = new Set(allEdges
+    .filter((e) => !e.data?.isCrossLink && cards.has(e.source) && cards.has(e.target))
+    .map((e) => e.target));
+  const fixed = new Set(allNodes.filter((n) => !cards.has(n.id) || !fed.has(n.id)).map((n) => n.id));
+  const frames = new Set([frameId, ...inside.filter(isFrameNode).map((f) => f.id)]);
+  return autoLayout(unpin(allNodes, cards), allEdges, { fixed, frames });
 }
 
 /**
@@ -353,8 +418,8 @@ const FRAME_NESTING_GAP = 24;
 const FRAME_MIN_WIDTH = 280;
 const FRAME_MIN_HEIGHT = 180;
 
-function snapshotLayoutFrames(allNodes: ThoughtNode[]): FrameSnapshot[] {
-  const frames = allNodes.filter((n) => n.data.stepKind === 'frame' && n.data.frameCarry !== false);
+function snapshotLayoutFrames(allNodes: ThoughtNode[], only?: ReadonlySet<string>): FrameSnapshot[] {
+  const frames = allNodes.filter((n) => n.data.stepKind === 'frame' && n.data.frameCarry !== false && (!only || only.has(n.id)));
   const snapshots = frames.map((frame) => {
     // Membership is the same rule dragging uses (lib/frames): ordinary nodes
     // by centre, and it is frozen here, before layout, so a node cannot switch
@@ -383,15 +448,29 @@ function snapshotLayoutFrames(allNodes: ThoughtNode[]): FrameSnapshot[] {
   return snapshots;
 }
 
-export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[]): ThoughtNode[] {
+export type AutoLayoutOptions = {
+  /** Cards held where they are on top of the pinned ones — a scoped tidy
+   *  holds everything outside its scope this way. */
+  fixed?: ReadonlySet<string>;
+  /** Re-wrap only these frames (default: every linked frame). */
+  frames?: ReadonlySet<string>;
+};
+
+export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], options: AutoLayoutOptions = {}): ThoughtNode[] {
   if (allNodes.length === 0) return allNodes;
-  const frameSnapshots = snapshotLayoutFrames(allNodes);
+  const frameSnapshots = snapshotLayoutFrames(allNodes, options.frames);
   // Content nodes (notes / files) are user-arranged material: layout never
   // moves them and their edges don't shape the column tree. A node whose
   // only parent is a content node simply roots its own chain.
   const contentIds = new Set(allNodes.filter(isContentKind).map((n) => n.id));
   const nodes = allNodes.filter((n) => !contentIds.has(n.id));
   const edges = allEdges.filter((e) => !contentIds.has(e.source) && !contentIds.has(e.target));
+  // Held cards: pinned by the user, or outside a scoped tidy. Each one heads
+  // its own chain at the spot it was left — the wires into it still draw,
+  // they just no longer decide where it sits.
+  const fixedIds = new Set(nodes.filter((n) => isPinned(n) || options.fixed?.has(n.id)).map((n) => n.id));
+  const fixedPos = new Map(nodes.filter((n) => fixedIds.has(n.id)).map((n) => [n.id, n.position]));
+  const nodeById = new Map(allNodes.map((n) => [n.id, n]));
 
   const NODE_WIDTH = LAYOUT_COL_WIDTH;
   const H_GAP = LAYOUT_H_GAP;
@@ -405,10 +484,10 @@ export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[]): Th
   // adopt it so the node still stacks below its arrow-parent instead of
   // being treated as a detached root. A wire that follows a thread's tip
   // (a reviewer's) is never adopted: it moves every time the thread grows.
-  const structuralEdges = edges.filter((e) => !e.data?.isCrossLink);
+  const structuralEdges = edges.filter((e) => !e.data?.isCrossLink && !fixedIds.has(e.target));
   const hasStructuralParent = new Set(structuralEdges.map((e) => e.target));
   for (const e of edges) {
-    if (e.data?.isCrossLink && !e.data?.isWatch && !e.data?.followsTip && !hasStructuralParent.has(e.target)) {
+    if (e.data?.isCrossLink && !e.data?.isWatch && !e.data?.followsTip && !hasStructuralParent.has(e.target) && !fixedIds.has(e.target)) {
       structuralEdges.push(e);
       hasStructuralParent.add(e.target);
     }
@@ -431,6 +510,7 @@ export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[]): Th
   const materialAnchors = new Map<string, { x: number; y: number }>();
   const perMaterialCount = new Map<string, number>();
   for (const root of roots) {
+    if (fixedIds.has(root.id)) continue;
     const mats = allEdges
       .filter((e) => e.target === root.id && !e.data?.isCrossLink && contentIds.has(e.source))
       .map((e) => allNodes.find((n) => n.id === e.source))
@@ -545,7 +625,7 @@ export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[]): Th
     }
 
     for (const root of roots) {
-      const anchor = materialAnchors.get(root.id);
+      const anchor = fixedPos.get(root.id) ?? materialAnchors.get(root.id);
       if (anchor) {
         const virtCol = nextVirt++;
         colXOverride.set(virtCol, anchor.x);
@@ -609,10 +689,11 @@ export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[]): Th
   const visited = new Set<string>();
   const queue: string[] = [...roots.map((r) => r.id)];
 
-  // Roots start at y=0; material-anchored roots start under their material
+  // Roots start at y=0; material-anchored roots start under their material,
+  // held cards where they were left
   for (const rootId of queue) {
     const col = nodeColumn.get(rootId) ?? 0;
-    const anchor = materialAnchors.get(rootId);
+    const anchor = fixedPos.get(rootId) ?? materialAnchors.get(rootId);
     positioned.set(rootId, { x: colX(col), y: anchor?.y ?? 0 });
     visited.add(rootId);
   }
@@ -740,40 +821,44 @@ export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[]): Th
     columnNodes.set(col, list);
   }
 
-  for (let pass = 0; pass < 5; pass++) {
-    let moved = false;
+  const resolveColumnCollisions = () => {
+    for (let pass = 0; pass < 5; pass++) {
+      let moved = false;
 
-    for (const [, colNodeIds] of columnNodes) {
-      // Sort by current y
-      colNodeIds.sort((a, b) => (positioned.get(a)!.y) - (positioned.get(b)!.y));
+      for (const [, colNodeIds] of columnNodes) {
+        // Sort by current y
+        colNodeIds.sort((a, b) => (positioned.get(a)!.y) - (positioned.get(b)!.y));
 
-      for (let i = 1; i < colNodeIds.length; i++) {
-        const prevId = colNodeIds[i - 1];
-        const currId = colNodeIds[i];
-        const prevPos = positioned.get(prevId)!;
-        const currPos = positioned.get(currId)!;
-        const prevHeight = nodeHeightMap.get(prevId) || 220;
+        for (let i = 1; i < colNodeIds.length; i++) {
+          const prevId = colNodeIds[i - 1];
+          const currId = colNodeIds[i];
+          if (fixedIds.has(currId)) continue;
+          const prevPos = positioned.get(prevId)!;
+          const currPos = positioned.get(currId)!;
+          const prevHeight = nodeHeightMap.get(prevId) || 220;
 
-        const minY = prevPos.y + prevHeight + V_PAD;
-        if (currPos.y < minY) {
-          const delta = minY - currPos.y;
-          currPos.y = minY;
-          moved = true;
+          const minY = prevPos.y + prevHeight + V_PAD;
+          if (currPos.y < minY) {
+            const delta = minY - currPos.y;
+            currPos.y = minY;
+            moved = true;
 
-          // Push all descendants down too. Not only the ones sharing this
-          // column: an explore branch is given a column of its own, and
-          // leaving it behind stranded a child above the parent it came from.
-          // Dedupe — a descendant reachable by two paths moves once.
-          for (const dId of new Set(getDescendantIds(currId, structuralEdges))) {
-            const dPos = positioned.get(dId);
-            if (dPos) dPos.y += delta;
+            // Push all descendants down too. Not only the ones sharing this
+            // column: an explore branch is given a column of its own, and
+            // leaving it behind stranded a child above the parent it came from.
+            // Dedupe — a descendant reachable by two paths moves once.
+            for (const dId of new Set(getDescendantIds(currId, structuralEdges))) {
+              const dPos = positioned.get(dId);
+              if (dPos) dPos.y += delta;
+            }
           }
         }
       }
-    }
 
-    if (!moved) break;
-  }
+      if (!moved) break;
+    }
+  };
+  resolveColumnCollisions();
 
   // --- Pass 4: Serpentine fold ---
   // A pure PATH component (every node ≤1 structural child — the shape of
@@ -796,6 +881,9 @@ export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[]): Th
     allEdges.filter((e) => importerNotes.some((n) => n.id === e.source)).map((e) => e.target)
   );
   for (const root of roots) {
+    // a held head stays put, and folding its chain around it is not a tidy
+    // anyone asked for
+    if (fixedIds.has(root.id)) continue;
     const chain: string[] = [];
     let cur: string | undefined = root.id;
     let pure = true;
@@ -828,6 +916,64 @@ export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[]): Th
     }
   }
 
+  // --- Pass 4b: Clear the held cards ---
+  // A held card sits wherever it was left, which may be in the path of a
+  // column the grid laid out. The managed card that lands on it steps down
+  // below it, its chain with it, and the columns settle again.
+  //
+  // Overlap here is what the eye sees, not the layout's generous budget: a
+  // folded card is far shorter than COLLAPSED_LAYOUT_HEIGHT, and testing the
+  // budget pushed cards away from a pin that was visibly clear of them. An
+  // ancestor of the held card never steps below it — that would turn the
+  // arrow between them upward; the user put the card there, beside its line.
+  if (fixedIds.size > 0) {
+    const seenHeight = (id: string) => {
+      const n = nodeById.get(id)!;
+      return n.data.isCollapsed && n.measured?.height ? n.measured.height : (nodeHeightMap.get(id) || 220);
+    };
+    const parentsOf = new Map<string, string[]>();
+    for (const e of edges) {
+      if (e.data?.isCrossLink) continue;
+      parentsOf.set(e.target, [...(parentsOf.get(e.target) ?? []), e.source]);
+    }
+    const ancestorsOf = (id: string) => {
+      const out = new Set<string>();
+      const stack = [...(parentsOf.get(id) ?? [])];
+      while (stack.length) {
+        const p = stack.pop()!;
+        if (out.has(p)) continue;
+        out.add(p);
+        stack.push(...(parentsOf.get(p) ?? []));
+      }
+      return out;
+    };
+    const held = [...fixedIds].map((id) => {
+      const p = positioned.get(id)!;
+      return { id, x: p.x, y: p.y, w: NODE_WIDTH, h: seenHeight(id), above: ancestorsOf(id) };
+    });
+    for (let pass = 0; pass < 5; pass++) {
+      let moved = false;
+      const managed = nodes.filter((n) => !fixedIds.has(n.id))
+        .sort((a, b) => positioned.get(a.id)!.y - positioned.get(b.id)!.y);
+      for (const node of managed) {
+        const p = positioned.get(node.id)!;
+        const h = seenHeight(node.id);
+        const hit = held.filter((r) => !r.above.has(node.id)
+          && p.x < r.x + r.w && p.x + NODE_WIDTH > r.x && p.y < r.y + r.h + V_PAD && p.y + h + V_PAD > r.y);
+        if (hit.length === 0) continue;
+        const delta = Math.max(...hit.map((r) => r.y + r.h + V_PAD)) - p.y;
+        p.y += delta;
+        for (const dId of new Set(getDescendantIds(node.id, structuralEdges))) {
+          const dPos = positioned.get(dId);
+          if (dPos) dPos.y += delta;
+        }
+        moved = true;
+      }
+      if (!moved) break;
+      resolveColumnCollisions();
+    }
+  }
+
   // --- Pass 5: Importer-note placement ---
   // The layout law, refined: USER content (notes, files, frames the user
   // arranged) is never moved — but importer-OWNED notes (provenance-
@@ -847,7 +993,8 @@ export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[]): Th
   for (const note of importerNotes) {
     const targetId = allEdges.find((e) => e.source === note.id)?.target;
     const tp = targetId ? positioned.get(targetId) : undefined;
-    if (!tp) continue;
+    // a note beside a held card is already where it belongs
+    if (!tp || fixedIds.has(targetId!)) continue;
     let x = tp.x - 520;
     let y = tp.y;
     if (collides(x, y)) { x = tp.x; y = tp.y - NOTE_H - 40; }
@@ -868,7 +1015,6 @@ export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[]): Th
   // This preserves the conversation layout law while keeping spatial regions
   // attached to the nodes the user grouped.
   const frameLayouts = new Map<string, { position: { x: number; y: number }; width: number; height: number }>();
-  const nodeById = new Map(allNodes.map((n) => [n.id, n]));
   const contentKinds = new Set(['note', 'file', 'link']);
   const snapshotsInnerToOuter = [...frameSnapshots].sort((a, b) => a.nestingLevel - b.nestingLevel);
 
@@ -906,5 +1052,226 @@ export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[]): Th
     if (frameLayout) return { ...node, ...frameLayout };
     const pos = positioned.get(node.id);
     return pos ? { ...node, position: pos } : node;
+  });
+}
+
+/**
+ * Settle the canvas after a card changed size (folded, unfolded, an answer
+ * finished, a version switched) — the incremental layout that runs on its
+ * own, as opposed to the relayout the user asks for.
+ *
+ * The rule that keeps it calm: COLUMNS NEVER CHANGE. Every card keeps its x;
+ * only y moves, so the map the user has in their head survives. Within that:
+ *
+ *   - the cards grown out of a changed card re-hang from it by the arrow
+ *     grammar — a continuation one gap below its parent, an alternative level
+ *     with it, an explore branch at its parent's quarter height — which both
+ *     opens room when the card grew and closes the hole when it shrank;
+ *   - a card that is NOT downstream but stood below in the way gives way
+ *     (pushed down, never pulled up — its own hole is not this change's to
+ *     close), and its chain moves with it;
+ *   - pinned cards and material hold; a card that would land on one steps
+ *     below it, except an ancestor, which never steps below its own pin.
+ *
+ * A child sitting ABOVE its parent in another column (a folded long chain,
+ * a hand arrangement from before pins existed) is a deliberate layout, not a
+ * hole: it keeps its y. Sources keep theirs too — they are what changed.
+ * Frames that held a moved card grow to keep holding it, as when seating.
+ */
+export function settleLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], sourceIds: string[]): ThoughtNode[] {
+  const byId = new Map(allNodes.map((n) => [n.id, n]));
+  const sources = new Set(sourceIds.filter((id) => byId.has(id)));
+  if (sources.size === 0) return allNodes;
+  const managed = (n: ThoughtNode) => !isContentKind(n) && !isPinned(n);
+  // A card folded a moment ago still reports its unfolded measurement until
+  // React Flow re-measures it; folded, the estimate is the truth (as for
+  // seating, see hangHeight). Unfolded, the usual max of the two.
+  const layoutHeight = (n: ThoughtNode) => (n.data.isCollapsed ? estimateNodeHeight(n) : nodeHeight(n));
+
+  // the wires that hang a card, adopting a lone reference the way autoLayout does
+  const structural = allEdges.filter((e) => !e.data?.isCrossLink);
+  const hasParent = new Set(structural.map((e) => e.target));
+  for (const e of allEdges) {
+    if (e.data?.isCrossLink && !e.data?.isWatch && !e.data?.followsTip && !hasParent.has(e.target)) {
+      structural.push(e);
+      hasParent.add(e.target);
+    }
+  }
+  const childrenOf = new Map<string, string[]>();
+  const parentWires = new Map<string, ThoughtEdge[]>();
+  for (const e of structural) {
+    childrenOf.set(e.source, [...(childrenOf.get(e.source) ?? []), e.target]);
+    parentWires.set(e.target, [...(parentWires.get(e.target) ?? []), e]);
+  }
+
+  const scope = new Set<string>();
+  const pushOnly = new Set<string>();
+  const addDown = (id: string) => {
+    for (const c of childrenOf.get(id) ?? []) {
+      const child = byId.get(c);
+      if (!child || !managed(child) || scope.has(c) || sources.has(c)) continue;
+      scope.add(c);
+      addDown(c);
+    }
+  };
+  for (const s of sources) addDown(s);
+
+  const V_PAD = 24;
+  const seenHeight = (n: ThoughtNode) => (n.data.isCollapsed && n.measured?.height ? n.measured.height : layoutHeight(n));
+  const ancestorsOf = (id: string) => {
+    const out = new Set<string>();
+    const stack = (parentWires.get(id) ?? []).map((e) => e.source);
+    while (stack.length) {
+      const p = stack.pop()!;
+      if (out.has(p)) continue;
+      out.add(p);
+      stack.push(...(parentWires.get(p) ?? []).map((e) => e.source));
+    }
+    return out;
+  };
+  const pinnedAbove = new Map<string, Set<string>>();
+  const ancestorsOfPin = (id: string) => {
+    if (!pinnedAbove.has(id)) pinnedAbove.set(id, ancestorsOf(id));
+    return pinnedAbove.get(id)!;
+  };
+
+  let pos = new Map<string, { x: number; y: number }>();
+  // Each round may find cards in the way that must give way; they join the
+  // scope and the round runs again. Bounded: a card joins at most once.
+  for (let round = 0; round <= allNodes.length; round++) {
+    pos = new Map(allNodes.map((n) => [n.id, { ...n.position }]));
+    const placed = new Set<string>();
+    const promote = new Set<string>();
+    const obstacles = allNodes.filter((n) => !isFrameNode(n) && !scope.has(n.id));
+
+    const floorOf = (n: ThoughtNode): number => {
+      const cur = n.position;
+      const w = cardWidth(n);
+      const floors: number[] = [];
+      for (const e of parentWires.get(n.id) ?? []) {
+        const p = byId.get(e.source);
+        if (!p || isContentKind(p)) continue;
+        const pp = pos.get(p.id)!;
+        const ph = layoutHeight(p);
+        const sameColumn = cur.x < pp.x + cardWidth(p) && cur.x + w > pp.x;
+        if (sameColumn) floors.push(pp.y + ph + LAYOUT_V_GAP);
+        else if (e.data?.isBranchFromSelection) floors.push(pp.y + ph * 0.25);
+        else if (cur.y >= p.position.y) floors.push(pp.y + ph + LAYOUT_V_GAP);
+      }
+      const rest = floors.length ? Math.max(...floors) : cur.y;
+      return pushOnly.has(n.id) ? Math.max(rest, cur.y) : rest;
+    };
+
+    const seat = (n: ThoughtNode, from: number) => {
+      const w = cardWidth(n);
+      const h = layoutHeight(n);
+      let y = from;
+      for (let guard = 0; guard <= allNodes.length + 1; guard++) {
+        let floor = -Infinity;
+        for (const o of obstacles) {
+          if (o.id === n.id) continue;
+          const op = pos.get(o.id)!;
+          const ow = cardWidth(o);
+          const oh = managed(o) || sources.has(o.id) ? layoutHeight(o) : seenHeight(o);
+          if (!(y < op.y + oh + V_PAD && y + h + V_PAD > op.y && n.position.x < op.x + ow && n.position.x + w > op.x)) continue;
+          // a managed bystander that stood below this card gives way
+          if (managed(o) && !sources.has(o.id) && op.y >= n.position.y) { promote.add(o.id); continue; }
+          if (isPinned(o) && ancestorsOfPin(o.id).has(n.id)) continue;
+          floor = Math.max(floor, op.y + oh + V_PAD);
+        }
+        for (const id of placed) {
+          const op = pos.get(id)!;
+          const o = byId.get(id)!;
+          if (y < op.y + layoutHeight(o) + V_PAD && y + h + V_PAD > op.y && n.position.x < op.x + cardWidth(o) && n.position.x + w > op.x) {
+            floor = Math.max(floor, op.y + layoutHeight(o) + V_PAD);
+          }
+        }
+        if (floor === -Infinity) break;
+        y = floor;
+      }
+      pos.set(n.id, { x: n.position.x, y });
+      placed.add(n.id);
+    };
+
+    // sweep: parents before children, the highest resting card first
+    const waiting = new Set(scope);
+    while (waiting.size > 0) {
+      const ready = [...waiting].filter((id) =>
+        (parentWires.get(id) ?? []).every((e) => !waiting.has(e.source)));
+      // a loop of adopted references never becomes ready: seat it as it stands
+      const pool = ready.length ? ready : [...waiting];
+      let best = pool[0];
+      let bestY = floorOf(byId.get(best)!);
+      for (const id of pool.slice(1)) {
+        const y = floorOf(byId.get(id)!);
+        if (y < bestY) { best = id; bestY = y; }
+      }
+      waiting.delete(best);
+      seat(byId.get(best)!, ready.length ? bestY : byId.get(best)!.position.y);
+    }
+
+    // the changed cards themselves push what they now cover
+    for (const s of sources) {
+      const n = byId.get(s)!;
+      if (isContentKind(n)) continue;
+      const sp = n.position;
+      for (const o of obstacles) {
+        if (o.id === s || !managed(o) || sources.has(o.id)) continue;
+        const op = o.position;
+        if (op.y >= sp.y && op.y < sp.y + layoutHeight(n) + V_PAD && sp.x < op.x + cardWidth(o) && sp.x + cardWidth(n) > op.x) promote.add(o.id);
+      }
+    }
+
+    if (promote.size === 0) break;
+    for (const id of promote) {
+      scope.add(id);
+      pushOnly.add(id);
+      addDown(id);
+    }
+  }
+
+  const moved = new Map<string, { x: number; y: number }>();
+  for (const id of scope) {
+    const p = pos.get(id)!;
+    if (Math.abs(p.y - byId.get(id)!.position.y) > 0.5) moved.set(id, p);
+  }
+  if (moved.size === 0) return allNodes;
+  return growFramesToHold(allNodes.map((n) => (moved.has(n.id) ? { ...n, position: moved.get(n.id)! } : n)), allNodes, moved);
+}
+
+/** Frames that owned a moved card before it moved grow right and down to
+ *  keep owning it — never move, never shrink; an enclosing frame grows with
+ *  the frame inside it. Inner frames first, so the outer sees their growth. */
+function growFramesToHold(after: ThoughtNode[], before: ThoughtNode[], moved: Map<string, { x: number; y: number }>): ThoughtNode[] {
+  const frames = before.filter((f) => isFrameNode(f) && f.data.frameCarry !== false);
+  if (frames.length === 0) return after;
+  const area = (f: ThoughtNode) => frameRect(f).width * frameRect(f).height;
+  const afterById = new Map(after.map((n) => [n.id, n]));
+  const grown = new Map<string, { width: number; height: number }>();
+  for (const frame of [...frames].sort((a, b) => area(a) - area(b))) {
+    const fr = frameRect(frame);
+    const members = frameMembers(frame, before);
+    let right = fr.x + fr.width;
+    let bottom = fr.y + fr.height;
+    for (const m of members) {
+      if (isFrameNode(m)) {
+        const g = grown.get(m.id);
+        if (!g) continue;
+        right = Math.max(right, m.position.x + g.width + FRAME_NESTING_GAP);
+        bottom = Math.max(bottom, m.position.y + g.height + FRAME_NESTING_GAP);
+      } else if (moved.has(m.id)) {
+        const n = afterById.get(m.id)!;
+        right = Math.max(right, n.position.x + cardWidth(n) + FRAME_SIDE_PADDING);
+        bottom = Math.max(bottom, n.position.y + nodeHeight(n) + FRAME_SIDE_PADDING);
+      }
+    }
+    if (right > fr.x + fr.width + 0.5 || bottom > fr.y + fr.height + 0.5) {
+      grown.set(frame.id, { width: Math.ceil(right - fr.x), height: Math.ceil(bottom - fr.y) });
+    }
+  }
+  if (grown.size === 0) return after;
+  return after.map((n) => {
+    const g = grown.get(n.id);
+    return g ? { ...n, width: g.width, height: g.height, ...(n.measured ? { measured: { ...g } } : {}) } : n;
   });
 }

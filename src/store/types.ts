@@ -45,8 +45,18 @@ export interface NodeSlice {
   batchDelete: (nodeIds: string[]) => void;
   /** Duplicate the multi-selection as a detached copy: inner edges kept, boundary edges cut, attachments shared by reference under new ids (undoable). */
   duplicateSelection: (nodeIds: string[]) => void;
-  /** Re-run the column-tree layout over the whole graph (undoable). */
-  relayout: () => void;
+  /** Re-run the column-tree layout over the whole graph, keeping pinned cards where they are — or, with `resetPins`, handing every card back to layout first (undoable). */
+  relayout: (resetPins?: boolean) => void;
+  /** Mark cards as placed by hand (a drag): layout keeps them where they are. */
+  pinNodes: (nodeIds: string[]) => void;
+  /** Hand a pinned card back to layout; it glides to its seat (undoable). */
+  releasePin: (nodeId: string) => void;
+  /** Re-seat everything grown out of a card; the card itself stays (undoable). */
+  tidyChain: (nodeId: string) => void;
+  /** Re-flow the cards inside a frame; nothing outside it moves (undoable). */
+  tidyFrame: (frameId: string) => void;
+  /** These cards changed size: settle what hangs from them (and what stands in the way) once React Flow has re-measured them. Columns never move. */
+  settleFrom: (nodeIds: string[]) => void;
   /** Stack the selected nodes into one vertical column, in conversation order (undoable). */
   alignSelection: (nodeIds: string[]) => void;
   /** Set/clear a per-node LLM override (undefined = follow the global picker). */

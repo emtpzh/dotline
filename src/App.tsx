@@ -15,7 +15,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import 'highlight.js/styles/github.css';
-import { ArrowLeft, ArrowRight, BookOpen, Bot, Brain, CircleHelp, Download, Eye, FileText, Frame, GitBranch, Highlighter, ImageDown, KeyRound, LayoutGrid, Link2, Loader2, MessageCircleQuestion, MoreHorizontal, Paperclip, Redo2, Scissors, Search, Share2, SquareTerminal, Stethoscope, StickyNote, Trash2, Undo2, Workflow, X, ListRestart, FolderSync, Minimize2, Rewind, History as HistoryIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Bot, Brain, CircleHelp, Download, Eye, FileText, Frame, GitBranch, Highlighter, ImageDown, KeyRound, LayoutGrid, Link2, PinOff, Loader2, MessageCircleQuestion, MoreHorizontal, Paperclip, Redo2, Scissors, Search, Share2, SquareTerminal, Stethoscope, StickyNote, Trash2, Undo2, Workflow, X, ListRestart, FolderSync, Minimize2, Rewind, History as HistoryIcon } from 'lucide-react';
 import './index.css';
 import ThoughtNode from './components/ThoughtNode';
 import ParadigmNode from './components/ParadigmNode';
@@ -27,6 +27,7 @@ import ThoughtEdgeView from './components/ThoughtEdgeView';
 import FocusPanel from './components/focus-panel';
 import SelectionToolbar from './components/SelectionToolbar';
 import NodeContextMenu from './components/NodeContextMenu';
+import LayoutPreview from './components/LayoutPreview';
 import { FanOutHost } from './components/FanOutModal';
 import HighlightsOverviewModal from './components/app/HighlightsOverviewModal';
 import MaterialsOverviewModal from './components/app/MaterialsOverviewModal';
@@ -37,6 +38,8 @@ import ProjectSwitcher from './components/ProjectSwitcher';
 import SessionAtlas from './components/SessionAtlas';
 import { useStore } from './store';
 import { frameMembers } from './lib/frames';
+import { isPinned } from './lib/layout';
+import { holdLayout, registerViewport } from './lib/layout-motion';
 import { useProjects, adoptImportedProject, markInstantiatedFrom } from './store/projects';
 import { projectStorageKey } from './store/projects';
 import { set as idbSet } from 'idb-keyval';
@@ -230,7 +233,7 @@ export default function App() {
 }
 
 function Canvas() {
-  const { nodes, edges, setNodes, setEdges, addQuestion, undo, redo, addCrossLink, setSelectedNodeId, setSelectedNodeIds, history, historyIndex, relayout } = useStore();
+  const { nodes, edges, setNodes, setEdges, addQuestion, undo, redo, addCrossLink, setSelectedNodeId, setSelectedNodeIds, history, historyIndex } = useStore();
   const t = useT();
   const setTutorialOpen = useUiStore((s) => s.setTutorialOpen);
   const annotationsHidden = useUiStore((s) => s.annotationsHidden);
@@ -245,6 +248,7 @@ function Canvas() {
   const landingFileRef = useRef<HTMLInputElement>(null);
   const docFileRef = useRef<HTMLInputElement>(null);
   const hasNodes = nodes.length > 0;
+  const pinnedCount = useMemo(() => nodes.filter(isPinned).length, [nodes]);
   const hasEvents = useStore((s) => s.events.length > 0);
   const highlightCount = useStore((s) => s.nodes.reduce((sum, n) => sum + (n.data.highlights?.length ?? 0), 0));
   const materialCount = useStore((s) => s.nodes.reduce((sum, n) =>
@@ -575,7 +579,12 @@ function Canvas() {
   // (node centers inside the frame box); positions then follow the frame's
   // delta from ITS start position, so there is no incremental drift.
   const frameDrag = useRef<{ frameId: string; start: { x: number; y: number }; members: { id: string; start: { x: number; y: number } }[] } | null>(null);
-  const onNodeDragStart: OnNodeDrag<ThoughtNodeType> = useCallback((_e, node) => {
+  // Where each dragged card started: a card that actually moved was placed
+  // by hand, and layout keeps it there from now on (lib/layout isPinned).
+  const dragStart = useRef(new Map<string, { x: number; y: number }>());
+  const onNodeDragStart: OnNodeDrag<ThoughtNodeType> = useCallback((_e, node, dragged) => {
+    dragStart.current = new Map(dragged.map((n) => [n.id, n.position]));
+    holdLayout(true);
     // unlinked frames (frameCarry === false) move alone — the state while
     // the frame itself is still being adjusted over its nodes
     if (node.data.stepKind !== 'frame' || node.data.frameCarry === false) return;
@@ -604,7 +613,21 @@ function Canvas() {
       }),
     }));
   }, []);
-  const onNodeDragStop: OnNodeDrag<ThoughtNodeType> = useCallback(() => { frameDrag.current = null; }, []);
+  const onNodeDragStop: OnNodeDrag<ThoughtNodeType> = useCallback((_e, _node, dragged) => {
+    const moved = dragged
+      .filter((n) => {
+        const start = dragStart.current.get(n.id);
+        return !!start && Math.hypot(n.position.x - start.x, n.position.y - start.y) > 2;
+      })
+      .map((n) => n.id);
+    // a chapter carried somewhere new carries its cards' placement with it
+    const drag = frameDrag.current;
+    if (drag && moved.includes(drag.frameId)) moved.push(...drag.members.map((m) => m.id));
+    if (moved.length > 0) useStore.getState().pinNodes(moved);
+    dragStart.current = new Map();
+    frameDrag.current = null;
+    holdLayout(false);
+  }, []);
 
   // Edge right-click context menu
   const [edgeMenu, setEdgeMenu] = useState<{ x: number; y: number; edgeId: string } | null>(null);
@@ -1109,6 +1132,15 @@ function Canvas() {
         onInit={(instance) => {
           rfInstance.current = instance;
           recapCamera.current = instance;
+          // layout that runs on its own may need to carry the camera along
+          registerViewport({
+            getViewport: () => instance.getViewport(),
+            setViewport: (v) => { void instance.setViewport(v); },
+            size: () => {
+              const r = document.querySelector('.react-flow')?.getBoundingClientRect();
+              return { width: r?.width ?? window.innerWidth, height: r?.height ?? window.innerHeight };
+            },
+          });
           // Debug: expose the flow instance for screenshot/e2e scripts (DEV only)
           if (import.meta.env.DEV) (window as unknown as { __rf?: typeof instance }).__rf = instance;
           // A freshly imported session arrives at its working tail, not a
@@ -1190,6 +1222,7 @@ function Canvas() {
         <ThoughtMapPill panelShiftWidth={panelOpen ? livePanelWidth : 0} />
         <TimelineBar />
         <CanvasControls />
+        <LayoutPreview />
         {nodes.length > 0 && <MiniMap
           nodeColor={(node) => {
             const data = node.data as Record<string, unknown>;
@@ -1778,20 +1811,13 @@ function Canvas() {
                 </DropdownMenuItem>
               )}
               {hasNodes && (
-                <DropdownMenuItem
-                  onClick={() => {
-                    void confirmDialog({
-                      title: t('confirm.relayoutTitle'),
-                      message: t('confirm.relayoutMsg'),
-                      confirmLabel: t('toolbar.relayout'),
-                    }).then((ok) => {
-                      if (!ok) return;
-                      relayout();
-                      setTimeout(() => rfInstance.current?.fitView({ duration: 400, padding: 0.15 }), 50);
-                    });
-                  }}
-                >
+                <DropdownMenuItem onClick={() => useUiStore.getState().setLayoutPreview({ resetPins: false })}>
                   <LayoutGrid size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('toolbar.relayout')}
+                </DropdownMenuItem>
+              )}
+              {pinnedCount > 0 && (
+                <DropdownMenuItem onClick={() => useUiStore.getState().setLayoutPreview({ resetPins: true })}>
+                  <PinOff size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('toolbar.relayoutAll')}
                 </DropdownMenuItem>
               )}
               {highlightCount > 0 && (

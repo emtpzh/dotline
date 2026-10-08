@@ -4,7 +4,7 @@ import { actionMarks } from '../lib/turn-insight';
 import { faceState, faceTone, farPriority, nodeConclusion, nodeName, roleLabel, type FaceShape } from '../lib/node-face';
 import { isAutoRerun, nodeRoute } from '../lib/edge-look';
 import { Handle, Position, useReactFlow, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
-import { AlertTriangle, Check, ChevronLeft, ChevronRight, Copy, FoldVertical, Hourglass, Plus, RefreshCw, Send, Split, Square, UnfoldVertical, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, Copy, FoldVertical, Hourglass, Pin, Plus, RefreshCw, Send, Split, Square, UnfoldVertical, X } from 'lucide-react';
 import 'katex/dist/katex.min.css';
 import type { ThoughtNode as ThoughtNodeType } from '../types';
 import { useStore } from '../store';
@@ -303,6 +303,19 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
           className="text-white bg-destructive hover:bg-destructive/90"
         >
           <Square strokeWidth={1.75} fill="currentColor" />
+        </Button>
+      )}
+      {/* Placed by hand: layout keeps the card here. The pin stays in sight
+          (it explains why a relayout left the card alone); clicking it hands
+          the card back and it glides to its seat. */}
+      {data.layoutPinned && !isViewerMode && (
+        <Button variant="ghost" size="icon-sm"
+          onClick={(e) => { e.stopPropagation(); useStore.getState().releasePin(id); }}
+          title={t('pin.release')}
+          className="text-muted-foreground/70 hover:text-foreground"
+          data-pin
+        >
+          <Pin strokeWidth={1.75} />
         </Button>
       )}
       <span className="tdag-hover flex items-center gap-0.5">
