@@ -15,6 +15,31 @@
   line-height: 1.7;
 }
 
+/* The user's highlights: a highlighter stroke under the words. The text
+   keeps its own color (code tokens, links, bold), so the mark reads the
+   same over every kind of content. A passage arrives as fragments, one
+   per text run it crosses (see lib/rehype-marks.ts); only its two ends
+   are rounded, so the fragments read as one stroke. */
+.markdown-body mark.user-mark {
+  background: color-mix(in srgb, var(--warning) 24%, transparent);
+  color: inherit;
+  padding: 0.1em 0;
+  border-radius: 0;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  transition: background-color 150ms ease-out;
+}
+.markdown-body mark.user-mark[data-mark-edge~='start'] {
+  border-top-left-radius: 0.2em;
+  border-bottom-left-radius: 0.2em;
+}
+.markdown-body mark.user-mark[data-mark-edge~='end'] {
+  border-top-right-radius: 0.2em;
+  border-bottom-right-radius: 0.2em;
+}
+/* a formula is marked whole: give it room inside the stroke */
+.markdown-body mark.user-mark:has(> .katex) { padding: 0.1em 0.15em; border-radius: 0.2em; }
+
 /* Explore marks: the passages child branches were born from. A warm dotted
    underline (structural trace), never a fill — fills belong to the user's
    own highlights. Clickable where the host delegates to the child node. */

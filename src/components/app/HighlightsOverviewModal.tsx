@@ -6,6 +6,7 @@ import { downloadMarkdown } from '../../lib/export';
 import { useT, fmt } from '../../i18n';
 import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
+import { HighlightText } from '../HighlightText';
 
 // Every highlight on the canvas, in one place: the essence the reading
 // left behind. Two lenses (by time = the reading journey, by node = the
@@ -109,7 +110,7 @@ export default function HighlightsOverviewModal({ onLocate }: { onLocate: (nodeI
                     className="mt-1 accent-amber-500 shrink-0"
                   />
                   <span className="flex-1 text-sm text-foreground leading-relaxed min-w-0">
-                    <mark className="bg-warning/15 text-warning px-0.5 rounded">{e.text}</mark>
+                    <mark className="bg-warning/25 text-inherit rounded-sm py-0.5 box-decoration-clone"><HighlightText text={e.text} /></mark>
                   </span>
                   {sort === 'time' && (
                     <Button variant="ghost" className={chip} onClick={() => { close(); onLocate(e.nodeId); }} title={t('hlov.locateTitle')}>

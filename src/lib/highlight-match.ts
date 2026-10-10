@@ -1,12 +1,17 @@
 // Highlights are captured from the RENDERED answer but must be located in
 // the markdown SOURCE: a literal string match breaks the moment a selection
 // crosses **bold**, `code`, a list marker or a soft line break — the mark
-// then silently never renders. The fuzzy pattern below tolerates markdown
+// is then silently lost. The fuzzy pattern below tolerates markdown
 // punctuation between characters and normalizes whitespace runs, and is the
-// single matcher shared by the response renderer (<mark>), the context
-// builder ([Important] tags) and stale-highlight pruning — so "does this
-// highlight still exist" always means the same thing everywhere.
-const MD_NOISE = '[*_`~()#>\\[\\]|-]*';
+// matcher shared by the context builder ([Important] tags) and
+// stale-highlight pruning — so "does this highlight still exist" means the
+// same thing in both. (The renderer marks the rendered tree instead, see
+// rehype-marks.ts; it ignores the same whitespace and `$`.)
+//
+// A link's target never shows on the page, so `](url)` is noise as a
+// whole; so are math delimiters (`$`, `\(`), since a formula is captured
+// as `$tex$` whatever delimiters the source used.
+const MD_NOISE = '(?:\\]\\([^)\\s]*\\)|[*_`~()#>\\[\\]|$\\\\-])*';
 // A whitespace gap in the selection may be a BLOCK boundary in the source:
 // "\n- item", "\n\n2. item", "\n> quote", " | " between table cells, or a
 // whole table delimiter row ("|---|---|") between header and body. After
@@ -22,6 +27,7 @@ export function fuzzyHighlightRegex(text: string): RegExp | null {
   let pendingWs = false;
   for (const ch of chars) {
     if (/\s/.test(ch)) { pendingWs = true; continue; }
+    if (ch === '$') continue; // math delimiter: matched as noise
     const escaped = ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     if (parts.length === 0) parts.push(escaped);
     else if (pendingWs) parts.push(`${MD_NOISE}${WS_GAP}${MD_NOISE}${escaped}`);
