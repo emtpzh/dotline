@@ -1,6 +1,6 @@
 {
   "name": "dsh-dotline",
-  "version": "0.4.16",
+  "version": "0.4.17",
   "description": "Dotline for DeepSeek Harness: turn the current DSH session into an editable thought graph on an infinite canvas.",
   "author": "Xia Chen",
   "repository": {

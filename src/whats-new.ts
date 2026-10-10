@@ -33,6 +33,16 @@ const DOCS = DOCS_URL;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.4.17',
+    date: '2026-10-10',
+    announce: false,
+    lead: {
+      zh: '选中文字后的「探索 / 高亮」：浮条改成一条安静的工具条，弹出和消失都有过渡，换一段文字时在新位置重新浮起。高亮现在画在你看到的文字上：跨过代码块、行内代码、链接、表格和公式的选段都能完整标出，代码块里不再冒出一串标签原文，公式整块标记并按 TeX 记录。详情面板的高亮列表改成荧光笔式的一行一条，公式直接排版显示。',
+      en: 'Explore / Highlight on a selection: the bar is a quiet toolbar that rises in and fades out, and re-enters at each new passage. Highlights are now drawn on the text you see: a passage through code blocks, inline code, links, tables or formulas is marked whole, code blocks no longer show stray tag text, and a formula is marked as one piece and kept as TeX. The highlight list in the details panel reads as highlighter strokes, one per line, with formulas typeset.',
+    },
+    items: [],
+  },
+  {
     version: '0.4.16',
     date: '2026-09-17',
     announce: false,
