@@ -88,7 +88,7 @@
   "description": "An infinite canvas where LLM conversations grow into an editable thought graph. Read papers into maps; every answer knows where it came from.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/chenxiachan/thoughtdag.git"
+    "url": "https://github.com/emtpzh/dotline.git"
   },
   "keywords": [
     "llm",

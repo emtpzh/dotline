@@ -266,7 +266,7 @@ export function compileForAgent(messages: ContextMessage[]): { question: string;
   if (system.length) parts.push('Instructions from the canvas:\n\n' + system.join('\n\n'));
   if (history.length) parts.push('The conversation the canvas wired into this question, oldest first:\n\n' + history.map((m) => `[${m.role === 'assistant' ? 'assistant' : 'user'}]\n${m.content.trim()}`).join('\n\n'));
   const context = parts.length
-    ? '[ThoughtDAG canvas context] The question that follows was asked from a ThoughtDAG canvas. Treat the material below as the conversation so far; answer the question at the end.\n\n' + parts.join('\n\n---\n\n')
+    ? '[Dotline canvas context] The question that follows was asked from a Dotline canvas. Treat the material below as the conversation so far; answer the question at the end.\n\n' + parts.join('\n\n---\n\n')
     : '';
   return { question: last.content.trim(), context };
 }

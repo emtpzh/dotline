@@ -1,4 +1,5 @@
 import { useStore } from '../store';
+import { APP_NAME, REPO_URL } from './brand';
 import { collectTimeline, type TimelineEntry } from './timeline';
 import { generateGedankengang, getCached, graphFingerprint, type Gedankengang } from './gedankengang';
 
@@ -232,7 +233,7 @@ export async function drawGedankengangPoster({ title, journey, entries, lang }: 
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#7d6a45';
   ctx.font = `20px ${MONO}`;
-  ctx.fillText('ThoughtDAG · github.com/chenxiachan/thoughtdag', PAD + 90, fy);
+  ctx.fillText(`${APP_NAME} · ${REPO_URL.replace(/^https:\/\//, '')}`, PAD + 90, fy);
 
   return new Promise((resolve, reject) => {
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob failed'))), 'image/png');
@@ -259,7 +260,7 @@ export async function exportGedankengangPoster(
   }
   const root = nodes.find((n) => n.data.isRoot);
   const blob = await drawGedankengangPoster({
-    title: (root?.data.question ?? 'ThoughtDAG').replace(/\s+/g, ' ').slice(0, 80),
+    title: (root?.data.question ?? APP_NAME).replace(/\s+/g, ' ').slice(0, 80),
     journey,
     entries: collectTimeline(nodes, 0),
     lang,

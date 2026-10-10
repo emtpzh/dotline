@@ -12,7 +12,7 @@ import { API_BASE } from './lib/constants'
 // Theme attributes land on <html> before first paint — no wrong-theme flash
 initAppearance()
 
-// Embedded in DeepSeek Harness (the dsh-thoughtdag plugin builds with this
+// Embedded in DeepSeek Harness (the dsh-dotline plugin builds with this
 // set): the harness's own web server is the session bridge, so the atlas
 // and the live mirror light up exactly as they do in the desktop shell.
 const dshApi = import.meta.env.VITE_DSH_BRIDGE as string | undefined

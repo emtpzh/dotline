@@ -9,7 +9,7 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === '/story' || url.pathname.startsWith('/story/')) {
       const suffix = url.pathname.replace(/^\/story\/?/, '');
-      const target = new URL(`https://chenxiachan.github.io/thoughtdag/${suffix}`);
+      const target = new URL(`https://emtpzh.github.io/dotline/${suffix}`);
       target.search = url.search;
       return Response.redirect(target.toString(), 301);
     }

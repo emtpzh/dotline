@@ -99,6 +99,7 @@ import { TimelineBar } from './components/app/TimelineBar';
 import TimelineOverviewModal from './components/app/TimelineOverviewModal';
 import { useStore as useRfStore, useReactFlow } from '@xyflow/react';
 import { Button } from './components/ui/button';
+import { APP_NAME, REPO_URL } from './lib/brand';
 
 // One node type key, three renderers: content nodes (notes / files) render
 // the same in every mode; otherwise the active project's kind decides
@@ -1325,7 +1326,7 @@ function Canvas() {
                 <line className="dag-pop" style={{ animationDelay: '0.8s' }} x1="25.5" y1="23.5" x2="33" y2="28.5" stroke="var(--edge-explore)" strokeWidth="2" strokeLinecap="round" />
                 <circle className="dag-pop" style={{ animationDelay: '0.95s' }} cx="36" cy="30" r="3.5" fill="var(--edge-explore)" />
               </svg>
-              <h1 className="text-4xl font-semibold tracking-tight text-foreground mb-2.5">ThoughtDAG</h1>
+              <h1 className="text-4xl font-semibold tracking-tight text-foreground mb-2.5">{APP_NAME}</h1>
               <p className="text-sm text-muted-foreground">{t('landing.tagline')}</p>
               <p className="text-xs text-muted-foreground mt-1.5 font-medium">{t('landing.mechanism')}</p>
             </div>
@@ -1600,7 +1601,7 @@ function Canvas() {
             <Download strokeWidth={1.75} />
           </Button>
           <a
-            href="https://github.com/chenxiachan/thoughtdag"
+            href={REPO_URL}
             target="_blank"
             rel="noreferrer"
             className="bg-foreground text-white rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm hover:bg-foreground/85 transition-colors text-xs font-medium"

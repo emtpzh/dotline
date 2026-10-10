@@ -4,7 +4,7 @@
 // Spends ONE short model request on the profile's default model. Run with
 //   node scripts/verify-write-bridge.mjs
 // while `dsh web` is up; pass a session id as argv[2] to fork another one.
-const B = 'http://127.0.0.1:3080/thoughtdag/api';
+const B = 'http://127.0.0.1:3080/dotline/api';
 const HEY = process.argv[2] ?? 'session-e093e195-bb3a-4c56-93a1-b56c31894f5f';
 const j = async (path, init) => { const r = await fetch(B + path, init); const t = await r.text(); let b; try { b = JSON.parse(t); } catch { b = t; } return { status: r.status, body: b }; };
 const post = (path, body) => j(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -32,12 +32,12 @@ ok('child inherited the parent prefix', childLog0.includes('"Hey"') && childLog0
 
 const empty = await post(`/sessions/${child}/inject`, { text: '' });
 ok('empty inject is refused', empty.status === 400, JSON.stringify(empty.body));
-const CTX = '[ThoughtDAG context] The person is verifying a write bridge. Their favourite colour, for this test only, is teal.';
+const CTX = '[Dotline context] The person is verifying a write bridge. Their favourite colour, for this test only, is teal.';
 const inj = await post(`/sessions/${child}/inject`, { text: CTX });
 ok('inject accepted', inj.status === 200 && inj.body.accepted === true, JSON.stringify(inj.body));
 await new Promise(r => setTimeout(r, 800));
 const childLog1 = await log(child);
-ok('injected context is on the child log (inbox splice, source plugin)', childLog1.includes('teal') && childLog1.includes('"plugin":"dsh-thoughtdag"'));
+ok('injected context is on the child log (inbox splice, source plugin)', childLog1.includes('teal') && childLog1.includes('"plugin":"dsh-dotline"'));
 
 const fu = await post(`/sessions/${child}/followup`, { text: 'Reply with the favourite colour from the context, one word, nothing else.' });
 ok('followup accepted', fu.status === 200 && fu.body.accepted === true, JSON.stringify(fu.body));

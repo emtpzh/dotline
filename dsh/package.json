@@ -1,15 +1,15 @@
 {
-  "name": "dsh-thoughtdag",
+  "name": "dsh-dotline",
   "version": "0.4.16",
-  "description": "ThoughtDAG for DeepSeek Harness: turn the current DSH session into an editable thought graph on an infinite canvas.",
+  "description": "Dotline for DeepSeek Harness: turn the current DSH session into an editable thought graph on an infinite canvas.",
   "author": "Xia Chen",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/chenxiachan/thoughtdag.git",
+    "url": "git+https://github.com/emtpzh/dotline.git",
     "directory": "dsh"
   },
-  "homepage": "https://github.com/chenxiachan/thoughtdag/tree/main/dsh#readme",
-  "bugs": "https://github.com/chenxiachan/thoughtdag/issues",
+  "homepage": "https://github.com/emtpzh/dotline/tree/main/dsh#readme",
+  "bugs": "https://github.com/emtpzh/dotline/issues",
   "type": "module",
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
@@ -58,7 +58,7 @@
   "keywords": [
     "dsh",
     "dsh-plugin",
-    "thoughtdag",
+    "dotline",
     "context",
     "canvas"
   ],

@@ -9,6 +9,7 @@
 // handler. Newest first.
 
 import type { Lang } from './i18n';
+import { DOCS_URL, REPO_URL } from './lib/brand';
 
 export interface WhatsNewItem {
   title: Record<Lang, string>;
@@ -28,7 +29,7 @@ export interface WhatsNewEntry {
   items: WhatsNewItem[];
 }
 
-const DOCS = 'https://chenxiachan.github.io/thoughtdag/docs';
+const DOCS = DOCS_URL;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
@@ -56,8 +57,8 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     date: '2026-09-11',
     announce: false,
     lead: {
-      zh: '插件的「有新版本」提示现在复制 dsh plugin --profile web add dsh-thoughtdag@latest，这条命令对从 npm 装和从 Release 文件装的用户都有效（update 对文件安装无效）。其余同 0.4.13。',
-      en: 'The plugin\'s update hint now copies dsh plugin --profile web add dsh-thoughtdag@latest, which works for installs from npm and from a release file alike (update does nothing for a file install). Otherwise the same as 0.4.13.',
+      zh: '插件的「有新版本」提示现在复制 dsh plugin --profile web add dsh-dotline@latest，这条命令对从 npm 装和从 Release 文件装的用户都有效（update 对文件安装无效）。其余同 0.4.13。',
+      en: 'The plugin\'s update hint now copies dsh plugin --profile web add dsh-dotline@latest, which works for installs from npm and from a release file alike (update does nothing for a file install). Otherwise the same as 0.4.13.',
     },
     items: [],
   },
@@ -86,8 +87,8 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     date: '2026-09-08',
     announce: false,
     lead: {
-      zh: '性能优化：启动更快，后台更省，多个工具调用并行时更稳；300 节点以上的画布实测流畅。ThoughtDAG 现在可以用 Claude Code、Codex、Pi 作为节点的 Agent 运行时，处于测试阶段。',
-      en: 'Performance: faster launch, lighter in the background, steadier when several tool calls run in parallel; canvases past 300 nodes measured smooth. ThoughtDAG can now run a node through Claude Code, Codex or Pi as its agent runtime, in testing.',
+      zh: '性能优化：启动更快，后台更省，多个工具调用并行时更稳；300 节点以上的画布实测流畅。Dotline 现在可以用 Claude Code、Codex、Pi 作为节点的 Agent 运行时，处于测试阶段。',
+      en: 'Performance: faster launch, lighter in the background, steadier when several tool calls run in parallel; canvases past 300 nodes measured smooth. Dotline can now run a node through Claude Code, Codex or Pi as its agent runtime, in testing.',
     },
     items: [],
   },
@@ -162,8 +163,8 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     date: '2026-09-06',
     announce: true,
     lead: {
-      zh: '🎉 这是 ThoughtDAG 到目前为止最大的一次升级：散在各个 Agent 里的对话接成了一张地图，能从画布里查，还能直接在 DeepSeek Harness 里用。四件新东西，都值得试一试。',
-      en: '🎉 The biggest ThoughtDAG release so far: the conversations scattered across your agents become one map, you can query them, and it all runs inside DeepSeek Harness. Four new things, each worth a try.',
+      zh: '🎉 这是 Dotline 到目前为止最大的一次升级：散在各个 Agent 里的对话接成了一张地图，能从画布里查，还能直接在 DeepSeek Harness 里用。四件新东西，都值得试一试。',
+      en: '🎉 The biggest Dotline release so far: the conversations scattered across your agents become one map, you can query them, and it all runs inside DeepSeek Harness. Four new things, each worth a try.',
     },
     items: [
       {
@@ -185,10 +186,10 @@ export const WHATS_NEW: WhatsNewEntry[] = [
       {
         title: { zh: 'DeepSeek Harness 插件上线', en: 'DeepSeek Harness plugin is live' },
         body: {
-          zh: 'dsh plugin --profile web add dsh-thoughtdag，Harness 的网页里多一个"思维图"视图：在画布上提问、让 Harness 的 Agent 带工具作答，why 也成了它的原生工具。',
-          en: 'dsh plugin --profile web add dsh-thoughtdag adds a canvas view to the Harness web UI: ask from the canvas, let its agent answer with tools, and why becomes a native tool there.',
+          zh: 'dsh plugin --profile web add dsh-dotline，Harness 的网页里多一个"思维图"视图：在画布上提问、让 Harness 的 Agent 带工具作答，why 也成了它的原生工具。',
+          en: 'dsh plugin --profile web add dsh-dotline adds a canvas view to the Harness web UI: ask from the canvas, let its agent answer with tools, and why becomes a native tool there.',
         },
-        link: { label: { zh: '插件说明', en: 'Plugin README' }, href: 'https://github.com/chenxiachan/thoughtdag/tree/main/dsh#readme' },
+        link: { label: { zh: '插件说明', en: 'Plugin README' }, href: `${REPO_URL}/tree/main/dsh#readme` },
       },
       {
         title: { zh: '文档站上线', en: 'The docs site is live' },

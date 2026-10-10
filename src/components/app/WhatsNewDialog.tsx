@@ -6,6 +6,7 @@ import { appVersion } from '../../lib/app-version';
 import { announcedSince, type WhatsNewEntry, type WhatsNewItem } from '../../whats-new';
 import type { Lang } from '../../i18n';
 import { Button } from '../ui/button';
+import { APP_NAME } from '../../lib/brand';
 
 // On the first launch after an update: what changed since the version this
 // person last read about, newest release first, each with a door to read
@@ -87,7 +88,7 @@ export default function WhatsNewDialog() {
     <Dialog open={open} onOpenChange={(next) => { if (!next) close(); }}>
       <DialogContent size="lg" className="p-0 gap-0 max-h-[85vh] overflow-y-auto" data-whats-new>
         <DialogHeader className="px-6 pt-5 pb-4 pr-14 border-b">
-          <div className="text-2xs uppercase tracking-wide text-muted-foreground">ThoughtDAG</div>
+          <div className="text-2xs uppercase tracking-wide text-muted-foreground">{APP_NAME}</div>
           <DialogTitle>{fmt(t('whatsNew.title'), { v: appVersion ?? '' })}</DialogTitle>
           {entries.length > 1 && <DialogDescription>{t('whatsNew.multi')}</DialogDescription>}
         </DialogHeader>

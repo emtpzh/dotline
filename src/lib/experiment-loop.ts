@@ -27,7 +27,8 @@ export interface ExperimentAnchor {
   mode: 'branch' | 'continue';
 }
 
-const ANCHOR_RE = /\[ThoughtDAG anchor: project=([\w-]+) node=([\w-]+) bundle=([\w-]+)(?: mode=(branch|continue))?\]/;
+// Sessions written before the rename carry the old product name.
+const ANCHOR_RE = /\[(?:Dotline|ThoughtDAG) anchor: project=([\w-]+) node=([\w-]+) bundle=([\w-]+)(?: mode=(branch|continue))?\]/;
 
 export function parseAnchor(text: string): ExperimentAnchor | null {
   const m = text.match(ANCHOR_RE);
@@ -59,7 +60,7 @@ export function renderHandoffMarkdown(bundle: ContextBundle, anchor: ExperimentA
   out.push('---');
   out.push(t('exp.mdOutro'));
   out.push('');
-  out.push(`[ThoughtDAG anchor: project=${anchor.project} node=${anchor.node} bundle=${anchor.bundle}${anchor.mode === 'continue' ? ' mode=continue' : ''}]`);
+  out.push(`[Dotline anchor: project=${anchor.project} node=${anchor.node} bundle=${anchor.bundle}${anchor.mode === 'continue' ? ' mode=continue' : ''}]`);
   return out.join('\n');
 }
 

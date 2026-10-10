@@ -15,6 +15,7 @@ import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { Input } from '../ui/input';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
+import { APP_NAME } from '../../lib/brand';
 
 // The thought-map console, two rooms with one door between them. Room one
 // edits the PICTURE: knobs left, live artifact centre, a feed-size
@@ -155,7 +156,7 @@ function Artifact({ structure, positions, stats, title, subtitle, mapLang, paper
   const brand = (
     <div className="tmap-brand">
       <span dangerouslySetInnerHTML={{ __html: LOGO_SVG }} style={{ display: 'contents' }} />
-      <div className="tmap-bt"><b>ThoughtDAG</b></div>
+      <div className="tmap-bt"><b>{APP_NAME}</b></div>
     </div>
   );
   return (
@@ -262,7 +263,7 @@ export default function ThoughtMapDialog() {
     setSigPos((localStorage.getItem('thoughtdag.tmapSigPos') as 'byline' | 'corner') || 'byline');
     setTitle(clampWeight(projectName, TITLE_MAX));
     setSubtitle('');
-    setCaption(`${fallbackCaption(uiLang, projectName || 'ThoughtDAG', stats)}\n\n${attributionLine()}`);
+    setCaption(`${fallbackCaption(uiLang, projectName || APP_NAME, stats)}\n\n${attributionLine()}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -270,7 +271,7 @@ export default function ThoughtMapDialog() {
   const capTouched = useRef(false);
   useEffect(() => {
     if (!open || capTouched.current) return;
-    setCaption(`${fallbackCaption(capLang, title || 'ThoughtDAG', stats)}\n\n${attributionLine()}`);
+    setCaption(`${fallbackCaption(capLang, title || APP_NAME, stats)}\n\n${attributionLine()}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [capLang, mapLang]);
 
@@ -348,7 +349,7 @@ export default function ThoughtMapDialog() {
     void navigator.clipboard.writeText(caption).catch(() => {});
     const cap = encodeURIComponent(caption);
     const site = encodeURIComponent(TMAP_SITE_URL);
-    const ttl = encodeURIComponent(title || 'ThoughtDAG');
+    const ttl = encodeURIComponent(title || APP_NAME);
     const urls: Record<string, string> = {
       x: `https://twitter.com/intent/tweet?text=${cap}`,
       linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${site}`,

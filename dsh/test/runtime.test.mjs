@@ -241,7 +241,7 @@ test('a v4 harness takes the context under a producer-owned source kind and stre
   }
   const { ctx, log } = fakeHarness({ version: 4, turn })
   const { events } = await runToEnd(createDshRuntime(ctx), { runtime: 'dsh', cwd: '/p', prompt: 'CTX\n\n---\n\nQ?', context: 'CTX', question: 'Q?' })
-  assert.deepEqual(log.injected[0].source, { kind: 'plugin:dsh-thoughtdag' })
+  assert.deepEqual(log.injected[0].source, { kind: 'plugin:dsh-dotline' })
   assert.deepEqual(events.filter(e => e.type === 'message_update').map(e => [e.assistantMessageEvent.type, e.assistantMessageEvent.delta]), [['thinking_delta', 'hm'], ['text_delta', 'Hel'], ['text_delta', 'lo']])
   assert.deepEqual(events.at(-1), { type: 'run_end', text: 'Hello', how: 'end' })
 })

@@ -1,5 +1,6 @@
 import { toast } from './ui-store';
 import { t, fmt } from '../i18n';
+import { REPO_URL, SITE_URL } from './brand';
 
 // New-version nudge for a long-lived SPA tab: deploys land on push, but an
 // open tab keeps running the bundle it loaded — bug reports of "still
@@ -36,7 +37,7 @@ async function checkDesktop(): Promise<void> {
   if (Date.now() - lastDesktopCheck < DESKTOP_THROTTLE_MS) return;
   lastDesktopCheck = Date.now();
   try {
-    const res = await fetch('https://api.github.com/repos/chenxiachan/thoughtdag/releases?per_page=1');
+    const res = await fetch(`https://api.github.com/repos/${REPO_URL.replace('https://github.com/', '')}/releases?per_page=1`);
     if (!res.ok) return;
     const releases = await res.json() as { tag_name?: string }[];
     const latest = releases?.[0]?.tag_name?.replace(/^v/, '');
@@ -44,7 +45,7 @@ async function checkDesktop(): Promise<void> {
     notifiedDesktop = true;
     toast('info', fmt(t('update.desktopAvailable'), { v: latest }), 0, {
       label: t('update.desktopDownload'),
-      run: () => window.open('https://chenxiachan.github.io/thoughtdag/#download', '_blank'),
+      run: () => window.open(`${SITE_URL}#download`, '_blank'),
     });
   } catch { /* offline or rate-limited: try again later */ }
 }

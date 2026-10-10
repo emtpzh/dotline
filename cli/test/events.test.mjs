@@ -87,6 +87,12 @@ writeFileSync(ccAnchored, [
   cc('u1', null, 'user', '继续这个思路。\n\n[ThoughtDAG anchor: project=proj-7 node=node-42 bundle=cb_abcdef0123456789 mode=continue]', { sessionId: 'sid-anchored' }),
   cc('a1', 'u1', 'assistant', [{ type: 'text', text: '好。' }], { sessionId: 'sid-anchored' }),
 ].join('\n'));
+// the same hand-off after the rename: new sessions carry the new product name
+const ccAnchoredNew = join(tmp, 'sid-anchored-new.jsonl');
+writeFileSync(ccAnchoredNew, [
+  cc('u1', null, 'user', '继续。\n\n[Dotline anchor: project=proj-8 node=node-7 bundle=cb_0123456789abcdef]', { sessionId: 'sid-anchored-new' }),
+  cc('a1', 'u1', 'assistant', [{ type: 'text', text: '好。' }], { sessionId: 'sid-anchored-new' }),
+].join('\n'));
 
 const run = (...a) => execFileSync(process.execPath, [CLI, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 const events = (file) => run('events', file).trim().split('\n').map((l) => JSON.parse(l));
@@ -211,6 +217,7 @@ test('a session opened from a canvas hand-off carries its anchor', () => {
   const s = events(ccAnchored).find((e) => e.kind === 'session.started');
   assert.deepEqual(s.anchor, { project: 'proj-7', node: 'node-42', bundle: 'cb_abcdef0123456789', mode: 'continue' });
   assert.equal(events(ccFile).find((e) => e.kind === 'session.started').anchor, undefined);
+  assert.deepEqual(events(ccAnchoredNew).find((e) => e.kind === 'session.started').anchor, { project: 'proj-8', node: 'node-7', bundle: 'cb_0123456789abcdef', mode: 'branch' });
 });
 
 test('derived touches: one per turn and artifact, strongest op, pointing back at the call', () => {

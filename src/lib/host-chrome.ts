@@ -23,7 +23,7 @@
 
 import { useSyncExternalStore } from 'react';
 
-const SOURCE = 'dsh-thoughtdag';
+const SOURCE = 'dsh-dotline';
 const ROW_HEIGHT = 32; // the top bar's controls (Button size default/icon)
 
 type Chrome = { left: number; right: number; center: number; band: number };

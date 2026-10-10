@@ -542,7 +542,7 @@ async function handleFetchUrl(body) {
     const r = await fetch(parsed.href, {
       signal: AbortSignal.timeout(15000),
       redirect: 'follow',
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ThoughtDAG/0.1; link snapshot)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Dotline/0.1; link snapshot)' },
     });
     if (!r.ok) throw new Error(`Page responded HTTP ${r.status}`);
     const type = r.headers.get('content-type') || '';

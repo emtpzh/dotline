@@ -646,7 +646,7 @@ app.post('/api/fetch-url', async (req, res) => {
     const r = await fetch(parsed.href, {
       signal: controller.signal,
       redirect: 'follow',
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ThoughtDAG/0.1; link snapshot)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Dotline/0.1; link snapshot)' },
     });
     clearTimeout(timer);
     // "Page responded" distinguishes the TARGET failing from the proxy
@@ -1132,11 +1132,11 @@ app.post('/api/stream', async (req, res) => {
 let orOauthCode = null;
 app.get('/oauth/openrouter', (req, res) => {
   orOauthCode = typeof req.query.code === 'string' ? req.query.code : null;
-  res.type('html').send(`<!doctype html><meta charset="utf-8"><title>ThoughtDAG</title>
+  res.type('html').send(`<!doctype html><meta charset="utf-8"><title>Dotline</title>
 <body style="font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#FAF9F7;color:#1f1d1a">
 <div style="text-align:center;line-height:1.7"><div style="font-size:40px">✓</div>
 <h2 style="margin:8px 0 4px">授权完成 · Authorized</h2>
-<p style="color:#6b6558">回到 ThoughtDAG 应用即可，本页可以关闭。<br/>Return to the ThoughtDAG app; this tab can be closed.</p></div>`);
+<p style="color:#6b6558">回到 Dotline 应用即可，本页可以关闭。<br/>Return to the Dotline app; this tab can be closed.</p></div>`);
 });
 app.get('/oauth/openrouter/code', (_req, res) => {
   res.json({ code: orOauthCode });
@@ -1162,7 +1162,7 @@ if (process.env.SERVE_DIST) {
 // HOST=0.0.0.0 (understanding the risk) — the default keeps it on 127.0.0.1.
 const HOST = process.env.HOST || '127.0.0.1';
 const httpServer = app.listen(PORT, HOST, () => {
-  console.log(`ThoughtDAG proxy (Vercel AI SDK) running on http://localhost:${PORT}`);
+  console.log(`Dotline proxy (Vercel AI SDK) running on http://localhost:${PORT}`);
   console.log(`Models: ${Object.keys(modelRegistry).join(', ')}`);
   if (!Object.values(modelRegistry).some((m) => m.vision)) {
     console.warn('⚠ No vision model configured — image understanding & auto-extraction are disabled. Add a vision-capable key (free tier: ZHIPU_API_KEY → glm-4v-flash).');

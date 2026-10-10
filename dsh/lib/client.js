@@ -1,13 +1,13 @@
-// dsh-thoughtdag client half — the lightest possible browser shim.
+// dsh-dotline client half — the lightest possible browser shim.
 // The canvas is not any one session's: it lists and mirrors all of them. So
 // its entry is a global panel — a row in the sidebar's panel list
 // (`sidebar.panellist`) that swaps the centre column (`main`, keyed
-// 'thoughtdag') for the canvas, the way the harness's own global panels do;
+// 'dotline') for the canvas, the way the harness's own global panels do;
 // opening any session from the sidebar returns the centre to the chat. Hosts
 // without global panels (no `layout` service) get the older "对话 | 思维图"
 // switch in the session header instead, with the canvas over the window.
 //
-// The canvas itself is a SAME-ORIGIN iframe at /thoughtdag/ (the SPA is
+// The canvas itself is a SAME-ORIGIN iframe at /dotline/ (the SPA is
 // served by the host half on the same web server — no CORS, no second
 // origin). It lives in one fixed layer this file keeps for the page's life
 // and lays over the panel's box: the main slot unmounts a panel that is not
@@ -30,7 +30,7 @@
 // id-weighted rule), and portals keep arriving after this file runs — any
 // of them sitting over the strip would cut the blocks away. So the blocks
 // live in their own layer that stays the LAST child of <body> while the
-// canvas is shown, and claim drag with !important. All conversation smarts live inside the ThoughtDAG app; this file
+// canvas is shown, and claim drag with !important. All conversation smarts live inside the Dotline app; this file
 // only opens the door and forwards the current session id so the canvas can
 // offer to mirror it.
 //
@@ -41,7 +41,7 @@
 // require answers it from the module table, so the bundle stays tiny.
 
 window.__ModuleLoader__.load({
-  id: 'dsh-thoughtdag',
+  id: 'dsh-dotline',
   factory: require => {
     const module = { exports: {} }
     const React = require('react')
@@ -68,7 +68,7 @@ window.__ModuleLoader__.load({
       document.head.append(style)
 
       const overlayHost = document.createElement('div')
-      overlayHost.innerHTML = '<section class="dsh-td-overlay" hidden><button type="button" class="dsh-td-back">对话</button><iframe title="ThoughtDAG" data-src="/thoughtdag/"></iframe></section>'
+      overlayHost.innerHTML = '<section class="dsh-td-overlay" hidden><button type="button" class="dsh-td-back">对话</button><iframe title="Dotline" data-src="/dotline/"></iframe></section>'
       document.body.append(overlayHost)
       const overlay = overlayHost.querySelector('.dsh-td-overlay')
       const frame = overlayHost.querySelector('iframe')
@@ -76,7 +76,7 @@ window.__ModuleLoader__.load({
 
       // the plugin's version, for the canvas's update dialog and release history
       let pluginVersion = null
-      fetch('/thoughtdag/api/version').then(r => (r.ok ? r.json() : null)).then(j => { if (j && typeof j.version === 'string') pluginVersion = j.version }).catch(() => {})
+      fetch('/dotline/api/version').then(r => (r.ok ? r.json() : null)).then(j => { if (j && typeof j.version === 'string') pluginVersion = j.version }).catch(() => {})
 
       // store 由本文件自行维护：setMap 是唯一写入口，既切 overlay（命令式
       // DOM），也通知 Switch 组件重渲染 active 态。不走 slots 的 store/inject
@@ -84,7 +84,7 @@ window.__ModuleLoader__.load({
       let mapState = false
       const mapSubscribers = new Set()
 
-      const send = (type, payload) => frame.contentWindow?.postMessage({ source: 'dsh-thoughtdag', type, ...payload }, location.origin)
+      const send = (type, payload) => frame.contentWindow?.postMessage({ source: 'dsh-dotline', type, ...payload }, location.origin)
 
       // The window's corner controls, in page pixels: `left` / `right` is
       // how far in from each side the canvas's top bar must keep clear,
@@ -248,7 +248,7 @@ window.__ModuleLoader__.load({
         renderDrag()
       }
 
-      const PANEL_ID = 'thoughtdag'
+      const PANEL_ID = 'dotline'
       // the host's global panels, while its layout service is there
       let layout = null
       const backToChat = () => (layout ? layout.selectPanel(null) : setMap(false))
@@ -319,7 +319,7 @@ window.__ModuleLoader__.load({
         disposeSwitch ??= ctx.slots.inject('conversation.session.header.actions', () =>
           ctx.slots.register({
             name: 'conversation.session.header.actions',
-            id: 'thoughtdag-view-switch',
+            id: 'dotline-view-switch',
             order: 90,
           }, Switch),
         )
@@ -340,13 +340,13 @@ window.__ModuleLoader__.load({
         scope.effect(() => () => {
           layout = null
           showSwitch()
-        }, 'thoughtdag: global panel')
+        }, 'dotline: global panel')
       })
 
       backBtn.addEventListener('click', backToChat)
 
       window.addEventListener('message', event => {
-        if (event.origin !== location.origin || event.data?.source !== 'dsh-thoughtdag') return
+        if (event.origin !== location.origin || event.data?.source !== 'dsh-dotline') return
         if (event.data.type === 'td:close') return backToChat()
         // the canvas is up and draws its own back button: the pill retires
         if (event.data.type === 'td:ready') { canvasReady = true; backBtn.hidden = true; return syncChrome() }
@@ -368,7 +368,7 @@ window.__ModuleLoader__.load({
             if (ui) ui.openSession(event.data.session)
             else (ctx.sessions.open ?? ctx.sessions.select).call(ctx.sessions, event.data.session)
           } catch (error) {
-            console.warn('[dsh-thoughtdag] could not open session', event.data.session, error)
+            console.warn('[dsh-dotline] could not open session', event.data.session, error)
           }
           if (event.data.close !== false) backToChat()
           syncCurrent()

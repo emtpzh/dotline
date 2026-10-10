@@ -188,7 +188,8 @@ const opOf = (t: RunnerTool): ToolOp => t.op ?? 'unknown';
 /** Project one session's turns onto canonical events, in file order. */
 // The hand-off anchor a canvas puts at the end of the opening message
 // (see experiment-loop.ts); reading it back closes the loop in the data.
-const ANCHOR_RE = /\[ThoughtDAG anchor: project=([\w-]+) node=([\w-]+) bundle=([\w-]+)(?: mode=(branch|continue))?\]/;
+// Sessions written before the rename carry the old product name.
+const ANCHOR_RE = /\[(?:Dotline|ThoughtDAG) anchor: project=([\w-]+) node=([\w-]+) bundle=([\w-]+)(?: mode=(branch|continue))?\]/;
 export function anchorOf(text: string): { project: string; node: string; bundle: string; mode: 'branch' | 'continue' } | undefined {
   const m = text.match(ANCHOR_RE);
   return m ? { project: m[1], node: m[2], bundle: m[3], mode: m[4] === 'continue' ? 'continue' : 'branch' } : undefined;

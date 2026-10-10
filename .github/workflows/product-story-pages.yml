@@ -17,7 +17,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: thoughtdag-pages
+  group: dotline-pages
   cancel-in-progress: true
 
 jobs:
@@ -45,7 +45,7 @@ jobs:
       - name: Build documentation
         run: npm run docs:build
         env:
-          DOCS_BASE: /thoughtdag/docs/
+          DOCS_BASE: /dotline/docs/
 
       - name: Assemble website and documentation
         run: |

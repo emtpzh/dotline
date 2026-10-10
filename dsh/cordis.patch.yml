@@ -1,12 +1,12 @@
-# dsh-thoughtdag extends the Web profile: it reuses the existing DSH server
-# and mounts the ThoughtDAG SPA under /thoughtdag/ on the same origin.
+# dsh-dotline extends the Web profile: it reuses the existing DSH server
+# and mounts the Dotline SPA under /dotline/ on the same origin.
 - insert:
-    - id: thoughtdag
-      name: dsh-thoughtdag
+    - id: dotline
+      name: dsh-dotline
       config:
         # Path prefix this plugin serves the SPA under.
-        mountPrefix: /thoughtdag
-        # Extra authorities the /thoughtdag/api Host check accepts; localhost
+        mountPrefix: /dotline
+        # Extra authorities the /dotline/api Host check accepts; localhost
         # and 127.0.0.1 are always allowed.
         trustedHosts: []
         # The why layer as native harness tools (why_check, why_file, why_find,

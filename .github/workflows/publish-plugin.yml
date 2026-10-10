@@ -1,12 +1,14 @@
-# Publish the DeepSeek Harness plugin (dsh-thoughtdag) to npm on every
+# Publish the DeepSeek Harness plugin (dsh-dotline) to npm on every
 # release tag, through npm Trusted Publishing: the job proves it is this
 # repository's workflow via GitHub's OIDC token and npm mints a short-lived
 # publish credential for it. No npm token, no one-time password, and every
 # published version carries provenance pointing back at the commit.
 #
-# One-time setup on npmjs.com (package dsh-thoughtdag → Settings → Trusted
-# Publisher → GitHub Actions): owner chenxiachan, repository thoughtdag,
+# One-time setup on npmjs.com (package dsh-dotline → Settings → Trusted
+# Publisher → GitHub Actions): owner emtpzh, repository dotline,
 # workflow filename publish-plugin.yml, environment left empty.
+# A trusted publisher attaches to a package that already exists, so the
+# very first version goes up by hand: npm login, then npm publish in dsh/.
 #
 # Skips quietly when the version in dsh/package.json is already on npm, so
 # re-running (workflow_dispatch) after a failed attempt is safe.
@@ -43,15 +45,15 @@ jobs:
         id: check
         run: |
           local_v=$(node -p "require('./dsh/package.json').version")
-          remote_v=$(npm view dsh-thoughtdag version 2>/dev/null || echo none)
+          remote_v=$(npm view dsh-dotline version 2>/dev/null || echo none)
           echo "local=$local_v remote=$remote_v"
           if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v${local_v}" ]; then
             echo "tag ${GITHUB_REF_NAME} does not match dsh/package.json ${local_v}" >&2
             exit 1
           fi
-          if npm view "dsh-thoughtdag@${local_v}" version >/dev/null 2>&1; then
+          if npm view "dsh-dotline@${local_v}" version >/dev/null 2>&1; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "dsh-thoughtdag@${local_v} is already on npm, nothing to do"
+            echo "dsh-dotline@${local_v} is already on npm, nothing to do"
           else
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
@@ -59,7 +61,7 @@ jobs:
       # prepack builds the bundled SPA, the why layer and the agent runtime
       - name: Pack the plugin
         working-directory: dsh
-        run: npm pack --silent && ls -la dsh-thoughtdag-*.tgz
+        run: npm pack --silent && ls -la dsh-dotline-*.tgz
 
       # every release carries the plugin as a file too, so a user can
       # install it before (or without) npm; the desktop workflow creates
@@ -76,10 +78,10 @@ jobs:
             gh release view "$TAG" -R "$REPO" >/dev/null 2>&1 && break
             sleep 10
           done
-          gh release upload "$TAG" dsh-thoughtdag-*.tgz -R "$REPO" --clobber
+          gh release upload "$TAG" dsh-dotline-*.tgz -R "$REPO" --clobber
 
-      - name: Publish dsh-thoughtdag
+      - name: Publish dsh-dotline
         if: steps.check.outputs.publish == 'true'
         working-directory: dsh
         # verbose: the OIDC token exchange logs its outcome only at this level
-        run: npm publish ./dsh-thoughtdag-*.tgz --provenance --access public --loglevel verbose
+        run: npm publish ./dsh-dotline-*.tgz --provenance --access public --loglevel verbose

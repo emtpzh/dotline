@@ -6,6 +6,7 @@ import { WHATS_NEW } from '../../whats-new';
 import { appVersion } from '../../lib/app-version';
 import { WhatsNewItems } from './WhatsNewDialog';
 import { Button } from '../ui/button';
+import { APP_NAME } from '../../lib/brand';
 
 // The release history behind the ⋯ menu: every entry of the what's-new
 // list, newest first, the running version marked. Same card as the update
@@ -33,7 +34,7 @@ export default function ReleaseNotesDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent size="lg" className="p-0 gap-0 max-h-[85vh] overflow-y-auto" data-release-notes>
         <DialogHeader className="px-6 pt-5 pb-4 pr-14 border-b">
-          <div className="text-2xs uppercase tracking-wide text-muted-foreground">ThoughtDAG</div>
+          <div className="text-2xs uppercase tracking-wide text-muted-foreground">{APP_NAME}</div>
           <DialogTitle>{t('releaseNotes.title')}</DialogTitle>
         </DialogHeader>
         <ol className="px-6 divide-y divide-border">

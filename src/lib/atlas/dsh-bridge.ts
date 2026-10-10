@@ -1,7 +1,7 @@
-// ThoughtDAG inside DeepSeek Harness: the same session bridge the desktop
-// shell exposes as window.desktopSessions, implemented over the dsh-thoughtdag
+// Dotline inside DeepSeek Harness: the same session bridge the desktop
+// shell exposes as window.desktopSessions, implemented over the dsh-dotline
 // plugin's HTTP bridge on the harness's own web server (same origin — the SPA
-// is served under /thoughtdag/). Everything the atlas and the live mirror do
+// is served under /dotline/). Everything the atlas and the live mirror do
 // with the desktop bridge works unchanged: one root ("DeepSeek Harness"),
 // one file per session, the decoded JSONL as the file's text, offsets over
 // that text, and a change feed driven by the live sessions' seq.
@@ -193,7 +193,7 @@ export function installDshSessionsBridge(apiBase: string): void {
   document.addEventListener('visibilitychange', wake);
 
   const select = (id: string): void => {
-    window.parent.postMessage({ source: 'dsh-thoughtdag', type: 'td:select-session', session: id }, window.location.origin);
+    window.parent.postMessage({ source: 'dsh-dotline', type: 'td:select-session', session: id }, window.location.origin);
   };
 
   const bridge: Bridge = {
@@ -278,7 +278,7 @@ export function installDshSessionsBridge(apiBase: string): void {
   // canvas to offer "mirror this one" and to name a fork's parent
   window.addEventListener('message', (ev: MessageEvent) => {
     const d = ev.data as { source?: string; type?: string; session?: { id: string; title: string | null; cwd: string | null } | null } | null;
-    if (ev.origin !== window.location.origin || d?.source !== 'dsh-thoughtdag') return;
+    if (ev.origin !== window.location.origin || d?.source !== 'dsh-dotline') return;
     if (d.type === 'td:current-session') {
       currentSession = d.session ?? null;
       window.dispatchEvent(new CustomEvent('td:dsh-current', { detail: currentSession }));
@@ -289,5 +289,5 @@ export function installDshSessionsBridge(apiBase: string): void {
       if (shown && !was) wake(); else if (!shown && was) schedule();
     }
   });
-  window.parent.postMessage({ source: 'dsh-thoughtdag', type: 'td:request-current' }, window.location.origin);
+  window.parent.postMessage({ source: 'dsh-dotline', type: 'td:request-current' }, window.location.origin);
 }

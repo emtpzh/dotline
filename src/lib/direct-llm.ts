@@ -1,6 +1,7 @@
 import type { ContextMessage, ImageAttachment, StreamCallbacks } from './api';
 import type { Reference } from '../types';
 import { API_BASE } from './constants';
+import { APP_NAME } from './brand';
 import { storedProviders, type RuntimeProvider } from './runtime-providers';
 
 // Direct browser→gateway streaming. On the Workers deployment the proxy has
@@ -123,7 +124,7 @@ async function streamOnePass(
     headers: {
       Authorization: `Bearer ${provider.apiKey}`,
       'Content-Type': 'application/json',
-      'X-Title': 'ThoughtDAG',
+      'X-Title': APP_NAME,
     },
     body: JSON.stringify({
       model,
@@ -244,7 +245,7 @@ export async function directLlmCall(
       headers: {
         Authorization: `Bearer ${provider.apiKey}`,
         'Content-Type': 'application/json',
-        'X-Title': 'ThoughtDAG',
+        'X-Title': APP_NAME,
       },
       body: JSON.stringify({ model: modelId, messages: toOpenAiMessages(contextMessages, images) }),
     });

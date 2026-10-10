@@ -1,16 +1,16 @@
-// dsh-thoughtdag host half — a plain Cordis plugin that mounts the
-// ThoughtDAG SPA under a prefix on the EXISTING DSH web server (no second
+// dsh-dotline host half — a plain Cordis plugin that mounts the
+// Dotline SPA under a prefix on the EXISTING DSH web server (no second
 // process, no second port) and bridges DSH sessions to the canvas.
 //
 // Layout of this file, mirroring dsh-synapse:
-//   - the static ThoughtDAG build lives in ../dist-app (a Vite build with
+//   - the static Dotline build lives in ../dist-app (a Vite build with
 //     base = the mount prefix, so every asset reference is already
 //     /<prefix>/... and resolves through the routes registered below)
 //   - /<prefix>/            the SPA shell (index.html)
 //   - /<prefix>/<asset...>  static assets (prefix route, path-traversal safe)
 //   - /<prefix>/api/...     the session bridge (Host-header fenced)
 //
-// The bridge's read direction feeds the ThoughtDAG dsh-session adapter:
+// The bridge's read direction feeds the Dotline dsh-session adapter:
 // the adapter parses the same event JSONL a real ~/.dsh session log holds,
 // so the bridge serves a session's durable events as that text.
 //
@@ -39,9 +39,9 @@
 // Everything the model then sees is on the child's log, in DSH's own
 // event vocabulary: switching back to the chat shows exactly that.
 //
-// The model connection: inside the harness ThoughtDAG has no proxy of its
+// The model connection: inside the harness Dotline has no proxy of its
 // own, so this host also answers the SPA's proxy protocol with the harness's
-// providers and credentials (the SPA is built with VITE_API_BASE=/thoughtdag):
+// providers and credentials (the SPA is built with VITE_API_BASE=/dotline):
 //   GET  /models     the harness's model catalog in the SPA's list shape
 //                    (vision from each adapter's declared input modalities)
 //   POST /stream     one model call, streamed as the SPA's SSE frames; images
@@ -77,7 +77,7 @@ import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { zstdDecompressSync } from 'node:zlib'
 
-export const name = 'thoughtdag'
+export const name = 'dotline'
 export const inject = ['webServer', 'sessions', 'sessionController', 'agents', 'llm', 'attachments', 'web', 'tools', 'commands', 'systemPrompt', 'approval']
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -90,15 +90,15 @@ const APP_DIR = resolve(__dirname, '../dist-app')
 // version at most once a day; a failed lookup is silence, not an error.
 const PLUGIN_VERSION = (() => { try { return require(resolve(__dirname, '..', 'package.json')).version ?? null } catch { return null } })()
 let latestLookup = { value: null, at: 0 }
-// This fork publishes no package of its own yet: the registry's
-// dsh-thoughtdag is upstream's, so the lookup is off and `latest` stays null.
-const REGISTRY_LOOKUP = false
+// dsh-dotline is this plugin's own package; until its first release is on
+// the registry the lookup answers 404 and `latest` stays null.
+const REGISTRY_LOOKUP = true
 async function latestPluginVersion() {
   if (!REGISTRY_LOOKUP) return null
   if (Date.now() - latestLookup.at < 24 * 60 * 60 * 1000) return latestLookup.value
   latestLookup = { value: latestLookup.value, at: Date.now() }
   try {
-    const r = await fetch('https://registry.npmjs.org/dsh-thoughtdag/latest', { signal: AbortSignal.timeout(5000), headers: { accept: 'application/json' } })
+    const r = await fetch('https://registry.npmjs.org/dsh-dotline/latest', { signal: AbortSignal.timeout(5000), headers: { accept: 'application/json' } })
     if (r.ok) { const j = await r.json(); if (typeof j?.version === 'string') latestLookup.value = j.version }
   } catch { /* offline, or the registry is slow: keep what we had */ }
   return latestLookup.value
@@ -111,7 +111,7 @@ function createAgentsHost(ctx) {
   const log = (line) => console.error(line)
   // lib/runtime is a build copy: one older than this file has no harness runtime
   if (!shared.extraRuntimes) {
-    const msg = '[dsh-thoughtdag] lib/runtime predates this plugin build: the harness agent is unavailable until the plugin is rebuilt (npm run build in dsh/)'
+    const msg = '[dsh-dotline] lib/runtime predates this plugin build: the harness agent is unavailable until the plugin is rebuilt (npm run build in dsh/)'
     ctx.logger.warn(msg)
     log(msg)
   }
@@ -214,7 +214,7 @@ function sessionSummary(session) {
 }
 
 /** Serve one session's durable event log as JSONL text (the input dialect of
- *  ThoughtDAG's dsh-session adapter). Sequenced events are serialized in log
+ *  Dotline's dsh-session adapter). Sequenced events are serialized in log
  *  order; the exact wire shape mirrors the on-disk session.jsonl.zstd rows
  *  (a type/session header line first), so the canvas imports a live DSH
  *  session exactly like a file on disk. */
@@ -451,8 +451,8 @@ function contentOf(body) {
  *  before the model is called — and names a third-party producer
  *  `plugin:<name>` in `kind` itself, as its migration of v3 logs does. */
 const sourceFor = (session) => (session?.header?.version ?? 0) >= 4
-  ? { kind: 'plugin:dsh-thoughtdag' }
-  : { kind: 'plugin', plugin: 'dsh-thoughtdag' }
+  ? { kind: 'plugin:dsh-dotline' }
+  : { kind: 'plugin', plugin: 'dsh-dotline' }
 
 // ── the other agents' session files on this machine ────────────────────
 
@@ -637,7 +637,7 @@ function compileForAgent(body) {
   const parts = []
   if (system.length) parts.push('Instructions from the canvas:\n\n' + system.join('\n\n'))
   if (history.length) parts.push('The conversation the canvas wired into this question, oldest first:\n\n' + history.map(m => `[${m.role === 'assistant' ? 'assistant' : 'user'}]\n${m.content.trim()}`).join('\n\n'))
-  const context = parts.length ? '[ThoughtDAG canvas context] The question that follows was asked from a ThoughtDAG canvas. Treat the material below as the conversation so far.\n\n' + parts.join('\n\n') : ''
+  const context = parts.length ? '[Dotline canvas context] The question that follows was asked from a Dotline canvas. Treat the material below as the conversation so far.\n\n' + parts.join('\n\n') : ''
   return { question: last.content.trim(), context }
 }
 
@@ -878,7 +878,7 @@ function createDshRuntime(ctx, { log = () => {}, host = { listening: () => false
           }, { signal: run.abort.signal, ask })
           emit({ type: 'run_end', text: r.text, how: r.how })
         } catch (e) {
-          log(`[dsh-thoughtdag] agent run failed: ${e instanceof Error ? e.message : String(e)}`)
+          log(`[dsh-dotline] agent run failed: ${e instanceof Error ? e.message : String(e)}`)
           emit({ type: 'run_error', message: e instanceof Error ? e.message : String(e) })
         } finally {
           runs.delete(runId)
@@ -969,7 +969,7 @@ const whyStatus = { loaded: false, tools: [], command: false, prompt: false, err
 const TOOL_NAMES = { why_check: 'why_check', why_file: 'why_file', find: 'why_find', recall_turn: 'why_recall' }
 const PATH_ARGS = new Set(['path'])
 
-const WHY_PROMPT = `ThoughtDAG why layer. The tools why_check, why_file, why_find and why_recall read the local index of past agent conversations (Claude Code, Codex, this harness) — evidence from session logs, not opinion.
+const WHY_PROMPT = `Dotline why layer. The tools why_check, why_file, why_find and why_recall read the local index of past agent conversations (Claude Code, Codex, this harness) — evidence from session logs, not opinion.
 - Before editing a file that may have history, call why_check(path); if it has history, why_file(path) lists the turns that changed it: when, what was asked, what changed, and what the answer said about it.
 - why_find(phrase) finds where exact words were asked or answered; why_recall(session, turn) reads one turn in full.
 Cite what you learn briefly; do not restate whole turns.`
@@ -984,8 +984,8 @@ async function installWhyLayer(ctx, config) {
     why.setQuiet?.(true)
   } catch (error) {
     whyStatus.error = error instanceof Error ? error.message : String(error)
-    ctx.logger.warn('[dsh-thoughtdag] why layer not loaded: ' + whyStatus.error)
-    console.error('[dsh-thoughtdag] why layer not loaded: ' + whyStatus.error)
+    ctx.logger.warn('[dsh-dotline] why layer not loaded: ' + whyStatus.error)
+    console.error('[dsh-dotline] why layer not loaded: ' + whyStatus.error)
     return
   }
   whyStatus.loaded = true
@@ -1007,16 +1007,16 @@ async function installWhyLayer(ctx, config) {
           parameters: t.inputSchema,
           output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: String(value) }] },
           async execute(args, exec) { return ask(t.name, args ?? {}, cwdOfSession(exec?.agent?.session)) },
-        }), 'thoughtdag: tool ' + name)
+        }), 'dotline: tool ' + name)
         whyStatus.tools.push(name)
       } catch (error) {
         whyStatus.error = `${name}: ${error instanceof Error ? error.message : String(error)}`
-        console.error('[dsh-thoughtdag] tool not registered ' + whyStatus.error)
+        console.error('[dsh-dotline] tool not registered ' + whyStatus.error)
       }
     }
     ctx.effect(() => ctx.commands.register({
       name: 'why',
-      description: 'ThoughtDAG: which past conversations touched this file, URL or paper',
+      description: 'Dotline: which past conversations touched this file, URL or paper',
       input: { hint: '<path | url | arxiv:id>' },
       async handler(inv) {
         const q = String(inv.rawInput ?? '').trim()
@@ -1024,11 +1024,11 @@ async function installWhyLayer(ctx, config) {
         try { return { kind: 'success', text: await ask('why_file', { path: q }, cwdOfSession(inv.agent?.session)) } }
         catch (error) { return { kind: 'error', text: error instanceof Error ? error.message : String(error) } }
       },
-    }), 'thoughtdag: /why')
+    }), 'dotline: /why')
     whyStatus.command = true
   }
-  if (wantPrompt && wantTools) { ctx.effect(() => ctx.systemPrompt.section({ name: 'thoughtdag-why', order: 900, text: WHY_PROMPT }), 'thoughtdag: why prompt'); whyStatus.prompt = true }
-  ctx.logger.info('[dsh-thoughtdag] why layer: ' + (wantTools ? 'why_check why_file why_find why_recall, /why' : 'no tools') + (wantPrompt && wantTools ? ', prompt section' : ''))
+  if (wantPrompt && wantTools) { ctx.effect(() => ctx.systemPrompt.section({ name: 'dotline-why', order: 900, text: WHY_PROMPT }), 'dotline: why prompt'); whyStatus.prompt = true }
+  ctx.logger.info('[dsh-dotline] why layer: ' + (wantTools ? 'why_check why_file why_find why_recall, /why' : 'no tools') + (wantPrompt && wantTools ? ', prompt section' : ''))
 }
 
 /** The agent lane's harness runtime and its approval hook, for the plugin's own tests. */
@@ -1037,12 +1037,12 @@ export const internals = { createDshRuntime, installApprovalAnswerer, sessionIdO
 export async function apply(ctx, config) {
   const prefix = typeof config?.mountPrefix === 'string' && config.mountPrefix.startsWith('/') && config.mountPrefix.length > 1
     ? config.mountPrefix.replace(/\/+$/, '')
-    : '/thoughtdag'
+    : '/dotline'
   const trustedHosts = new Set(['localhost', '127.0.0.1', ...[...(config?.trustedHosts ?? [])].map(h => String(h).trim().toLowerCase()).filter(Boolean)])
   // the agent lane, built on first use; its runs stop when the plugin goes
   let agents = null
   const agentsHttp = () => (agents ??= createAgentsHost(ctx))
-  ctx.effect(() => () => { agents?.shutdown(); agents = null }, 'thoughtdag: agent runtimes')
+  ctx.effect(() => () => { agents?.shutdown(); agents = null }, 'dotline: agent runtimes')
   // the harness's own folder chooser (ctx.directoryPicker, harness 0.1.5+): an
   // OS dialog on the host's display, or listing primitives the canvas browses
   // itself. Not a hard dependency — an older harness has none, and the canvas
@@ -1051,7 +1051,7 @@ export async function apply(ctx, config) {
   ctx.inject(['directoryPicker'], (c) => c.effect(() => {
     directoryPicker = c.directoryPicker
     return () => { directoryPicker = null }
-  }, 'thoughtdag: directory picker'))
+  }, 'dotline: directory picker'))
   const pickerOf = () => { try { return directoryPicker?.capability() ?? null } catch { return null } }
 
   const api = async (req, res) => {
@@ -1061,7 +1061,7 @@ export async function apply(ctx, config) {
       const url = new URL(req.url ?? '/', 'http://dsh.local')
       // full pathname is /<prefix>/api/<rest>; the register prefix strips /api
       const path = url.pathname.slice((prefix + '/api').length)
-      // Durable sessions on disk — the archive ThoughtDAG's canvas imports.
+      // Durable sessions on disk — the archive Dotline's canvas imports.
       if (path === '/disksessions' && req.method === 'GET') {
         const dshHome = process.env.DSH_HOME || join(os.homedir(), '.dsh')
         const files = await findSessionFiles(dshHome)
@@ -1303,8 +1303,8 @@ export async function apply(ctx, config) {
     }
   }
 
-  ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: prefix, handler: (_req, res) => { res.writeHead(302, { location: prefix + '/' }); res.end() } }), 'thoughtdag: redirect')
-  ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: prefix + '/api', handler: api }), 'thoughtdag: api')
+  ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: prefix, handler: (_req, res) => { res.writeHead(302, { location: prefix + '/' }); res.end() } }), 'dotline: redirect')
+  ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: prefix + '/api', handler: api }), 'dotline: api')
   // The agent lane's events over a WebSocket (the page falls back to the SSE
   // feed at /api/agents/events where this is missing): an SSE stream holds one
   // of the browser's six connections per host for as long as the page is open,
@@ -1319,10 +1319,10 @@ export async function apply(ctx, config) {
       if (!trustedHosts.has(hostname) || (originHost !== null && !trustedHosts.has(originHost))) { socket.destroy(); return }
       agentsHttp().upgrade(req, socket, head)
     }
-    ctx.effect(() => ctx.webServer.registerUpgrade({ path: prefix + '/api/agents/ws', handler: upgrade }), 'thoughtdag: agent events socket')
+    ctx.effect(() => ctx.webServer.registerUpgrade({ path: prefix + '/api/agents/ws', handler: upgrade }), 'dotline: agent events socket')
   }
-  ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: prefix, handler: staticHandler }), 'thoughtdag: static')
-  ctx.logger.info('[dsh-thoughtdag] ThoughtDAG mounted at ' + prefix + '/')
+  ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: prefix, handler: staticHandler }), 'dotline: static')
+  ctx.logger.info('[dsh-dotline] Dotline mounted at ' + prefix + '/')
   installApprovalAnswerer(ctx)
   await installWhyLayer(ctx, config)
 }
