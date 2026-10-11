@@ -486,6 +486,10 @@ async function handleClaude(body) {
 async function handleProbeModels(body) {
   const { baseURL, apiKey } = body ?? {};
   if (!baseURL) return json({ error: 'baseURL required' }, 400);
+  // the hosted proxy probes public https endpoints only: it is unauthenticated, and a local runtime is reached from the local server, not from here
+  let target;
+  try { target = new URL(String(baseURL)); } catch { return json({ error: 'baseURL must be an https URL' }, 400); }
+  if (target.protocol !== 'https:' || isDisallowedHost(target.hostname)) return json({ error: 'baseURL must be a public https URL' }, 400);
   try {
     const r = await fetch(`${String(baseURL).replace(/\/$/, '')}/models`, {
       headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
@@ -528,20 +532,62 @@ function modelsPayloadFor(providers, anysearchKey) {
   };
 }
 
+// Addresses no page snapshot or model probe may reach from here: this host
+// itself, the private ranges, link-local and the metadata address, in IPv4,
+// IPv6 and IPv4-mapped spellings. new URL() has already turned decimal, octal
+// and hex IPv4 forms into dotted ones before a hostname reaches this.
+function isDisallowedHost(hostname) {
+  const h = String(hostname ?? '').toLowerCase();
+  if (!h || h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal') || h === '0.0.0.0') return true;
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (v4) {
+    const a = Number(v4[1]), b = Number(v4[2]);
+    return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
+  }
+  if (h.startsWith('[') || h.includes(':')) {
+    const v6 = h.replace(/^\[|\]$/g, '');
+    if (v6 === '::' || v6 === '::1') return true;
+    if (v6.startsWith('::ffff:')) {
+      const tail = v6.slice(7);
+      if (/^\d{1,3}(\.\d{1,3}){3}$/.test(tail)) return isDisallowedHost(tail);
+      const m = /^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(tail);
+      if (!m) return true;
+      const n = (parseInt(m[1], 16) << 16) | parseInt(m[2], 16);
+      return isDisallowedHost(`${(n >>> 24) & 255}.${(n >>> 16) & 255}.${(n >>> 8) & 255}.${n & 255}`);
+    }
+    return /^(fe[89ab]|fc|fd)/.test(v6);
+  }
+  return false;
+}
+
+// A fetch that follows redirects itself, checking every hop the way the first
+// URL was checked: a public host that answers with a redirect to a private
+// address stops there.
+async function fetchPublic(url, init = {}, hops = 5) {
+  let current = new URL(url);
+  for (let i = 0; i <= hops; i++) {
+    if (!/^https?:$/.test(current.protocol)) throw new Error('Only http(s) URLs are supported');
+    if (isDisallowedHost(current.hostname)) throw new Error('Refusing to fetch private addresses');
+    const r = await fetch(current.href, { ...init, redirect: 'manual' });
+    const location = r.headers.get('location');
+    if (r.status >= 300 && r.status < 400 && location) {
+      if (i === hops) throw new Error('Too many redirects');
+      current = new URL(location, current);
+      continue;
+    }
+    return r;
+  }
+  throw new Error('Too many redirects');
+}
+
 async function handleFetchUrl(body) {
   const { url } = body || {};
   try {
     const parsed = new URL(String(url));
     if (!/^https?:$/.test(parsed.protocol)) throw new Error('Only http(s) URLs are supported');
-    const host = parsed.hostname;
-    if (
-      host === 'localhost' || host === '0.0.0.0' || host.endsWith('.local') ||
-      /^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) ||
-      /^172\.(1[6-9]|2\d|3[01])\./.test(host) || host === '::1' || host === '[::1]'
-    ) throw new Error('Refusing to fetch private addresses');
-    const r = await fetch(parsed.href, {
+    if (isDisallowedHost(parsed.hostname)) throw new Error('Refusing to fetch private addresses');
+    const r = await fetchPublic(parsed.href, {
       signal: AbortSignal.timeout(15000),
-      redirect: 'follow',
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Dotline/0.1; link snapshot)' },
     });
     if (!r.ok) throw new Error(`Page responded HTTP ${r.status}`);
