@@ -10,6 +10,9 @@
 /* the app owns its theme switch (lib/appearance.ts sets .dark on <html>),
    so the dark variant follows that class, not the system setting */
 @custom-variant dark (&:is(.dark *));
+/* the interface in Chinese (<html lang> follows the UI language): CJK
+   glyphs fill the em box, so menu text sized for Latin reads a size large */
+@custom-variant zh (&:lang(zh));
 
 /* ─── Design tokens ─────────────────────────────────────────────
    shadcn's names are the vocabulary: background / foreground / card /

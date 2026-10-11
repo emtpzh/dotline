@@ -31,11 +31,18 @@ interface I18nState {
   setLang: (lang: Lang) => void;
 }
 
+/** <html lang> follows the UI language: screen readers, CJK line breaking
+ *  and the `zh:` style variant read it. */
+function markDocument(lang: Lang): Lang {
+  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+  return lang;
+}
+
 export const useI18n = create<I18nState>((set) => ({
-  lang: initialLang(),
+  lang: markDocument(initialLang()),
   setLang: (lang) => {
     localStorage.setItem(LANG_KEY, lang);
-    set({ lang });
+    set({ lang: markDocument(lang) });
   },
 }));
 
