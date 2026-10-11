@@ -33,6 +33,16 @@ const DOCS = DOCS_URL;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.4.18',
+    date: '2026-10-11',
+    announce: false,
+    lead: {
+      zh: '提问只有一个入口：首页、详情面板、回答阅读器和资料阅读器都用同一个提问框，详情面板底部只留一个输入框。DeepSeek Harness 插件：新开会话时可以在提问框的模型菜单里选一个 agent 预设。中文界面下，菜单、下拉和命令项的字号小一号，读起来更匀称。靠近屏幕右边缘的提示不再一字一行竖着排。',
+      en: 'One place to ask: the landing page, the details panel, the answer viewer and the reader all share the same ask box, and the details panel keeps a single input at the bottom. DeepSeek Harness plugin: a new session can start from an agent preset picked in the ask box\'s model menu. In the Chinese interface, menu, select and command items are a size smaller. A tooltip near the right edge of the screen no longer stacks one character per line.',
+    },
+    items: [],
+  },
+  {
     version: '0.4.17',
     date: '2026-10-10',
     announce: false,
