@@ -156,7 +156,12 @@ body.tdag-connecting, body.tdag-connecting * {
 .tdag-tooltip {
   position: fixed;
   z-index: 120;
-  max-width: 340px;
+  /* A fixed box without a width shrinks to (viewport - left): anchored near
+     the right edge that leaves a few dozen px and CJK breaks one glyph per
+     line. max-content decouples the width from left; TipBox then clamps. */
+  width: max-content;
+  max-width: min(340px, calc(100vw - 24px));
+  overflow-wrap: break-word;
   background: var(--foreground);
   color: var(--background);
   font-size: 12px;
