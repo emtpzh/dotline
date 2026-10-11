@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { ChevronRight, FileText, Loader2, Paperclip, X, BookOpen } from 'lucide-react';
+import { FileText, Loader2, Paperclip, X, BookOpen } from 'lucide-react';
 import { useStore } from '../../store';
 import { useUiStore } from '../../lib/ui-store';
 import { processFile, FILE_INPUT_ACCEPT } from '../../lib/attachments';
@@ -7,6 +7,7 @@ import { useT, fmt } from '../../i18n';
 import { isViewerMode } from '../../lib/viewer';
 import type { Attachment } from '../../types';
 import { Button } from '../ui/button';
+import PanelSection from './PanelSection';
 
 export default function AttachmentsSection({
   nodeId,
@@ -60,20 +61,15 @@ export default function AttachmentsSection({
   }, [handleFile]);
 
   const hasContent = attachments.length > 0 || inherited.length > 0;
+  // Nothing attached here or upstream: no section at all — files go in
+  // through the ask box (its paperclip, a drop or a paste)
+  if (!hasContent) return null;
 
   return (
-    <div className="panel-card px-4 py-3">
-      <details className="group">
-        <summary className="text-2xs font-semibold text-edge-explore cursor-pointer hover:text-edge-explore/80 transition-colors flex items-center gap-1.5 select-none">
-          <ChevronRight size={12} strokeWidth={1.75} className="transition-transform group-open:rotate-90" />
-          {t('attach.title')}
-          {hasContent && (
-            <span className="text-muted-foreground font-normal ml-1">
-              {fmt(t('attach.local'), { n: attachments.length })}{inherited.length > 0 ? ` ${fmt(t('attach.inheritedBadge'), { n: inherited.length })}` : ''}
-            </span>
-          )}
-        </summary>
-        <div className="mt-2 space-y-3">
+    <PanelSection section="attachments" title={t('attach.title')}
+      meta={<>{fmt(t('attach.local'), { n: attachments.length })}{inherited.length > 0 ? ` ${fmt(t('attach.inheritedBadge'), { n: inherited.length })}` : ''}</>}
+    >
+        <div className="space-y-3">
           {/* Upload area */}
           {!isViewerMode && <div
             onDrop={handleDrop}
@@ -214,11 +210,7 @@ export default function AttachmentsSection({
             </div>
           )}
 
-          {!hasContent && (
-            <p className="text-2xs text-muted-foreground italic">{t('attach.empty')}</p>
-          )}
         </div>
-      </details>
-    </div>
+    </PanelSection>
   );
 }

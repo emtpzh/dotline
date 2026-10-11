@@ -92,7 +92,8 @@ export interface AddQuestionOptions {
 
 export interface LlmSlice {
   addQuestion: (question: string, opts?: AddQuestionOptions) => void;
-  editQuestion: (nodeId: string, question: string) => void;
+  /** `mentions`: @-mentioned node ids typed into an unasked card — wired like addQuestion's. */
+  editQuestion: (nodeId: string, question: string, opts?: { mentions?: string[] }) => void;
   /** A paradigm human turn: record the question WITHOUT generating (the
    *  answers belong to downstream prompt nodes), then advance the cascade. */
   submitHumanTurn: (nodeId: string, question: string) => void;

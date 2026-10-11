@@ -6,6 +6,7 @@ import { answerApproval, type QuestionAnswer } from '../../lib/api';
 import type { ApprovalRequest, ApprovalRecord } from '../../types';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
+import { isImeComposing } from '../../utils';
 
 // What an agent asks the person mid-turn, answered where the turn is shown:
 // on the node. A node is one exchange with the agent, and the agent's
@@ -89,7 +90,12 @@ export function ApprovalCard({ nodeId, request, compact }: { nodeId: string; req
           <Textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => { e.stopPropagation(); if (kind === 'input' && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send({ value: text }, 'answered'); } }}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key !== 'Enter' || isImeComposing(e)) return;
+              // a line answers on Enter; an editor breaks lines and answers on ⌘/Ctrl+Enter
+              if (kind === 'input' ? !e.shiftKey : e.metaKey || e.ctrlKey) { e.preventDefault(); void send({ value: text }, 'answered'); }
+            }}
             placeholder={request.placeholder ?? t('approval.inputPlaceholder')}
             rows={kind === 'editor' ? (compact ? 3 : 6) : (compact ? 1 : 2)}
             disabled={busy}

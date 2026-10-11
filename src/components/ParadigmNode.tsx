@@ -5,6 +5,7 @@ import { useStore } from '../store';
 import { useT } from '../i18n';
 import { AskRoleChip, RolePickerButton } from './app/RolePicker';
 import { Button } from './ui/button';
+import { Textarea } from './ui/textarea';
 
 // Orchestration-view card. A paradigm has exactly two node kinds:
 //   human  — a dialogue turn: the human asks here. The card holds optional
@@ -84,13 +85,13 @@ export default function ParadigmNode({ id, data }: NodeProps<ThoughtNodeType>) {
 
         {/* body: THE prompt (machine) or operator guidance (human) — one
             field; who answers is the step's role, below, not prompt text */}
-        <textarea
+        <Textarea
           value={data.instruction ?? ''}
           onChange={(e) => patch({ instruction: e.target.value })}
           placeholder={t(kind === 'human' ? 'paradigm.humanHintPlaceholder' : 'paradigm.promptPlaceholder')}
           rows={kind === 'human' ? 3 : 4}
-          className={`w-full text-xs text-foreground bg-background border border-border rounded-lg px-2.5 py-2 focus:outline-none focus:ring-1 resize-y leading-relaxed nowheel ${
-            kind === 'human' ? 'focus:ring-edge-explore/40' : 'focus:ring-ring/40'
+          className={`field-sizing-fixed text-xs md:text-xs bg-background resize-y leading-relaxed nowheel ${
+            kind === 'human' ? 'focus-visible:border-edge-explore/60 focus-visible:ring-edge-explore/30' : ''
           }`}
         />
 

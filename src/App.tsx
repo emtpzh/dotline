@@ -15,7 +15,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import 'highlight.js/styles/github.css';
-import { ArrowLeft, ArrowRight, ArrowUp, BookOpen, Bot, Brain, CircleHelp, Download, Eye, FileText, Frame, GitBranch, Highlighter, ImageDown, KeyRound, LayoutGrid, Link2, PinOff, Loader2, MessageCircleQuestion, MoreHorizontal, Paperclip, Redo2, Scissors, Search, Share2, SquareTerminal, Stethoscope, StickyNote, Trash2, Undo2, Workflow, X, ListRestart, FolderSync, Minimize2, Rewind, History as HistoryIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUp, BookOpen, Bot, Brain, CircleHelp, Download, Eye, FileText, Frame, GitBranch, Highlighter, ImageDown, KeyRound, LayoutGrid, Link2, PinOff, Loader2, MessageCircleQuestion, MoreHorizontal, Paperclip, Redo2, Scissors, Search, Share2, SquareTerminal, Stethoscope, StickyNote, Trash2, Undo2, Workflow, ListRestart, FolderSync, Minimize2, Rewind, History as HistoryIcon } from 'lucide-react';
 import './index.css';
 import ThoughtNode from './components/ThoughtNode';
 import ParadigmNode from './components/ParadigmNode';
@@ -48,10 +48,10 @@ import { projectStorageKey } from './store/projects';
 import { set as idbSet } from 'idb-keyval';
 import { instantiateParadigm } from './lib/paradigm';
 import { isContentKind, spawnContentNode, ingestFiles, fetchLinkIntoNode, clipboardTextToMarkdown } from './lib/content';
-import { generateId, isImeComposing } from './utils';
+import { generateId } from './utils';
 import { recapToNote, recapCamera } from './lib/recap';
-import type { Attachment, ThoughtNode as ThoughtNodeType, ThoughtEdge } from './types';
-import { processFile, FILE_INPUT_ACCEPT } from './lib/attachments';
+import type { ThoughtNode as ThoughtNodeType, ThoughtEdge } from './types';
+import { FILE_INPUT_ACCEPT } from './lib/attachments';
 import { walkUpAncestors, partitionContext } from './lib/graph';
 import { buildContext } from './store/context-builder';
 import { exportActiveParadigm, exportActiveProjectJson, exportEventLogCsv } from './lib/export';
@@ -77,10 +77,10 @@ import CondenseDialog from './components/app/CondenseDialog';
 import { backupSupported } from './lib/local-backup';
 import LangSwitch from './components/app/LangSwitch';
 import CanvasControls from './components/app/CanvasControls';
-import SearchToggles from './components/app/SearchToggles';
-import { RuntimeMenu, ModelMenu, AccessMenu, SendButton } from './components/app/composer/RunControls';
+import { RuntimeMenu } from './components/app/composer/RunControls';
+import Composer from './components/app/composer/Composer';
 import { useRootIntent } from './components/app/composer/run-intent-hooks';
-import { offersAccess, runtimeOf } from './lib/agents/runtimes';
+import { runtimeOf } from './lib/agents/runtimes';
 import Tutorial from './components/Tutorial';
 import WhatsNewDialog from './components/app/WhatsNewDialog';
 import ReleaseNotesDialog from './components/app/ReleaseNotesDialog';
@@ -237,19 +237,16 @@ export default function App() {
 }
 
 function Canvas() {
-  const { nodes, edges, setNodes, setEdges, addQuestion, undo, redo, addCrossLink, setSelectedNodeId, setSelectedNodeIds, history, historyIndex } = useStore();
+  const { nodes, edges, setNodes, setEdges, undo, redo, addCrossLink, setSelectedNodeId, setSelectedNodeIds, history, historyIndex } = useStore();
   const t = useT();
   const setTutorialOpen = useUiStore((s) => s.setTutorialOpen);
   const annotationsHidden = useUiStore((s) => s.annotationsHidden);
   const setAnnotationsHidden = useUiStore((s) => s.setAnnotationsHidden);
-  const [inputValue, setInputValue] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   // what a new line starts on: the landing box edits the canvas's defaults
   const rootRun = useRootIntent();
   const [landingAtlas, setLandingAtlas] = useState(false);
-  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const [isDraggingLanding, setIsDraggingLanding] = useState(false);
-  const landingFileRef = useRef<HTMLInputElement>(null);
   const docFileRef = useRef<HTMLInputElement>(null);
   const hasNodes = nodes.length > 0;
   const pinnedCount = useMemo(() => nodes.filter(isPinned).length, [nodes]);
@@ -839,30 +836,6 @@ function Canvas() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undo, redo, selectedNodeId, selectedNodeIds, setSelectedNodeId, setSelectedNodeIds, batchDelete, edges, deleteEdges, isParadigm, centerNode]);
 
-  const handleSubmit = () => {
-    if (!inputValue.trim()) return;
-    addQuestion(inputValue.trim(), {
-      initialAttachments: pendingAttachments.length > 0 ? pendingAttachments : undefined,
-    });
-    setInputValue('');
-    setPendingAttachments([]);
-  };
-
-  const handleFileUpload = async (files: FileList | File[]) => {
-    for (const file of Array.from(files)) {
-      await processFile(file, {
-        add: (att) => setPendingAttachments((prev) => [...prev, att]),
-        update: (attId, patch) => setPendingAttachments((prev) => prev.map((a) =>
-          a.id === attId ? { ...a, ...patch } : a
-        )),
-      });
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) { e.preventDefault(); handleSubmit(); }
-  };
-
   const onSelectionChange = useCallback(({ nodes: selectedNodes }: { nodes: { id: string }[] }) => {
     const ids = selectedNodes.map((n) => n.id);
     if (ids.length > 1) {
@@ -1053,9 +1026,11 @@ function Canvas() {
   }, [nodes, edges, selectedNodeIds, themePalette, focusSets]);
 
   // The panel is an overlay — the canvas never resizes. When it opens (or
-  // the selection moves while it is open) and the selected node would be
-  // hidden underneath it, the node re-centers in the space LEFT of the
-  // panel — the visible half becomes the stage, not a peek-out sliver.
+  // the selection moves while it is open) and the selected node is not
+  // wholly visible LEFT of the panel, it moves there: centred in that space
+  // when it fits; when it is wider than the space (a wide panel), the view
+  // first zooms out as far as the work tier allows (cards stay cards), and
+  // a card still too wide shows its left edge, where its text starts.
   useEffect(() => {
     if (!panelOpen || !selectedNodeId) return;
     const timer = setTimeout(() => {
@@ -1065,13 +1040,22 @@ function Canvas() {
       if (!node) return;
       const vp = rf.getViewport();
       const w = node.measured?.width ?? node.width ?? 480;
+      const margin = 24;
+      const visibleRight = window.innerWidth - useUiStore.getState().panelWidth - PANEL_INSET - margin;
+      const nodeLeft = node.position.x * vp.zoom + vp.x;
       const nodeRight = (node.position.x + w) * vp.zoom + vp.x;
-      const visibleRight = window.innerWidth - useUiStore.getState().panelWidth - PANEL_INSET - 24;
-      if (nodeRight > visibleRight) {
-        const nodeCenter = (node.position.x + w / 2) * vp.zoom + vp.x;
-        // on the panel's own beat: it slides in over the same 220ms
-        rf.setViewport({ ...vp, x: vp.x - (nodeCenter - visibleRight / 2) }, { duration: ms(MOTION.base), ease: easeStandard });
-      }
+      if (nodeLeft >= margin && nodeRight <= visibleRight) return;
+      const room = visibleRight - margin;
+      // 0.74 sits above the work tier's restore line (use-map-mode): a
+      // zoom-out to fit never folds the cards into the map
+      const zoom = w * vp.zoom > room ? Math.min(vp.zoom, Math.max(0.74, room / w)) : vp.zoom;
+      const x = w * zoom <= room
+        ? (margin + visibleRight) / 2 - (node.position.x + w / 2) * zoom
+        : margin - node.position.x * zoom;
+      // the card keeps its height on screen through a zoom change
+      const y = node.position.y * vp.zoom + vp.y - node.position.y * zoom;
+      // on the panel's own beat: it slides in over the same 220ms
+      rf.setViewport({ x, y, zoom }, { duration: ms(MOTION.base), ease: easeStandard });
     }, 0);
     return () => clearTimeout(timer);
   }, [panelOpen, selectedNodeId]);
@@ -1335,73 +1319,12 @@ function Canvas() {
               {runtimeOf(rootRun.intent.model) && <AgentCwdChip composer />}
               <RuntimeMenu intent={rootRun.intent} onIntent={rootRun.onIntent} />
             </div>
-            <div
-              className="bg-card border border-border rounded-2xl px-4 pt-3.5 pb-2.5 shadow-lg transition-all focus-within:border-primary/50 focus-within:shadow-xl"
-              data-composer="landing"
-            >
-              <textarea
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onPaste={(e) => {
-                  if (e.clipboardData.getData('text/plain').trim()) return; // TEXT WINS, same rule as canvas paste
-                  const files = Array.from(e.clipboardData.items).filter(i => i.kind === 'file').map(i => i.getAsFile()!).filter(Boolean);
-                  if (files.length) handleFileUpload(files);
-                }}
-                placeholder={t('landing.placeholder')}
-                className="w-full bg-transparent text-foreground text-sm leading-relaxed resize-none focus:outline-none placeholder-muted-foreground"
-                rows={3}
-                autoFocus
-              />
-              {/* Pending attachments preview */}
-              {pendingAttachments.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2 pb-1">
-                  {pendingAttachments.map((att) => (
-                    <div key={att.id} className="flex items-center gap-1.5 bg-muted rounded-lg px-2.5 py-1.5 group">
-                      {att.thumbnailUrl ? (
-                        <img src={att.thumbnailUrl} className="w-6 h-6 rounded object-cover" alt={att.name} />
-                      ) : (
-                        <span className="text-xs"><FileText size={16} strokeWidth={1.75} /></span>
-                      )}
-                      <span className="text-xs text-muted-foreground max-w-[100px] truncate">{att.name}</span>
-                      {att.isExtracting && <span className="text-2xs text-primary"><Loader2 className="animate-spin" size={12} strokeWidth={1.75} /></span>}
-                      {att.numPages != null && <span className="text-2xs text-muted-foreground">{att.numPages}p</span>}
-                      <Button variant="ghost" size="sm"
-                        onClick={() => setPendingAttachments((p) => p.filter((a) => a.id !== att.id))}
-                        className="text-muted-foreground hover:text-destructive/90 text-xs opacity-0 group-hover:opacity-100"
-                      ><X strokeWidth={1.75} /></Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center mt-2 gap-0.5">
-                <Button variant="ghost" size="icon-sm"
-                  onClick={() => landingFileRef.current?.click()}
-                  className="rounded-full text-muted-foreground hover:text-primary"
-                  title={t('landing.attach')}
-                >
-                  <Paperclip strokeWidth={1.75} />
-                </Button>
-                {offersAccess(rootRun.intent.model)
-                  ? <AccessMenu value={rootRun.intent.access ?? 'read'} onChange={(access) => rootRun.onIntent({ access })} />
-                  : !runtimeOf(rootRun.intent.model) && <SearchToggles size={15} />}
-                <span className="flex-1" />
-                <ModelMenu intent={rootRun.intent} onIntent={rootRun.onIntent} />
-                <input
-                  ref={landingFileRef}
-                  type="file"
-                  multiple
-                  accept={FILE_INPUT_ACCEPT}
-                  className="hidden"
-                  onChange={(e) => { handleFileUpload(e.target.files || []); e.target.value = ''; }}
-                />
-                <SendButton
-                  onClick={handleSubmit}
-                  disabled={!inputValue.trim() || pendingAttachments.some(a => a.isExtracting)}
-                  title={pendingAttachments.some(a => a.isExtracting) ? t('landing.extracting') : t('landing.send')}
-                />
-              </div>
-            </div>
+            <Composer
+              target={{ kind: 'root' }}
+              placeholder={t('landing.placeholder')}
+              minRows={3}
+              boxClassName="rounded-2xl px-4 pt-3.5 pb-2.5 shadow-lg focus-within:shadow-xl"
+            />
 
             {/* Second entrance: start from a document (material-first). The
                 whole landing is the drop target; this card names the gesture. */}

@@ -18,10 +18,9 @@ import { useUiStore, toast, type PanelSection } from '../lib/ui-store';
 import { isFactNode } from '../lib/facts';
 import SearchToggles from './app/SearchToggles';
 import { RuntimeMenu, ModelMenu, AccessMenu } from './app/composer/RunControls';
-import { normalized, useRootIntent, type IntentPatch } from './app/composer/run-intent-hooks';
+import { useAskThisIntent } from './app/composer/run-intent-hooks';
 import AgentCwdChip from './app/AgentCwdChip';
 import { offersAccess, runtimeOf } from '../lib/agents/runtimes';
-import { intentFields, intentOf } from '../lib/run-intent';
 import { useEntranceFade } from '../lib/use-entrance-fade';
 import { useSpawnEntrance } from '../lib/use-spawn-entrance';
 import { useFoldMorph } from '../lib/use-fold-morph';
@@ -74,13 +73,19 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // fan-out placeholder shows its expand button until branches exist
   const hasFanoutChildren = useStore((s) => s.edges.some((e) => e.source === id && e.data?.isBranchFromSelection));
 
-  const [editValue, setEditValue] = useState(data.question);
+  const [revision, setRevision] = useState(data.question);
+  // A card still waiting for its question keeps the words in the shared
+  // draft (`ask:<id>`) — the focus panel's box reads and writes the same,
+  // so the two never disagree; a revision stays this editor's own.
+  const askDraft = useUiStore((s) => s.drafts[`ask:${id}`] ?? '');
+  const awaitingNow = !!awaitingInput(data);
+  const editValue = awaitingNow ? askDraft : revision;
+  const setEditValue = (v: string) => (awaitingNow ? useUiStore.getState().setDraft(`ask:${id}`, v) : setRevision(v));
   // an empty card's run settings: one quiet line until asked for
   const [askSettingsOpen, setAskSettingsOpen] = useState(false);
   const responseRef = useRef<HTMLDivElement>(null);
   const nodeRef = useRef<HTMLDivElement>(null);
   const questionTaRef = useRef<HTMLTextAreaElement>(null);
-  const setNodeIntent = useStore((s) => s.setNodeIntent);
   const rf = useReactFlow();
   const zoomTier = useZoomTier();
   const mapMode = zoomTier !== 'work';
@@ -103,6 +108,10 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // nothing" bug). Pending asks / human turns keep their card box — the
   // panel renders those read-only.
   const panelOwnsEditor = useUiStore((s) => s.panelOpen) && selectedNodeId === id && !isParadigmNode;
+  // The same goes for a card still waiting for its question: with the panel
+  // open on it, the panel's box is where it is typed (one box, one focus);
+  // the card shows the shared draft as it grows.
+  const panelOwnsAsk = useUiStore((s) => s.panelOpen) && selectedNodeId === id && (isAwaitingAsk || isAwaitingHuman) && !isViewerMode;
   // While any paradigm step is incomplete the run is in progress: structure
   // is fixed (no follow-ups, no deletion) until the performance finishes.
   const runLocked = useStore((s) => isParadigmNode && isRunLocked(s.nodes));
@@ -191,7 +200,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
     if (isViewerMode) return;
     // Editing mid-generation is ambiguous by design: stop first, then edit.
     if (data.isLoading) { toast('info', t('question.lockedWhileGenerating')); return; }
-    setEditValue(data.question);
+    setRevision(data.question);
     setEditing(id, true);
   };
 
@@ -208,9 +217,11 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
     } else {
       // an empty card with no intent of its own runs on what its box showed —
       // the defaults a line starts with (one asked off a node carries its line's)
-      if (isAwaitingAsk && !data.converge && !data.model && root.intent.model) setNodeIntent(id, intentFields(root.intent));
+      if (isAwaitingAsk) askIntent.commit();
       editQuestion(id, editValue.trim());
     }
+    // asked: the shared draft has done its job
+    if (awaitingNow) useUiStore.getState().setDraft(`ask:${id}`, '');
   };
 
   const handleEditKeyDown = (e: React.KeyboardEvent) => {
@@ -244,15 +255,8 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // Where this card sits in the grammar: the solid wire it hangs from
   // (lib/edge-look) — its bar, its dot and that wire share one color.
   const route = useStore((s) => nodeRoute(s.nodes, s.edges, id));
-  const root = useRootIntent();
-  // What an empty card's box runs on: its own intent when it has one (a
-  // card asked off a node carries its line's, askFrom), else the canvas's
-  // defaults — a box that starts a line edits what new lines start with
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the exact fields read
-  const ownIntent = useMemo(() => normalized(intentOf(data)), [data.model, data.effort, data.access]);
-  const askIntent = data.model
-    ? { intent: ownIntent, onIntent: (p: IntentPatch) => setNodeIntent(id, intentFields(normalized({ ...ownIntent, ...p }))) }
-    : root;
+  // What an empty card's box runs on — the same as the panel's box for it
+  const askIntent = useAskThisIntent(id);
   const webOn = useUiStore((s) => s.webSearchEnabled);
   const askSummary = [
     describeModel(askIntent.intent.model, askIntent.intent.effort, { compact: true }),
@@ -522,7 +526,11 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
           {/* Question — written in place, in the same type it will be read
               in: an empty card or a human turn is typed straight into the
               question's slot; revising one opens the same slot. */}
-          {(data.isEditing && !panelOwnsEditor) || isAwaitingHuman || isAwaitingAsk ? (
+          {panelOwnsAsk ? (
+            <p className={`px-1 py-1.5 text-sm leading-relaxed whitespace-pre-wrap break-words ${editValue ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'}`} data-question-mirror>
+              {editValue || data.instruction || t(data.converge ? (data.converge.kind === 'merge' ? 'converge.mergePlaceholder' : 'converge.weavePlaceholder') : isAwaitingHuman ? 'face.awaiting' : 'node.askPlaceholder')}
+            </p>
+          ) : (data.isEditing && !panelOwnsEditor) || isAwaitingHuman || isAwaitingAsk ? (
             <div>
               <textarea
                 value={editValue}

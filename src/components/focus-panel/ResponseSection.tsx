@@ -134,7 +134,7 @@ export default function ResponseSection({
   return (
     <div className="panel-card px-4 py-3">
       <div className="flex items-center justify-between mb-1.5">
-        <label className="text-2xs font-semibold text-success">{t('panel.response')}</label>
+        <label className="text-2xs font-semibold text-muted-foreground">{t('panel.response')}</label>
         {(data.response || data.isLoading) && (
           <Button variant="ghost" size="icon-sm"
             onClick={() => useUiStore.getState().setResponseViewerNodeId(nodeId)}

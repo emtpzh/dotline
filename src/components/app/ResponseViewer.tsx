@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { GitBranch, Loader2, Send, X } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { useUiStore } from '../../lib/ui-store';
 import { Markdown, HighlightedMarkdown } from '../Markdown';
 import ReasoningDisclosure from './ReasoningDisclosure';
 import { isViewerMode } from '../../lib/viewer';
-import { generateId, isImeComposing } from '../../utils';
+import { generateId } from '../../utils';
 import { useT } from '../../i18n';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
-import { Button } from '../ui/button';
-import { Textarea } from '../ui/textarea';
+import Composer from './composer/Composer';
 import SelectionActions from './SelectionActions';
 import { useTextSelection } from '../../lib/use-text-selection';
 
@@ -30,9 +29,7 @@ export default function ResponseViewer() {
   // the reading pane as an element (not a ref): the selection bar is kept
   // inside it, and a collision boundary has to be read during render
   const [readingPane, setReadingPane] = useState<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [branchFrom, setBranchFrom] = useState('');
-  const [input, setInput] = useState('');
   const { text: selectedText, anchor: selectionAnchor, clear: clearSelection, reset: resetSelection } =
     useTextSelection(bodyRef, !!nodeId && !isViewerMode);
 
@@ -49,7 +46,7 @@ export default function ResponseViewer() {
   const [prevNodeId, setPrevNodeId] = useState(nodeId);
   if (prevNodeId !== nodeId) {
     setPrevNodeId(nodeId);
-    setBranchFrom(''); setInput(''); resetSelection();
+    setBranchFrom(''); resetSelection();
   }
 
   if (!nodeId || !node) return null;
@@ -65,23 +62,6 @@ export default function ResponseViewer() {
   const branchFromSelection = (text: string) => {
     setBranchFrom(text);
     clearSelection();
-    setTimeout(() => inputRef.current?.focus(), 60);
-  };
-
-  const ask = () => {
-    const q = input.trim();
-    if (!q || data.isLoading) return;
-    void useStore.getState().addQuestion(q, {
-      parentId: nodeId,
-      branchContext: branchFrom || undefined,
-    });
-    // addQuestion creates the node synchronously (generation is the async
-    // part) — swap the viewer to it and read the answer as it streams
-    const fresh = useStore.getState().nodes;
-    const newId = fresh[fresh.length - 1]?.id;
-    if (newId && newId !== nodeId) useUiStore.getState().setResponseViewerNodeId(newId);
-    setInput('');
-    setBranchFrom('');
   };
 
   return (
@@ -137,36 +117,17 @@ export default function ResponseViewer() {
         {canInteract && (
           <div className="border-t border-border bg-card px-6 py-3 shrink-0">
             <div className="max-w-[760px] mx-auto">
-              {branchFrom && (
-                <div className="mb-2 text-xs pl-3 py-1.5 pr-2 border-l-2 border-edge-explore bg-edge-explore/10 rounded-r text-muted-foreground flex items-start gap-1.5">
-                  <GitBranch size={13} strokeWidth={1.75} className="text-edge-explore shrink-0 mt-0.5" />
-                  <span className="italic leading-relaxed min-w-0 flex-1">“{branchFrom.slice(0, 160)}{branchFrom.length > 160 ? '…' : ''}”</span>
-                  <Button variant="ghost" onClick={() => setBranchFrom('')} className="text-muted-foreground hover:text-foreground shrink-0" title={t('common.cancel')}>
-                    <X strokeWidth={1.75} />
-                  </Button>
-                </div>
-              )}
-              <div className="flex items-end gap-2">
-                <Textarea
-                  ref={inputRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) { e.preventDefault(); ask(); }
-                  }}
-                  placeholder={branchFrom ? t('viewerqa.placeholderBranch') : t('viewerqa.placeholder')}
-                  rows={1}
-                  className="flex-1 resize-none leading-relaxed"
-                />
-                <Button size="icon"
-                  onClick={ask}
-                  disabled={!input.trim() || data.isLoading}
-                  title={t('viewerqa.askTitle')}
-                  className="shrink-0"
-                >
-                  <Send strokeWidth={1.75} />
-                </Button>
-              </div>
+              <Composer
+                target={{ kind: 'child', parentId: nodeId }}
+                placeholder={branchFrom ? t('viewerqa.placeholderBranch') : t('viewerqa.placeholder')}
+                passage={branchFrom}
+                onClearPassage={() => setBranchFrom('')}
+                focusKey={branchFrom}
+                autoFocus={!!branchFrom}
+                blocked={data.isLoading}
+                // the new card's answer streams in this same viewer
+                onSent={(id) => { if (id) useUiStore.getState().setResponseViewerNodeId(id); }}
+              />
             </div>
           </div>
         )}

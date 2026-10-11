@@ -9,7 +9,7 @@ import { useStore } from '../../../store';
 import { useUiStore } from '../../../lib/ui-store';
 import { useModels } from '../../../lib/use-models';
 import { isAgentModel, offersAccess } from '../../../lib/agents/runtimes';
-import { inheritIntent, type RunIntent } from '../../../lib/run-intent';
+import { inheritIntent, intentFields, type RunIntent } from '../../../lib/run-intent';
 
 export type IntentPatch = Partial<RunIntent>;
 const NO_CHANGES: IntentPatch = {};
@@ -57,5 +57,34 @@ export function useFollowUpIntent(parentId: string | null): {
     intent, base, changed,
     onIntent: (p) => setOwn((cur) => ({ for: parentId, patch: { ...(cur.for === parentId ? cur.patch : {}), ...p } })),
     reset: () => setOwn({ for: parentId, patch: {} }),
+  };
+}
+
+/** What a node still waiting for its own question runs on: its own intent
+ *  when it has one (a card asked off a node carries its line's, askFrom),
+ *  else the canvas's defaults — a box that starts a line edits what new
+ *  lines start with. `commit` pins the defaults onto the node at send, so
+ *  it runs on what its box showed. */
+export function useAskThisIntent(nodeId: string): {
+  intent: RunIntent; onIntent: (patch: IntentPatch) => void; commit: () => void;
+} {
+  const own = useStore((s) => s.nodes.find((n) => n.id === nodeId)?.data);
+  const root = useRootIntent();
+  const model = own?.model, effort = own?.effort, access = own?.access;
+  const ownIntent = useMemo(() => normalized({ model, effort, access }), [model, effort, access]);
+  if (model) {
+    return {
+      intent: ownIntent,
+      onIntent: (p) => useStore.getState().setNodeIntent(nodeId, intentFields(normalized({ ...ownIntent, ...p }))),
+      commit: () => {},
+    };
+  }
+  return {
+    intent: root.intent,
+    onIntent: root.onIntent,
+    commit: () => {
+      const d = useStore.getState().nodes.find((n) => n.id === nodeId)?.data;
+      if (d && !d.converge && !d.model && root.intent.model) useStore.getState().setNodeIntent(nodeId, intentFields(root.intent));
+    },
   };
 }

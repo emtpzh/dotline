@@ -18,12 +18,13 @@ import HighlightsSection from './HighlightsSection';
 import HeaderActions from './HeaderActions';
 import ContextChainSection from './ContextChainSection';
 import ContextOrderSection from './ContextOrderSection';
-import FollowUpInput from './FollowUpInput';
+import Composer from '../app/composer/Composer';
 import { Button } from '../ui/button';
 
-// The panel does three jobs: READ (question/response), ASK (the single
-// follow-up input at the bottom), INSPECT (context chain). Everything else
-// is one compact strip of actions or a collapsed section.
+// The panel does three jobs: READ (question/response), ASK (the one box,
+// pinned at the bottom: it types a waiting card's own question, then asks
+// on from it), INSPECT (attachments, highlights, context — one card of
+// folded rows). Everything else is one compact strip of actions.
 
 // `leaving`: the panel is playing its way out (App keeps it mounted for
 // that, lib/use-presence) — it keeps showing `nodeId`, the card it showed,
@@ -117,6 +118,10 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
   const { layerTokens } = buildContext(selectedNodeId!, nodes, edges);
   const totalContextTokens = layerTokens.material + layerTokens.reference + layerTokens.chain;
   const highlightedTexts = new Set(data.highlights.map((h) => h.text));
+  const hasAnswer = (!!data.response && !data.generationFailed) || data.highlights.length > 0;
+  const hasAttachments = (data.attachments?.length ?? 0) > 0 || getInheritedAttachments(selectedNodeId!).length > 0;
+  const hasUpstream = partition.mainline.length > 1 || partition.materials.length > 0 || partition.references.length > 0;
+  const showInspect = hasAnswer || hasAttachments || hasUpstream;
 
   return (
     <div
@@ -156,17 +161,17 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
       {/* Scrollable content: one card per section */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
         <AgentSessionLine data={data} />
-        <QuestionSection
-          key={`q-${selectedNodeId}`}
-          nodeId={selectedNodeId!}
-          question={data.question}
-          isEditing={data.isEditing}
-          isHuman={data.stepKind === 'human'}
-          awaiting={!!awaiting}
-          placeholder={awaiting ? (data.instruction || t(data.converge ? (data.converge.kind === 'merge' ? 'converge.mergePlaceholder' : 'converge.weavePlaceholder') : 'node.askPlaceholder')) : undefined}
-          optional={!!data.converge}
-          branchContext={data.branchContext}
-        />
+        {/* the question shows once it is asked — before that it is typed below */}
+        {!awaiting && (
+          <QuestionSection
+            key={`q-${selectedNodeId}`}
+            nodeId={selectedNodeId!}
+            question={data.question}
+            isEditing={data.isEditing}
+            isHuman={data.stepKind === 'human'}
+            branchContext={data.branchContext}
+          />
+        )}
 
         <ResponseSection
           key={`r-${selectedNodeId}`}
@@ -180,44 +185,60 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
 
         <TurnSection data={data} onFocusNode={onFocusNode} />
 
-        <AttachmentsSection
-          nodeId={selectedNodeId!}
-          attachments={data.attachments || []}
-          excludedAttachmentIds={data.excludedAttachmentIds || []}
-          includedAttachmentIds={data.includedAttachmentIds || []}
-          addAttachment={addAttachment}
-          removeAttachment={removeAttachment}
-          toggleExcludeAttachment={toggleExcludeAttachment}
-          setAttachmentRenderMode={setAttachmentRenderMode}
-          getInheritedAttachments={getInheritedAttachments}
-        />
-
-        <HighlightsSection
-          key={`h-${selectedNodeId}`}
-          nodeId={selectedNodeId!}
-          highlights={data.highlights}
-          highlightMode={data.highlightMode}
-        />
-
         <ContextOrderSection nodeId={node.id} />
-        <ContextChainSection
-          key={`c-${selectedNodeId}`}
-          partition={partition}
-          totalContextTokens={totalContextTokens}
-          onFocusNode={onFocusNode}
-        />
+
+        {/* Inspect: one card of folded rows; empty ones stay out of the way */}
+        {showInspect ? (
+          <div className="panel-card overflow-hidden divide-y divide-border/70">
+            <AttachmentsSection
+              nodeId={selectedNodeId!}
+              attachments={data.attachments || []}
+              excludedAttachmentIds={data.excludedAttachmentIds || []}
+              includedAttachmentIds={data.includedAttachmentIds || []}
+              addAttachment={addAttachment}
+              removeAttachment={removeAttachment}
+              toggleExcludeAttachment={toggleExcludeAttachment}
+              setAttachmentRenderMode={setAttachmentRenderMode}
+              getInheritedAttachments={getInheritedAttachments}
+            />
+            {hasAnswer && (
+              <HighlightsSection
+                key={`h-${selectedNodeId}`}
+                nodeId={selectedNodeId!}
+                highlights={data.highlights}
+                highlightMode={data.highlightMode}
+                onExplore={setBranchContext}
+              />
+            )}
+            <ContextChainSection
+              key={`c-${selectedNodeId}`}
+              partition={partition}
+              totalContextTokens={totalContextTokens}
+              onFocusNode={onFocusNode}
+            />
+          </div>
+        ) : (
+          <p className="px-2 text-xs text-muted-foreground" data-chain-none>{t('chain.none')}</p>
+        )}
       </div>
 
-      {/* The ONE input — pinned at bottom; selected text stages into it.
-          Hidden while the node waits for its own question above. */}
-      {!awaiting && !isViewerMode && (
-        <FollowUpInput
-          key={selectedNodeId}
-          nodeId={selectedNodeId!}
-          branchContext={branchContext}
-          onClearBranchContext={() => setBranchContext('')}
-          onFocusNode={onFocusNode}
-        />
+      {/* The ONE box — pinned at the bottom. A waiting card's question is
+          typed here (it goes into the card); once answered, the same box
+          asks on, and selected text or highlights stage into it. */}
+      {!isViewerMode && (
+        <div className="relative shrink-0 px-3 pb-3 pt-1">
+          <div className="panel-card px-3.5 pt-2 pb-2.5">
+            <Composer
+              key={selectedNodeId}
+              target={awaiting ? { kind: 'ask-this', nodeId: selectedNodeId! } : { kind: 'child', parentId: selectedNodeId! }}
+              placeholder={awaiting ? (data.instruction || t(data.converge ? (data.converge.kind === 'merge' ? 'converge.mergePlaceholder' : 'converge.weavePlaceholder') : 'node.askPlaceholder')) : undefined}
+              passage={awaiting ? undefined : branchContext}
+              onClearPassage={() => setBranchContext('')}
+              focusKey={`${selectedNodeId}:${branchContext}`}
+              onFocusNode={onFocusNode}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
