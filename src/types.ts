@@ -240,7 +240,13 @@ export interface ThoughtData extends Record<string, unknown> {
   /** Provenance of an imported turn. `cwd` is the source session's working
       directory: relative paths the agent wrote ("./fig1.png") resolve
       against it. */
-  importSource?: { runner: string; sessionId: string; itemIds: string[]; cwd?: string };
+  importSource?: {
+    runner: string; sessionId: string; itemIds: string[]; cwd?: string;
+    /** a run the parent turn delegated (Pi's subagent tool, Claude Code's Agent, a Codex child
+        thread): the agent's name in the runner's words, and the first item id of the turn that
+        delegated — the node hangs off that turn as a branch */
+    subagent?: { agent: string; of: string };
+  };
   /** Frozen snapshot of the SOURCE projection at import time. The working
       question/response fields are free to iterate; this never changes, so
       "has this node diverged from its source?" is a field comparison, and

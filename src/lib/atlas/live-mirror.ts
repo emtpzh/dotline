@@ -1,6 +1,7 @@
 import { toast } from '../ui-store';
 import { t, fmt } from '../../i18n';
 import { identityFromHead } from './discover';
+import { withSubagents } from './subagents';
 
 // The live mirror, phase one of the listener: when the file behind the
 // ACTIVE canvas's mirrored session grows, the appendix arrives on its
@@ -81,7 +82,7 @@ export function startLiveMirror(): void {
 
       const { streamRunnerConversation } = await import('../adapters');
       const { importOrAppendConversation, shellSessionReader } = await import('./canonical');
-      const conv = await streamRunnerConversation(shellSessionReader(ev.rootKey, ev.rel)).catch(() => null);
+      const conv = await withSubagents(await streamRunnerConversation(shellSessionReader(ev.rootKey, ev.rel)).catch(() => null), ev.rootKey, ev.rel);
       const result = await importOrAppendConversation(conv, { background: true });
       if (result?.kind === 'appended') {
         toast('success', fmt(t('atlas.liveAppended'), { n: result.turns }), 8000);
@@ -163,7 +164,7 @@ export function startLiveMirror(): void {
     if (!target) { toast('error', t('handoff.deeplinkMiss')); return; }
     const { streamRunnerConversation } = await import('../adapters');
     const { importOrAppendConversation, shellSessionReader } = await import('./canonical');
-    const conv = await streamRunnerConversation(shellSessionReader(target.rootKey, target.rel)).catch(() => null);
+    const conv = await withSubagents(await streamRunnerConversation(shellSessionReader(target.rootKey, target.rel)).catch(() => null), target.rootKey, target.rel);
     const result = await importOrAppendConversation(conv);
     if (!result) toast('error', t('handoff.notASession'));
     else if (result.kind === 'appended') toast('success', fmt(t('atlas.liveAppended'), { n: result.turns }), 8000);

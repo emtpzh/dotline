@@ -4,7 +4,7 @@ import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
 import {
   turnsToBranch, seedPlaque, toolSteps, dropSelfCommandTurns, markImporterNote, toolOpOf, clipText,
-  TOOL_CALL_LIMIT, ARTIFACT_CALL_LIMIT, TOOL_RESULT_LIMIT, type RunnerTool,
+  TOOL_CALL_LIMIT, ARTIFACT_CALL_LIMIT, TOOL_RESULT_LIMIT, type RunnerTool, attachSubagentBranches, adoptSubagentSessions, type SubagentRun, type SubagentSession
 } from './shared';
 
 // Codex session importer — Tier 1 (read-only) of the second runner adapter.
@@ -69,6 +69,8 @@ export interface CodexTurn {
   tools: RunnerTool[];
   at?: string;
   compactionBefore?: string;
+  /** child threads adopted onto this turn (Codex names the parent in the child's header, never the child in the parent) */
+  subagents?: SubagentRun[];
 }
 
 const clip = clipText;
@@ -112,6 +114,7 @@ export class CodexSessionCollector {
   private sawItems = false;
   private firstQuestion: string | null = null;
   private parentThreadId: string | null = null;
+  private startedAt: string | null = null;
 
   feedLine(raw: string): void {
     const t = raw.trim();
@@ -145,6 +148,7 @@ export class CodexSessionCollector {
       this.cwd = p.cwd ?? '';
       this.day = (p as { timestamp?: string }).timestamp?.slice(0, 10) ?? '';
       this.parentThreadId = (p as { parent_thread_id?: string }).parent_thread_id ?? null;
+      this.startedAt = (p as { timestamp?: string }).timestamp ?? line.timestamp ?? null;
       return;
     }
     if (line.type === 'response_item' || line.type === 'event_msg') this.sawItems = true;
@@ -245,7 +249,17 @@ export class CodexSessionCollector {
       source: 'codex',
       sessionId: s.sessionId,
       build: () => buildGraphFromTurns(s.turns, s.sessionId, s.cwd),
+      adopt: (subs) => adoptSubagentSessions(s.turns, subs),
     };
+  }
+
+  /** This rollout as a child thread's transcript, for the parent named in its header to adopt. */
+  toSubagentSession(): SubagentSession | null {
+    const s = this.finish();
+    if (!s || s.turns.length === 0 || !s.subagent) return null;
+    const first = s.turns[0];
+    const at = first.at ?? this.startedAt ?? undefined;
+    return { runner: 'codex', sessionId: s.sessionId, firstQuestion: this.firstQuestion ?? first.question, turns: s.turns, ...(s.cwd ? { cwd: s.cwd } : {}), ...(at ? { at } : {}) };
   }
 }
 
@@ -282,6 +296,7 @@ export function buildGraphFromTurns(turns: CodexTurn[], sessionId: string, cwd?:
     nodes.push(node);
     if (prev) edges.push({ id: generateId(), source: prev.id, target: node.id, type: 'smoothstep' } as ThoughtEdge);
     if (noteToWire) edges.push({ id: generateId(), source: noteToWire.id, target: node.id, type: 'smoothstep' } as ThoughtEdge);
+    attachSubagentBranches(node, turn, nodes, edges, 'codex', sessionId, cwd);
     prev = node;
   }
 

@@ -85,7 +85,7 @@ function cardFromHead(rootKey: string, rel: string, head: string, mtime: number,
     const title = text ? text.split('\n')[0].slice(0, 80) : `session ${piOpen.id.slice(0, 8)}`;
     return { runner: 'pi', rootKey, rel, sessionId: piOpen.id, cwd: piOpen.cwd ?? null, title, mtime, size };
   }
-  const dshOpen = lines.find((l) => l.type === 'session' && typeof l.timestamp !== 'string') as { id?: string; cwd?: string } | undefined;
+  const dshOpen = lines.find((l) => l.type === 'session' && typeof l.timestamp !== 'string') as { id?: string; cwd?: string; origin?: string; parentSession?: string } | undefined;
   if (typeof dshOpen?.id === 'string') {
     const id = dshOpen.id;
     const titleLine = lines.find((l) => l.type === 'session/title') as { data?: { title?: string } } | undefined;
@@ -96,7 +96,12 @@ function cardFromHead(rootKey: string, rel: string, head: string, mtime: number,
     // not a card. A real first message lands in the head, whatever its size.
     if (!titleLine && !firstUser && size <= 4096) return null;
     const title = titleLine?.data?.title ?? firstUser ?? `session ${id.replace(/^session-/, '').slice(0, 8)}`;
-    return { runner: 'dsh', rootKey, rel, sessionId: id, cwd: dshOpen.cwd ?? null, title, mtime, size };
+    // a delegated child (origin "subagent") names its parent; a fork also carries parentSession but is a conversation of its own
+    const delegated = dshOpen.origin === 'subagent';
+    return {
+      runner: 'dsh', rootKey, rel, sessionId: id, cwd: dshOpen.cwd ?? null, title, mtime, size,
+      ...(delegated ? { subagent: true, ...(dshOpen.parentSession ? { parentSessionId: dshOpen.parentSession } : {}) } : {}),
+    };
   }
   const meta = lines.find((l) => l.type === 'session_meta') as { payload?: { id?: string; cwd?: string; parent_thread_id?: string } } | undefined;
   if (meta?.payload?.id) {
@@ -105,6 +110,7 @@ function cardFromHead(rootKey: string, rel: string, head: string, mtime: number,
       runner: 'codex', rootKey, rel, sessionId: id, cwd: meta.payload.cwd ?? null,
       title: firstUserLine(head) ?? `session ${id.slice(0, 8)}`, mtime, size,
       subagent: !!meta.payload.parent_thread_id,
+      ...(meta.payload.parent_thread_id ? { parentSessionId: meta.payload.parent_thread_id } : {}),
     };
   }
   // claude-code: every event line carries top-level sessionId + cwd; a
