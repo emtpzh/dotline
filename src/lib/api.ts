@@ -1,5 +1,6 @@
 import { API_BASE } from './constants';
 import { isAgentModel, agentCallStream, type AgentRoute } from './agents/agent-runtime';
+import { sideModelOf } from './agents/runtimes';
 import { toast, useUiStore } from './ui-store';
 import { getModelsOnce } from './use-models';
 import { t, fmt } from '../i18n';
@@ -134,9 +135,18 @@ async function guardDirectVision(modelId: string | undefined, images?: ImageAtta
   if (info && info.vision === false) throw new Error(t('error.textOnlyModelImages'));
 }
 
+/** The model a side call runs on when `id` (or the picker's choice) is the
+    chosen model: an agent entry hands it to a plain model (sideModelOf). */
+export async function sideCallModel(id?: string): Promise<string | undefined> {
+  const chosen = id || useUiStore.getState().selectedModel || undefined;
+  if (!chosen || !isAgentModel(chosen)) return chosen;
+  const data = await getModelsOnce();
+  return sideModelOf(chosen, data?.models ?? [], data?.default);
+}
+
 // Non-streaming call (used for background summaries)
 export async function llmCall(contextMessages: ContextMessage[], images?: ImageAttachment[], modelOverride?: string): Promise<string> {
-  const modelId = modelOverride || useUiStore.getState().selectedModel || undefined;
+  const modelId = await sideCallModel(modelOverride);
   images = await imagesForModel(modelId, images);
   const direct = directProvider(modelId);
   if (direct && modelId) {
@@ -150,7 +160,7 @@ export async function llmCall(contextMessages: ContextMessage[], images?: ImageA
       body: JSON.stringify({
         messages: contextMessages,
         images: images?.length ? images : undefined,
-        model: modelOverride || useUiStore.getState().selectedModel || undefined,
+        model: modelId,
         // browser-configured providers ride along on EVERY request — the
         // proxy builds a per-request registry and forgets it (stateless)
         providers: statelessProviders(),

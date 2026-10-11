@@ -1,4 +1,4 @@
-import { llmCallStream } from './api';
+import { llmCallStream, sideCallModel } from './api';
 import { useStore } from '../store';
 import { autoLayout } from './layout';
 import { activeSummary, countTokens, generateId } from '../utils';
@@ -168,7 +168,9 @@ export async function distillSegment(
         // reasoning chunks count as liveness — thinking models are silent
         // on content for a long first stretch
         { onReasoning: () => armIdle() },
-        undefined, model,
+        // an agent entry distills on a plain model: the agent lane would
+        // open a whole agent session for one summary
+        undefined, await sideCallModel(model),
       ),
       idleGate,
     ]);

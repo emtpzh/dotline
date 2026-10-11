@@ -2,13 +2,14 @@
 // a stand-in harness: which session a run opens, continues or forks, what
 // reaches the agent, the events that come back, approvals, abort.
 import { test } from 'node:test'
+import { EventEmitter } from 'node:events'
 import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { internals } from '../lib/index.js'
 
-const { createDshRuntime, installApprovalAnswerer, sessionIdOfPath, sessionLogName, findSessionFiles } = internals
+const { createDshRuntime, installApprovalAnswerer, sessionIdOfPath, sessionLogName, findSessionFiles, serveModelCall } = internals
 
 /** A harness with just what the runtime touches. `turn(id)` scripts what an
  *  agent does after a prompt; sessions can be seeded with events; `version`
@@ -266,6 +267,51 @@ test('a question with images runs on a model that takes them, whatever it is cal
   const b = fakeHarness()
   await runToEnd(createDshRuntime(b.ctx), { runtime: 'dsh', cwd: '/p', prompt: 'Q', question: 'Q', images: [png], model: { provider: 'ds', id: 'v4' } })
   assert.deepEqual(b.log.selected, [{ sessionId: 'session-1', provider: 'ds', model: 'v4' }])
+})
+
+/** One plain call through the plugin's /claude or /stream handler; the
+ *  model calls it made and what the page received. */
+async function plainCall(ctx, path, body) {
+  const calls = []
+  ctx.llm.stream = async function* (options) {
+    calls.push(options)
+    yield { type: 'reasoning-delta', text: 'hm' }
+    yield { type: 'text-delta', text: 'TAG | topic | takeaway' }
+  }
+  let out = ''
+  const res = { writeHead() {}, write: (s) => { out += s }, end: (s) => { if (s) out += s } }
+  await serveModelCall(ctx, path, new EventEmitter(), res, body)
+  return { calls, out }
+}
+
+test('a side call that names an agent entry runs as a plain call on its model, opening no session', async () => {
+  const messages = [{ role: 'user', content: 'Q' }, { role: 'assistant', content: 'A' }, { role: 'user', content: 'Compress the above exchange for a map plaque.' }]
+  for (const path of ['/claude', '/stream']) {
+    const { ctx, log } = fakeHarness()
+    const { calls, out } = await plainCall(ctx, path, { model: 'harness/agent/ds/lite', messages })
+    assert.deepEqual(calls.map(c => [c.provider, c.model, c.messages.length]), [['ds', 'lite', 3]])
+    assert.deepEqual([log.created, log.prompts, log.selected], [[], [], []])
+    if (path === '/claude') assert.deepEqual(JSON.parse(out), { text: 'TAG | topic | takeaway', model: 'ds/lite' })
+    else assert.equal(out, 'data: {"reasoning":"hm"}\n\ndata: {"text":"TAG | topic | takeaway"}\n\ndata: [DONE]\n\n')
+  }
+  // the bare entry (older canvases) is the session's current model: the catalog default
+  const { ctx, log } = fakeHarness()
+  const { calls } = await plainCall(ctx, '/claude', { model: 'harness/agent', messages })
+  assert.deepEqual(calls.map(c => [c.provider, c.model]), [['ds', 'v4']])
+  assert.deepEqual(log.created, [])
+})
+
+test('a side call prefers the catalog\'s flash model over the agent entry\'s own', async () => {
+  const { ctx, log } = fakeHarness()
+  ctx.sessionController.modelCatalog = async () => ({ groups: [{ id: 'deepseek-official', models: [{ id: 'deepseek-pro' }, { id: 'deepseek-flash' }] }], default: { provider: 'deepseek-official', model: 'deepseek-pro' } })
+  for (const model of ['harness/agent/deepseek-official/deepseek-pro', 'harness/agent']) {
+    const { calls } = await plainCall(ctx, '/stream', { model, messages: [{ role: 'user', content: 'Q' }] })
+    assert.deepEqual(calls.map(c => [c.provider, c.model]), [['deepseek-official', 'deepseek-flash']])
+  }
+  // a plain model the canvas names keeps it
+  const { calls } = await plainCall(ctx, '/claude', { model: 'deepseek-official/deepseek-pro', messages: [{ role: 'user', content: 'Q' }] })
+  assert.deepEqual(calls.map(c => [c.provider, c.model]), [['deepseek-official', 'deepseek-pro']])
+  assert.deepEqual(log.created, [])
 })
 
 test('a session path names its session', () => {

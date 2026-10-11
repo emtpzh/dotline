@@ -554,6 +554,20 @@ function agentTargetOf(id) {
   const i = rest.indexOf('/')
   return i > 0 && i < rest.length - 1 ? { provider: rest.slice(0, i), model: rest.slice(i + 1) } : null
 }
+/** The model a plain call (/stream, /claude) runs on. Agent turns go
+ *  through /agents/run; an agent entry reaching a plain call is one of the
+ *  canvas's side calls (plaques, titles, condense…) made while that entry is
+ *  the chosen model, so it runs on a plain model without opening a session:
+ *  the catalog's fast side model (the canvas's sideModelOf picks the same),
+ *  else the entry's own provider/model, else the catalog default. */
+const SIDE_MODEL = /deepseek.*flash/i
+const plainModelOf = (id, models) => {
+  if (!isAgentModelId(id)) return id
+  const side = models.find(m => SIDE_MODEL.test(m.id.split('/').pop() ?? ''))
+  if (side) return side.id
+  const t = agentTargetOf(id)
+  return t ? `${t.provider}/${t.model}` : null
+}
 /** Which of a provider's models take images: the adapter's declared input
  *  modalities; a name that says "vision" only when the adapter says nothing. */
 async function visionIdsOf(ctx, providerId, catalogModels) {
@@ -622,23 +636,6 @@ async function callOf(ctx, body, target) {
     }
   }
   return { provider: target.provider, model: target.model, messages, ...(system.length ? { system: system.join('\n\n') } : {}) }
-}
-
-/** The canvas's compiled messages, split for the agent: the last user
- *  message is the question; everything before it is the context the canvas
- *  wired in, rendered as one block the harness receives ahead of the turn. */
-function compileForAgent(body) {
-  const msgs = (Array.isArray(body?.messages) ? body.messages : []).filter(m => m && typeof m.content === 'string' && m.content.trim())
-  if (msgs.length === 0) throw new HttpError(400, 'messages: nothing to send')
-  const last = msgs[msgs.length - 1]
-  if (last.role !== 'user') throw new HttpError(400, 'the last message must be the user\'s question')
-  const system = msgs.slice(0, -1).filter(m => m.role === 'system').map(m => m.content.trim())
-  const history = msgs.slice(0, -1).filter(m => m.role !== 'system')
-  const parts = []
-  if (system.length) parts.push('Instructions from the canvas:\n\n' + system.join('\n\n'))
-  if (history.length) parts.push('The conversation the canvas wired into this question, oldest first:\n\n' + history.map(m => `[${m.role === 'assistant' ? 'assistant' : 'user'}]\n${m.content.trim()}`).join('\n\n'))
-  const context = parts.length ? '[Dotline canvas context] The question that follows was asked from a Dotline canvas. Treat the material below as the conversation so far.\n\n' + parts.join('\n\n') : ''
-  return { question: last.content.trim(), context }
 }
 
 /** A short line naming what a tool call is doing, for the canvas's progress row. */
@@ -930,13 +927,42 @@ async function visionModel(ctx, preferred = null) {
   return null
 }
 
-/** Resolve the requested model against the catalog, falling back to its default. */
+/** Resolve the requested model against the catalog (an agent entry by
+ *  plainModelOf), falling back to its default. */
 async function targetOf(ctx, requested) {
   const payload = await modelsPayload(ctx)
+  requested = plainModelOf(requested, payload.models)
   const id = requested && payload.models.some(m => m.id === requested) ? requested : payload.default
   const t = splitModelId(id)
   if (!t) throw new HttpError(503, 'no model is routable in this harness')
   return t
+}
+
+/** One plain model call in the SPA's proxy protocol: /claude answers with
+ *  the whole text, /stream with SSE frames ({ text } / { reasoning } /
+ *  { error }, then [DONE]). */
+async function serveModelCall(ctx, path, req, res, body) {
+  const target = await targetOf(ctx, body?.model)
+  const options = await callOf(ctx, body, target)
+  if (path === '/claude') {
+    let text = ''
+    for await (const chunk of ctx.llm.stream(options)) if (chunk.type === 'text-delta') text += chunk.text
+    return sendJson(res, 200, { text, model: `${target.provider}/${target.model}` })
+  }
+  res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
+  let closed = false
+  req.on('close', () => { closed = true })
+  try {
+    for await (const chunk of ctx.llm.stream(options)) {
+      if (closed) break
+      if (chunk.type === 'text-delta' && chunk.text) res.write(`data: ${JSON.stringify({ text: chunk.text })}\n\n`)
+      else if (chunk.type === 'reasoning-delta' && chunk.text) res.write(`data: ${JSON.stringify({ reasoning: chunk.text })}\n\n`)
+    }
+    if (!closed) res.write('data: [DONE]\n\n')
+  } catch (error) {
+    if (!closed) res.write(`data: ${JSON.stringify({ error: error instanceof Error ? error.message : String(error) })}\n\n`)
+  }
+  res.end()
 }
 
 /** The live agent for a session, resuming a cold one through the controller. */
@@ -1031,8 +1057,9 @@ async function installWhyLayer(ctx, config) {
   ctx.logger.info('[dsh-dotline] why layer: ' + (wantTools ? 'why_check why_file why_find why_recall, /why' : 'no tools') + (wantPrompt && wantTools ? ', prompt section' : ''))
 }
 
-/** The agent lane's harness runtime and its approval hook, for the plugin's own tests. */
-export const internals = { createDshRuntime, installApprovalAnswerer, sessionIdOfPath, sessionLogName, findSessionFiles }
+/** The agent lane's harness runtime, its approval hook and the plain model
+ *  call, for the plugin's own tests. */
+export const internals = { createDshRuntime, installApprovalAnswerer, sessionIdOfPath, sessionLogName, findSessionFiles, serveModelCall }
 
 export async function apply(ctx, config) {
   const prefix = typeof config?.mountPrefix === 'string' && config.mountPrefix.startsWith('/') && config.mountPrefix.length > 1
@@ -1180,59 +1207,7 @@ export async function apply(ctx, config) {
       // ── model connection (the SPA's proxy protocol, on the harness's providers) ──
       if (path === '/models' && req.method === 'GET') return sendJson(res, 200, await modelsPayload(ctx))
       if ((path === '/stream' || path === '/claude') && req.method === 'POST') {
-        const body = await readJson(req, MAX_CALL_BODY_BYTES)
-        if (isAgentModelId(body?.model)) {
-          // Agent turns run on the agent lane (/agents). A plain model call
-          // that names an agent entry still gets one: a fresh session with
-          // the canvas's context, its approvals left to the harness's panel,
-          // the stream's end being the stop button
-          const { question, context } = compileForAgent(body)
-          const turn = { question, context, images: imagesOf(body?.images), model: agentTargetOf(body.model), cwd: null, continueSession: null, fork: null }
-          const quiet = { session() {}, text() {}, reasoning() {}, toolStart() {}, toolEnd() {} }
-          if (path === '/claude') {
-            const r = await runHarnessTurn(ctx, turn, quiet)
-            return sendJson(res, 200, { text: r.text, model: body.model, harnessSession: r.sessionId })
-          }
-          res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
-          const stop = new AbortController()
-          req.on('close', () => stop.abort())
-          const frame = (f) => { if (!stop.signal.aborted) res.write(`data: ${JSON.stringify(f)}\n\n`) }
-          try {
-            await runHarnessTurn(ctx, turn, {
-              ...quiet,
-              text: (t) => frame({ text: t }),
-              reasoning: (t) => frame({ reasoning: t }),
-              toolStart: (c) => frame({ tool: { name: c.name, query: toolQuery(c.name, c.arguments) } }),
-            }, { signal: stop.signal })
-            if (!stop.signal.aborted) res.write('data: [DONE]\n\n')
-          } catch (error) {
-            frame({ error: error instanceof Error ? error.message : String(error) })
-          }
-          res.end()
-          return
-        }
-        const target = await targetOf(ctx, body?.model)
-        const options = await callOf(ctx, body, target)
-        if (path === '/claude') {
-          let text = ''
-          for await (const chunk of ctx.llm.stream(options)) if (chunk.type === 'text-delta') text += chunk.text
-          return sendJson(res, 200, { text, model: `${target.provider}/${target.model}` })
-        }
-        res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
-        let closed = false
-        req.on('close', () => { closed = true })
-        try {
-          for await (const chunk of ctx.llm.stream(options)) {
-            if (closed) break
-            if (chunk.type === 'text-delta' && chunk.text) res.write(`data: ${JSON.stringify({ text: chunk.text })}\n\n`)
-            else if (chunk.type === 'reasoning-delta' && chunk.text) res.write(`data: ${JSON.stringify({ reasoning: chunk.text })}\n\n`)
-          }
-          if (!closed) res.write('data: [DONE]\n\n')
-        } catch (error) {
-          if (!closed) res.write(`data: ${JSON.stringify({ error: error instanceof Error ? error.message : String(error) })}\n\n`)
-        }
-        res.end()
-        return
+        return await serveModelCall(ctx, path, req, res, await readJson(req, MAX_CALL_BODY_BYTES))
       }
       // ── write direction ──
       const turnsRoute = /^\/sessions\/([^/]+)\/turns$/.exec(path)

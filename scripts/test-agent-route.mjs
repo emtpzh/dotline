@@ -25,6 +25,7 @@ const build = (name) => {
 };
 const { pristineChain } = await build('pristine');
 const { continuity } = await build('continuity');
+const { plainModelOf, sideModelOf } = await build('runtimes');
 
 /** A mirrored turn: what the session recorded, and the canvas showing the same. */
 const mirror = (id, q = `q-${id}`, r = `r-${id}`, extra = {}) => ({
@@ -174,4 +175,28 @@ test('the fork counts turns of its own session only', () => {
   const nodes = [mirror('A'), mirror('B'), mirror('C'), ask('D')];
   const edges = [edge('A', 'B'), edge('B', 'C'), edge('B', 'D')];
   assert.equal(continuity('D', nodes, edges, 'pi', undefined, [{ runner: 'pi', sessionId: 's1', tailNodeId: 'C' }]).turn, 2);
+});
+
+test('a side call on a harness agent entry runs on its bare model; other ids pass through', () => {
+  assert.equal(plainModelOf('harness/agent/deepseek-official/deepseek-flash'), 'deepseek-official/deepseek-flash');
+  assert.equal(plainModelOf('deepseek-official/deepseek-flash'), 'deepseek-official/deepseek-flash');
+  // only the harness serves its agent entries' models as plain calls
+  assert.equal(plainModelOf('pi/deepseek/deepseek-v4-flash'), 'pi/deepseek/deepseek-v4-flash');
+  assert.equal(plainModelOf(undefined), undefined);
+});
+
+test('a side call made while an agent entry is chosen runs on a plain model, the flash one first', () => {
+  const HARNESS_HOST = [{ id: 'deepseek-official/deepseek-pro' }, { id: 'deepseek-official/deepseek-flash' }, { id: 'harness/agent/deepseek-official/deepseek-pro' }];
+  const LOCAL_HOST = [{ id: 'glm-5.3-flash' }, { id: 'deepseek-v4-flash' }, { id: 'pi/deepseek/deepseek-v4-flash' }];
+  for (const id of ['harness/agent/deepseek-official/deepseek-pro', 'harness/agent', 'pi/x/y', 'codex/gpt', 'claude/opus']) {
+    assert.equal(sideModelOf(id, HARNESS_HOST, 'deepseek-official/deepseek-pro'), 'deepseek-official/deepseek-flash');
+    assert.equal(sideModelOf(id, LOCAL_HOST, 'glm-5.3-flash'), 'deepseek-v4-flash');
+  }
+  // a plain choice is the person's: it stays
+  assert.equal(sideModelOf('deepseek-official/deepseek-pro', HARNESS_HOST, null), 'deepseek-official/deepseek-pro');
+  assert.equal(sideModelOf(undefined, HARNESS_HOST, null), undefined);
+  // no flash model on this host: a harness entry's own model, else the host's default
+  const NONE = [{ id: 'ds/v4' }, { id: 'glm-5.3-flash' }];
+  assert.equal(sideModelOf('harness/agent/ds/v4', NONE, 'glm-5.3-flash'), 'ds/v4');
+  assert.equal(sideModelOf('pi/x/y', NONE, 'glm-5.3-flash'), 'glm-5.3-flash');
 });

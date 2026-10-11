@@ -60,3 +60,28 @@ export function agentTarget(id: string): { runtime: AgentRuntime; provider: stri
   if (i <= 0 || i === rest.length - 1) return { runtime, provider: runtime, id: rest };
   return { runtime, provider: rest.slice(0, i), id: rest.slice(i + 1) };
 }
+
+/** A harness agent entry's own provider/model, which the harness also
+    serves as a plain call; every other id is returned as is. */
+export function plainModelOf(id: string | undefined): string | undefined {
+  const target = id ? agentTarget(id) : null;
+  return target?.runtime === 'dsh' && target.id ? `${target.provider}/${target.id}` : id;
+}
+
+/** The plain model the canvas's side calls prefer when an agent entry is
+    chosen: a fast, cheap one, matched by name since each host names it its
+    own way (`deepseek-official/deepseek-flash`, `deepseek-v4-flash`). */
+const SIDE_MODEL = /deepseek.*flash/i;
+
+/** The model a side call (plaque, title, condense…) runs on when `id` is the
+    chosen model. A plain model keeps it; an agent entry never opens an agent
+    session for one: the side model when this host lists it, else the
+    entry's own bare model (a harness entry), else the host's default. */
+export function sideModelOf(id: string | undefined, models: { id: string }[], hostDefault: string | null | undefined): string | undefined {
+  if (!id || !isAgentModel(id)) return id;
+  const side = models.find((m) => !isAgentModel(m.id) && SIDE_MODEL.test(m.id.split('/').pop() ?? ''));
+  if (side) return side.id;
+  const own = plainModelOf(id);
+  if (own && !isAgentModel(own)) return own;
+  return hostDefault && !isAgentModel(hostDefault) ? hostDefault : id;
+}
