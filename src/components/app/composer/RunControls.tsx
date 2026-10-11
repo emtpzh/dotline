@@ -143,9 +143,13 @@ export function RegenerateWith({ current, onPick }: { current: string | undefine
 }
 
 /** Under the text, right: the model and its effort. In a box that asks off a
- *  node, the other runtimes are offered too — picking one opens a new session. */
-export function ModelMenu({ intent, onIntent, changed, offerRuntimes }: {
-  intent: RunIntent; onIntent: (p: IntentPatch) => void; changed?: boolean; offerRuntimes?: boolean;
+ *  node, the other runtimes are offered too — picking one opens a new session.
+ *  On a runtime with presets (the harness), the preset a new session starts
+ *  from: global, like where a root starts, and offered only while the
+ *  question can open one (`session` known and not new: it goes on in a
+ *  session that keeps its own). */
+export function ModelMenu({ intent, onIntent, changed, offerRuntimes, session }: {
+  intent: RunIntent; onIntent: (p: IntentPatch) => void; changed?: boolean; offerRuntimes?: boolean; session?: Continuity | null;
 }) {
   const t = useT();
   const data = useModels();
@@ -156,11 +160,17 @@ export function ModelMenu({ intent, onIntent, changed, offerRuntimes }: {
   const efforts = engine !== 'chat' ? current?.efforts ?? [] : [];
   const effortWord = intent.effort || current?.defaultEffort || '';
   const others = offerRuntimes ? engines.filter((e) => e.engine !== engine) : [];
+  const chosenPreset = useUiStore((s) => s.agentPreset);
+  const presets = engine !== 'chat' && (!session || session.kind === 'new') ? current?.presets ?? [] : [];
+  // a choice since deleted or broken runs as the default, and reads as it
+  const preset = presets.find((p) => p.id === chosenPreset && !p.broken);
+  const presetWord = (preset ?? presets.find((p) => p.isDefault))?.name ?? t('composer.effortDefault');
   return (
     <DropdownMenu onOpenChange={(open) => { if (open) ensureAgentsFresh(); }}>
       <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className={`${pill} max-w-[220px] ${changed ? changedPill : ''}`} data-composer-model />}>
         <span className="truncate">{modelLabel(current, intent.model) || t('composer.defaultModel')}</span>
         {effortWord && <span className="text-muted-foreground shrink-0">{effortWord}</span>}
+        {preset && <span className="text-muted-foreground truncate max-w-[80px]" data-composer-preset-word>{preset.name}</span>}
         <ChevronDown strokeWidth={1.75} className="opacity-60 shrink-0" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
@@ -185,6 +195,31 @@ export function ModelMenu({ intent, onIntent, changed, offerRuntimes }: {
               <DropdownMenuRadioGroup value={intent.effort ?? ''} onValueChange={(v) => onIntent({ effort: v as string })}>
                 <DropdownMenuRadioItem closeOnClick value="">{t('composer.effortDefault')}{current?.defaultEffort ? ` · ${current.defaultEffort}` : ''}</DropdownMenuRadioItem>
                 {efforts.map((e) => <DropdownMenuRadioItem closeOnClick key={e} value={e}>{e}</DropdownMenuRadioItem>)}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )}
+        {presets.length > 0 && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger title={t('composer.presetHint')} data-composer-preset>
+              <span className="flex-1">{t('composer.preset')}</span>
+              <span className="text-muted-foreground truncate max-w-[110px]">{presetWord}</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-64 max-h-[60vh] overflow-y-auto">
+              <DropdownMenuRadioGroup value={preset?.id ?? ''} onValueChange={(v) => useUiStore.getState().setAgentPreset(v as string)}>
+                <DropdownMenuRadioItem closeOnClick value="" data-composer-preset-option="">
+                  {t('composer.effortDefault')}{presets.find((p) => p.isDefault) ? ` · ${presets.find((p) => p.isDefault)!.name}` : ''}
+                </DropdownMenuRadioItem>
+                {presets.map((p) => (
+                  <DropdownMenuRadioItem closeOnClick key={p.id} value={p.id} disabled={!!p.broken} data-composer-preset-option={p.id}>
+                    <span className="flex-1 min-w-0">
+                      <span className="block truncate">{p.name}</span>
+                      {(p.broken || p.description) && (
+                        <span className="block text-2xs text-muted-foreground line-clamp-2">{p.broken ? fmt(t('composer.presetBroken'), { reason: p.broken }) : p.description}</span>
+                      )}
+                    </span>
+                  </DropdownMenuRadioItem>
+                ))}
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>

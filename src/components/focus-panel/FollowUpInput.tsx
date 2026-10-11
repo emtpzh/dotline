@@ -239,7 +239,7 @@ export default function FollowUpInput({
             ? <AccessMenu value={run.intent.access ?? 'read'} onChange={(access) => run.onIntent({ access })} changed={run.changed.includes('access')} />
             : !runtimeOf(run.intent.model) && <SearchToggles size={15} model={run.intent.model} />}
           <span className="flex-1" />
-          <ModelMenu intent={run.intent} onIntent={run.onIntent} changed={run.changed.includes('model') || run.changed.includes('effort')} offerRuntimes />
+          <ModelMenu intent={run.intent} onIntent={run.onIntent} changed={run.changed.includes('model') || run.changed.includes('effort')} offerRuntimes session={session} />
           <SendButton onClick={submit} disabled={!continueInput.trim()} session={session} />
         </div>
       </div>

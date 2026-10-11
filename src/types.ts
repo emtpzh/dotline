@@ -177,6 +177,8 @@ export interface ThoughtData extends Record<string, unknown> {
     effort?: string;
     /** the access level the turn ran at */
     access?: AgentAccess;
+    /** the agent preset the session was composed from, when the turn opened it */
+    preset?: string;
     /** the turn continued the mirrored session instead of opening a fresh one */
     continued?: boolean;
     /** the run was still going when this record was last written: a canvas

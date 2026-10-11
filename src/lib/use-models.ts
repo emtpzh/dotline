@@ -12,6 +12,8 @@ export interface ModelInfo {
   efforts?: string[];
   /** the runtime's own default among them, when it says */
   defaultEffort?: string | null;
+  /** agent models: the presets a fresh session on this runtime can be composed from (the harness's); absent = none to choose */
+  presets?: DesktopAgentPreset[];
 }
 
 export interface Capabilities {
