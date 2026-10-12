@@ -29,7 +29,8 @@ interface DesktopSessionsBridge {
   /** Native directory picker — the ONLY door into the whitelist. */
   addRoot: () => Promise<SessionRoot | null>;
   removeRoot: (key: string) => Promise<void>;
-  list: (rootKey: string) => Promise<{ rel: string; size: number; mtime: number }[]>;
+  /** `live`: a running host holds this session (only the harness bridge says; absent elsewhere). */
+  list: (rootKey: string) => Promise<{ rel: string; size: number; mtime: number; live?: boolean }[]>;
   head: (rootKey: string, rel: string, bytes: number) => Promise<string>;
   read: (rootKey: string, rel: string) => Promise<string>;
   /** Line-aligned chunked read — the road for sessions too big for one string. */

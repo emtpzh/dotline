@@ -680,8 +680,10 @@ function installApprovalAnswerer(ctx) {
  * fallback when the named session or turn cannot be used). Progress goes to
  * `sink` (session, text, reasoning, toolStart, toolEnd); `ask` answers this
  * turn's approvals. Resolves with the session and the final text when the
- * turn ends, `signal` aborts it, or twenty minutes pass; rejects with the
- * harness's reason when the turn ends in an error or is blocked.
+ * turn ends or `signal` aborts it; rejects with the harness's reason when
+ * the turn ends in an error or is blocked. No time limit: an agent may wait
+ * on a background job for as long as the job takes, and a turn still
+ * running is never reported as over.
  *
  * turn: { question, context, images, model: { provider, model } | null,
  *         preset: string | null, cwd, continueSession, fork: { session, anchor } }
@@ -781,8 +783,7 @@ async function runHarnessTurn(ctx, turn, sink, { signal, ask } = {}) {
     const promptContent = [{ type: 'text', text: turn.question }]
     for (const img of turn.images) promptContent.push({ type: 'image', mediaType: img.mimeType, data: img.data })
     await ctx.sessionController.prompt({ requestId: 'td-' + randomUUID(), sessionId, mode: 'queue', content: promptContent }, AbortSignal.timeout(30000))
-    const timeout = new Promise(resolve => { const t = setTimeout(() => resolve('timeout'), 20 * 60 * 1000); t.unref?.(); finished.then(() => clearTimeout(t)) })
-    const how = await Promise.race([finished, agent.whenIdle().then(() => finished), timeout])
+    const how = await Promise.race([finished, agent.whenIdle().then(() => finished)])
     if (how === 'end' && failure) throw new Error(failure)
     return { sessionId, text: fullText, how }
   } finally {

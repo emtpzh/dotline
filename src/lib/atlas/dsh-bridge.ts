@@ -206,7 +206,7 @@ export function installDshSessionsBridge(apiBase: string): void {
         for (const f of files) fileMtimes.set(`${rootKey}|${f.rel}`, f.mtime);
         return files;
       }
-      return (await refreshIndex()).map((e) => ({ rel: relOf(e.id), size: e.size, mtime: e.mtime }));
+      return (await refreshIndex()).map((e) => ({ rel: relOf(e.id), size: e.size, mtime: e.mtime, live: e.live }));
     },
     head: async (rootKey, rel, bytes) => {
       if (rootKey !== ROOT_KEY) return text(fileUrl(rootKey, 'head', rel, `&bytes=${Math.max(1024, bytes | 0)}`)).catch(() => '');

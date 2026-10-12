@@ -565,8 +565,26 @@ export async function adoptAgentTurn(nodeId: string, session: AgentSessionRef, q
   }
 }
 
-/** A session file quiet this long holds a finished turn. */
+/** A session file quiet this long holds a finished turn — for runtimes
+ *  whose files carry no end-of-turn mark (a harness log does: turn/end). */
 const SETTLE_MS = 60_000;
+
+/** A harness log with a turn started and not yet ended: the agent is still
+ *  at it, however long it has sat waiting on a job. */
+function dshTurnOpen(log: string): boolean {
+  const open = new Set<number>();
+  for (const line of log.split('\n')) {
+    if (!line.includes('"turn/')) continue;
+    try {
+      const e = JSON.parse(line) as { type?: string; data?: { turn?: unknown } };
+      const n = e.data?.turn;
+      if (typeof n !== 'number') continue;
+      if (e.type === 'turn/start') open.add(n);
+      else if (e.type === 'turn/end') open.delete(n);
+    } catch { /* a torn line */ }
+  }
+  return open.size > 0;
+}
 let recheck: ReturnType<typeof setTimeout> | null = null;
 let reconciling = false;
 
@@ -602,10 +620,12 @@ const clearPending = (nodeId: string): void => {
 /**
  * Agent turns that were still running when their canvas was last saved: the
  * page closed or reloaded mid-turn and the run went on without it. Each is
- * read back from its session file — the answer so far while the file still
- * moves, then, once it has been quiet for a minute, the turn adopted and the
- * answer recorded as the node's version. Runs on arrival and whenever a
- * session file changes; a turn still moving is looked at again later.
+ * read back from its session file — the answer so far while the turn runs,
+ * then, once it is over, the turn adopted and the answer recorded as the
+ * node's version. Over means the harness logged the turn's end (or no
+ * longer holds the session); for other runtimes, the file quiet for a
+ * minute. Runs on arrival and whenever a session file changes; a turn
+ * still running is looked at again later.
  */
 export async function reconcilePendingAgentTurns(): Promise<void> {
   const bridge = window.desktopSessions;
@@ -620,10 +640,17 @@ export async function reconcilePendingAgentTurns(): Promise<void> {
       const loc = s.sessionFile ? await sessionFileLocation(s.runtime, s.sessionFile).catch(() => 'unreadable') : 'no session file';
       if (typeof loc === 'string') { clearPending(n.id); continue; }
       const listed = (await bridge.list(loc.rootKey).catch(() => [])).find((f) => f.rel === loc.rel);
-      const quiet = !listed || Date.now() - listed.mtime >= SETTLE_MS;
+      let settled = !listed || Date.now() - listed.mtime >= SETTLE_MS;
+      if (listed && s.runtime === 'dsh') {
+        // the harness says when a turn is over; a session no host holds any
+        // more runs nothing, so what it holds is final
+        const log = listed.live === false ? '' : await bridge.read(loc.rootKey, loc.rel).catch(() => null);
+        if (log === null) { again = true; continue; }
+        settled = !dshTurnOpen(log);
+      }
       const found = await turnInFile(loc, n.data.question).catch(() => 'unreadable');
       const response = typeof found === 'string' ? '' : found.turn.data.response;
-      if (!quiet) {
+      if (!settled) {
         again = true;
         if (response) useStore.setState((st) => ({ nodes: st.nodes.map((x) => (x.id === n.id && !x.data.isLoading ? { ...x, data: { ...x.data, response } } : x)) }));
         continue;
