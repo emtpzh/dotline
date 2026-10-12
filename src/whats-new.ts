@@ -33,6 +33,16 @@ const DOCS = DOCS_URL;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.4.19',
+    date: '2026-10-12',
+    announce: false,
+    lead: {
+      zh: '子代理上画布：一轮对话派出的子代理，会作为分支节点出现在这一轮旁边——任务是问题，子代理交回的报告是回答，它自己的工具调用记为步骤，主线照旧往下走。DeepSeek Harness 的子代理（前台和后台）、以及其他 agent 会话里的子代理都支持；在画布上提问派出的子代理，这一轮结束就出现，不用重开画布。回答里的 HTML 现在先过滤再显示，内嵌框架和脚本不会再运行。DeepSeek Harness 插件：画布上的 agent 轮次不再有 20 分钟上限，以 harness 报告结束为准；摘要、标题和整理不再为此新开 agent 会话。另外修了几处小问题：删除正在生成的节点会停止生成，概览窗口关着时不再占用资源。',
+      en: 'Subagents on the canvas: a run a turn delegates appears as a branch node beside that turn, with the task as its question, the report the subagent sent back as its answer, and its own tool calls as its steps, while the main line carries on. Works for DeepSeek Harness subagents, foreground and background, and for subagents in other agents\' sessions; one launched by a question asked on the canvas shows up as soon as the turn ends, no reopening needed. HTML in an answer is now sanitized before it is shown, so embedded frames and scripts no longer run. DeepSeek Harness plugin: an agent turn on the canvas has no twenty-minute cap and ends when the harness says it has; summaries, titles and condensing no longer open an agent session of their own. Smaller fixes: deleting a node that is still generating stops the generation, and closed overview windows no longer do work in the background.',
+    },
+    items: [],
+  },
+  {
     version: '0.4.18',
     date: '2026-10-11',
     announce: false,
