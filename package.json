@@ -10,14 +10,15 @@
     "lint": "eslint .",
     "smoke": "node scripts/smoke.mjs",
     "test:layout": "node scripts/test-layout.mjs",
-    "test:agents": "node --test runtime/test/*.test.mjs dsh/test/*.test.mjs scripts/test-agent-route.mjs scripts/test-run-intent.mjs scripts/test-steps.mjs",
+    "test:agents": "node --test runtime/test/*.test.mjs dsh/test/*.test.mjs scripts/test-agent-route.mjs scripts/test-run-intent.mjs scripts/test-steps.mjs scripts/test-subagents.mjs",
     "preview": "vite preview",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "desktop": "npm run build && cd desktop && electron .",
     "cli:build": "esbuild cli/src/main.ts --bundle --alias:@=./src --platform=node --format=esm --target=node20 --define:import.meta.env={} --outfile=cli/dist/thoughtdag.mjs --log-level=warning",
-    "dsh:build": "node dsh/scripts/build.mjs ."
+    "dsh:build": "node dsh/scripts/build.mjs .",
+    "test:subagents": "node scripts/test-subagents.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.8",
@@ -54,6 +55,7 @@
     "rehype-highlight": "^7.0.2",
     "rehype-katex": "^7.0.1",
     "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "shadcn": "^4.21.0",

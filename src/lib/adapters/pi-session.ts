@@ -3,8 +3,8 @@ import { makeNode, type ImportableConversation } from '../import-chat';
 import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
 import {
-  turnsToBranch, seedPlaque, toolSteps, dropSelfCommandTurns, toolOpOf, clipText,
-  ARTIFACT_CALL_LIMIT, TOOL_CALL_LIMIT, TOOL_RESULT_LIMIT, type RunnerTool,
+  turnsToBranch, seedPlaque, toolSteps, dropSelfCommandTurns, toolOpOf, clipText, attachSubagentBranches,
+  ARTIFACT_CALL_LIMIT, TOOL_CALL_LIMIT, TOOL_RESULT_LIMIT, type RunnerTool, type SubagentRun,
 } from './shared';
 
 // Pi session importer — the continuity layer's READ direction for the Pi
@@ -43,6 +43,8 @@ interface PiEntry {
     toolCallId?: string;
     toolName?: string;
     timestamp?: number;
+    /** the tool's own structured result (the subagent tool: mode and per-agent results) */
+    details?: unknown;
   };
 }
 
@@ -91,12 +93,36 @@ interface PiTurn {
   parentItemId?: string;
   tools: RunnerTool[];
   at?: string;
+  subagents?: SubagentRun[];
+}
+
+/** The runs a `subagent` tool call delegated (Pi's example extension: one agent, a parallel set,
+ *  or a chain). The result's `details.results` carry each run whole — agent, task, its messages;
+ *  without details, the call's own arguments say who was asked what and the result text is the
+ *  answer (one run) or unknown per run (several). Each run's id is the call id plus its index. */
+const finalOutput = (messages: unknown): string => {
+  if (!Array.isArray(messages)) return '';
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i] as { role?: string; content?: PiBlock[] | string } | null;
+    if (m?.role === 'assistant') { const text = textOf(m.content).trim(); if (text) return text; }
+  }
+  return '';
+};
+function subagentRuns(args: unknown, content: PiBlock[] | string | undefined, details: unknown, callId: string): SubagentRun[] {
+  const d = details as { results?: { agent?: string; task?: string; messages?: unknown; stderr?: string }[] } | null | undefined;
+  if (Array.isArray(d?.results) && d.results.length) {
+    return d.results.map((r, i) => ({ agent: String(r.agent ?? 'agent'), task: String(r.task ?? ''), output: finalOutput(r.messages) || String(r.stderr ?? '').trim(), itemIds: [`${callId}#${i}`] }));
+  }
+  const a = (args && typeof args === 'object' ? args : {}) as { agent?: string; task?: string; tasks?: { agent?: string; task?: string }[]; chain?: { agent?: string; task?: string }[] };
+  const asked = Array.isArray(a.tasks) && a.tasks.length ? a.tasks : Array.isArray(a.chain) && a.chain.length ? a.chain : (a.agent || a.task) ? [{ agent: a.agent, task: a.task }] : [];
+  const text = textOf(content).trim();
+  return asked.map((x, i) => ({ agent: String(x.agent ?? 'agent'), task: String(x.task ?? ''), output: asked.length === 1 ? text : '', itemIds: [`${callId}#${i}`] }));
 }
 
 /** Streaming turn collector — one line in at a time. */
 export class PiSessionCollector {
   private turns: PiTurn[] = [];
-  private pending = new Map<string, { name: string; call: string; truncated: boolean; op: RunnerTool['op']; paths: string[]; locator?: RunnerTool['locator'] }>();
+  private pending = new Map<string, { name: string; call: string; truncated: boolean; op: RunnerTool['op']; paths: string[]; locator?: RunnerTool['locator']; args?: unknown }>();
   private current: PiTurn | null = null;
   private sessionId: string | null = null;
   private cwd: string | null = null;
@@ -155,7 +181,7 @@ export class PiSessionCollector {
         for (const b of m.content) {
           if (b?.type !== 'toolCall' || typeof b.id !== 'string' || typeof b.name !== 'string') continue;
           const r = renderCall(b.name, b.arguments);
-          this.pending.set(b.id, { name: b.name, call: r.text, truncated: r.truncated, op: toolOpOf(b.name), paths: r.paths, ...(r.locator ? { locator: r.locator } : {}) });
+          this.pending.set(b.id, { name: b.name, call: r.text, truncated: r.truncated, op: toolOpOf(b.name), paths: r.paths, ...(r.locator ? { locator: r.locator } : {}), ...(b.name === 'subagent' ? { args: b.arguments } : {}) });
         }
       }
       return;
@@ -173,6 +199,10 @@ export class PiSessionCollector {
         op: reg.op, nativeCallId: id,
         ...(reg.paths.length ? { paths: reg.paths } : {}), ...(reg.locator ? { locator: reg.locator } : {}),
       });
+      if (reg.name === 'subagent') {
+        const runs = subagentRuns(reg.args, m.content, m.details, id);
+        if (runs.length) cur.subagents = [...(cur.subagents ?? []), ...runs];
+      }
       this.pending.delete(id);
     }
   }
@@ -221,6 +251,7 @@ export function buildGraphFromTurns(turns: PiTurn[], sessionId: string, cwd?: st
     const parent = turn.parentItemId ? byItem.get(turn.parentItemId) : undefined;
     if (parent) link(parent, node);
     else if (prev) link(prev, node);
+    attachSubagentBranches(node, turn, nodes, edges, 'pi', sessionId, cwd);
     for (const id of turn.itemIds) byItem.set(id, node);
     prev = node;
   }

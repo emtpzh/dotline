@@ -25,6 +25,36 @@ export interface RunnerTool {
   locator?: { pages?: string; lines?: [number, number] };
 }
 
+/** One run a turn delegated to a subagent: who ran, what it was asked, what came back — and its
+ *  own tool calls when the child's transcript is on disk. Pi's subagent tool writes the whole thing
+ *  into the parent's tool result (the child keeps no session); Claude Code and Codex keep the child's
+ *  transcript in a file of its own, adopted by the parent (see `SubagentSession`). */
+export interface SubagentRun {
+  /** the agent's name in the runner's own words (Pi: the agent definition; Claude Code: subagent_type) */
+  agent: string;
+  task: string;
+  output: string;
+  tools?: RunnerTool[];
+  /** ids that survive a re-import: the call id (plus the child session's id once adopted) */
+  itemIds: string[];
+  at?: string;
+  /** the text the child's own transcript opens with, for pairing it with its file */
+  match?: string;
+  /** the child's session id, when the parent's log names it (DSH's subagent catalog) */
+  child?: string;
+}
+
+/** A subagent's transcript on disk, offered to its parent conversation before the parent builds. */
+export interface SubagentSession {
+  runner: 'claude-code' | 'codex' | 'dsh';
+  sessionId: string;
+  firstQuestion: string;
+  turns: RunnerTurn[];
+  cwd?: string;
+  /** when the child started (its first turn, or its header) */
+  at?: string;
+}
+
 export interface RunnerTurn {
   question: string;
   response: string;
@@ -32,6 +62,8 @@ export interface RunnerTurn {
   tools: RunnerTool[];
   /** ISO timestamp of the turn's opening message, when the runner wrote one */
   at?: string;
+  /** the runs this turn delegated, in call order */
+  subagents?: SubagentRun[];
 }
 
 // Tool names → what they DID. Deterministic, runner-neutral: the same
@@ -101,6 +133,73 @@ export function toolSteps(turn: RunnerTurn): AgentStep[] {
   }));
 }
 
+/** Pair a turn's delegated runs with the child transcripts on disk: a run that names its child's
+ *  session id, or whose `match` text opens a child session, takes that child's tool footprint (and
+ *  its answer, when the parent's result was empty); a child nobody asked for falls to the last turn
+ *  that started before it. */
+export function adoptSubagentSessions(turns: RunnerTurn[], subs: SubagentSession[]): void {
+  const used = new Set<SubagentSession>();
+  const settled = new Set<SubagentRun>();
+  const settle = (run: SubagentRun, sub: SubagentSession) => {
+    used.add(sub);
+    settled.add(run);
+    const tools = sub.turns.flatMap((t) => t.tools);
+    if (tools.length) run.tools = tools;
+    if (!run.output.trim()) run.output = sub.turns.map((t) => t.response).filter((r) => r.trim()).at(-1) ?? '';
+    if (!run.itemIds.includes(sub.sessionId)) run.itemIds.push(sub.sessionId);
+    if (!run.at && sub.at) run.at = sub.at;
+  };
+  const runs = turns.flatMap((t) => t.subagents ?? []);
+  for (const run of runs) {
+    if (!run.child) continue;
+    const sub = subs.find((x) => !used.has(x) && x.sessionId === run.child);
+    if (sub) settle(run, sub);
+  }
+  for (const run of runs) {
+    const key = run.match?.trim();
+    if (settled.has(run) || !key) continue;
+    const sub = subs.find((x) => !used.has(x) && x.firstQuestion.trim() === key);
+    if (sub) settle(run, sub);
+  }
+  for (const sub of subs) {
+    if (used.has(sub) || !sub.at) continue;
+    const before = turns.filter((t) => t.at && t.at <= sub.at!);
+    const turn = before.at(-1) ?? turns.at(-1);
+    if (!turn) continue;
+    const run: SubagentRun = { agent: sub.runner, task: sub.firstQuestion, output: '', itemIds: [sub.sessionId], at: sub.at };
+    settle(run, sub);
+    (turn.subagents ??= []).push(run);
+  }
+}
+
+/** The runs a turn delegated, as branch nodes off the turn's node: each child is a Q/A of its own
+ *  (the task, the agent's answer, its tool footprint), on a branch edge like the canvas's own fan-out,
+ *  so the layout keeps the next turn in the main column and puts the children beside. Children go
+ *  into `nodes` right after their parent, so a re-import counts them in the same order. */
+export function attachSubagentBranches(
+  parent: ThoughtNode,
+  turn: { itemIds: string[]; subagents?: SubagentRun[] },
+  nodes: ThoughtNode[],
+  edges: ThoughtEdge[],
+  runner: string,
+  sessionId: string,
+  cwd?: string,
+): ThoughtNode[] {
+  const kids: ThoughtNode[] = [];
+  for (const run of turn.subagents ?? []) {
+    const node = makeNode(`[${run.agent}] ${run.task}`.trim(), run.output, false);
+    node.data.isBranch = true;
+    node.data.importSource = { runner, sessionId, itemIds: run.itemIds, ...(cwd ? { cwd } : {}), subagent: { agent: run.agent, of: turn.itemIds[0] ?? '' } };
+    node.data.source = { question: node.data.question, response: node.data.response };
+    if (run.tools?.length) node.data.steps = toolSteps({ question: run.task, response: run.output, itemIds: run.itemIds, tools: run.tools });
+    seedPlaque(node);
+    nodes.push(node);
+    kids.push(node);
+    edges.push({ id: generateId(), source: parent.id, target: node.id, sourceHandle: 'branch', targetHandle: 'left', type: 'smoothstep', data: { isBranchFromSelection: true, branchYRatio: 0.5 } } as ThoughtEdge);
+  }
+  return kids;
+}
+
 /** The harvest half, runner-agnostic: a SHORT experiment session becomes a
  *  branch hanging off the node it was compiled from, laid out beside the
  *  anchor — the user's canvas arrangement is never touched. */
@@ -124,6 +223,7 @@ export function turnsToBranch(
     if (nodes.length === 0) node.data.isBranch = true; // the experiment forks off sideways
     nodes.push(node);
     edges.push({ id: generateId(), source: prev.id, target: node.id, type: 'smoothstep' } as ThoughtEdge);
+    attachSubagentBranches(node, turn, nodes, edges, runner, sessionId, cwd);
     prev = node;
   }
   const laid = autoLayout(nodes, edges.filter((e) => e.source !== anchorNode.id));

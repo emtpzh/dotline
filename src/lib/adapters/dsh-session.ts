@@ -4,8 +4,8 @@ import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
 import {
   turnsToBranch, seedPlaque, toolSteps, dropSelfCommandTurns, toolOpOf, clipText,
-  toolPaths, toolScope, renderCall as renderArgCall,
-  ARTIFACT_CALL_LIMIT, TOOL_CALL_LIMIT, TOOL_RESULT_LIMIT, type RunnerTool,
+  toolPaths, toolScope, renderCall as renderArgCall, attachSubagentBranches, adoptSubagentSessions,
+  ARTIFACT_CALL_LIMIT, TOOL_CALL_LIMIT, TOOL_RESULT_LIMIT, type RunnerTool, type SubagentRun, type SubagentSession,
 } from './shared';
 
 // DeepSeek Harness session importer — the continuity layer's READ
@@ -40,6 +40,14 @@ import {
 //     `why <file>` finds DSH turns at all. Shell, search and bookkeeping
 //     dispatches stay folded inside the root run_code attachment (its code
 //     already shows them). Unknown event types are noise to this projector.
+//   - A subagent call ({description, prompt}) delegates to a child session
+//     that lives beside the parent on disk (its header: origin "subagent",
+//     parentSession). The parent names the child: a foreground call's
+//     result is the child's answer; a background one returns "started
+//     subagent <id>", a subagent/catalog event pairs the id with the call's
+//     description, and the child's report arrives later as agent-message and
+//     subagent-settled notices keyed by senderSessionId. Each run becomes a
+//     branch off the turn that launched it (adapters/shared.ts).
 //   - The source session file is never written — read-only by contract.
 
 interface DshPart { type?: string; text?: string }
@@ -158,18 +166,30 @@ interface DshTurn {
   itemIds: string[];
   tools: RunnerTool[];
   at?: string;
+  subagents?: SubagentRun[];
+}
+
+/** The subagent tool's arguments (dsh-tool-subagent): a short label and the child's standalone prompt. */
+function spawnOf(args: unknown): { task: string; prompt: string } | undefined {
+  const a = (args && typeof args === 'object' ? args : {}) as { description?: unknown; prompt?: unknown };
+  return typeof a.prompt === 'string' && typeof a.description === 'string' ? { task: a.description, prompt: a.prompt } : undefined;
 }
 
 /** Streaming turn collector — one line in at a time (a DSH session can
  *  run tens of thousands of events; no path may hold it whole). */
 export class DshSessionCollector {
   private turns: DshTurn[] = [];
-  private pendingTools = new Map<string, { name: string; call: string; truncated: boolean; op: RunnerTool['op']; paths: string[]; url?: string; locator?: RunnerTool['locator'] }>();
+  private pendingTools = new Map<string, { name: string; call: string; truncated: boolean; op: RunnerTool['op']; paths: string[]; url?: string; locator?: RunnerTool['locator']; spawn?: { task: string; prompt: string } }>();
   private current: DshTurn | null = null;
   private sessionId: string | null = null;
   private cwd: string | null = null;
   private title: string | null = null;
   private firstQuestion: string | null = null;
+  private startedAt: string | null = null;
+  private delegated = false;
+  // background children: who each catalog entry is, and what each child sent back
+  private catalog: { childId: string; label: string }[] = [];
+  private reports = new Map<string, { relayed: string[]; closing?: string }>();
 
   feedLine(raw: string): void {
     const t = raw.trim();
@@ -196,6 +216,14 @@ export class DshSessionCollector {
     if (line.type === 'session' && line.id && !('timestamp' in line)) {
       if (!this.sessionId) this.sessionId = line.id;
       if (line.cwd && !this.cwd) this.cwd = line.cwd;
+      const h = line as { origin?: string; createdAt?: number };
+      if (h.origin === 'subagent') this.delegated = true;
+      if (typeof h.createdAt === 'number' && !this.startedAt) this.startedAt = new Date(h.createdAt).toISOString();
+      return;
+    }
+    if (line.type === 'subagent/catalog') {
+      const d = line.data as { childId?: unknown; label?: unknown } | undefined;
+      if (typeof d?.childId === 'string') this.catalog.push({ childId: d.childId, label: typeof d.label === 'string' ? d.label : '' });
       return;
     }
     if (line.type === 'session/title' && line.data?.title && !this.title) {
@@ -208,6 +236,23 @@ export class DshSessionCollector {
     if (line.type === 'user/message') {
       const um = line as unknown as DshUserMessage;
       const kind = um.data?.source?.kind;
+      // a background child's report: relayed messages, then the settled notice with its closing message
+      if (kind === 'agent-message' || kind === 'subagent-settled') {
+        const from = (um.data?.source as { senderSessionId?: unknown } | undefined)?.senderSessionId;
+        if (typeof from !== 'string') return;
+        const parts = (um.data?.content ?? []).filter((p) => p?.type === 'text').map((p) => p.text ?? '');
+        const r = this.reports.get(from) ?? { relayed: [] };
+        if (kind === 'agent-message') {
+          const text = parts.slice(1).join('\n').trim();
+          if (text) r.relayed.push(text);
+        } else {
+          const at = parts.findIndex((t) => t.trim() === 'Its closing message:');
+          const text = (at >= 0 ? parts.slice(at + 1) : parts.slice(1)).join('\n').trim();
+          if (text) r.closing = text;
+        }
+        this.reports.set(from, r);
+        return;
+      }
       if (kind && kind !== 'user') return;
       const text = partsText(um.data?.content).trim();
       if (!text) return;
@@ -236,7 +281,8 @@ export class DshSessionCollector {
       const args = parseArgs(tc.data.arguments);
       const call = renderRootCall(tc.data.name, tc.data.arguments ?? '', args);
       const scope = op === 'run' ? {} : toolScope(args);
-      this.pendingTools.set(tc.data.callId, { name: tc.data.name, call: call.text, truncated: call.truncated, op, paths: op === 'run' ? [] : toolPaths(args), ...scope });
+      const spawn = spawnOf(args);
+      this.pendingTools.set(tc.data.callId, { name: tc.data.name, call: call.text, truncated: call.truncated, op, paths: op === 'run' ? [] : toolPaths(args), ...scope, ...(spawn ? { spawn } : {}) });
       return;
     }
     if (line.type === 'tool/result') {
@@ -245,8 +291,19 @@ export class DshSessionCollector {
       if (!callId) return;
       const reg = this.pendingTools.get(callId);
       if (!reg) return;
-      const res = clipText(partsText(tr.data?.message?.content), TOOL_RESULT_LIMIT);
+      const full = partsText(tr.data?.message?.content);
+      const res = clipText(full, TOOL_RESULT_LIMIT);
       const t = this.ensure();
+      if (reg.spawn) {
+        // foreground: the result IS the child's answer; background: an id now, the report later
+        const started = /^started subagent (\S+)/.exec(full.trim());
+        const background = !!started || /^started background subagent job\b/.test(full.trim());
+        (t.subagents ??= []).push({
+          agent: reg.name, task: reg.spawn.task, output: background ? '' : full.trim(),
+          itemIds: [callId], match: reg.spawn.prompt,
+          ...(started ? { child: started[1] } : {}), ...(tr.time ? { at: new Date(tr.time).toISOString() } : {}),
+        });
+      }
       t.tools.push({
         name: reg.name, call: reg.call, result: res.text, truncated: reg.truncated || res.truncated,
         op: reg.op, nativeCallId: callId,
@@ -278,9 +335,29 @@ export class DshSessionCollector {
     // llm/retry, *-chunks… — scheduling or transport, not conversation.
   }
 
+  /** Background runs: a run the result did not name takes the catalog entry its description
+   *  labels, and a run still without an answer takes what its child sent back. */
+  private settleRuns(): void {
+    const runs = this.turns.flatMap((t) => t.subagents ?? []);
+    const claimed = new Set(runs.map((r) => r.child).filter(Boolean));
+    for (const run of runs) {
+      if (run.child) continue;
+      const entry = this.catalog.find((c) => !claimed.has(c.childId) && c.label === run.task);
+      if (entry) { run.child = entry.childId; claimed.add(entry.childId); }
+    }
+    for (const run of runs) {
+      const r = run.child ? this.reports.get(run.child) : undefined;
+      if (!r || run.output.trim()) continue;
+      const texts = [...r.relayed];
+      if (r.closing && r.closing !== texts.at(-1)) texts.push(r.closing);
+      run.output = texts.join('\n\n');
+    }
+  }
+
   finish(): { sessionId: string; title: string; turns: DshTurn[]; cwd?: string } | null {
     this.flush();
     if (!this.sessionId) return null;
+    this.settleRuns();
     const asked = this.firstQuestion ?? null;
     const title = this.title ?? asked ?? `session ${this.sessionId.replace(/^session-/, '').slice(0, 8)}`;
     return { sessionId: this.sessionId, title, turns: dropSelfCommandTurns(this.turns), ...(this.cwd ? { cwd: this.cwd } : {}) };
@@ -295,7 +372,18 @@ export class DshSessionCollector {
       source: 'dsh',
       sessionId: s.sessionId,
       build: () => buildGraphFromTurns(s.turns, s.sessionId, s.cwd),
+      adopt: (subs) => adoptSubagentSessions(s.turns, subs),
+      children: () => s.turns.flatMap((t) => (t.subagents ?? []).map((r) => r.child).filter((c): c is string => !!c)),
     };
+  }
+
+  /** This log as a delegated child's transcript (its header says origin "subagent"), for the parent to adopt. */
+  toSubagentSession(): SubagentSession | null {
+    const s = this.finish();
+    if (!s || s.turns.length === 0 || !this.delegated) return null;
+    const first = s.turns[0];
+    const at = first.at ?? this.startedAt ?? undefined;
+    return { runner: 'dsh', sessionId: s.sessionId, firstQuestion: first.question, turns: s.turns, ...(s.cwd ? { cwd: s.cwd } : {}), ...(at ? { at } : {}) };
   }
 }
 
@@ -321,6 +409,7 @@ export function buildGraphFromTurns(turns: DshTurn[], sessionId: string, cwd?: s
     seedPlaque(node);
     nodes.push(node);
     if (prev) edges.push({ id: generateId(), source: prev.id, target: node.id, type: 'smoothstep' } as ThoughtEdge);
+    attachSubagentBranches(node, turn, nodes, edges, 'dsh', sessionId, cwd);
     prev = node;
   }
 

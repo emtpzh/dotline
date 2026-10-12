@@ -22,11 +22,13 @@ export default function TimelineOverviewModal({ onLocate }: { onLocate: (nodeId:
   const dateLocale = useDateLocale();
   const lang = useI18n((s) => s.lang);
   // The modal never renders the recent-edit glow, so the clock is moot: 0.
-  const entries = useMemo(() => collectTimeline(nodes, 0), [nodes]);
+  // closed: skip the walk, which reruns on every nodes change (a session
+  // import streams hundreds of them), as the materials and highlights overviews do
+  const entries = useMemo(() => (open ? collectTimeline(nodes, 0) : []), [open, nodes]);
   // The journey paragraph: session-cached per (graph fingerprint, interface
   // language) — reopening is free until the map changes, and switching the
   // language toggle narrates in the other language.
-  const fp = useMemo(() => graphFingerprint(nodes), [nodes]);
+  const fp = useMemo(() => (open ? graphFingerprint(nodes) : ''), [open, nodes]);
   const [ged, setGed] = useState<Gedankengang | null>(null);
   const [gedLoading, setGedLoading] = useState(false);
   const [gedFailed, setGedFailed] = useState(false);

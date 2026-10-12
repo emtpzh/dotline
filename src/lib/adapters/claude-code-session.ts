@@ -4,7 +4,7 @@ import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
 import { toolScope, toolPaths, renderCall,
   turnsToBranch, seedPlaque, toolSteps, dropSelfCommandTurns, markImporterNote, toolOpOf, clipText,
-  TOOL_CALL_LIMIT, ARTIFACT_CALL_LIMIT, TOOL_RESULT_LIMIT, type RunnerTool,
+  TOOL_CALL_LIMIT, ARTIFACT_CALL_LIMIT, TOOL_RESULT_LIMIT, type RunnerTool, attachSubagentBranches, adoptSubagentSessions, type SubagentRun, type SubagentSession
 } from './shared';
 
 // Claude Code session importer — the continuity layer's READ direction for
@@ -84,6 +84,8 @@ interface Turn {
   tools: RunnerTool[];
   at?: string;
   compactionBefore?: string; // note text for a compaction boundary preceding this turn
+  /** the subagents this turn launched (Agent / Task tool calls), in call order */
+  subagents?: SubagentRun[];
 }
 
 function textParts(content: string | ContentPart[] | undefined): string {
@@ -109,7 +111,7 @@ const clip = clipText;
 export class ClaudeSessionCollector {
   private turns: Turn[] = [];
   // tool_use id → registration, so results pair up even across lines
-  private pendingTools = new Map<string, { name: string; call: string; paths: string[]; op: RunnerTool['op']; url?: string; locator?: RunnerTool['locator'] }>();
+  private pendingTools = new Map<string, { name: string; call: string; paths: string[]; op: RunnerTool['op']; url?: string; locator?: RunnerTool['locator']; spawn?: { agent: string; task: string; prompt: string } }>();
   private current: Turn | null = null;
   private pendingCompaction: string | undefined;
   private sessionId: string | null = null;
@@ -173,6 +175,10 @@ export class ClaudeSessionCollector {
                 ...(reg.paths.length ? { paths: reg.paths } : {}), op: reg.op, nativeCallId: p.tool_use_id,
                 ...(reg.url ? { url: reg.url } : {}), ...(reg.locator ? { locator: reg.locator } : {}),
               });
+              if (reg.spawn) {
+                const report = clip(resultText(p.content), ARTIFACT_CALL_LIMIT);
+                (this.current.subagents ??= []).push({ agent: reg.spawn.agent, task: reg.spawn.task, output: report.text, itemIds: [p.tool_use_id], match: reg.spawn.prompt, ...(line.timestamp ? { at: line.timestamp } : {}) });
+              }
               this.pendingTools.delete(p.tool_use_id);
             }
           }
@@ -213,7 +219,11 @@ export class ClaudeSessionCollector {
           if (p.type === 'tool_use' && p.id && p.name) {
             const op = toolOpOf(p.name);
             const call = clip(renderCall(p.name, p.input), op === 'write' || op === 'edit' ? ARTIFACT_CALL_LIMIT : TOOL_CALL_LIMIT);
-            this.pendingTools.set(p.id, { name: p.name, call: call.text, paths: toolPaths(p.input), op, ...toolScope(p.input) });
+            // an Agent (once Task) call launches a subagent: its type is the agent, its description the task,
+            // its prompt the text the child's own transcript opens with
+            const inp = (p.input && typeof p.input === 'object' ? p.input : {}) as { subagent_type?: string; description?: string; prompt?: string };
+            const spawn = op === 'agent' ? { agent: String(inp.subagent_type ?? 'agent'), task: String(inp.description ?? inp.prompt?.split('\n')[0] ?? ''), prompt: String(inp.prompt ?? '') } : undefined;
+            this.pendingTools.set(p.id, { name: p.name, call: call.text, paths: toolPaths(p.input), op, ...toolScope(p.input), ...(spawn ? { spawn } : {}) });
           }
         }
       }
@@ -240,7 +250,16 @@ export class ClaudeSessionCollector {
       source: 'claude-code',
       sessionId: s.sessionId,
       build: () => buildGraphFromTurns(s.turns, s.sessionId, s.cwd),
+      adopt: (subs) => adoptSubagentSessions(s.turns, subs),
     };
+  }
+
+  /** This file as a subagent's transcript (a sidechain file), for its parent to adopt. */
+  toSubagentSession(): SubagentSession | null {
+    const s = this.finish();
+    if (!s || s.turns.length === 0 || this.mode !== 'sidechain') return null;
+    const first = s.turns[0];
+    return { runner: 'claude-code', sessionId: s.sessionId, firstQuestion: this.firstQuestion ?? first.question, turns: s.turns, ...(s.cwd ? { cwd: s.cwd } : {}), ...(first.at ? { at: first.at } : {}) };
   }
 }
 
@@ -294,6 +313,7 @@ function buildGraphFromTurns(turns: Turn[], sessionId: string, cwd?: string): { 
     seedPlaque(node);
     node.data.steps = toolSteps(turn);
     nodes.push(node);
+    attachSubagentBranches(node, turn, nodes, edges, 'claude-code', sessionId, cwd);
     // the REAL parent first (Esc-rewind forks the session tree; the
     // wire must fork with it — a line to the abandoned turn would put
     // dead context into the compiler). Fall back to file order when the

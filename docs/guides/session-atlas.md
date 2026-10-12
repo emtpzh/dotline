@@ -44,7 +44,7 @@ From the welcome screen, choose **Agent conversations**. From a canvas, open **S
 
 Atlas lists only files whose runner format it can identify. It does not guess from filenames.
 
-**Sub-threads** are threads an agent spawned rather than conversations you held: Codex child threads and Claude Code subagent files. They are hidden by default; the toggle reveals them, and each opens as its own mirror.
+**Sub-threads** are threads an agent spawned rather than conversations you held: Codex child threads, Claude Code subagent files and DeepSeek Harness subagent sessions. They are hidden by default; the toggle reveals them, and each can still open as its own mirror. When you open the parent session, its subagents come along: each run becomes a branch node beside the turn that launched it (the task as the question, the agent's report as the answer, its own tool calls as its steps), and the next turn continues the main column. A Harness subagent started in the background answers once its report reaches the parent session; its card fills in then. Pi's subagent extension keeps no child files; its runs are read from the parent's tool result and branch the same way.
 
 ## Open a session as a graph mirror
 

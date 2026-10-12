@@ -229,6 +229,8 @@ function sessionToJsonl(session) {
   // is and how many leading events are inherited (a reader of the log tells
   // the child's own turns from the prefix by seq >= seedLength)
   if (header.parentSession !== undefined) hdr.parentSession = header.parentSession
+  // a delegated child says so, as on disk: the canvas hangs it off its parent's turn instead of listing it as a conversation
+  if (header.origin !== undefined) hdr.origin = header.origin
   if (typeof session.inheritedEventCount === 'number' && session.inheritedEventCount > 0) hdr.seedLength = session.inheritedEventCount
   lines.push(JSON.stringify(hdr))
   for (const event of allEvents(session)) {

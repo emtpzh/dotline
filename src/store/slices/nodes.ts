@@ -15,6 +15,19 @@ import { t, fmt } from '../../i18n';
 import type { StoreState, NodeSlice } from '../types';
 import { condenseGuard } from '../../lib/condense-guard';
 import { isFactNode, factless } from '../../lib/facts';
+import { activeAbortControllers } from '../streaming';
+
+// A node that goes while it is still generating takes its stream with it:
+// the Stop button goes with the card, so the only way to end the call is
+// here. The stream's own writes to a removed node are no-ops.
+const abortGenerations = (ids: Iterable<string>): void => {
+  for (const id of ids) {
+    const controller = activeAbortControllers.get(id);
+    if (!controller) continue;
+    controller.abort();
+    activeAbortControllers.delete(id);
+  }
+};
 
 export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set, get) => {
   /** Layout results glide into place (lib/layout-motion) through this. */
@@ -108,6 +121,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
     const { edges } = get();
     const descendants = getDescendantIds(nodeId, edges);
     const removeIds = new Set([nodeId, ...descendants]);
+    abortGenerations(removeIds);
     const wires = edges.filter((e) => removeIds.has(e.source) || removeIds.has(e.target)).map((e) => e.id);
     // the cards play their way out first (lib/leave-motion)
     leaveThen(removeIds, wires, () => {
@@ -540,6 +554,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
   batchDelete: (nodeIds: string[]) => {
     if (condenseGuard()) return;
     const removeSet = new Set(nodeIds);
+    abortGenerations(removeSet);
     const wires = get().edges.filter((e) => removeSet.has(e.source) || removeSet.has(e.target)).map((e) => e.id);
     // the cards play their way out first (lib/leave-motion)
     leaveThen(removeSet, wires, () => {

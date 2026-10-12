@@ -17,6 +17,13 @@ export interface ImportableConversation {
       canonical-canvas contract matches on. */
   sessionId?: string;
   build: () => { nodes: ThoughtNode[]; edges: ThoughtEdge[] };
+  /** Session adapters whose runner keeps subagent transcripts in files of
+      their own (Claude Code sidechains, Codex child rollouts) accept them
+      here before `build`: each becomes a branch off the turn that spawned it. */
+  adopt?: (subs: import('./adapters/shared').SubagentSession[]) => void;
+  /** The child sessions the parent's own log names (DSH's subagent catalog),
+      so their transcripts can be read by id before `adopt`. */
+  children?: () => string[];
 }
 
 // ─── format detection ───────────────────────────────────────────

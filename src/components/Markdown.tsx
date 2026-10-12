@@ -5,6 +5,9 @@ import remarkMath from 'remark-math';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
+import type { Schema } from 'hast-util-sanitize';
+import type { PluggableList } from 'unified';
 import { Check, Copy } from 'lucide-react';
 import rehypeMarks, { type MarkSpec } from '../lib/rehype-marks';
 import { useT } from '../i18n';
@@ -25,7 +28,27 @@ function normalizeMath(src: string): string {
       .replace(/\\\((.+?)\\\)/g, (_, m) => `$${m.trim()}$`)))
     .join('');
 }
-const REHYPE_PLUGINS = [rehypeRaw, rehypeHighlight, rehypeKatex];
+// Raw HTML in an answer is kept for what it is used for (details, sub/sup,
+// kbd, mark, tables, line breaks) and stripped of what can run or embed:
+// iframe, object, embed, script, style, link, meta, base, form. An answer is
+// untrusted text (a shared graph, an imported project, a model quoting a
+// page), and a srcdoc iframe runs with this origin's storage and bridges.
+// The sanitizer sits after rehype-raw and before highlight and KaTeX, so
+// their own markup (hljs spans, KaTeX styles) is never touched; highlights
+// and explore traces are marked after it (rehype-marks), so they need no
+// allow-list entry and a pasted <mark data-explore-target> cannot pose as one.
+const SANITIZE_SCHEMA: Schema = {
+  ...defaultSchema,
+  // footnote ids already carry mdast's own user-content- prefix; a second one would break their links
+  clobberPrefix: '',
+  tagNames: [...(defaultSchema.tagNames ?? []), 'mark'],
+  attributes: {
+    ...defaultSchema.attributes,
+    // remark-math marks its code as language-math plus math-inline / math-display; KaTeX reads all three
+    code: [['className', /^language-./, 'math-inline', 'math-display']],
+  },
+};
+const REHYPE_PLUGINS: PluggableList = [rehypeRaw, [rehypeSanitize, SANITIZE_SCHEMA], rehypeHighlight, rehypeKatex];
 
 // Code blocks get a hover copy button (no toast: too frequent an action —
 // the icon flashes a check instead).
@@ -127,7 +150,7 @@ const COMPONENTS = { pre: Pre, table: Table, a: Anchor, img: Img };
 // streamed chunk anywhere re-renders every card). Same string → skip.
 export const Markdown = memo(function Markdown({ children, base, marks }: { children: string; base?: string; marks?: MarkSpec[] }) {
   const rehypePlugins = useMemo(
-    () => (marks?.length ? [...REHYPE_PLUGINS, [rehypeMarks, marks] as [typeof rehypeMarks, MarkSpec[]]] : REHYPE_PLUGINS),
+    (): PluggableList => (marks?.length ? [...REHYPE_PLUGINS, [rehypeMarks, marks] as [typeof rehypeMarks, MarkSpec[]]] : REHYPE_PLUGINS),
     [marks],
   );
   return (

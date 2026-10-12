@@ -308,12 +308,18 @@ async function appendPastLedger(
   // message), which never changes as the answer grows.
   const lastImported = hit.entry.importedCount > 0 && qa.length >= hit.entry.importedCount
     ? qa[hit.entry.importedCount - 1] : null;
-  if (lastImported) {
-    const key = lastImported.data.importSource?.itemIds?.[0];
+  // A delegated child lands as soon as it starts; a background one's report
+  // reaches the parent's log later, often after the turn that launched it.
+  // Imported children get the same refresh as the last turn.
+  const imported = qa.slice(0, Math.min(hit.entry.importedCount, qa.length));
+  const refreshable = [...imported.filter((n) => n.data.importSource?.subagent && n !== lastImported), ...(lastImported ? [lastImported] : [])];
+  let refreshed = false;
+  for (const fresh of refreshable) {
+    const key = fresh.data.importSource?.itemIds?.[0];
     const node = key ? survivors.find((n) => n.data.importSource?.itemIds?.[0] === key) : undefined;
     const src = node?.data.source;
     const pristine = !!src && node.data.question === src.question && (node.data.response ?? '') === (src.response ?? '');
-    const fd = lastImported.data;
+    const fd = fresh.data;
     const textChanged = !!node && (fd.question !== node.data.question || (fd.response ?? '') !== (node.data.response ?? ''));
     // Arrivals land on a finished turn too: a subagent's report (task
     // notification) reaches the file minutes after the answer that
@@ -324,7 +330,10 @@ async function appendPastLedger(
     const oldAtts = node?.data.attachments ?? [];
     const newAtts = fd.attachments ?? [];
     const attachmentsGrew = !!node && newAtts.length > oldAtts.length && oldAtts.every((a, i) => newAtts[i]?.name === a.name);
-    const changed = textChanged || attachmentsGrew;
+    // a child's steps come with its transcript, which may be read only after the node landed
+    // (a turn's own steps are left to whoever wrote them: an agent run adds its file footprint)
+    const stepsGrew = !!node && !!fd.importSource?.subagent && (fd.steps?.length ?? 0) > (node.data.steps?.length ?? 0);
+    const changed = textChanged || attachmentsGrew || stepsGrew;
     if (node && pristine && changed) {
       const attachments = textChanged ? fd.attachments : [...oldAtts, ...newAtts.slice(oldAtts.length)];
       useStore.setState((s) => ({
@@ -335,13 +344,15 @@ async function appendPastLedger(
             question: fd.question, response: fd.response,
             responses: fd.responses, responseIndex: fd.responseIndex,
             tokenCount: fd.tokenCount, attachments,
+            ...(stepsGrew ? { steps: fd.steps } : {}),
             importSource: fd.importSource, source: fd.source,
           },
         } : n)),
       }));
-      useStore.getState().recomputeStaleness();
+      refreshed = true;
     }
   }
+  if (refreshed) useStore.getState().recomputeStaleness();
 
   if (qa.length <= hit.entry.importedCount) {
     // Opening an up-to-date session lands on its tail. The watcher reaches
