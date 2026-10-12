@@ -113,7 +113,7 @@ The plugin bundles the `thoughtdag` CLI's library (`lib/why.mjs`, built at pack 
 | `/why <path \| url \| arxiv:id>` | a person asks from the chat; the answer is the CLI's `why` output, no model message |
 | System-prompt section | four lines telling the model to `why_check` before editing a file with history and how to read the other three |
 
-Both are on by default; `whyTools: false` / `whyPrompt: false` in the plugin config turn them off.
+Both are off by default; `whyTools: true` / `whyPrompt: true` in the plugin config turn them on (the prompt section needs the tools).
 
 ## Not yet (roadmap)
 

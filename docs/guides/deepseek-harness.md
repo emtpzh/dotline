@@ -84,7 +84,7 @@ The repository's main branch includes the following native tools and `/why` comm
 
 Native tools share the CLI's `~/.thoughtdag` index. Relative paths resolve against the current Harness session's working directory. `why_find` is not semantic search, and candidate explanations are not verified causes.
 
-The main-branch implementation enables native tools and a check-history-before-editing prompt by default. Plugin configuration `whyPrompt: false` disables the prompt; `whyTools: false` disables the tools, `/why`, and their prompt. See the [Why manual](./why-layer) for output markers.
+The native tools, `/why` and a check-history-before-editing prompt are off by default. Plugin configuration `whyTools: true` enables the tools and `/why`; `whyPrompt: true` adds the prompt (it needs the tools). See the [Why manual](./why-layer) for output markers.
 
 ## Troubleshooting
 

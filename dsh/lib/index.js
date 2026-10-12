@@ -1035,8 +1035,8 @@ const WHY_PROMPT = `Dotline why layer. The tools why_check, why_file, why_find a
 Cite what you learn briefly; do not restate whole turns.`
 
 async function installWhyLayer(ctx, config) {
-  const wantTools = config?.whyTools !== false
-  const wantPrompt = config?.whyPrompt !== false
+  const wantTools = config?.whyTools === true
+  const wantPrompt = config?.whyPrompt === true
   if (!wantTools && !wantPrompt) return
   let why
   try {
