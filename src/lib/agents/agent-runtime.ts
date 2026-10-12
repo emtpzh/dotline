@@ -493,12 +493,15 @@ async function turnInFile(loc: { rootKey: string; rel: string }, question: strin
   if (!conv?.sessionId) return 'no conversation recognized';
   const qa = conv.build().nodes.filter((n) => n.data.importSource);
   const q = question.trim();
+  // a subagent the turn launched sits after it in the record: it is never the
+  // turn asked, and counting it imported would keep it off the canvas
+  const turns = qa.map((n, i) => ({ n, i })).filter(({ n }) => !n.data.importSource?.subagent);
   let idx = -1;
-  for (let i = qa.length - 1; i >= 0; i--) {
-    const qq = qa[i].data.question.trim();
-    if (qq === q || qq.endsWith(q) || q.endsWith(qq)) { idx = i; break; }
+  for (let j = turns.length - 1; j >= 0; j--) {
+    const qq = turns[j].n.data.question.trim();
+    if (qq === q || qq.endsWith(q) || q.endsWith(qq)) { idx = turns[j].i; break; }
   }
-  if (idx < 0) idx = qa.length - 1;
+  if (idx < 0) idx = turns.at(-1)?.i ?? -1;
   if (idx < 0) return 'no turn in file yet';
   return { sessionId: conv.sessionId, idx, turn: qa[idx] };
 }
@@ -559,6 +562,9 @@ export async function adoptAgentTurn(nodeId: string, session: AgentSessionRef, q
     } else {
       await registerLedgerEntry(activeId!, 'chapter', entry);
     }
+    // the ledger stops at this turn; what the turn launched beside itself
+    // (subagent runs) is already in the file, which may not change again
+    void import('../atlas/live-mirror').then((m) => m.remirrorSession(loc)).catch(() => {});
     return true;
   } catch (e) {
     return why('threw: ' + (e instanceof Error ? e.message : String(e)));

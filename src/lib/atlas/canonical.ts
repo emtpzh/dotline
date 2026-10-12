@@ -8,6 +8,7 @@ import {
 import { useUiStore, toast } from '../ui-store';
 import { t, fmt } from '../../i18n';
 import { generateId } from '../../utils';
+import { placeNewNodes } from '../layout';
 import { runtimeOf } from '../agents/agent-runtime';
 import type { ThoughtNode, ThoughtEdge } from '../../types';
 
@@ -109,7 +110,8 @@ export async function importOrAppendConversation(
 
   const built = conv.build();
   const qa = built.nodes.filter((n) => n.data.importSource);
-  const tailQaId = qa.at(-1)?.id ?? built.nodes.at(-1)?.id ?? '';
+  // the tail is the line's last turn: a subagent branch beside it never is
+  const tailQaId = qa.filter((n) => !n.data.importSource?.subagent).at(-1)?.id ?? qa.at(-1)?.id ?? built.nodes.at(-1)?.id ?? '';
   if (built.nodes.length === 0) return null;
 
   // ── 1. subscribed somewhere? open + idempotent append ──
@@ -379,6 +381,12 @@ async function appendPastLedger(
     const k = n.data.importSource?.itemIds?.[0];
     if (k) canvasByFirstId.set(k, n.id);
   }
+  // A turn the canvas is running was claimed before the file named its
+  // items (claimAgentTurn): the ledger's tail node stands for the last
+  // imported turn, so what that turn launches meanwhile still finds it.
+  const tailTurnKey = qa.slice(0, hit.entry.importedCount).filter((n) => !n.data.importSource?.subagent).at(-1)?.data.importSource?.itemIds?.[0];
+  const tailOnCanvas = store.nodes.find((n) => n.id === hit.entry.tailNodeId);
+  if (tailTurnKey && tailOnCanvas && !canvasByFirstId.has(tailTurnKey) && !tailOnCanvas.data.importSource?.itemIds?.length) canvasByFirstId.set(tailTurnKey, tailOnCanvas.id);
   const builtFirstId = new Map<string, string>();
   for (const n of built.nodes) {
     const k = n.data.importSource?.itemIds?.[0];
@@ -435,9 +443,17 @@ async function appendPastLedger(
 
   store.pushHistory();
   useStore.setState((s) => ({ nodes: [...s.nodes, ...moved], edges: [...s.edges, ...extraEdges] }));
-  await patchLedgerEntry(hit.project.id, conv.sessionId!, { importedCount: qa.length, tailNodeId: tailQaId });
+  // placeSegment stacks the appendix under the anchor, the right place for a
+  // turn but not for a subagent that found its turn on the canvas: that one
+  // is seated by the arrow grammar, beside its parent like any branch
+  const kids = moved.filter((n) => n.data.importSource?.subagent && crossTargets.has(n.id)).map((n) => n.id);
+  if (kids.length) useStore.setState((s) => ({ nodes: placeNewNodes(s.nodes, s.edges, kids) }));
+  // the tail stays on the line: an appendix of subagent branches alone leaves it where it was
+  const lineTail = moved.filter((n) => n.data.importSource?.itemIds?.length && !n.data.importSource.subagent).at(-1)?.id ?? hit.entry.tailNodeId ?? tailQaId;
+  await patchLedgerEntry(hit.project.id, conv.sessionId!, { importedCount: qa.length, tailNodeId: lineTail });
   useUiStore.getState().setArrivalFocusNodeId(moved[anchor ? 0 : 1].id);
-  return { kind: 'appended', turns: qa.length - hit.entry.importedCount };
+  // turns as a person counts them: a subagent branch is not one
+  return { kind: 'appended', turns: qa.slice(hit.entry.importedCount).filter((n) => !n.data.importSource?.subagent).length };
 }
 
 /** The agent entry a session's canvas line runs on: the first of these

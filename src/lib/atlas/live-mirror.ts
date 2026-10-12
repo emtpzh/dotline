@@ -21,6 +21,15 @@ export function pickSessionFile<T extends { rel: string }>(files: T[], sid: stri
 
 let started = false;
 let sweep: (() => Promise<void>) | null = null;
+let mirrorFile: ((ev: { rootKey: string; rel: string }) => Promise<void>) | null = null;
+
+/** Run one session file through the live pipeline now, without waiting for
+ *  it to change: an agent turn adopted after its run may already hold what
+ *  the turn produced beside itself (subagent runs), and a file that has gone
+ *  quiet sends no further change to bring them in. */
+export function remirrorSession(ev: { rootKey: string; rel: string }): void {
+  void mirrorFile?.(ev);
+}
 
 /** Sweep the freshest session files through the idempotent pipeline —
  *  the offline/inactive gap closer. Called at startup and on every
@@ -84,7 +93,7 @@ export function startLiveMirror(): void {
       const { importOrAppendConversation, shellSessionReader } = await import('./canonical');
       const conv = await withSubagents(await streamRunnerConversation(shellSessionReader(ev.rootKey, ev.rel)).catch(() => null), ev.rootKey, ev.rel);
       const result = await importOrAppendConversation(conv, { background: true });
-      if (result?.kind === 'appended') {
+      if (result?.kind === 'appended' && result.turns > 0) {
         toast('success', fmt(t('atlas.liveAppended'), { n: result.turns }), 8000);
       } else if (result?.kind === 'mounted') {
         toast('success', fmt(t(result.mode === 'continue' ? 'atlas.mountedChapter' : 'atlas.mountedBranch'), { n: result.turns }), 9000);
@@ -94,6 +103,8 @@ export function startLiveMirror(): void {
       if (dirty) { const next = dirty; dirty = null; void handle(next); }
     }
   };
+
+  mirrorFile = handle;
 
   // agent turns that ran on while no page was there to finish them read
   // their answers back from the same files
