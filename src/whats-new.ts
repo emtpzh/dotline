@@ -33,6 +33,16 @@ const DOCS = DOCS_URL;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.4.20',
+    date: '2026-10-12',
+    announce: false,
+    lead: {
+      zh: '同一个 agent 会话在两处续写时，画布按会话真实的分叉来画：比如画布从命令行接着问了几轮，你又在原来的应用里接着回复，那一轮会作为分支长在它真正接着的那一轮旁边，不再接到画布那条链的末尾。DeepSeek Harness 插件：why 查询工具和对应的系统提示默认关闭，需要时在插件配置里打开，模型不会再在无关任务里频繁去查。',
+      en: 'When one agent session is continued in two places, the canvas draws the fork where the session actually forks: if the canvas went on from the command line for a few turns and you then replied in the original app, that reply grows as a branch beside the turn it really follows, instead of landing at the end of the canvas\'s line. DeepSeek Harness plugin: the why tools and their system-prompt section are off by default; turn them on in the plugin config when you want them, and the model no longer reaches for them on unrelated tasks.',
+    },
+    items: [],
+  },
+  {
     version: '0.4.19',
     date: '2026-10-12',
     announce: false,
