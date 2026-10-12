@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Crosshair, ExternalLink, FileText, Highlighter, Link2, Loader2, Pencil, RefreshCw, ScanText, Send, Sparkles, StickyNote, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Crosshair, ExternalLink, FileText, Highlighter, Link2, Loader2, Pencil, RefreshCw, ScanText, Sparkles, StickyNote, X, ZoomIn, ZoomOut } from 'lucide-react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { Attachment, ThoughtNode } from '../types';
 import { useStore } from '../store';
@@ -7,7 +7,7 @@ import { useUiStore, toast } from '../lib/ui-store';
 import { useModels } from '../lib/use-models';
 import { generateDigest, recognizePdfPages, spawnContentNode, extractImage } from '../lib/content';
 import { Markdown, HighlightedMarkdown } from './Markdown';
-import { countTokens, generateId, isImeComposing } from '../utils';
+import { countTokens, generateId } from '../utils';
 import { useT, fmt } from '../i18n';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import { isViewerMode } from '../lib/viewer';
@@ -15,7 +15,7 @@ import { loadAttachmentContent } from '../lib/attachment-vault';
 import { HtmlMaterialView } from './HtmlMaterialView';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
-import { Input } from './ui/input';
+import Composer from './app/composer/Composer';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 
 // MaterialReader: the reading overlay — a VIEW onto a material node, never a
@@ -224,7 +224,6 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
   // ── selection → ask bar ──
   const bodyRef = useRef<HTMLDivElement>(null);
   const [ask, setAsk] = useState<{ text: string; page: number | null; x: number; y: number; targetNodeId?: string; rects?: [number, number, number, number][] } | null>(null);
-  const [draft, setDraft] = useState('');
 
   const handleMouseUp = () => {
     if (isViewerMode) return;
@@ -269,13 +268,10 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
     if (useUiStore.getState().readerJump) useUiStore.setState({ readerJump: null });
   }, []);
 
-  const submitAsk = () => {
-    const q = draft.trim();
-    if (!q || !ask) return;
-    // p.N provenance rides inside the quoted passage (document selections only)
-    const passage = ask.targetNodeId ? ask.text : (ask.page != null ? `(p.${ask.page}) ${ask.text}` : ask.text);
-    useStore.getState().addQuestion(q, { parentId: ask.targetNodeId ?? node.id, branchContext: passage });
-    const freshId = useStore.getState().selectedNodeId;
+  // p.N provenance rides inside the quoted passage (document selections only)
+  const askPassage = ask ? (ask.targetNodeId ? ask.text : (ask.page != null ? `(p.${ask.page}) ${ask.text}` : ask.text)) : '';
+  const onAsked = (freshId: string | null) => {
+    if (!ask) return;
     // document selections remember the page they came from (both views);
     // original-view ones additionally leave a mark on that page
     if (!ask.targetNodeId && ask.page != null && freshId) {
@@ -285,7 +281,6 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
       }));
     }
     setThreadId(freshId); // the freshly landed node
-    setDraft('');
     setAsk(null);
     window.getSelection()?.removeAllRanges();
   };
@@ -469,17 +464,6 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
     }, 0);
   };
 
-  // whole-material question: no passage, the full text flows along the wire.
-  // Selection is the hero gesture; this keeps "the whole thing" one step away.
-  const [wholeDraft, setWholeDraft] = useState('');
-  const submitWhole = () => {
-    const q = wholeDraft.trim();
-    if (!q) return;
-    useStore.getState().addQuestion(q, { parentId: node.id });
-    setThreadId(useStore.getState().selectedNodeId);
-    setWholeDraft('');
-  };
-
   // ── recognize (per-page vision rewrite) ──
   const hasVisionModel = (useModels()?.models ?? []).some((m) => m.vision);
   const [recog, setRecog] = useState<'idle' | 'confirm' | 'running'>('idle');
@@ -578,15 +562,6 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
     if (threadId && thread.length === 0) setThreadId(null);
   }, [threadId, thread.length]);
 
-  const [followDraft, setFollowDraft] = useState('');
-  const submitFollow = () => {
-    const q = followDraft.trim();
-    const last = thread[thread.length - 1];
-    if (!q || !last) return;
-    useStore.getState().addQuestion(q, { parentId: last.id });
-    setFollowDraft('');
-  };
-
   // stream follows the reading eye: keep the rail pinned to the newest text
   const railRef = useRef<HTMLDivElement>(null);
   const lastTurn = thread[thread.length - 1];
@@ -669,7 +644,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
   const linkDomain = kind === 'link' ? (() => { try { return new URL(data.linkUrl ?? '').hostname; } catch { return data.linkUrl ?? ''; } })() : '';
   const editableImages = !pdfAtt && imageAtts.length > 0;
 
-  const askLeft = ask ? Math.max(180, Math.min(ask.x, window.innerWidth - 200)) : 0;
+  const askLeft = ask ? Math.max(190, Math.min(ask.x, window.innerWidth - 210)) : 0;
   const askTop = ask ? Math.min(ask.y + 10, window.innerHeight - 150) : 0;
 
   return (
@@ -996,50 +971,39 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                 </div>
               ))}
             </div>
-            <div className="border-t border-border px-3 py-2.5 shrink-0 flex items-end gap-1.5">
-              <Textarea
-                value={followDraft}
-                onChange={(e) => setFollowDraft(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) { e.preventDefault(); submitFollow(); } }}
-                placeholder={t('common.followUp')}
-                rows={1}
-                className="flex-1 resize-none"
-                style={{ minHeight: 32, maxHeight: 120 }}
-                onInput={(e) => {
-                  const ta = e.currentTarget;
-                  ta.style.height = 'auto';
-                  ta.style.height = `${Math.min(120, ta.scrollHeight)}px`;
-                }}
-              />
-              <Button size="icon"
-                onClick={submitFollow}
-                disabled={!followDraft.trim()}
-                className="shrink-0"
-              >
-                <Send strokeWidth={1.75} />
-              </Button>
-            </div>
+            {/* the reader's one ask box, while a thread is open: it asks on
+                at the thread's end (close the thread to ask the whole material) */}
+            {!isViewerMode && lastTurn && (
+              <div className="border-t border-border px-3 py-2.5 shrink-0">
+                <Composer
+                  target={{ kind: 'child', parentId: lastTurn.id }}
+                  density="compact"
+                  placeholder={t('common.followUp')}
+                  autoFocus={false}
+                  blocked={lastTurn.data.isLoading}
+                />
+              </div>
+            )}
           </div>
         )}
         </div>
 
         {/* footer: ask about the whole material + the questions grown from it */}
         <div className="border-t border-border bg-card px-5 py-2.5 shrink-0 flex items-center gap-2.5">
-          <Input
-            value={wholeDraft}
-            onChange={(e) => setWholeDraft(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !isImeComposing(e)) { e.preventDefault(); submitWhole(); } }}
-            placeholder={t('reader.askWhole')}
-            className="flex-1 min-w-[200px]"
-            data-reader-wholeask
-          />
-          <Button size="icon"
-            onClick={submitWhole}
-            disabled={!wholeDraft.trim()}
-            className="shrink-0"
-          >
-            <Send strokeWidth={1.75} />
-          </Button>
+          {/* the reader's one ask box, with no thread open: the whole material
+              (the full text flows along the wire; selection is the hero
+              gesture, this keeps "the whole thing" one step away) */}
+          {!isViewerMode && !(threadId && thread.length > 0) && (
+            <Composer
+              target={{ kind: 'child', parentId: node.id }}
+              density="compact"
+              placeholder={t('reader.askWhole')}
+              autoFocus={false}
+              onSent={(id) => setThreadId(id)}
+              className="flex-1 min-w-[240px]"
+              boxClassName="py-1.5"
+            />
+          )}
           {grownChildren.length > 0 && (
             <div className="flex flex-wrap items-center content-start gap-1.5 max-w-[45%] shrink-0 max-h-[3.75rem] overflow-y-auto" data-grown-chips>
               <span className="text-2xs text-muted-foreground shrink-0">{fmt(t('reader.grown'), { n: grownChildren.length })}</span>
@@ -1079,35 +1043,24 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
         // every character the reader drags over; this bar is placed once,
         // and its layer lives in styles/base.css
         <div
-          className="tdag-ask-bar bg-card border border-border rounded-xl shadow-xl p-2.5 w-[360px] animate-fade-in"
-          style={{ left: askLeft - 180, top: askTop }}
+          className="tdag-ask-bar bg-card border border-border rounded-xl shadow-xl p-2.5 w-[380px] animate-fade-in"
+          style={{ left: askLeft - 190, top: askTop }}
+          onKeyDown={(e) => { if (e.key === 'Escape') setAsk(null); }}
           data-reader-askbar
         >
-          <div className="text-2xs text-muted-foreground leading-snug mb-1.5 line-clamp-2 border-l-2 border-edge-explore pl-2">
-            “{ask.text.slice(0, 120)}{ask.text.length > 120 ? '…' : ''}”
-            {ask.page != null && <span className="font-mono"> · p.{ask.page}</span>}
-          </div>
-          <div className="flex items-end gap-1.5">
-            <Textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) { e.preventDefault(); submitAsk(); }
-                if (e.key === 'Escape') setAsk(null);
-              }}
-              placeholder={t('reader.askPlaceholder')}
-              rows={1}
-              autoFocus
-              className="flex-1 resize-none"
-              style={{ minHeight: 32, maxHeight: 120 }}
-              onInput={(e) => {
-                const ta = e.currentTarget;
-                ta.style.height = 'auto';
-                ta.style.height = `${Math.min(120, ta.scrollHeight)}px`;
-              }}
-            />
+          <Composer
+            target={{ kind: 'child', parentId: ask.targetNodeId ?? node.id }}
+            density="compact"
+            placeholder={t('reader.askPlaceholder')}
+            passage={askPassage}
+            draftKey={`reader:${node.id}`}
+            focusKey={ask.text}
+            onSent={onAsked}
+          />
+          {/* the selection's other ways: keep it, clip it */}
+          <div className="mt-1.5 flex items-center justify-end gap-1">
             {ask.targetNodeId && (
-              <Button variant="ghost" size="icon"
+              <Button variant="ghost" size="icon-sm"
                 onClick={highlightSelection}
                 title={t('common.highlight')}
                 className="bg-muted text-muted-foreground hover:text-primary hover:bg-primary/10 shrink-0"
@@ -1116,7 +1069,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
               </Button>
             )}
             {!ask.targetNodeId && (
-              <Button variant="ghost" size="icon"
+              <Button variant="ghost" size="icon-sm"
                 onClick={() => {
                   useStore.getState().addHighlight(node.id, { id: generateId(), text: ask.text });
                   toast('success', t('reader.textHighlighted'));
@@ -1131,7 +1084,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
               </Button>
             )}
             {!ask.targetNodeId && (
-              <Button variant="ghost" size="icon"
+              <Button variant="ghost" size="icon-sm"
                 onClick={saveSelectionAsNote}
                 title={t('reader.saveAsNote')}
                 data-reader-clip-note
@@ -1140,13 +1093,6 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                 <StickyNote strokeWidth={1.75} />
               </Button>
             )}
-            <Button size="icon"
-              onClick={submitAsk}
-              disabled={!draft.trim()}
-              className="shrink-0"
-            >
-              <Send strokeWidth={1.75} />
-            </Button>
           </div>
         </div>
       )}

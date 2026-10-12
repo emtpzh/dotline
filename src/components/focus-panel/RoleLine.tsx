@@ -7,6 +7,7 @@ import { roleLabel, shortName } from '../../lib/node-face';
 import RoleEditor from '../app/RoleEditor';
 import type { ThoughtData, ThoughtNode } from '../../types';
 import { Button } from '../ui/button';
+import { awaitingInput } from '../../utils';
 
 // The panel's summary kicker: role · materials, in one quiet line
 // at the top. One role model: a rolePrompt on a node is the system prompt
@@ -70,6 +71,13 @@ export default function RoleLine({
           </>
         ) : null}
         </>)}
+        {/* Nothing else to say up here: say what the card is doing */}
+        {!editing && !own && !inheritedFrom && attachCount === 0 && (awaitingInput(data) || data.isLoading) && (
+          <span className="flex items-center gap-1.5 px-1" data-panel-state>
+            <span className={`size-1.5 rounded-full ${data.isLoading ? 'bg-primary animate-pulse' : 'border border-primary'}`} aria-hidden />
+            {t(data.isLoading ? 'face.running' : 'face.awaiting')}
+          </span>
+        )}
         {attachCount > 0 && (
           <>
             {(own || inheritedFrom) && <span className="shrink-0">·</span>}

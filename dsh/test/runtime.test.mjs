@@ -13,8 +13,9 @@ const { createDshRuntime, installApprovalAnswerer, sessionIdOfPath, sessionLogNa
 
 /** A harness with just what the runtime touches. `turn(id)` scripts what an
  *  agent does after a prompt; sessions can be seeded with events; `version`
- *  is the session format its sessions are written in. */
-function fakeHarness({ turn, version = 3 } = {}) {
+ *  is the session format its sessions are written in; `presets` is the
+ *  agent-preset roster (absent = a harness that composes none). */
+function fakeHarness({ turn, version = 3, presets } = {}) {
   const handlers = new Map()
   const sessions = new Map()
   const agents = new Map()
@@ -46,12 +47,18 @@ function fakeHarness({ turn, version = 3 } = {}) {
       handlers.get(name).push(fn)
       return () => handlers.set(name, handlers.get(name).filter(f => f !== fn))
     },
+    get: (name) => (name === 'agentPresets' && presets ? { remoteExportList: async () => ({ presets, authorable: true }) } : undefined),
     sessions: { get: (id) => sessions.get(id) },
     agents: { get: (id) => agents.get(id) },
     llm: { listModels: async () => [{ id: 'v4', inputModalities: ['text', 'image'] }] },
     sessionController: {
       modelCatalog: async () => ({ groups: [{ id: 'ds', name: 'DS', models: [{ id: 'v4', name: 'V4' }, { id: 'lite', name: 'Lite' }] }], default: { provider: 'ds', model: 'v4' } }),
-      create: async ({ cwd } = {}) => { const id = addSession(`session-${++n}`, cwd ?? '/home'); log.created.push({ id, cwd: cwd ?? null }); return { sessionId: id } },
+      create: async ({ cwd, agentPreset } = {}) => {
+        const id = addSession(`session-${++n}`, cwd ?? '/home')
+        log.created.push({ id, cwd: cwd ?? null, ...(agentPreset ? { agentPreset } : {}) })
+        const resolved = presets ? (agentPreset ?? presets.find(p => p.isDefault)?.id) : undefined
+        return { sessionId: id, ...(resolved ? { agentPreset: resolved } : {}) }
+      },
       // a harness whose cut runs to the next turn's start hands the child
       // what the parent had queued for that turn — the sibling's question
       fork: async ({ sessionId, atSeq }) => { const id = addSession(`session-${++n}`, sessions.get(sessionId).header.meta.cwd, [], pendingOf(sessionId)); log.forks.push({ from: sessionId, atSeq, id }); return { sessionId: id } },
@@ -125,6 +132,48 @@ test('a fresh run opens a session in the chosen folder, the context injected ahe
   assert.deepEqual(events.find(e => e.type === 'tool_execution_start'), { type: 'tool_execution_start', toolCallId: 'c1', toolName: 'read', args: { path: '/w/a.txt' } })
   assert.deepEqual(events.find(e => e.type === 'tool_execution_end'), { type: 'tool_execution_end', toolCallId: 'c1', toolName: 'read', isError: false })
   assert.deepEqual(events.at(-1), { type: 'run_end', text: 'Hello', how: 'end' })
+})
+
+const roster = [
+  { id: 'standard', trust: 'system', isDefault: true, name: 'Standard', description: 'Everyday tools' },
+  { id: 'minimal', trust: 'system', isDefault: false },
+  { id: 'mine', trust: 'user', isDefault: false, name: 'Mine', broken: 'row 2: module not found' },
+]
+
+test('the model list carries the agent presets a fresh session can use', async () => {
+  const { ctx } = fakeHarness({ presets: roster })
+  const r = await createDshRuntime(ctx).models()
+  assert.deepEqual(r.presets, [
+    { id: 'standard', name: 'Standard', isDefault: true, description: 'Everyday tools' },
+    { id: 'minimal', name: 'minimal', isDefault: false },
+    { id: 'mine', name: 'Mine', isDefault: false, broken: 'row 2: module not found' },
+  ])
+  // a harness that composes no presets offers none
+  assert.deepEqual((await createDshRuntime(fakeHarness().ctx).models()).presets, [])
+})
+
+test('a fresh run is composed from the preset it names, and says which one it got', async () => {
+  const { ctx, log } = fakeHarness({ presets: roster })
+  const { events } = await runToEnd(createDshRuntime(ctx), { runtime: 'dsh', cwd: '/proj', prompt: 'Q?', question: 'Q?', preset: 'minimal' })
+  assert.deepEqual(log.created, [{ id: 'session-1', cwd: '/proj', agentPreset: 'minimal' }])
+  assert.equal(events.find(e => e.type === 'session').preset, 'minimal')
+  // none named: the harness's default, reported back
+  const second = fakeHarness({ presets: roster })
+  const r = await runToEnd(createDshRuntime(second.ctx), { runtime: 'dsh', cwd: '/proj', prompt: 'Q?', question: 'Q?' })
+  assert.deepEqual(second.log.created, [{ id: 'session-1', cwd: '/proj' }])
+  assert.equal(r.events.find(e => e.type === 'session').preset, 'standard')
+  // not an id the harness could hold: never sent
+  const third = fakeHarness({ presets: roster })
+  await runToEnd(createDshRuntime(third.ctx), { runtime: 'dsh', cwd: '/proj', prompt: 'Q?', question: 'Q?', preset: '../etc' })
+  assert.deepEqual(third.log.created, [{ id: 'session-1', cwd: '/proj' }])
+})
+
+test('a continued session keeps its own preset: the one named is not applied', async () => {
+  const { ctx, log, addSession } = fakeHarness({ presets: roster })
+  addSession('session-a', '/proj', twoTurns)
+  const { events } = await runToEnd(createDshRuntime(ctx), { runtime: 'dsh', cwd: '', prompt: 'Q?', question: 'Q?', preset: 'minimal', sessionPath: '~/.dsh/sessions/session-a/session.jsonl.zstd' })
+  assert.deepEqual(log.created, [])
+  assert.equal(events.find(e => e.type === 'session').preset, undefined)
 })
 
 test('a run on a session path continues that session with the question alone', async () => {

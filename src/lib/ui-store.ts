@@ -26,6 +26,7 @@ const SCHOLAR_SEARCH_KEY = 'thoughtdag.scholarSearch';
 const MODEL_KEY = 'thoughtdag.model';
 const EFFORT_KEY = 'thoughtdag.agentEffort';
 const ACCESS_KEY = 'thoughtdag.agentAccess';
+const PRESET_KEY = 'thoughtdag.agentPreset';
 /** The effort level for the next agent turn, in that runtime's own words; '' = the runtime's own default. */
 export type AgentEffort = string;
 const MCP_KEY = 'thoughtdag.mcpTools';
@@ -68,6 +69,8 @@ interface UiState {
   agentEffort: AgentEffort;
   /** The access level a new agent line starts at; read until the person picks write. */
   agentAccess: AgentAccess;
+  /** The agent preset a fresh harness session is composed from; '' = the harness's default. */
+  agentPreset: string;
   dismissToast: (id: string) => void;
   resolveConfirm: (ok: boolean) => void;
   setTutorialOpen: (open: boolean) => void;
@@ -188,6 +191,7 @@ interface UiState {
   setSelectedModel: (model: string | null) => void;
   setAgentEffort: (level: AgentEffort) => void;
   setAgentAccess: (access: AgentAccess) => void;
+  setAgentPreset: (preset: string) => void;
 }
 
 export const useUiStore = create<UiState>((set, get) => ({
@@ -206,6 +210,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   selectedModel: localStorage.getItem(MODEL_KEY) || null,
   agentEffort: localStorage.getItem(EFFORT_KEY) || '',
   agentAccess: localStorage.getItem(ACCESS_KEY) === 'write' ? 'write' : 'read',
+  agentPreset: localStorage.getItem(PRESET_KEY) || '',
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   resolveConfirm: (ok) => {
     get().confirmRequest?.resolve(ok);
@@ -365,6 +370,11 @@ export const useUiStore = create<UiState>((set, get) => ({
   setAgentAccess: (access) => {
     localStorage.setItem(ACCESS_KEY, access);
     set({ agentAccess: access });
+  },
+  setAgentPreset: (preset) => {
+    if (preset) localStorage.setItem(PRESET_KEY, preset);
+    else localStorage.removeItem(PRESET_KEY);
+    set({ agentPreset: preset });
   },
 }));
 

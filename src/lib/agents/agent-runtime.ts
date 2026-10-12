@@ -50,7 +50,8 @@ export async function agentModels(): Promise<ModelInfo[]> {
     const def = AGENT_RUNTIMES[runtime];
     const r = answers[i];
     if (!r?.installed) return; // not installed, or it did not answer: it stays out of the list
-    for (const m of r.models) out.push({ id: `${def.prefix}${m.provider}/${m.id}`, name: `${def.label} · ${m.name}`, provider: AGENT_PROVIDER, vision: m.vision, efforts: m.efforts ?? [], defaultEffort: m.defaultEffort ?? null });
+    const presets = r.presets?.length ? r.presets : undefined;
+    for (const m of r.models) out.push({ id: `${def.prefix}${m.provider}/${m.id}`, name: `${def.label} · ${m.name}`, provider: AGENT_PROVIDER, vision: m.vision, efforts: m.efforts ?? [], defaultEffort: m.defaultEffort ?? null, ...(presets ? { presets } : {}) });
   });
   return out;
 }
@@ -300,6 +301,17 @@ function handleRun(runId: string, handler: (event: AgentEvent['event']) => void)
   for (const event of q ?? []) handlers.get(runId)?.(event);
 }
 
+/** The agent preset the global choice names for this model's runtime, when
+ *  the runtime lists it and it can compose a session; else undefined (the
+ *  runtime's own default). */
+async function presetFor(modelId: string): Promise<string | undefined> {
+  const chosen = useUiStore.getState().agentPreset;
+  if (!chosen) return undefined;
+  const { getModelsOnce } = await import('../use-models');
+  const presets = (await getModelsOnce().catch(() => null))?.models.find((m) => m.id === modelId)?.presets;
+  return presets?.some((p) => p.id === chosen && !p.broken) ? chosen : undefined;
+}
+
 /** One line naming what a tool call does, for the node's progress row. */
 function toolQuery(name: string, args: unknown): string {
   const a = args && typeof args === 'object' ? (args as Record<string, unknown>) : null;
@@ -351,6 +363,9 @@ export async function agentCallStream(
   const ahead = [context, materials].filter(Boolean).join('\n\n');
   const prompt = !inherits && ahead ? `${ahead}\n\n---\n\n${question}` : question;
   const effort = data?.effort !== undefined || intent.model ? intent.effort : (useUiStore.getState().agentEffort || undefined);
+  // the preset a fresh session is composed from: the global choice, while the
+  // runtime still lists it whole (one deleted or broken since: its default)
+  const preset = await presetFor(modelId);
   subscribe();
 
   let full = '';
@@ -367,6 +382,7 @@ export async function agentCallStream(
       ...(target.id ? { model: { provider: target.provider, id: target.id } } : {}),
       ...(effort ? { effort } : {}),
       ...(access ? { access } : {}),
+      ...(preset ? { preset } : {}),
     }).then((runId) => {
       const stop = () => { void bridge.abort(runId); };
       if (signal?.aborted) { stop(); }
@@ -384,6 +400,7 @@ export async function agentCallStream(
               cwd: (event.cwd as string) ?? cwd,
               ...(access ? { access } : {}),
               ...(typeof event.effort === 'string' && event.effort ? { effort: event.effort } : {}),
+              ...(typeof event.preset === 'string' && event.preset ? { preset: event.preset } : {}),
             });
             break;
           }

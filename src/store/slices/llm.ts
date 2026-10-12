@@ -18,6 +18,30 @@ import { continuity, linkOf } from '../../lib/agents/continuity';
 import { globalIntent, nodeIntent } from '../intent';
 import { convergeRun } from '../converge';
 
+/** @-mentions become real dashed reference edges into `id` — @ is the
+ *  keyboard's way of drawing a wire, never an invisible injection. Ones
+ *  already upstream (or already wired in) stay pure designators: their
+ *  content is in the walk, nothing double-feeds. */
+function wireMentions(id: string, mentions: string[], upstream: Set<string>, nodes: ThoughtNode[], edges: ThoughtEdge[]): ThoughtEdge[] {
+  const refSources = new Set(edges.filter((e) => e.data?.isCrossLink && e.target === id).map((e) => e.source));
+  let next = edges;
+  let wired = 0;
+  for (const mid of mentions) {
+    if (mid === id || upstream.has(mid) || refSources.has(mid) || !nodes.some((n) => n.id === mid)) continue;
+    next = [...next, {
+      id: `crosslink-${mid}-${id}`,
+      source: mid, target: id,
+      sourceHandle: 'branch', targetHandle: 'left',
+      type: 'smoothstep',
+      data: { isCrossLink: true, createdAt: new Date().toISOString() },
+    }];
+    refSources.add(mid);
+    wired++;
+  }
+  if (wired > 0) toast('info', fmt(t('mention.wired'), { n: wired }), 6000);
+  return next;
+}
+
 export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, get) => ({
   addQuestion: async (question: string, opts: AddQuestionOptions = {}) => {
     if (condenseGuard()) return;
@@ -81,29 +105,13 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
 
     let newEdges: ThoughtEdge[] = newEdge ? [...get().edges, newEdge] : get().edges;
     // @-mentions: any mentioned node NOT already flowing into this one gets
-    // a real dashed reference edge — @ is the keyboard's way of drawing a
-    // wire, never an invisible injection. Ones already upstream stay pure
-    // designators (their content is in the walk; nothing double-feeds).
-    const mentionIds = (mentions ?? []).filter((mid) => mid !== id && mid !== parentId && get().nodes.some((n) => n.id === mid));
-    if (mentionIds.length > 0) {
+    // a real dashed reference edge (wireMentions)
+    if (mentions?.length) {
       const structural = newEdges.filter((e) => !e.data?.isCrossLink);
       const upstream = parentId
         ? new Set(walkUpAncestors(parentId, get().nodes, structural).ordered.map((n) => n.id))
         : new Set<string>();
-      const refSources = new Set(newEdges.filter((e) => e.data?.isCrossLink && e.target === id).map((e) => e.source));
-      let wired = 0;
-      for (const mid of mentionIds) {
-        if (upstream.has(mid) || refSources.has(mid)) continue;
-        newEdges = [...newEdges, {
-          id: `crosslink-${mid}-${id}`,
-          source: mid, target: id,
-          sourceHandle: 'branch', targetHandle: 'left',
-          type: 'smoothstep',
-          data: { isCrossLink: true, createdAt: new Date().toISOString() },
-        }];
-        wired++;
-      }
-      if (wired > 0) toast('info', fmt(t('mention.wired'), { n: wired }), 6000);
+      newEdges = wireMentions(id, mentions.filter((mid) => mid !== parentId), upstream, get().nodes, newEdges);
     }
     // One vertical line is one agent session. A question that cannot go on
     // in the session above opens a new one: it grows beside its parent as a
@@ -397,7 +405,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     triggerParadigmCascade(get, nodeId);
   },
 
-  editQuestion: async (nodeId: string, asked: string) => {
+  editQuestion: async (nodeId: string, asked: string, opts: { mentions?: string[] } = {}) => {
     if (condenseGuard()) return;
     // a session turn keeps what it asked: the new wording is a sibling turn
     const target = get().nodes.find((n) => n.id === nodeId);
@@ -447,6 +455,13 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
         // a fork grows beside its parent, not under it
         set({ nodes: fork ? placeNewNodes(nodes, edges, [nodeId]) : nodes, edges });
       }
+    }
+    // typed straight into an unasked card: its @-mentions wire like a new question's
+    if (opts.mentions?.length) {
+      const structural = get().edges.filter((e) => !e.data?.isCrossLink);
+      const upstream = new Set(walkUpAncestors(nodeId, get().nodes, structural).ordered.map((n) => n.id));
+      const edges = wireMentions(nodeId, opts.mentions, upstream, get().nodes, get().edges);
+      if (edges !== get().edges) set({ edges });
     }
     if (target.data.converge) {
       const request = asked.trim() || undefined;

@@ -239,9 +239,13 @@ export const en = {
   'composer.model': 'Model',
   'composer.effort': 'Effort',
   'composer.effortDefault': 'Default',
+  'composer.preset': 'Preset',
+  'composer.presetHint': 'Which preset a new Harness session starts from; it decides the tools, prompt and skills. A question that goes on in an existing session keeps the preset that session was created with.',
+  'composer.presetBroken': 'Unavailable: {reason}',
   'composer.defaultModel': 'Default model',
   'composer.switchRuntime': 'Another runtime · new session',
   'composer.send': 'Send',
+  'composer.landsHere': 'Goes into this card',
   'composer.newSession': 'New session',
   'composer.continue': 'Continues · turn {n}',
   'composer.newCost': 'the new session gets only the canvas\'s compiled text',
@@ -685,7 +689,6 @@ export const en = {
   'attach.titleReIncluded': 'Re-included (override). Click to respect upstream exclusion',
   'attach.titleInclude': 'Include in context',
   'attach.titleExclude': 'Exclude from context',
-  'attach.empty': "No attachments. Upload files or they'll be inherited from ancestor nodes.",
 
   // Highlights section
   'highlight.title': 'Highlights',
@@ -695,7 +698,6 @@ export const en = {
   'highlight.modeFilter': 'Highlights only',
   'highlight.hintTag': 'Highlighted parts wrapped with [Important] tags to guide AI focus',
   'highlight.hintFilter': 'Downstream nodes only receive highlighted content, rest discarded',
-  'highlight.explorePlaceholder': 'What do you want to explore about these highlights?',
 
   // Actions section
   'actions.stop': 'Stop',
@@ -711,6 +713,9 @@ export const en = {
   // Context chain section
   'chain.title': 'Context Chain',
   'chain.rootNode': 'Root node, no ancestors',
+  'chain.none': 'No upstream context. This is a new starting point.',
+  'chain.noneShort': 'Nothing upstream',
+  'chain.meta': '{n} upstream · {tok} tok',
   'chain.materials': 'Materials',
   'chain.references': 'References',
   'chain.refDepthQuote': 'quote',

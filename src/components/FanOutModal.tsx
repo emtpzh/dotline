@@ -8,6 +8,7 @@ import { useI18n, useT, fmt } from '../i18n';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
+import { isImeComposing } from '../utils';
 
 // Perspectives dialog: N roles, ONE mechanism, two run policies.
 //   once   → each role answers the question once, blind to its siblings
@@ -150,6 +151,9 @@ export default function FanOutModal({
             <Textarea
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
+              // the same keys as every ask box: ⌘/Ctrl+Enter runs (Enter alone
+              // breaks the line — this box is a form field, the roles follow)
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !isImeComposing(e) && question.trim() && roles.length > 0) { e.preventDefault(); run(); } }}
               rows={2}
               className="w-full resize-none leading-relaxed"
             />
@@ -190,15 +194,16 @@ export default function FanOutModal({
         </div>
 
         <div className="px-6 py-4 border-t border-border flex justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={onClose} className="text-xs text-muted-foreground hover:text-foreground hover:bg-accent">
+          <Button variant="ghost" size="sm" onClick={onClose} className="text-muted-foreground hover:text-foreground">
             {t('common.cancel')}
           </Button>
-          <Button variant="ghost"
+          {/* the colour says what it makes: reviewers that follow the line
+              (continue blue) or blind branches beside it (explore orange) */}
+          <Button size="sm"
             onClick={run}
             disabled={!question.trim() || roles.length === 0}
-            className={`text-xs text-white px-5 py-2 rounded-lg transition-colors disabled:opacity-30 ${
-              mode === 'follow' ? 'bg-primary hover:bg-primary/90' : 'bg-edge-explore hover:bg-edge-explore/90'
-            }`}
+            className={mode === 'follow' ? '' : 'bg-edge-explore text-primary-foreground hover:bg-edge-explore/90'}
+            data-fanout-run
           >
             {fmt(t(mode === 'follow' ? 'fanout.confirmFollow' : 'fanout.confirm'), { n: roles.length })}
           </Button>

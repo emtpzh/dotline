@@ -94,6 +94,17 @@ interface DesktopAgentModel {
   defaultEffort?: string | null;
 }
 
+/** One agent preset a runtime composes fresh sessions from (the harness's): its tools, prompt sections and skills. */
+interface DesktopAgentPreset {
+  id: string;
+  name: string;
+  /** what a session that names no preset is composed from */
+  isDefault: boolean;
+  description?: string;
+  /** why it cannot compose a session; absent when it can */
+  broken?: string;
+}
+
 interface DesktopAgentRunRequest {
   /** which runtime runs the turn (default: pi) */
   runtime?: 'pi' | 'codex' | 'claude-code' | 'dsh';
@@ -120,6 +131,8 @@ interface DesktopAgentRunRequest {
   thinkingLevel?: string;
   /** how far the turn may go, as the runtime's own permission mode; absent = read */
   access?: 'read' | 'write';
+  /** the agent preset a fresh session is composed from (one the runtime listed); a continued or forked session keeps its own; absent = the runtime's default */
+  preset?: string;
 }
 
 /** one row of a folder listing: a child, or a crumb of the path above it */
@@ -142,7 +155,7 @@ interface DesktopAgentsBridge {
   capabilities?: { nativePicker: boolean; browseDirs?: boolean };
   /** where the runtime's binary is, or null when not installed */
   available(): Promise<Record<string, string | null>>;
-  models(runtime?: 'pi' | 'codex' | 'claude-code' | 'dsh'): Promise<{ installed: boolean; models: DesktopAgentModel[]; default: string | null; thinkingLevel?: string | null; error?: string }>;
+  models(runtime?: 'pi' | 'codex' | 'claude-code' | 'dsh'): Promise<{ installed: boolean; models: DesktopAgentModel[]; default: string | null; thinkingLevel?: string | null; error?: string; presets?: DesktopAgentPreset[] }>;
   /** resolves with the run id at once; events follow through onEvent */
   run(request: DesktopAgentRunRequest): Promise<string>;
   abort(runId: string): Promise<boolean>;

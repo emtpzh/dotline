@@ -1,13 +1,13 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronRight, CornerDownRight, Link2, Paperclip, Quote, Sprout, StickyNote } from 'lucide-react';
+import { CornerDownRight, Link2, Paperclip, Quote, Sprout, StickyNote } from 'lucide-react';
 import { useStore } from '../../store';
 import { useUiStore } from '../../lib/ui-store';
 import { countTokens } from '../../utils';
 import { referenceBlockContent } from '../../store/context-builder';
 import type { ContextPartition } from '../../lib/graph';
-import { useT } from '../../i18n';
+import { useT, fmt } from '../../i18n';
 import type { ThoughtNode } from '../../types';
 import { Button } from '../ui/button';
+import PanelSection from './PanelSection';
 
 // The context TREE, grouped the same way the prompt is assembled
 // (materials → references → the conversation): what you read here is
@@ -64,7 +64,6 @@ export default function ContextChainSection({
   const staleIds = useStore((s) => s.staleIds);
   const t = useT();
 
-  const [contextOpen, setContextOpen] = useState(false);
   const jump = (id: string) => { setSelectedNodeId(id); onFocusNode?.(id); };
   const staleDot = (id: string) => staleIds.includes(id) && (
     <span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" title={t('node.staleBadge')} />
@@ -74,18 +73,12 @@ export default function ContextChainSection({
   const rowCls = 'w-full text-left rounded-lg px-2 py-1.5 hover:bg-accent transition-colors group flex items-center gap-2 text-xs';
   const groupCls = 'text-2xs text-muted-foreground font-medium mt-2 mb-0.5';
 
-  return (
-    <div className="panel-card px-4 py-3">
-      <Button variant="ghost" size="xs"
-        onClick={() => setContextOpen(!contextOpen)}
-        className="text-2xs text-muted-foreground mb-1 hover:text-foreground w-full"
-      >
-        <span>{contextOpen ? <ChevronDown strokeWidth={1.75} /> : <ChevronRight strokeWidth={1.75} />}</span>
-        <span>{t('chain.title')}</span>
-        <span className="text-muted-foreground font-normal ml-auto">{totalContextTokens} tok</span>
-      </Button>
+  const count = ancestors.length + partition.materials.length + partition.references.length;
 
-      {contextOpen && (
+  return (
+    <PanelSection section="context" title={t('chain.title')}
+      meta={count > 0 ? fmt(t('chain.meta'), { n: count, tok: totalContextTokens.toLocaleString() }) : t('chain.noneShort')}
+    >
         <div>
           <MemoryRow />
           {/* Materials */}
@@ -157,7 +150,6 @@ export default function ContextChainSection({
             </>
           )}
         </div>
-      )}
-    </div>
+    </PanelSection>
   );
 }

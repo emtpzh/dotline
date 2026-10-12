@@ -684,7 +684,11 @@ function installApprovalAnswerer(ctx) {
  * harness's reason when the turn ends in an error or is blocked.
  *
  * turn: { question, context, images, model: { provider, model } | null,
- *         cwd, continueSession, fork: { session, anchor } }
+ *         preset: string | null, cwd, continueSession, fork: { session, anchor } }
+ *
+ * `preset` names the agent preset a FRESH session is composed from; a
+ * continued or forked session keeps the one it was created with (the
+ * harness fixes a session's composition once it has spoken).
  */
 async function runHarnessTurn(ctx, turn, sink, { signal, ask } = {}) {
   let sessionId = null
@@ -701,7 +705,12 @@ async function runHarnessTurn(ctx, turn, sink, { signal, ask } = {}) {
     }
   }
   const inheritsHistory = sessionId !== null
-  if (!sessionId) sessionId = (await ctx.sessionController.create({ ...(turn.cwd ? { cwd: turn.cwd } : {}) })).sessionId
+  let preset = null
+  if (!sessionId) {
+    const created = await ctx.sessionController.create({ ...(turn.cwd ? { cwd: turn.cwd } : {}), ...(turn.preset ? { agentPreset: turn.preset } : {}) })
+    sessionId = created.sessionId
+    preset = created.agentPreset ?? null
+  }
   const hasImages = turn.images.length > 0
   if (hasImages) {
     const vm = await visionModel(ctx, turn.model).catch(() => null)
@@ -720,7 +729,7 @@ async function runHarnessTurn(ctx, turn, sink, { signal, ask } = {}) {
   if (forkedFrom) {
     try { if (agent.inbox?.hasPending) agent.inbox.clear() } catch { /* an inbox this release does not expose */ }
   }
-  sink.session({ sessionId, continued: sessionId === turn.continueSession, forkedFrom, cwd: cwdOfSession(liveSession(ctx, sessionId)) ?? turn.cwd ?? null })
+  sink.session({ sessionId, continued: sessionId === turn.continueSession, forkedFrom, preset, cwd: cwdOfSession(liveSession(ctx, sessionId)) ?? turn.cwd ?? null })
 
   const entry = { ask, calls: new Map() }
   canvasTurns.set(sessionId, entry)
@@ -820,7 +829,7 @@ function createDshRuntime(ctx, { log = () => {}, host = { listening: () => false
         for (const m of g.models ?? []) models.push({ provider: g.id, id: m.id, name: m.name ?? m.id, reasoning: false, vision: vision.has(m.id), efforts: [] })
       }
       const def = cat.default ? `${cat.default.provider}/${cat.default.model}` : null
-      return { installed: true, models, default: def && models.some(m => `${m.provider}/${m.id}` === def) ? def : null }
+      return { installed: true, models, default: def && models.some(m => `${m.provider}/${m.id}` === def) ? def : null, presets: await presetRoster(ctx) }
     },
 
     async run(req, onEvent) {
@@ -836,6 +845,7 @@ function createDshRuntime(ctx, { log = () => {}, host = { listening: () => false
         context: typeof req.context === 'string' ? req.context : '',
         images: imagesOf(req.images),
         model: req.model && req.model.provider && req.model.id ? { provider: String(req.model.provider), model: String(req.model.id) } : null,
+        preset: typeof req.preset === 'string' && PRESET_ID.test(req.preset) ? req.preset : null,
         cwd: typeof req.cwd === 'string' && req.cwd ? req.cwd : null,
         continueSession: pathSession && !forkAnchor ? pathSession : null,
         fork: pathSession && forkAnchor ? { session: pathSession, anchor: forkAnchor } : null,
@@ -867,7 +877,7 @@ function createDshRuntime(ctx, { log = () => {}, host = { listening: () => false
       void (async () => {
         try {
           const r = await runHarnessTurn(ctx, turn, {
-            session: (s) => emit({ type: 'session', sessionId: s.sessionId, sessionFile: sessionFileOf(s.sessionId), model: turn.model ? { provider: turn.model.provider, id: turn.model.model, name: turn.model.model } : null, cwd: s.cwd ?? '', continued: s.continued, ...(s.forkedFrom ? { forkedFrom: s.forkedFrom } : {}) }),
+            session: (s) => emit({ type: 'session', sessionId: s.sessionId, sessionFile: sessionFileOf(s.sessionId), model: turn.model ? { provider: turn.model.provider, id: turn.model.model, name: turn.model.model } : null, cwd: s.cwd ?? '', continued: s.continued, ...(s.forkedFrom ? { forkedFrom: s.forkedFrom } : {}), ...(s.preset ? { preset: s.preset } : {}) }),
             text: (t) => emit({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: t } }),
             reasoning: (t) => emit({ type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', delta: t } }),
             toolStart: (c) => emit({ type: 'tool_execution_start', toolCallId: c.callId ?? '', toolName: c.name, args: argsObject(c.arguments) }),
@@ -902,6 +912,27 @@ function createDshRuntime(ctx, { log = () => {}, host = { listening: () => false
 
     shutdown() { for (const r of runs.values()) r.abort.abort() },
   }
+}
+
+/** The harness's preset id rule (a preset id is also a directory name). */
+const PRESET_ID = /^[a-z0-9][a-z0-9-]*$/
+
+/** The agent presets a fresh session can be composed from, path-free, the
+ *  harness's default marked; a broken one is listed with its reason. Empty
+ *  on a harness without presets (before dsh-agent-presets, or a composition
+ *  that mounts none): the canvas then offers no choice. */
+async function presetRoster(ctx) {
+  let presets
+  try { presets = ctx.get('agentPresets') } catch { return [] }
+  if (typeof presets?.remoteExportList !== 'function') return []
+  try {
+    const r = await presets.remoteExportList()
+    return (r?.presets ?? []).map(p => ({
+      id: p.id, name: p.name ?? p.id, isDefault: !!p.isDefault,
+      ...(p.description ? { description: p.description } : {}),
+      ...(p.broken ? { broken: p.broken } : {}),
+    }))
+  } catch { return [] }
 }
 
 /** Tool arguments as an object, whether the event carried JSON text or one. */

@@ -193,7 +193,7 @@ export interface StreamCallbacks {
   /** An agent runtime in the desktop app: what changed on disk during the turn. */
   onAgentChanges?: (changes: { changed: string[]; added: string[]; removed: string[]; truncated?: boolean }) => void;
   /** An agent runtime in the desktop app: which session this turn ran in. */
-  onAgentSession?: (session: { runtime: import('../types').AgentRuntime; sessionId: string | null; sessionFile: string | null; cwd: string; access?: import('../types').AgentAccess; effort?: string }) => void;
+  onAgentSession?: (session: { runtime: import('../types').AgentRuntime; sessionId: string | null; sessionFile: string | null; cwd: string; access?: import('../types').AgentAccess; effort?: string; preset?: string }) => void;
   /** An agent runtime asks the person something (a pick, a text, an extension's yes/no); the turn waits. */
   onApproval?: (request: Omit<import('../types').ApprovalRequest, 'askedAt'>) => void;
   /** The runtime learned the decision (the person's, or a cancellation). */
