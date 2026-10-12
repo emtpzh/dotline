@@ -122,6 +122,26 @@ export class ClaudeSessionCollector {
   private cwd: string | null = null;
   // decided by the first message line: what kind of file this is
   private mode: 'main' | 'sidechain' | null = null;
+  // every line's uuid → parentUuid, and the uuids some turn carries: a turn's
+  // parentUuid often names a line no turn holds (a stop-hook summary, a tool
+  // result), so the real parent turn is found by walking up from there
+  private parentOf = new Map<string, string | null>();
+  private owned = new Set<string>();
+
+  /** The nearest ancestor of `uuid` that belongs to a turn. Two clients on
+   *  one session (the desktop app and a CLI resume) fork it from the SAME
+   *  non-turn line; stopping at that line would hang the fork off whatever
+   *  came before it in the file. */
+  private turnAncestor(uuid: string | null | undefined): string | undefined {
+    const seen = new Set<string>();
+    let cur = uuid ?? null;
+    while (cur && !seen.has(cur)) {
+      if (this.owned.has(cur)) return cur;
+      seen.add(cur);
+      cur = this.parentOf.get(cur) ?? null;
+    }
+    return uuid ?? undefined;
+  }
 
   feedLine(raw: string): void {
     const t = raw.trim();
@@ -147,6 +167,7 @@ export class ClaudeSessionCollector {
       if (this.mode === 'sidechain') this.sessionId = line.agentId!;
     }
     if (!!line.isSidechain !== (this.mode === 'sidechain')) return;
+    if (line.uuid) this.parentOf.set(line.uuid, line.parentUuid ?? null);
 
     if (line.type === 'system' && line.subtype === 'compact_boundary') {
       this.flush();
@@ -198,9 +219,10 @@ export class ClaudeSessionCollector {
         if (!this.firstQuestion) this.firstQuestion = text.trim();
         this.current = {
           question: text, response: '', itemIds: line.uuid ? [line.uuid] : [], tools: [],
-          parentItemId: line.parentUuid ?? undefined,
+          parentItemId: this.turnAncestor(line.parentUuid),
           ...(line.timestamp ? { at: line.timestamp } : {}),
         };
+        if (line.uuid) this.owned.add(line.uuid);
         if (this.pendingCompaction) {
           this.current.compactionBefore = this.pendingCompaction;
           this.pendingCompaction = undefined;
@@ -210,7 +232,7 @@ export class ClaudeSessionCollector {
     }
 
     if (line.type === 'assistant' && this.current) {
-      if (line.uuid) this.current.itemIds.push(line.uuid);
+      if (line.uuid) { this.current.itemIds.push(line.uuid); this.owned.add(line.uuid); }
       const content = line.message?.content;
       const text = textParts(content);
       if (text.trim()) this.current.response = this.current.response ? `${this.current.response}\n\n${text}` : text;

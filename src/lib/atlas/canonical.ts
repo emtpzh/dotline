@@ -446,7 +446,15 @@ async function appendPastLedger(
   // placeSegment stacks the appendix under the anchor, the right place for a
   // turn but not for a subagent that found its turn on the canvas: that one
   // is seated by the arrow grammar, beside its parent like any branch
-  const kids = moved.filter((n) => n.data.importSource?.subagent && crossTargets.has(n.id)).map((n) => n.id);
+  // — nor for a turn that forks the session above its tail: another client
+  // on the same session (the desktop app answering while the canvas resumed
+  // it from the CLI) grows its own line from an earlier turn, and stacked
+  // under the tail it would read as the tail's next turn. That one and the
+  // turns below it are seated the same way, as a branch beside its parent.
+  const forkHead = anchor && crossEdges.some((e) => e.target === moved[0].id && e.source !== anchor.id);
+  const kids = forkHead
+    ? moved.filter((n) => n.data.stepKind !== 'note').map((n) => n.id)
+    : moved.filter((n) => n.data.importSource?.subagent && crossTargets.has(n.id)).map((n) => n.id);
   if (kids.length) useStore.setState((s) => ({ nodes: placeNewNodes(s.nodes, s.edges, kids) }));
   // the tail stays on the line: an appendix of subagent branches alone leaves it where it was
   const lineTail = moved.filter((n) => n.data.importSource?.itemIds?.length && !n.data.importSource.subagent).at(-1)?.id ?? hit.entry.tailNodeId ?? tailQaId;
