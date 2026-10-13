@@ -11,7 +11,7 @@
 
 ### [Download ↓](https://chenxiachan.github.io/thoughtdag/#download) · [Website](https://chenxiachan.github.io/thoughtdag/) · [Docs](https://chenxiachan.github.io/thoughtdag/docs/)
 
-[中文](./README_ZH.md) · [DeepSeek Harness plugin](#new--deepseek-harness-available) · [Find past context](#new--pinpoint-the-context-you-need-across-agents) · [Visual app](#want-to-explore-and-shape-the-context-visually) · [How it differs](#how-thoughtdag-differs) · [Session Atlas](#-session-atlas-bring-agent-conversations-onto-the-canvas) · [Research](#-research-why-editable-context-matters) · [Documentation](https://chenxiachan.github.io/thoughtdag/docs/)
+[中文](./README_ZH.md) · [DeepSeek Harness plugin](#new--deepseek-harness-available) · [Visual app](#want-to-explore-and-shape-the-context-visually) · [How it differs](#how-thoughtdag-differs) · [Session Atlas](#-session-atlas-bring-agent-conversations-onto-the-canvas) · [Research](#-research-why-editable-context-matters) · [Documentation](https://chenxiachan.github.io/thoughtdag/docs/)
 
 </div>
 
@@ -33,60 +33,6 @@ pnpm 11 holds back versions published within the last 24 hours by default, so on
 <img src="docs/harness-plugin-en.gif" alt="ThoughtDAG inside DeepSeek Harness: the 对话 | 思维图 switch above the chat, a question asked on the canvas and answered by a harness model, then a follow-up node growing the graph" width="100%"/>
 
 The plugin bundles the canvas; no other ThoughtDAG install is needed. Requires Node 22.19+ and DeepSeek Harness 0.1.2-rc or later.
-
-## New · Pinpoint the context you need across agents
-
-> Start with a code file, an exact phrase, a URL, or a paper. ThoughtDAG searches your local agent conversations and takes you back to the matching turn.
-
-Try it without installing anything:
-
-```bash
-npx thoughtdag why src/lib/api.ts
-npx thoughtdag find "a phrase you remember"
-```
-
-For regular use, install the CLI and connect its read-only MCP tools:
-
-```bash
-npm install -g thoughtdag
-thoughtdag setup mcp
-```
-
-Your agent can then call `why_check`, `why_file`, `find`, and `recall_turn` directly. Conversations from Claude Code, Codex, DeepSeek Harness, Pi, and ThoughtDAG canvases are indexed together on your machine; the desktop app is not required.
-
-### What it can find
-
-#### Which conversations changed or mentioned this code
-
-```text
-$ npx thoughtdag why src/lib/api.ts
-why src/lib/api.ts · 12 turns in 6 sessions
-claude-code  ✏️ edit  Q: Can the API detect vision support?
-             Δ storedProviders → storedProviders, storedVision…
-…
-```
-
-#### Which conversations discussed this concept
-
-```text
-$ npx thoughtdag find "context.committed" --in q
-find "context.committed" · 21 turns in 12 sessions
-claude-code  Q: …add context.committed to the event contract…
-codex        Q: …context.committed is already half implemented…
-…
-```
-
-#### Which conversations discussed this file, paper, or webpage
-
-```text
-$ npx thoughtdag find "arxiv" --in m
-find "arxiv" · 1 turn in 1 canvas
-thoughtdag   M: …collective intelligence, artificial life · arXiv:2606.26733…
-```
-
-Real local results, shortened to the most useful lines.
-
-> **Give agents less irrelevant history. Reduce context-driven hallucinations and wasted tokens. Improve answer accuracy.** The query layer brings back only the matching history; the canvas lets you cut contaminated branches before they shape the next answer.
 
 ## Want to explore and shape the context visually?
 

@@ -200,9 +200,6 @@ export interface StreamCallbacks {
   onApprovalDecided?: (decision: { id: string; outcome: import('../types').ApprovalOutcome; value?: string | null }) => void;
   /** The chosen model cannot see images: a vision model answers instead. */
   onRerouted?: (from: string, to: string) => void;
-  /** The request is leaving — exactly this payload, after every image
-      substitution or drop, on this lane. Fires again on a retry. */
-  onDispatch?: (payload: { messages: ContextMessage[]; images: ImageAttachment[]; model: string; toolPrefs: ToolPrefs; lane: 'direct' | 'proxy' }) => void;
   /** The vision stand-in failed; the original model answers from the
       images' companion text. */
   onImageFallback?: (model: string) => void;
@@ -234,7 +231,6 @@ export async function llmCallStream(
   // An agent runtime in the desktop app: Pi runs the turn with its own
   // tools; the canvas's compiled context rides ahead of the question.
   if (modelId && isAgentModel(modelId) && window.desktopAgents) {
-    callbacks?.onDispatch?.({ messages: contextMessages, images: images ?? [], model: modelId, toolPrefs: toolPrefs ?? {}, lane: 'proxy' });
     return agentCallStream(contextMessages, onChunk, signal, images, callbacks, modelId, agent, agent?.nodeId);
   }
   images = await imagesForModel(modelId, images);
@@ -253,10 +249,8 @@ export async function llmCallStream(
     const direct = directProvider(modelId);
     if (direct && modelId) {
       await guardDirectVision(modelId, imgs);
-      callbacks?.onDispatch?.({ messages: contextMessages, images: imgs ?? [], model: modelId, toolPrefs: toolPrefs ?? {}, lane: 'direct' });
       return directLlmStream(direct, modelId, contextMessages, chunkCb, signal, imgs, cbs, toolPrefs?.web);
     }
-    callbacks?.onDispatch?.({ messages: contextMessages, images: imgs ?? [], model: modelId ?? '', toolPrefs: toolPrefs ?? {}, lane: 'proxy' });
     return proxyStream(imgs, chunkCb);
   };
 

@@ -11,7 +11,7 @@
 
 ### [下载桌面版 ↓](https://chenxiachan.github.io/thoughtdag/?lang=zh#download) · [官网](https://chenxiachan.github.io/thoughtdag/?lang=zh) · [使用文档](https://chenxiachan.github.io/thoughtdag/docs/zh/)
 
-[English](./README.md) · [DeepSeek Harness 插件](#新功能--deepseek-harness-插件上线) · [找回历史上下文](#新功能--跨-agent-精确定位所需上下文) · [可视化应用](#想进一步探索并可视化上下文) · [有何不同](#thoughtdag-和其他图形化-ai-工具有何不同) · [Agent 会话](#-把-agent-会话带进画布) · [研究](#-研究为什么上下文需要可编辑) · [完整文档](https://chenxiachan.github.io/thoughtdag/docs/zh/)
+[English](./README.md) · [DeepSeek Harness 插件](#新功能--deepseek-harness-插件上线) · [可视化应用](#想进一步探索并可视化上下文) · [有何不同](#thoughtdag-和其他图形化-ai-工具有何不同) · [Agent 会话](#-把-agent-会话带进画布) · [研究](#-研究为什么上下文需要可编辑) · [完整文档](https://chenxiachan.github.io/thoughtdag/docs/zh/)
 
 </div>
 
@@ -33,60 +33,6 @@ pnpm 11 默认会把发布不满 24 小时的版本压住，发版当天上面�
 <img src="docs/harness-plugin-zh.gif" alt="ThoughtDAG 在 DeepSeek Harness 里：对话框上方的 对话 | 思维图 开关，在画布上提问、由 Harness 的模型回答，再追问长出新节点" width="100%"/>
 
 插件自带画布，不需要另装 ThoughtDAG。需要 Node 22.19 以上和 DeepSeek Harness 0.1.2-rc 及之后版本。
-
-## 新功能 · 跨 Agent 精确定位所需上下文
-
-> 从一个代码文件、一句记得的原话、一个网址或一篇论文出发。ThoughtDAG 检索本机上的 Agent 对话，并带你回到命中的那一轮。
-
-无需安装，直接试用：
-
-```bash
-npx thoughtdag why src/lib/api.ts
-npx thoughtdag find "你记得的一句话"
-```
-
-日常使用时，安装 CLI 并接入只读 MCP 工具：
-
-```bash
-npm install -g thoughtdag
-thoughtdag setup mcp
-```
-
-之后 Agent 可以直接调用 `why_check`、`why_file`、`find` 和 `recall_turn`。Claude Code、Codex、DeepSeek Harness、Pi 与 ThoughtDAG 画布里的对话会在本机进入同一份索引；不安装桌面版也能使用。
-
-### 它能找到什么
-
-#### 哪些对话修改或提及过这个代码
-
-```text
-$ npx thoughtdag why src/lib/api.ts
-why src/lib/api.ts · 12 个相关轮次，来自 6 个会话
-claude-code  ✏️ 修改  Q: 能否判断模型是否支持多模态？
-             Δ storedProviders → storedProviders, storedVision…
-……
-```
-
-#### 哪些对话提过这个概念
-
-```text
-$ npx thoughtdag find "context.committed" --in q
-find "context.committed" · 21 个相关轮次，来自 12 个会话
-claude-code  Q: ……把 context.committed 加入事件契约……
-codex        Q: ……context.committed 已经实现了一半……
-……
-```
-
-#### 哪些对话聊过这个文件、论文或网页
-
-```text
-$ npx thoughtdag find "arxiv" --in m
-find "arxiv" · 1 个相关轮次，来自 1 张画布
-thoughtdag   M: ……集体智能、人工生命 · arXiv:2606.26733……
-```
-
-来自真实本地结果，仅保留最有用的几行。
-
-> **让 Agent 少读无关历史，显著降低上下文污染导致的幻觉与错误，减少 token 浪费，提高回答准确率。** 查询层只带回命中的历史；画布层剪掉污染分支，不让它继续影响下一个回答。
 
 ## 想进一步探索并可视化上下文？
 

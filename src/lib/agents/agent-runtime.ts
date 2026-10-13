@@ -674,7 +674,7 @@ export async function reconcilePendingAgentTurns(): Promise<void> {
 
 /** One step naming the files the file system saw change during the turn
  *  that the tools did not already declare — absolute paths, op "write",
- *  the why layer's join key like any footprint. */
+ *  like any footprint. */
 function fsFootprint(
   session: { cwd: string; changes?: { changed: string[]; added: string[]; removed: string[]; truncated?: boolean } },
   steps: AgentStep[],

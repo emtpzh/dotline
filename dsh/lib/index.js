@@ -49,13 +49,6 @@
 //   POST /claude     the same call, whole answer as JSON
 //   POST /fetch-url  the SPA's link snapshot, through the harness's bounded fetcher
 //
-// The why layer inside the harness: the CLI's library (bundled as ./why.mjs at
-// build time) answers the same four questions here, over the same
-// ~/.thoughtdag index the CLI and the MCP server use — as native harness tools
-// the agent calls like any other (why_check, why_file, why_find, why_recall),
-// as a /why command a person types in the chat, and as a short system-prompt
-// section that says when to ask. Relative paths resolve against the session's
-// working directory.
 // These are canvas-native calls (summaries, condensing, a canvas that is
 // not a mirrored session) — they run on the harness's models but do not
 // enter any session log; a mirrored session's turns go through /followup.
@@ -78,7 +71,7 @@ import { fileURLToPath } from 'node:url'
 import { zstdDecompressSync } from 'node:zlib'
 
 export const name = 'dotline'
-export const inject = ['webServer', 'sessions', 'sessionController', 'agents', 'llm', 'attachments', 'web', 'tools', 'commands', 'systemPrompt', 'approval']
+export const inject = ['webServer', 'sessions', 'sessionController', 'agents', 'llm', 'attachments', 'web', 'approval']
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const require = createRequire(import.meta.url)
@@ -1008,88 +1001,8 @@ async function agentOf(ctx, id) {
   throw new HttpError(404, 'no such session: ' + (r.error?.code ?? r.error?.message ?? 'unknown'))
 }
 
-// ── the why layer ──────────────────────────────────────────────────────
-
 /** The working directory a session runs in, as its header records it. */
 const cwdOfSession = (session) => session?.header?.cwd ?? session?.header?.meta?.cwd ?? null
-
-/** A path the person or model typed, made absolute against the session's
- *  working directory when it is relative; URLs and arxiv ids pass through. */
-function resolveAgainst(cwd, q) {
-  const s = String(q ?? '').trim().replace(/^@/, '')
-  if (!s || /^(https?:\/\/|arxiv:)/i.test(s) || s.startsWith('/') || !cwd) return s
-  return resolve(cwd, s)
-}
-
-/** What the why layer managed to register — served at /why/status so a
- *  deployment can see it without reading logs. */
-const whyStatus = { loaded: false, tools: [], command: false, prompt: false, error: null }
-
-// the harness's tool names: one family, no collision with its own read/find tools
-const TOOL_NAMES = { why_check: 'why_check', why_file: 'why_file', find: 'why_find', recall_turn: 'why_recall' }
-const PATH_ARGS = new Set(['path'])
-
-const WHY_PROMPT = `Dotline why layer. The tools why_check, why_file, why_find and why_recall read the local index of past agent conversations (Claude Code, Codex, this harness) — evidence from session logs, not opinion.
-- Before editing a file that may have history, call why_check(path); if it has history, why_file(path) lists the turns that changed it: when, what was asked, what changed, and what the answer said about it.
-- why_find(phrase) finds where exact words were asked or answered; why_recall(session, turn) reads one turn in full.
-Cite what you learn briefly; do not restate whole turns.`
-
-async function installWhyLayer(ctx, config) {
-  const wantTools = config?.whyTools === true
-  const wantPrompt = config?.whyPrompt === true
-  if (!wantTools && !wantPrompt) return
-  let why
-  try {
-    why = await import('./why.mjs')
-    why.setQuiet?.(true)
-  } catch (error) {
-    whyStatus.error = error instanceof Error ? error.message : String(error)
-    ctx.logger.warn('[dsh-dotline] why layer not loaded: ' + whyStatus.error)
-    console.error('[dsh-dotline] why layer not loaded: ' + whyStatus.error)
-    return
-  }
-  whyStatus.loaded = true
-  const ask = async (mcpName, args, cwd) => {
-    const a = { ...args }
-    for (const k of PATH_ARGS) if (typeof a[k] === 'string') a[k] = resolveAgainst(cwd, a[k])
-    return why.mcpCall(mcpName, a)
-  }
-  if (wantTools) {
-    // raw definitions: the MCP tool schemas are already JSON Schema, and a
-    // bare import of @deepseek-ai/dsh-tools does not resolve from a linked
-    // plugin directory — the registry accepts either form
-    for (const t of why.MCP_TOOLS) {
-      const name = TOOL_NAMES[t.name] ?? t.name
-      try {
-        ctx.effect(() => ctx.tools.register({
-          name,
-          description: t.description,
-          parameters: t.inputSchema,
-          output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: String(value) }] },
-          async execute(args, exec) { return ask(t.name, args ?? {}, cwdOfSession(exec?.agent?.session)) },
-        }), 'dotline: tool ' + name)
-        whyStatus.tools.push(name)
-      } catch (error) {
-        whyStatus.error = `${name}: ${error instanceof Error ? error.message : String(error)}`
-        console.error('[dsh-dotline] tool not registered ' + whyStatus.error)
-      }
-    }
-    ctx.effect(() => ctx.commands.register({
-      name: 'why',
-      description: 'Dotline: which past conversations touched this file, URL or paper',
-      input: { hint: '<path | url | arxiv:id>' },
-      async handler(inv) {
-        const q = String(inv.rawInput ?? '').trim()
-        if (!q) return { kind: 'error', text: 'usage: /why <path | url | arxiv:id>' }
-        try { return { kind: 'success', text: await ask('why_file', { path: q }, cwdOfSession(inv.agent?.session)) } }
-        catch (error) { return { kind: 'error', text: error instanceof Error ? error.message : String(error) } }
-      },
-    }), 'dotline: /why')
-    whyStatus.command = true
-  }
-  if (wantPrompt && wantTools) { ctx.effect(() => ctx.systemPrompt.section({ name: 'dotline-why', order: 900, text: WHY_PROMPT }), 'dotline: why prompt'); whyStatus.prompt = true }
-  ctx.logger.info('[dsh-dotline] why layer: ' + (wantTools ? 'why_check why_file why_find why_recall, /why' : 'no tools') + (wantPrompt && wantTools ? ', prompt section' : ''))
-}
 
 /** The agent lane's harness runtime, its approval hook and the plain model
  *  call, for the plugin's own tests. */
@@ -1171,7 +1084,6 @@ export async function apply(ctx, config) {
         }
         return sendJson(res, 200, { session: sessionSummary(session) })
       }
-      if (path === '/why/status' && req.method === 'GET') return sendJson(res, 200, whyStatus)
       if (path === '/version' && req.method === 'GET') return sendJson(res, 200, { version: PLUGIN_VERSION, latest: await latestPluginVersion(), checkedAt: latestLookup.at || null })
       // ── the other agents' session files ──
       if (path === '/roots' && req.method === 'GET') {
@@ -1333,5 +1245,4 @@ export async function apply(ctx, config) {
   ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: prefix, handler: staticHandler }), 'dotline: static')
   ctx.logger.info('[dsh-dotline] Dotline mounted at ' + prefix + '/')
   installApprovalAnswerer(ctx)
-  await installWhyLayer(ctx, config)
 }

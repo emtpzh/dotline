@@ -20,16 +20,9 @@
 
 界面中配置的 key 保存在本地浏览器存储和代理内存中，不进入普通画布备份。你仍需检查所连接模型或工具服务的隐私政策。
 
-## Why 层的本地索引
+## why 层留下的索引
 
-CLI 与 MCP 将可重建的索引和缓存保存在 `~/.thoughtdag`，与原始 Agent 会话日志分开。这里可能包含历史问题、回答、文件路径和材料片段，并非只有文件名。
-
-```bash
-thoughtdag purge --cache  # 只删除可重建缓存
-thoughtdag purge          # 删除全部派生数据，不删除原始会话
-```
-
-后续索引或查询可以重新读取仍存在的来源日志，因此删除索引不等于删除来源历史。
+早期版本带有 why 层（命令行、MCP 工具和 Harness 工具），会把本机 Agent 会话索引到 `~/.thoughtdag`。这项功能已经移除。如果你用过它，下面这些文件不会再被读取，可以手动删除：`fact-index.json`、`text-index.json`、`text-index.jsonl`、`interpretation-cache.json` 和 `canvases/` 目录。`workspaces/` 要保留，Agent 轮次在那里运行。删除索引不会影响原始会话。
 
 ## Harness 插件
 

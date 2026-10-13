@@ -410,10 +410,7 @@ export type CanvasOp =
   | 'highlight-add' | 'highlight-remove'
   | 'connect' | 'disconnect'
   | 'merge' | 'weave' | 'explore' | 'fanout'
-  | 'material-add' | 'undo' | 'redo'
-  /** a request left for a model: the hash of what was sent, and which
-      nodes it was built from — the alignment fact, recorded at send time */
-  | 'commit';
+  | 'material-add' | 'undo' | 'redo';
 
 export interface CanvasEvent {
   t: string; // ISO timestamp

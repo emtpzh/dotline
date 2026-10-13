@@ -74,13 +74,6 @@ interface DesktopLocalBridge {
   image(path: string): Promise<string | null>;
 }
 
-/** The canvas's own source record for the why layer, kept by the shell
- *  under <thoughtdag home>/canvases/. */
-interface DesktopCanvasBridge {
-  write(projectId: string, json: string): Promise<{ ok: boolean; file?: string; reason?: string }>;
-  remove(projectId: string): Promise<{ ok: boolean }>;
-}
-
 /** An agent runtime the shell can hand a turn to (Pi today): its models,
  *  a run on a working directory, the run's events, an abort. */
 interface DesktopAgentModel {
@@ -179,6 +172,5 @@ interface Window {
   desktop?: DesktopBridge;
   desktopSessions?: DesktopSessionsBridge;
   desktopLocal?: DesktopLocalBridge;
-  desktopCanvas?: DesktopCanvasBridge;
   desktopAgents?: DesktopAgentsBridge;
 }

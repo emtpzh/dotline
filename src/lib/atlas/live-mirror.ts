@@ -125,30 +125,11 @@ export function startLiveMirror(): void {
     if (node) useUiStore.getState().setArrivalFocusNodeId(node.id);
   };
 
-  // thoughtdag://open?canvas=<project id | name>&node=<id> — a why hit on
-  // the canvas's own record: the stable id first, a name only for backups
-  // written before ids travelled (and then it must be unique).
-  const openCanvasLink = async (ref: string, nodeId: string): Promise<void> => {
-    const { useProjects, switchProject } = await import('../../store/projects');
-    const all = useProjects.getState().projects;
-    const byName = all.filter((p) => p.name === ref);
-    const project = all.find((p) => p.id === ref) ?? (byName.length === 1 ? byName[0] : undefined);
-    if (!project) { toast('error', t('handoff.deeplinkMiss')); return; }
-    await switchProject(project.id);
-    if (nodeId) {
-      const { useStore } = await import('../../store');
-      const { useUiStore } = await import('../ui-store');
-      if (useStore.getState().nodes.some((n) => n.id === nodeId)) useUiStore.getState().setArrivalFocusNodeId(nodeId);
-    }
-  };
-
   const openDeepLink = async (url: string): Promise<void> => {
     let sid = '';
     let turn = '';
     try {
       const u = new URL(url);
-      const canvas = u.searchParams.get('canvas');
-      if (canvas) { await openCanvasLink(canvas, u.searchParams.get('node') ?? ''); return; }
       sid = u.searchParams.get('session') ?? '';
       turn = u.searchParams.get('turn') ?? '';
     } catch { return; }

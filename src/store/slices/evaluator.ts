@@ -63,7 +63,6 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
         question: node.data.question,
         messages: [{ role: 'user', content: `${t('content.digestPrompt')}\n\n[Material: ${att.name}]\n${att.extractedText.slice(0, 120000)}` }],
         versionMode: 'append',
-        sources: material ? [{ layer: 'material', nodeId: material.id, attachmentId: att.id, part: 'attachment' }] : [],
         autoChain: opts?.auto,
       });
       return;
@@ -78,7 +77,7 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
           n.id === nodeId ? { ...n, data: { ...n.data, isLoading: true, isCollapsed: false, response: '' } } : n
         ),
       }));
-      await runNodeGeneration(set, get, nodeId, { question: conv.question, messages: conv.messages, images: conv.images, versionMode: 'append', sources: conv.sources, autoChain: opts?.auto });
+      await runNodeGeneration(set, get, nodeId, { question: conv.question, messages: conv.messages, images: conv.images, versionMode: 'append', autoChain: opts?.auto });
       return;
     }
 
@@ -109,7 +108,6 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
       messages,
       images: ctx.images,
       versionMode: 'append',
-      sources: ctx.sources,
       autoChain: opts?.auto,
     });
   },

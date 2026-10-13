@@ -19,7 +19,7 @@ pnpm 11 holds back versions published within the last 24 hours by default; to in
 
 Open the address printed by `dsh web`. Above the chat, switch to the thought-graph view (**思维图**); select the chat view (**对话**) to return.
 
-The plugin includes the canvas. **No separate ThoughtDAG desktop app, CLI, or MCP installation is required.** Models and tools use your Harness configuration.
+The plugin includes the canvas. **No separate ThoughtDAG desktop app is required.** Models and tools use your Harness configuration.
 
 ## Execution reference
 
@@ -66,26 +66,6 @@ A mirror node is a session record: the canvas never rewrites it. Changing its qu
 
 Open [Session Atlas](./session-atlas) from the canvas menu to browse other conversations. The plugin accesses supported sessions on the machine running Harness, not arbitrary files on a browser client.
 
-## Query history
-
-The published `dsh-thoughtdag@0.4.4` provides the canvas and session integration above. For standalone history queries, see [Why layer: CLI and MCP](./why-layer).
-
-::: info Native query tools: awaiting a new npm release
-The repository's main branch includes the following native tools and `/why` command. They are not included in the published `dsh-thoughtdag@0.4.4` package and will not appear after installing that version.
-:::
-
-| Tool / command | Parameters | Purpose |
-|---|---|---|
-| `why_check` | `path` | Check whether an object has history |
-| `why_file` | `path`; optional `include_read`, `limit` | Retrieve related turns and observed changes |
-| `why_find` | `phrase`; optional `in`, `limit` | Find exact words in questions, answers, or materials |
-| `why_recall` | `session`, `turn` | Read one complete turn |
-| `/why <path\|url\|arxiv:id>` | File path, URL, or paper identifier | Query directly without sending another model message |
-
-Native tools share the CLI's `~/.thoughtdag` index. Relative paths resolve against the current Harness session's working directory. `why_find` is not semantic search, and candidate explanations are not verified causes.
-
-The native tools, `/why` and a check-history-before-editing prompt are off by default. Plugin configuration `whyTools: true` enables the tools and `/why`; `whyPrompt: true` adds the prompt (it needs the tools). See the [Why manual](./why-layer) for output markers.
-
 ## Troubleshooting
 
 | Symptom | Check first |
@@ -94,6 +74,5 @@ The native tools, `/why` and a check-history-before-editing prompt are off by de
 | A model is missing | Check its model configuration and credentials in Harness |
 | An answer appears on the canvas but not in the Harness log | Check whether you selected a regular model; use Agent mode for tool execution and a recorded turn |
 | Atlas cannot find another tool's sessions | Check that the logs are on the Harness host and use a supported format |
-| `/why` is missing after installation | Version `0.4.4` does not include native query tools; see the release note above |
 
-A local index does not mean retrieved content can never leave the device. When an agent uses results in a remote model request, the matching history may be sent with that request. See [Privacy and storage](../reference/privacy-storage).
+See [Privacy and storage](../reference/privacy-storage) for what is stored and how to delete it.

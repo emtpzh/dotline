@@ -177,7 +177,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       ),
     }));
 
-    await runNodeGeneration(set, get, id, { question, messages: contextMessages, images: contextImages, sources: ctx.sources });
+    await runNodeGeneration(set, get, id, { question, messages: contextMessages, images: contextImages });
   },
 
   /**
@@ -286,7 +286,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
           const messages: ContextMessage[] = [...ctx!.messages, { role: 'user', content: branchQuestion }];
           applyRoleOverride(messages, role);
           set((state) => ({ nodes: state.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, appliedRole: role } } : n)) }));
-          await runNodeGeneration(set, get, id, { question: branchQuestion, messages, images: ctx!.images, sources: ctx!.sources });
+          await runNodeGeneration(set, get, id, { question: branchQuestion, messages, images: ctx!.images });
         }
       }
     };
@@ -491,7 +491,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       ),
     }));
     if (conv) {
-      await runNodeGeneration(set, get, nodeId, { question, messages: conv.messages, images: conv.images, versionMode: 'append', sources: conv.sources });
+      await runNodeGeneration(set, get, nodeId, { question, messages: conv.messages, images: conv.images, versionMode: 'append' });
       return;
     }
     // Rebuild context with this node's own Q&A blanked out
@@ -509,7 +509,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     // Append, never replace: the old (question, answer) pairs stay switchable
     // — an edited question must not orphan or erase the versions written
     // against the old wording.
-    await runNodeGeneration(set, get, nodeId, { question, messages: contextMessages, images: editCtx.images, versionMode: 'append', sources: editCtx.sources });
+    await runNodeGeneration(set, get, nodeId, { question, messages: contextMessages, images: editCtx.images, versionMode: 'append' });
   },
 
   regenerate: async (nodeId: string, question?: string) => {
@@ -570,7 +570,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       const conv = convergeRun(id, request, get().nodes, get().edges, get().staleIds);
       if (!conv) { toast('info', t('converge.nothingLeft'), 6000); return; }
       set((state) => ({ nodes: state.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, question: conv.question } } : n)) }));
-      await runNodeGeneration(set, get, id, { question: conv.question, messages: conv.messages, images: conv.images, sources: conv.sources });
+      await runNodeGeneration(set, get, id, { question: conv.question, messages: conv.messages, images: conv.images });
       return;
     }
 
@@ -586,7 +586,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     contextMessages.push({ role: 'user', content: q });
     set((state) => ({ nodes: state.nodes.map((n) => n.id === id ? { ...n, data: { ...n.data, appliedRole } } : n) }));
 
-    await runNodeGeneration(set, get, id, { question: q, messages: contextMessages, images: regenCtx.images, sources: regenCtx.sources });
+    await runNodeGeneration(set, get, id, { question: q, messages: contextMessages, images: regenCtx.images });
   },
 
   /**

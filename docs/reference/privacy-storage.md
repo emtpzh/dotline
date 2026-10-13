@@ -20,16 +20,9 @@ PDF files remain local during ordinary reading. Extracted text or selected mater
 
 Keys configured in the interface are kept in local browser storage and proxy memory. They are not included in normal canvas backups. Always review the policy of the model or tool endpoint you connect.
 
-## Local why index
+## Leftover index from the why layer
 
-The CLI and MCP keep rebuildable indexes and caches in `~/.thoughtdag`, separate from source logs. These may contain historical questions, answers, file paths, and material excerpts—not just filenames.
-
-```bash
-thoughtdag purge --cache  # Remove rebuildable caches only
-thoughtdag purge          # Remove derived data, not source sessions
-```
-
-Later indexing or queries can read source logs again while those logs still exist. Purging the index does not erase source history.
+Earlier versions shipped a why layer (a command line, MCP tools, and Harness tools) that indexed local agent sessions into `~/.thoughtdag`. It has been removed. If you used it, these files are no longer read and can be deleted by hand: `fact-index.json`, `text-index.json`, `text-index.jsonl`, `interpretation-cache.json`, and the `canvases/` folder. Keep `workspaces/`: agent turns run there. Deleting the index does not touch source sessions.
 
 ## Harness plugin
 

@@ -84,13 +84,6 @@ export async function takeToExperiment(nodeId: string, mode: 'branch' | 'continu
     toast('error', t('exp.clipboardFailed'));
     return false;
   }
-  // the bundle IS a committed context — recorded only once it actually
-  // left (a failed copy hands nothing off), exact, with its members; the
-  // CLI session that opens it answers to this hash
-  {
-    const members = [...new Set(bundle.context.messages.map((m) => m.source?.node_id).filter((id): id is string => !!id))];
-    st.logEvent('commit', nodeId, { kind: 'bundle', sha: bundle.integrity.content_hash, bundle: bundle.id, n: bundle.context.messages.length, ...(members.length ? { m: members.slice(0, 200).join(',') } : {}), ...(members.length > 200 ? { more: true } : {}) });
-  }
   toast('success', fmt(t('exp.copied'), { n: bundle.context.messages.length, tok: bundle.budget.estimated_tokens }), 12000);
   return true;
 }

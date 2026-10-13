@@ -58,7 +58,7 @@ jobs:
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # prepack builds the bundled SPA, the why layer and the agent runtime
+      # prepack builds the bundled SPA and the agent runtime
       - name: Pack the plugin
         working-directory: dsh
         run: npm pack --silent && ls -la dsh-dotline-*.tgz

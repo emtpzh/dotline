@@ -221,7 +221,6 @@ export const WHATS_NEW: WhatsNewEntry[] = [
           zh: 'npx thoughtdag why <文件> 列出哪些轮次读过、改过它，当时问了什么、改了什么；find 按原话搜，MCP 让 Agent 自己来查。',
           en: 'npx thoughtdag why <file> lists the turns that read or changed it, what was asked and what changed; find searches verbatim; MCP lets your agent ask.',
         },
-        link: { label: { zh: '命令与 MCP', en: 'CLI and MCP' }, href: `${DOCS}/zh/guides/why-layer` },
       },
       {
         title: { zh: 'DeepSeek Harness 插件上线', en: 'DeepSeek Harness plugin is live' },

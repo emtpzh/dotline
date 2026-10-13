@@ -9,9 +9,3 @@
         # Extra authorities the /dotline/api Host check accepts; localhost
         # and 127.0.0.1 are always allowed.
         trustedHosts: []
-        # The why layer as native harness tools (why_check, why_file, why_find,
-        # why_recall) and a /why command. Off by default; set true to register them.
-        whyTools: false
-        # A short system-prompt section telling the model when to ask why
-        # (needs whyTools). Off by default.
-        whyPrompt: false
