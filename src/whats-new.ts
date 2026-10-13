@@ -33,6 +33,16 @@ const DOCS = DOCS_URL;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.4.21',
+    date: '2026-10-13',
+    announce: false,
+    lead: {
+      zh: '画布和本机 Agent 会话之间换了一套更稳的底层：从会话里追问时，沿用那一轮实际用的模型、思考强度和目录，不再落到工具栏上的全局选择；面板也会显示镜像轮次用的模型。Agent 回合在你切到别的画布时照常跑完，回来就能看到结果，期间它提的问题在顶栏等你回答。同一个会话被另一个客户端从中间接着问、或者你删掉的镜像轮次，都不会再错位或重新长回来。会话原来的目录被移走时，追问会在画布目录另起会话，并提示你选一个目录。',
+      en: 'The link between the canvas and local agent sessions has a sturdier base. A follow-up from a session turn runs on the model, effort and folder that turn actually used, not on the toolbar\'s pick, and the panel shows the model for mirrored turns too. An agent turn finishes when you switch to another canvas, and its answer is there when you come back; a question it asks meanwhile waits in the top bar. A session another client continues from an earlier turn no longer lands out of place, and a mirrored turn you deleted stays deleted. When a session\'s folder has been moved, a follow-up starts a new session in the canvas folder and offers to pick one.',
+    },
+    items: [],
+  },
+  {
     version: '0.4.20',
     date: '2026-10-12',
     announce: false,
