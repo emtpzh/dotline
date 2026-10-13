@@ -257,6 +257,7 @@ export const en = {
   'agent.cwd': 'Working directory',
   'agent.hostBusy': 'Requests to the harness are queuing — this happens with many harness tabs open. Close the extra tabs and the stuck turn finishes on its own',
   'agent.adoptLate': 'The answer is in; linking this turn to its session is taking longer and will follow',
+  'agent.runsOn': '{n} agent turn(s) keep running in the background; their canvas fills them in from the session record when you go back. Questions they ask meanwhile are withdrawn',
   'agent.cwdScope': 'Where new lines start; existing nodes and what grows off them keep their own directory',
   'agent.cwdWorkspace': 'Canvas workspace',
   'agent.cwdWorkspaceHint': 'Default: this canvas\'s own folder',

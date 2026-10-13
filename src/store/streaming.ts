@@ -2,7 +2,7 @@ import type { StoreApi } from 'zustand';
 import { walkUpAncestors } from '../lib/graph';
 import { upstreamFingerprint } from './context-builder';
 import { pruneHighlights } from '../lib/highlight-match';
-import { llmCall, llmCallStream, type ContextMessage, type ImageAttachment } from '../lib/api';
+import { llmCall, llmCallStream, answerApproval, type ContextMessage, type ImageAttachment } from '../lib/api';
 import { agentOutbound, adoptAgentTurn, claimAgentTurn, isAgentModel } from '../lib/agents/agent-runtime';
 import { noticeTurnEnded, noticeQuestion, clearQuestionNotice } from '../lib/agents/offscreen';
 import { lineModel } from '../lib/run-intent';
@@ -13,7 +13,7 @@ import { contextLengthFor } from '../lib/runtime-providers';
 import { memoryContextBlock, judgeMemory } from '../lib/memory';
 import { t, fmt } from '../i18n';
 import { isViewerMode } from '../lib/viewer';
-import type { Reference } from '../types';
+import type { Reference, ThoughtNode } from '../types';
 import { markNaming, unmarkNaming } from '../lib/batch-naming';
 import { isAutoRerun } from '../lib/edge-look';
 import { continuity, linkOf } from '../lib/agents/continuity';
@@ -83,6 +83,32 @@ export const activeAbortControllers = new Map<string, AbortController>();
 // same node — alternating reasoning, clobbered answers.
 const generationSeq = new Map<string, number>();
 
+// Agent turns whose session file is named: the run lives in that file, not
+// in this page, so a canvas switch lets it go on instead of stopping it.
+const detachable = new Set<string>();
+
+/**
+ * Before the canvas is swapped out, every generation on it lets go. An
+ * ordinary stream is stopped. An agent turn whose session file is named
+ * runs on, as it does when the page closes: its late callbacks are dropped
+ * here (nothing of it may land on the next canvas), a question it asks from
+ * now on is withdrawn — nobody is there to answer it — and the node stays
+ * pending, so its own canvas reads the turn back from the session file
+ * (reconcilePendingAgentTurns). Returns how many agent turns run on.
+ */
+export function releaseGenerations(nodes: ThoughtNode[]): number {
+  let kept = 0;
+  for (const [nodeId, controller] of [...activeAbortControllers]) {
+    if (!detachable.has(nodeId)) { controller.abort(); continue; }
+    generationSeq.set(nodeId, (generationSeq.get(nodeId) ?? 0) + 1);
+    activeAbortControllers.delete(nodeId);
+    detachable.delete(nodeId);
+    for (const q of nodes.find((n) => n.id === nodeId)?.data.pendingApprovals ?? []) void answerApproval(q, { cancelled: true });
+    kept++;
+  }
+  return kept;
+}
+
 // How long a finished agent turn waits to be adopted from its session file
 // before the node is marked done anyway (adoption then lands late).
 const ADOPT_WAIT_MS = 6000;
@@ -133,6 +159,8 @@ export async function runNodeGeneration(
   const isCurrent = () => generationSeq.get(nodeId) === myGen;
   const abortController = new AbortController();
   activeAbortControllers.set(nodeId, abortController);
+  detachable.delete(nodeId);
+  const finished = () => { activeAbortControllers.delete(nodeId); detachable.delete(nodeId); };
 
   // A retry is starting — clear any previous failure flag and reasoning
   // buffer, and mark the old response as awaiting replacement (the canvas
@@ -338,6 +366,7 @@ export async function runNodeGeneration(
         // record, never wipes it; pending until the run ends here, so a page
         // reopened meanwhile knows to read the turn back from the session
         set((state) => ({ nodes: state.nodes.map((n) => n.id === nodeId ? { ...n, data: { ...n.data, agentSession: { ...n.data.agentSession, ...session, continued, pending: true, ...(requestedModel ? { model: requestedModel } : {}) } } } : n) }));
+        if (session.sessionFile) detachable.add(nodeId);
         if (continued && session.sessionId) void claimAgentTurn(session.runtime, nodeId, session.sessionId, session.cwd);
       },
       onAgentChanges: (changes) => {
@@ -345,7 +374,9 @@ export async function runNodeGeneration(
         set((state) => ({ nodes: state.nodes.map((n) => n.id === nodeId && n.data.agentSession ? { ...n, data: { ...n.data, agentSession: { ...n.data.agentSession, changes } } } : n) }));
       },
       onApproval: (request) => {
-        if (!isCurrent()) return;
+        // a turn let go of (another canvas is in view, or a rerun took the
+        // node) has nobody to ask: the question is withdrawn, the run goes on
+        if (!isCurrent()) { void answerApproval(request, { cancelled: true }); return; }
         const askedAt = new Date().toISOString();
         // append, never replace: a second parallel tool call must not evict the
         // first one's card (that stranded the first approval and hung the turn)
@@ -395,11 +426,15 @@ export async function runNodeGeneration(
     })(), pinnedModel, agentRoute ? { ...agentRoute, nodeId } : undefined);
     flushStream();
     if (!isCurrent()) return; // superseded while finishing: drop everything
-    activeAbortControllers.delete(nodeId);
+    // an agent turn stays registered until its answer is written: a canvas
+    // switch while it is adopted lets it finish from its session file
+    // instead of writing onto the next canvas
+    if (!agentRoute) finished();
     if (!response.trim()) {
       // The stream closed cleanly but the model sent nothing (upstream
       // hiccup, tool-only turn) — silent emptiness reads as a hang, so
       // surface it as a retryable failure instead.
+      finished();
       writeFinal(t('node.emptyResponse'), true);
       return;
     }
@@ -413,6 +448,8 @@ export async function runNodeGeneration(
     const session = agentRoute ? get().nodes.find((n) => n.id === nodeId)?.data.agentSession : undefined;
     const adoption = session ? adoptAgentTurn(nodeId, session, question).catch(() => false) : null;
     const adopted = adoption ? await Promise.race([adoption, new Promise<null>((r) => setTimeout(() => r(null), ADOPT_WAIT_MS))]) : false;
+    if (!isCurrent()) return; // let go meanwhile: its canvas reads the turn back
+    finished();
     if (adopted === null) toast('info', t('agent.adoptLate'), 8000);
     writeFinal(response);
     if (agentRoute) noticeTurnEnded(nodeId);
@@ -429,7 +466,7 @@ export async function runNodeGeneration(
     triggerParadigmCascade(get, nodeId);
   } catch (err) {
     if (!isCurrent()) return; // superseded: the abort was ours to swallow
-    activeAbortControllers.delete(nodeId);
+    finished();
     const partial = get().nodes.find((n) => n.id === nodeId)?.data.response || '';
     const isAbort = err instanceof DOMException && err.name === 'AbortError';
     if (isAbort) {

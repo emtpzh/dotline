@@ -188,6 +188,14 @@ export async function agentOutbound(model: string | undefined, nodeId?: string):
   }
 }
 
+/** Whether a node is on the canvas in view with no switch under way: only
+ *  then do writes for it land on its own canvas. A node whose canvas went
+ *  out of view is that canvas's to finish (reconcilePendingAgentTurns). */
+async function onActiveCanvas(nodeId: string): Promise<boolean> {
+  const { useProjects } = await import('../../store/projects');
+  return !useProjects.getState().switching && useStore.getState().nodes.some((n) => n.id === nodeId);
+}
+
 /**
  * The moment a continued turn names its session: the node becomes that
  * turn's mirror now — provenance stamped, ledger advanced — so the live
@@ -203,7 +211,7 @@ export async function claimAgentTurn(runtime: AgentRuntime, nodeId: string, sess
     if (!meta || !activeId || !subscribedSessionIds(meta).includes(sessionId)) return;
     const ss = meta.sourceSession!;
     const entry = [ss, ...(ss.chapters ?? []), ...(ss.branches ?? [])].find((e) => e.sessionId === sessionId);
-    if (!entry) return;
+    if (!entry || !(await onActiveCanvas(nodeId))) return;
     useStore.setState((st) => ({
       nodes: st.nodes.map((n) => n.id === nodeId ? { ...n, data: { ...n.data, importSource: { runner: runtime, sessionId, itemIds: [], cwd } } } : n),
     }));
@@ -521,6 +529,10 @@ export async function adoptAgentTurn(nodeId: string, session: AgentSessionRef, q
     const { useProjects, registerLedgerEntry, updateSourceSession, subscribedSessionIds } = await import('../../store/projects');
     const found = await turnInFile(loc, question);
     if (typeof found === 'string') return why(found);
+    // the file is read through the host and may take a while: if the canvas
+    // changed meanwhile, the node and its ledger are that canvas's, settled
+    // when it is in view again — never this one's
+    if (!(await onActiveCanvas(nodeId))) return why('its canvas is not in view');
     const { idx, turn } = found;
     const conv = { sessionId: found.sessionId };
     const toolSteps = turn.data.steps ?? [];
@@ -593,6 +605,7 @@ function dshTurnOpen(log: string): boolean {
 }
 let recheck: ReturnType<typeof setTimeout> | null = null;
 let reconciling = false;
+let askedAgain = false;
 
 /** Record an agent turn's final answer on its node the way a finished
  *  generation does (one version, provenance, the context fingerprint). */
@@ -633,9 +646,12 @@ const clearPending = (nodeId: string): void => {
  * minute. Runs on arrival and whenever a session file changes; a turn
  * still running is looked at again later.
  */
-export async function reconcilePendingAgentTurns(): Promise<void> {
+export async function reconcilePendingAgentTurns(opts: { arrival?: boolean } = {}): Promise<void> {
   const bridge = window.desktopSessions;
-  if (!bridge || reconciling) return;
+  if (!bridge) return;
+  // a file change during a pass is caught by the pass or the next change; a
+  // canvas arriving meanwhile is not, and gets its own pass after this one
+  if (reconciling) { if (opts.arrival) askedAgain = true; return; }
   reconciling = true;
   let again = false;
   try {
@@ -644,6 +660,8 @@ export async function reconcilePendingAgentTurns(): Promise<void> {
     for (const n of pending) {
       const s = n.data.agentSession!;
       const loc = s.sessionFile ? await sessionFileLocation(s.runtime, s.sessionFile).catch(() => 'unreadable') : 'no session file';
+      // the canvas may change while files are read: its nodes wait for it
+      if (!(await onActiveCanvas(n.id))) break;
       if (typeof loc === 'string') { clearPending(n.id); continue; }
       const listed = (await bridge.list(loc.rootKey).catch(() => [])).find((f) => f.rel === loc.rel);
       let settled = !listed || Date.now() - listed.mtime >= SETTLE_MS;
@@ -656,18 +674,24 @@ export async function reconcilePendingAgentTurns(): Promise<void> {
       }
       const found = await turnInFile(loc, n.data.question).catch(() => 'unreadable');
       const response = typeof found === 'string' ? '' : found.turn.data.response;
+      if (!(await onActiveCanvas(n.id))) break;
       if (!settled) {
         again = true;
         if (response) useStore.setState((st) => ({ nodes: st.nodes.map((x) => (x.id === n.id && !x.data.isLoading ? { ...x, data: { ...x.data, response } } : x)) }));
         continue;
       }
       if (!response) { clearPending(n.id); continue; }
-      if (await adoptAgentTurn(n.id, s, n.data.question).catch(() => false)) settleAgentNode(n.id, response);
+      const adopted = await adoptAgentTurn(n.id, s, n.data.question).catch(() => false);
+      if (!(await onActiveCanvas(n.id))) break;
+      if (adopted) settleAgentNode(n.id, response);
       else clearPending(n.id);
     }
   } finally {
     reconciling = false;
   }
+  // asked again while this pass ran (another canvas arrived): go over the
+  // canvas in view now
+  if (askedAgain) { askedAgain = false; void reconcilePendingAgentTurns(); return; }
   if (recheck) clearTimeout(recheck);
   recheck = again ? setTimeout(() => { recheck = null; void reconcilePendingAgentTurns(); }, SETTLE_MS / 2) : null;
 }

@@ -32,7 +32,9 @@ the question was edited on the canvas or wired in beside the conversation
 (`src/lib/agents/pristine.ts`); which runtimes can branch at all is `caps.forkAt`
 in `src/lib/agents/agent-runtime.ts`.
 
-A run is not tied to the page that started it: closing or reloading the page does
-not stop it (only `abort` does). The node remembers the run as pending; a page
-opened later reads the turn back from the session file once the file has been
-quiet for a minute.
+A run is not tied to the page that started it: closing or reloading the page, or
+switching to another canvas once the run has named its session file, does not
+stop it (only `abort` does; a question it asks while its canvas is out of view
+is withdrawn). The node remembers the run as pending; its canvas, opened later,
+reads the turn back from the session file once the file has been quiet for a
+minute.

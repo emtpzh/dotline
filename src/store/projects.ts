@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
 import { useStore } from './index';
-import { activeAbortControllers } from './streaming';
+import { activeAbortControllers, releaseGenerations } from './streaming';
 import { flushPendingWrites } from '../lib/persistence';
 import { buildRuleOutRuleIn } from '../lib/paradigms/rule-out-rule-in';
 import { toast } from '../lib/ui-store';
-import { t } from '../i18n';
+import { t, fmt } from '../i18n';
 import { setLedgerSource } from '../lib/agents/continuity';
 
 // Project layer: each canvas persists under its own IndexedDB key; this
@@ -222,25 +222,29 @@ export function bootProjects(): Promise<void> {
 
 // ─── Switching ──────────────────────────────────────────────────
 // Danger window: between setOptions and rehydrate completion, any setState
-// would write the OLD graph under the NEW key. Defenses: abort all streams
-// first (drain), and the `switching` flag disables the switcher UI.
+// would write the OLD graph under the NEW key. Defenses: every stream lets
+// go first (drain: stopped, or an agent turn left to its session file), and
+// the `switching` flag disables the switcher UI.
 let suppressTouch = false;
 
-async function drainGenerations(): Promise<void> {
-  for (const controller of activeAbortControllers.values()) controller.abort();
+/** Returns how many agent turns run on without the canvas. */
+async function drainGenerations(): Promise<number> {
+  const kept = releaseGenerations(useStore.getState().nodes);
   const deadline = Date.now() + 1000;
   while (activeAbortControllers.size > 0 && Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 30));
   }
   await new Promise((r) => setTimeout(r, 0)); // let the final abort writes reach the debounce queue
+  return kept;
 }
 
 export async function switchProject(id: string): Promise<void> {
   const { activeId, switching, projects } = useProjects.getState();
   if (switching || id === activeId || !projects.some((p) => p.id === id)) return;
   useProjects.setState({ switching: true });
+  let kept = 0;
   try {
-    await drainGenerations();
+    kept = await drainGenerations();
     await flushPendingWrites();
     suppressTouch = true;
     useStore.persist.setOptions({ name: projectStorageKey(id) });
@@ -258,6 +262,10 @@ export async function switchProject(id: string): Promise<void> {
     suppressTouch = false;
     useProjects.setState({ switching: false });
   }
+  if (kept > 0) toast('info', fmt(t('agent.runsOn'), { n: kept }), 8000);
+  // agent turns left running when this canvas was last in view (here, or
+  // in a page since closed) are read back from their session files
+  void import('../lib/agents/agent-runtime').then((m) => m.reconcilePendingAgentTurns({ arrival: true })).catch(() => {});
 }
 
 // ─── CRUD ───────────────────────────────────────────────────────
