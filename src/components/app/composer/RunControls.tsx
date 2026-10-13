@@ -10,12 +10,13 @@ import { useT, fmt } from '../../../i18n';
 import { useStore } from '../../../store';
 import { useUiStore } from '../../../lib/ui-store';
 import { useModels, ensureAgentsFresh, type ModelInfo } from '../../../lib/use-models';
-import { AGENT_RUNTIMES, LIVE_RUNTIMES, runtimeOf } from '../../../lib/agents/runtimes';
+import { AGENT_RUNTIMES, LIVE_RUNTIMES, accessOfPermission, agentTarget, offersAccess, runtimeOf } from '../../../lib/agents/runtimes';
 import { sessionWhy } from '../../../lib/session-why';
 import { shortName } from '../../../lib/node-face';
 import type { Continuity } from '../../../lib/agents/continuity';
 import type { AgentAccess, AgentRuntime } from '../../../types';
 import type { RunIntent } from '../../../lib/run-intent';
+import { turnOf } from '../../../lib/sessions/turn';
 import type { IntentPatch } from './run-intent-hooks';
 import { Button } from '../../ui/button';
 import {
@@ -168,7 +169,7 @@ export function ModelMenu({ intent, onIntent, changed, offerRuntimes, session }:
   return (
     <DropdownMenu onOpenChange={(open) => { if (open) ensureAgentsFresh(); }}>
       <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className={`${pill} max-w-[220px] ${changed ? changedPill : ''}`} data-composer-model />}>
-        <span className="truncate">{modelLabel(current, intent.model) || t('composer.defaultModel')}</span>
+        <span className="truncate">{(agentTarget(intent.model ?? '')?.id === '' ? t('composer.sessionModel') : modelLabel(current, intent.model)) || t('composer.defaultModel')}</span>
         {effortWord && <span className="text-muted-foreground shrink-0">{effortWord}</span>}
         {preset && <span className="text-muted-foreground truncate max-w-[80px]" data-composer-preset-word>{preset.name}</span>}
         <ChevronDown strokeWidth={1.75} className="opacity-60 shrink-0" />
@@ -292,6 +293,44 @@ export function SendButton({ onClick, disabled, session, title }: { onClick: () 
   );
 }
 
+/** Under the status of a question that goes on in a session (or branches
+ *  from one): what the box's choices mean for that session. A model picked
+ *  here is the session's from now on (the harness's chat follows it); an
+ *  access level other than the one the session ran at is said, and a
+ *  session that could write is one click from writing again — the canvas
+ *  starts every turn read-only. */
+function SessionConfigNotes({ parentData, intent, base, onIntent, continues }: {
+  parentData: import('../../../types').ThoughtData | undefined; intent: RunIntent; base?: RunIntent;
+  onIntent?: (p: IntentPatch) => void; continues?: boolean;
+}) {
+  const t = useT();
+  const turn = turnOf(parentData);
+  if (!turn) return null;
+  const notes: React.ReactNode[] = [];
+  const modelChanged = !!base?.model && !!intent.model && intent.model !== base.model && runtimeOf(intent.model) === turn.runtime;
+  if (continues && modelChanged) {
+    const x = intent.model!.split('/').pop();
+    notes.push(<span key="model" data-composer-note="model">{fmt(t('session.modelFromNow'), { x: x ?? '' })}{turn.runtime === 'dsh' ? ` ${t('session.modelChatToo')}` : ''}</span>);
+  }
+  const recorded = turn.config?.permission;
+  const was = accessOfPermission(recorded);
+  const now = intent.access;
+  if (recorded && was && now && offersAccess(intent.model) && was !== now) {
+    notes.push(
+      <span key="access" className="inline-flex flex-wrap items-center gap-x-2" data-composer-note="access">
+        <span>{fmt(t(now === 'read' ? 'session.accessLower' : 'session.accessHigher'), { x: recorded })}</span>
+        {now === 'read' && onIntent && (
+          <Button variant="outline" size="xs" className="h-5 px-1.5 text-2xs" onClick={(e) => { e.stopPropagation(); onIntent({ access: 'write' }); }} data-composer-raise>
+            {t('session.accessRaise')}
+          </Button>
+        )}
+      </span>,
+    );
+  }
+  if (notes.length === 0) return null;
+  return <p className="flex flex-col gap-0.5 px-1 text-2xs text-muted-foreground" role="note">{notes}</p>;
+}
+
 /** Under a box that asks off a node: whether the question goes on in the
  *  agent session above, opens a new one (and why — with the way back when
  *  the box itself caused it), or branches from an earlier turn. Nothing for
@@ -308,16 +347,25 @@ export function RunStatus({ session, intent, base, onIntent, onLocate }: {
   }
   if (session.kind === 'continue') {
     const parent = nodes.find((n) => n.id === session.parentId);
-    const cwd = parent?.data.agentSession?.cwd ?? parent?.data.importSource?.cwd ?? '';
+    const cwd = turnOf(parent?.data)?.resumeCwd ?? '';
     return (
-      <p className="flex flex-wrap items-center gap-x-3 px-1 text-2xs text-muted-foreground" data-composer-status="continue">
-        <span className="inline-flex items-center gap-1"><CornerDownRight size={11} strokeWidth={1.75} /> {fmt(t('composer.continue'), { n: session.turn })}</span>
-        <span className="truncate">{AGENT_RUNTIMES[session.runtime].label}{cwd ? ` · ${cwd.split('/').filter(Boolean).pop()}` : ''}</span>
-      </p>
+      <>
+        <p className="flex flex-wrap items-center gap-x-3 px-1 text-2xs text-muted-foreground" data-composer-status="continue">
+          <span className="inline-flex items-center gap-1"><CornerDownRight size={11} strokeWidth={1.75} /> {fmt(t('composer.continue'), { n: session.turn })}</span>
+          <span className="truncate">{AGENT_RUNTIMES[session.runtime].label}{cwd ? ` · ${cwd.split('/').filter(Boolean).pop()}` : ''}</span>
+        </p>
+        <SessionConfigNotes parentData={parent?.data} intent={intent} base={base} onIntent={onIntent} continues />
+      </>
     );
   }
   if (session.kind === 'fork') {
-    return <p className="rounded-md bg-edge-explore/10 px-2 py-1 text-2xs text-edge-explore" data-composer-status="fork">{fmt(t('session.forkLine'), { n: session.turn })}</p>;
+    const parent = nodes.find((n) => n.id === session.parentId);
+    return (
+      <>
+        <p className="rounded-md bg-edge-explore/10 px-2 py-1 text-2xs text-edge-explore" data-composer-status="fork">{fmt(t('session.forkLine'), { n: session.turn })}</p>
+        <SessionConfigNotes parentData={parent?.data} intent={intent} base={base} onIntent={onIntent} />
+      </>
+    );
   }
   // a new session: the model picked in this box is the one cause the box can take back
   const undoRuntime = session.reason === 'runtime' && base?.model && base.model !== intent.model && runtimeOf(base.model) && onIntent;

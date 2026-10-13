@@ -20,6 +20,7 @@ import { RegenerateWith } from '../app/composer/RunControls';
 import { nodeIntent } from '../../store/intent';
 import { isAgentModel, runtimeOf } from '../../lib/agents/runtimes';
 import { useTextSelection } from '../../lib/use-text-selection';
+import { turnOf } from '../../lib/sessions/turn';
 
 export default function ResponseSection({
   nodeId,
@@ -168,7 +169,7 @@ export default function ResponseSection({
         )
       ) : data.isLoading && data.response && !data.restreaming ? (
         <div ref={streamRef} className="markdown-body text-sm text-foreground leading-relaxed max-h-[500px] overflow-y-auto py-1">
-          <Markdown base={data.importSource?.cwd}>{data.response}</Markdown>
+          <Markdown base={turnOf(data)?.cwd ?? undefined}>{data.response}</Markdown>
           <span className="tdag-caret ml-0.5 align-text-bottom" />
         </div>
       ) : data.isEditingResponse ? (
@@ -197,7 +198,7 @@ export default function ResponseSection({
             {highlightedTexts.size > 0 || exploreSpecs.length > 0 ? (
               <HighlightedMarkdown content={data.response} highlights={highlightedTexts} exploreMarks={exploreSpecs} />
             ) : (
-              <Markdown base={data.importSource?.cwd}>{data.response}</Markdown>
+              <Markdown base={turnOf(data)?.cwd ?? undefined}>{data.response}</Markdown>
             )}
           </div>
 

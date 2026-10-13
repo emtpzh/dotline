@@ -1,4 +1,4 @@
-import type { ThoughtNode, ThoughtEdge, AgentStep, ToolOp } from '../../types';
+import type { ThoughtNode, ThoughtEdge, AgentStep, ToolOp, TurnConfig } from '../../types';
 import { makeNode } from '../import-chat';
 import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
@@ -64,6 +64,40 @@ export interface RunnerTurn {
   at?: string;
   /** the runs this turn delegated, in call order */
   subagents?: SubagentRun[];
+  /** what the turn ran on, as the file records it */
+  config?: TurnConfig;
+  /** the answer is written out: the runtime marked the turn's end, or a later turn began */
+  complete?: boolean;
+  /** the item the turn's question answered, for runners whose sessions are trees (Claude Code, Pi) */
+  parentItemId?: string;
+}
+
+/** Fill a turn's config: fields already observed stay, new ones join. */
+export function noteConfig(turn: { config?: TurnConfig }, patch: Partial<TurnConfig>, basis: TurnConfig['basis'] = 'observed'): void {
+  const next: TurnConfig = { ...(turn.config ?? { basis }) };
+  for (const [k, v] of Object.entries(patch) as [keyof TurnConfig, string | undefined][]) {
+    if (k === 'basis' || typeof v !== 'string' || !v) continue;
+    (next as unknown as Record<string, string>)[k] = v;
+  }
+  if (basis === 'observed') next.basis = 'observed';
+  turn.config = next;
+}
+
+/** A turn's provenance as a node carries it. */
+export function turnSource(turn: { itemIds: string[]; config?: TurnConfig }, runner: string, sessionId: string, cwd?: string): NonNullable<ThoughtNode['data']['importSource']> {
+  return { runner, sessionId, itemIds: turn.itemIds, ...(cwd ? { cwd } : {}), ...(turn.config ? { config: turn.config } : {}) };
+}
+
+/** A copy of collected turns a snapshot may hand out: later lines keep
+ *  growing the collector's own, and adoption writes into the copy. */
+export function cloneTurns<T extends RunnerTurn>(turns: T[]): T[] {
+  return turns.map((t) => ({
+    ...t,
+    itemIds: [...t.itemIds],
+    tools: [...t.tools],
+    ...(t.config ? { config: { ...t.config } } : {}),
+    ...(t.subagents ? { subagents: t.subagents.map((r) => ({ ...r, itemIds: [...r.itemIds], ...(r.tools ? { tools: [...r.tools] } : {}) })) } : {}),
+  }));
 }
 
 // Tool names → what they DID. Deterministic, runner-neutral: the same
@@ -216,7 +250,7 @@ export function turnsToBranch(
   let prev: { id: string } = { id: anchorNode.id };
   for (const turn of turns) {
     const node = makeNode(turn.question || '(tool-only turn)', turn.response, false);
-    node.data.importSource = { runner, sessionId, itemIds: turn.itemIds, ...(cwd ? { cwd } : {}) };
+    node.data.importSource = turnSource(turn, runner, sessionId, cwd);
     node.data.source = { question: node.data.question, response: node.data.response };
     node.data.steps = toolSteps(turn);
     seedPlaque(node);

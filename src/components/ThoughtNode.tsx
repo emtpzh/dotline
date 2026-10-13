@@ -36,6 +36,7 @@ import SelectionActions from './app/SelectionActions';
 import { FaceBody, FaceName, FarMark, StateMark } from './app/NodeFace';
 import { sessionWhy } from '../lib/session-why';
 import { useTextSelection } from '../lib/use-text-selection';
+import { turnOf } from '../lib/sessions/turn';
 
 // The live tail of a streaming text: about the last `keep` characters, cut
 // at a line start so the lines on screen wrap exactly as they will in the
@@ -675,7 +676,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               {highlightedTexts.size > 0 || exploreSpecs.length > 0 ? (
                 <HighlightedMarkdown content={data.response} highlights={highlightedTexts} exploreMarks={exploreSpecs} />
               ) : (
-                <Markdown base={data.importSource?.cwd}>{data.response}</Markdown>
+                <Markdown base={turnOf(data)?.cwd ?? undefined}>{data.response}</Markdown>
               )}
             </div>
           ) : null}

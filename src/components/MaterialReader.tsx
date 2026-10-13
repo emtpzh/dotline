@@ -12,6 +12,7 @@ import { useT, fmt } from '../i18n';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import { isViewerMode } from '../lib/viewer';
 import { loadAttachmentContent } from '../lib/attachment-vault';
+import { turnOf } from '../lib/sessions/turn';
 import { HtmlMaterialView } from './HtmlMaterialView';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
@@ -964,7 +965,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                       {(turn.data.highlights?.length ?? 0) > 0 ? (
                         <HighlightedMarkdown content={turn.data.response} highlights={new Set(turn.data.highlights.map((h) => h.text))} />
                       ) : (
-                        <Markdown base={turn.data.importSource?.cwd}>{turn.data.response}</Markdown>
+                        <Markdown base={turnOf(turn.data)?.cwd ?? undefined}>{turn.data.response}</Markdown>
                       )}
                     </div>
                   )}

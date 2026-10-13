@@ -121,3 +121,32 @@ test('a follow-up on the same runtime goes on in its parent\'s session directory
   // material wired in beside the line does not make it ambiguous
   assert.equal(inheritCwd([pi, node({ stepKind: 'file' })], 'pi'), '/proj/b');
 });
+
+test('a follow-up off a mirrored turn goes on in what that turn ran on', () => {
+  const cc = (config, extra = {}) => node({ importSource: { runner: 'claude-code', sessionId: 's', itemIds: ['u'], cwd: '/proj', config }, ...extra });
+  // nothing on the canvas ran it: its session file's record is its intent, never the global pick
+  const haiku = cc({ model: 'claude-haiku-5-5', effort: 'medium', permission: 'auto', basis: 'observed' });
+  const got = inheritIntent([haiku], { model: 'claude/claude-code/sonnet', effort: 'high', access: 'write' });
+  assert.equal(got.model, 'claude/claude-code/claude-haiku-5-5', 'the recorded model, named the way the CLI takes it');
+  assert.equal(got.effort, 'medium');
+  // the recorded mode never widens the level: the canvas starts reads-only
+  assert.equal(got.access, undefined);
+  // a turn the canvas ran keeps what it ran on, whatever the file names
+  const ran = cc({ model: 'claude-opus-5-5', basis: 'observed' }, { model: 'claude/claude-code/haiku' });
+  assert.equal(inheritIntent([ran], GLOBAL).model, 'claude/claude-code/haiku');
+  // no record (an older mirror): the global pick, as before
+  assert.deepEqual(inheritIntent([cc(undefined)], GLOBAL), GLOBAL);
+  // a delegated child's run hands nothing down of its own
+  const child = node({ importSource: { runner: 'claude-code', sessionId: 's', itemIds: ['c'], subagent: { agent: 'Explore', of: 'u' }, config: { model: 'claude-haiku-5-5', basis: 'observed' } } });
+  assert.deepEqual(inheritIntent([child], GLOBAL), GLOBAL);
+});
+
+test('a harness turn goes on with the session\'s own model; Codex goes on in its last directory', () => {
+  const dsh = node({ importSource: { runner: 'dsh', sessionId: 'd', itemIds: ['u'], cwd: '/a', config: { provider: 'deepseek-official', model: 'deepseek/deepseek-v4-flash', effort: 'high', basis: 'observed' } } });
+  assert.equal(inheritIntent([dsh], GLOBAL).model, 'harness/agent');
+  const codex = node({ importSource: { runner: 'codex', sessionId: 'x', itemIds: ['t'], cwd: '/start', config: { model: 'gpt-5.6-sol', cwd: '/moved', basis: 'observed' } } });
+  assert.equal(lineCwd(codex, 'codex'), '/moved');
+  assert.equal(inheritIntent([codex], GLOBAL).model, 'codex/codex/gpt-5.6-sol');
+  const cc = node({ importSource: { runner: 'claude-code', sessionId: 's', itemIds: ['u'], cwd: '/start', config: { cwd: '/start/sub', basis: 'observed' } } });
+  assert.equal(lineCwd(cc, 'claude-code'), '/start', 'Claude Code files a session by the directory it started in');
+});

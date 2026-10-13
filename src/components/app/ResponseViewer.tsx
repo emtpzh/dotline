@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import Composer from './composer/Composer';
 import SelectionActions from './SelectionActions';
 import { useTextSelection } from '../../lib/use-text-selection';
+import { turnOf } from '../../lib/sessions/turn';
 
 // The answer, reading-size: the same reading loop the PDF reader gives
 // external material, for the model's own text — select to highlight or to
@@ -93,7 +94,7 @@ export default function ResponseViewer() {
                 {data.highlights.length > 0 && !data.isLoading ? (
                   <HighlightedMarkdown content={data.response} highlights={new Set(data.highlights.map((h) => h.text))} />
                 ) : (
-                  <Markdown base={data.importSource?.cwd}>{data.response}</Markdown>
+                  <Markdown base={turnOf(data)?.cwd ?? undefined}>{data.response}</Markdown>
                 )}
                 {data.isLoading && <span className="tdag-caret ml-0.5" />}
               </div>

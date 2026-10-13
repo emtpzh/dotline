@@ -47,7 +47,13 @@ export function useFollowUpIntent(parentId: string | null): {
 } {
   const parentData = useStore((s) => (parentId ? s.nodes.find((n) => n.id === parentId)?.data : undefined));
   const globals = useRootIntent().intent;
-  const base = useMemo(() => normalized(inheritIntent([parentData], globals)), [parentData, globals]);
+  // a mirrored turn's recorded model finds its picker entry once the list is in
+  const models = useModels()?.models;
+  const base = useMemo(
+    () => normalized(inheritIntent([parentData], globals)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `models` refreshes the entries matchEntry reads
+    [parentData, globals, models],
+  );
   // the box's own changes belong to the node it asks off: another node, a clean box
   const [own, setOwn] = useState<{ for: string | null; patch: IntentPatch }>({ for: parentId, patch: {} });
   const patch = own.for === parentId ? own.patch : NO_CHANGES;

@@ -2,7 +2,7 @@
 // to and what each one can do. Pure data, no store: anything that only needs
 // to tell an agent entry from a plain model imports this, not agent-runtime.
 
-import type { AgentRuntime } from '../../types';
+import type { AgentAccess, AgentRuntime, TurnConfig } from '../../types';
 
 /** What a runtime does beyond the contract's minimum. */
 export interface RuntimeCaps {
@@ -16,16 +16,23 @@ export interface RuntimeCaps {
       one the runtime's own default applies, and a directory binds a turn
       only when the person chose it */
   workspace: boolean;
+  /** which directory a session goes on in: the one it started in (the
+      runtime files its sessions by it), or the one its last turn ran in */
+  resumeIn: 'origin' | 'last';
 }
 
 /** The runtimes the shell can run, keyed by the prefix of their picker ids. */
 export const AGENT_RUNTIMES: Record<AgentRuntime, { prefix: string; label: string; rootKey: string; caps: RuntimeCaps }> = {
-  pi: { prefix: 'pi/', label: 'Pi', rootKey: 'pi-sessions', caps: { forkAt: true, access: false, workspace: true } },
-  codex: { prefix: 'codex/', label: 'Codex', rootKey: 'codex-sessions', caps: { forkAt: false, access: true, workspace: true } },
-  'claude-code': { prefix: 'claude/', label: 'Claude Code', rootKey: 'claude-projects', caps: { forkAt: false, access: true, workspace: true } },
+  pi: { prefix: 'pi/', label: 'Pi', rootKey: 'pi-sessions', caps: { forkAt: true, access: false, workspace: true, resumeIn: 'origin' } },
+  codex: { prefix: 'codex/', label: 'Codex', rootKey: 'codex-sessions', caps: { forkAt: false, access: true, workspace: true, resumeIn: 'last' } },
+  'claude-code': { prefix: 'claude/', label: 'Claude Code', rootKey: 'claude-projects', caps: { forkAt: false, access: true, workspace: true, resumeIn: 'origin' } },
   // the harness's agent loop, served by the harness itself (nowhere else answers for it)
-  dsh: { prefix: 'harness/agent/', label: 'Harness', rootKey: 'dsh-sessions', caps: { forkAt: true, access: false, workspace: false } },
+  dsh: { prefix: 'harness/agent/', label: 'Harness', rootKey: 'dsh-sessions', caps: { forkAt: true, access: false, workspace: false, resumeIn: 'origin' } },
 };
+/** The provider segment a runtime's picker ids carry when its record names none. */
+const OWN_PROVIDER: Partial<Record<AgentRuntime, string>> = { 'claude-code': 'claude-code', codex: 'codex' };
+/** Claude Code's model families, as its picker offers them (aliases the CLI resolves). */
+const CLAUDE_FAMILIES = ['fable', 'opus', 'sonnet', 'haiku'];
 /** The runtimes the shell implements today. */
 export const LIVE_RUNTIMES: AgentRuntime[] = ['pi', 'codex', 'claude-code', 'dsh'];
 /** The harness's agent entry from before it listed one per model: the session's current model. */
@@ -59,6 +66,53 @@ export function agentTarget(id: string): { runtime: AgentRuntime; provider: stri
   // a runtime with one provider (Codex) names models without a provider segment
   if (i <= 0 || i === rest.length - 1) return { runtime, provider: runtime, id: rest };
   return { runtime, provider: rest.slice(0, i), id: rest.slice(i + 1) };
+}
+
+/** The agent entries the picker lists, as the model list last handed them
+ *  over (lib/use-models). Kept here so the intent rules can read them
+ *  without the model list's imports. */
+let pickerEntries: string[] = [];
+export function setAgentEntries(models: { id: string }[]): void {
+  pickerEntries = models.map((m) => m.id).filter((id) => isAgentModel(id));
+}
+
+/**
+ * The picker entry that runs what a turn's record names, on its runtime: an
+ * entry with the very id, else one whose model is the same by its last
+ * segment, else (Claude Code) the family alias, else an entry made from the
+ * recorded name itself — the CLIs take a full model name as it is. A harness
+ * turn goes on with the bare entry, which keeps the session's own model: a
+ * model passed on resume would switch the chat's session too.
+ */
+export function matchEntry(runtime: AgentRuntime, recorded: Pick<TurnConfig, 'model' | 'provider'> | undefined, entries: string[] = pickerEntries): string | undefined {
+  const prefix = AGENT_RUNTIMES[runtime].prefix;
+  if (runtime === 'dsh') return BARE_HARNESS_AGENT;
+  const model = recorded?.model;
+  if (!model) return undefined;
+  const own = entries.filter((id) => runtimeOf(id) === runtime);
+  const provider = recorded?.provider ?? OWN_PROVIDER[runtime];
+  const exact = provider ? `${prefix}${provider}/${model}` : undefined;
+  if (exact && own.includes(exact)) return exact;
+  const last = model.split('/').pop()!;
+  const byName = own.find((id) => id.split('/').pop() === last);
+  if (byName) return byName;
+  if (runtime === 'claude-code') {
+    const family = CLAUDE_FAMILIES.find((f) => model.includes(f));
+    const alias = family ? own.find((id) => id.split('/').pop() === family) : undefined;
+    if (alias) return alias;
+  }
+  return exact ?? `${prefix}${model}`;
+}
+
+/** What a recorded permission amounts to on the canvas's two levels:
+ *  write when the turn could change files, read when it could not;
+ *  undefined when the record names no mode the canvas can place. */
+export function accessOfPermission(permission: string | undefined): AgentAccess | undefined {
+  if (!permission) return undefined;
+  const p = permission.toLowerCase();
+  if (/read-only|readonly|\bplan\b|\bdefault\b|read only/.test(p)) return 'read';
+  if (/accept|bypass|auto|write|full-access|full access|danger|yolo/.test(p)) return 'write';
+  return undefined;
 }
 
 /** A harness agent entry's own provider/model, which the harness also

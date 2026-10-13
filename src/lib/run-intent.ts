@@ -5,18 +5,28 @@
 //
 //   intent  — model / effort / access on the node: what its next run uses
 //   record  — generatedBy / generatedEfforts / agentSession, per version:
-//             what actually ran (never rewritten)
+//             what actually ran (never rewritten); for a session turn the
+//             canvas did not run, its session file's record (importSource.config)
 //
 // A node from before intents were written reads its record as its intent:
 // a rerun reproduces what it answered with. Pure: no store, no picker state
 // — callers pass the defaults in.
 
 import type { ThoughtNode, AgentRuntime, AgentAccess } from '../types';
-import { isAgentModel, offersAccess, runtimeOf } from './agents/runtimes';
+import { AGENT_RUNTIMES, isAgentModel, matchEntry, offersAccess, runtimeOf } from './agents/runtimes';
+import { turnOf } from './sessions/turn';
 
 type Data = ThoughtNode['data'];
-type IntentSource = Pick<Data, 'model' | 'effort' | 'access' | 'agentSession' | 'generatedBy' | 'generatedEfforts' | 'responseIndex'>;
+type IntentSource = Pick<Data, 'model' | 'effort' | 'access' | 'agentSession' | 'generatedBy' | 'generatedEfforts' | 'responseIndex'> & Partial<Pick<Data, 'importSource'>>;
 type CwdSource = Pick<Data, 'model' | 'cwd' | 'agentSession' | 'importSource' | 'generatedBy' | 'responseIndex'>;
+
+/** The runtime and record of the session turn a node mirrors, when it
+ *  mirrors one of an agent runtime's (a delegated child's run excepted). */
+function recordedTurn(data: IntentSource): { runtime: AgentRuntime; config: NonNullable<NonNullable<Data['importSource']>['config']> | undefined } | null {
+  const src = data.importSource;
+  if (!src || src.subagent || !(src.runner in AGENT_RUNTIMES)) return null;
+  return { runtime: src.runner as AgentRuntime, config: src.config };
+}
 
 export type RunIntent = { model?: string; effort?: string; access?: AgentAccess };
 
@@ -24,9 +34,17 @@ export type RunIntent = { model?: string; effort?: string; access?: AgentAccess 
 const INERT = new Set(['note', 'file', 'link', 'frame', 'human']);
 
 /** The model a node runs on next: its intent, else what its answer ran on. */
+/** The model a node's own intent or the canvas's own record names. */
+const lineModelOwn = (data: IntentSource): string | undefined =>
+  data.model ?? data.agentSession?.model ?? data.generatedBy?.[data.responseIndex] ?? undefined;
+
 export function lineModel(data: IntentSource | undefined): string | undefined {
   if (!data) return undefined;
-  return data.model ?? data.agentSession?.model ?? data.generatedBy?.[data.responseIndex] ?? undefined;
+  const own = lineModelOwn(data);
+  if (own) return own;
+  // a session turn the canvas did not run: what its session file says ran it
+  const turn = recordedTurn(data);
+  return turn ? matchEntry(turn.runtime, turn.config) : undefined;
 }
 
 /** A node's intent, read from its record where it predates intents. Effort
@@ -36,7 +54,9 @@ export function intentOf(data: IntentSource | undefined): RunIntent {
   const model = lineModel(data);
   if (!data || !model) return {};
   if (!isAgentModel(model)) return { model };
-  const effort = data.effort !== undefined ? data.effort : (data.agentSession?.effort ?? data.generatedEfforts?.[data.responseIndex] ?? undefined);
+  const effort = data.effort !== undefined ? data.effort
+    : (data.agentSession?.effort ?? data.generatedEfforts?.[data.responseIndex] ?? recordedTurn(data)?.config?.effort ?? undefined);
+  // the level is the canvas's to give: a recorded mode never widens it (the ask box offers the raise)
   const access = data.access ?? data.agentSession?.access;
   return { model, ...(effort ? { effort } : {}), ...(access ? { access } : {}) };
 }
@@ -45,16 +65,18 @@ export function intentOf(data: IntentSource | undefined): RunIntent {
  *  parent (or several that agree) passes its own on; none, or parents that
  *  disagree, start from the defaults — `mixed` says which of the two. */
 export function inheritIntent(parents: (Data | undefined)[], defaults: RunIntent): RunIntent & { mixed?: true } {
-  const own = parents
-    .filter((p): p is Data => !!p && !INERT.has(p.stepKind ?? ''))
-    .map(intentOf)
-    .filter((i) => i.model);
+  const live = parents.filter((p): p is Data => !!p && !INERT.has(p.stepKind ?? ''));
+  const own = live.map(intentOf).filter((i) => i.model);
   if (own.length === 0) return defaults;
   const [first] = own;
   if (!own.every((i) => i.model === first.model)) return { ...defaults, mixed: true };
+  // a session turn nothing on the canvas ran: the canvas gave it no level,
+  // and the one it goes on at is the canvas's starting one (read), not the
+  // default a new line would take
+  const recorded = live.some((p) => !lineModelOwn(p) && recordedTurn(p));
   // same model, different levels: the runtime's default rather than a guess;
   // the access level only when every parent agrees, else the default's
-  const access = own.every((i) => i.access === first.access) ? first.access ?? defaults.access : defaults.access;
+  const access = own.every((i) => i.access === first.access) ? first.access ?? (recorded ? undefined : defaults.access) : defaults.access;
   const effort = own.every((i) => (i.effort ?? '') === (first.effort ?? '')) ? first.effort : undefined;
   return { model: first.model, ...(effort ? { effort } : {}), ...(access && isAgentModel(first.model) ? { access } : {}) };
 }
@@ -72,9 +94,11 @@ export function effectiveIntent(data: Data | undefined, parents: (Data | undefin
 export function lineCwd(data: CwdSource | undefined, runtime: AgentRuntime): string | undefined {
   if (!data) return undefined;
   if (data.cwd !== undefined && runtimeOf(lineModel(data)) === runtime) return data.cwd;
-  if (data.agentSession?.runtime === runtime) return data.agentSession.cwd;
-  if (data.importSource?.runner === runtime) return data.importSource.cwd ?? undefined;
-  return undefined;
+  // where its session goes on: the turn's directory, or (Codex) its last one
+  const turn = turnOf(data);
+  const resume = turn?.runtime === runtime ? turn.resumeCwd : null;
+  if (data.agentSession?.runtime === runtime) return resume ?? data.agentSession.cwd;
+  return resume ?? undefined;
 }
 
 /** The directory a node asked off these parents inherits on this runtime:

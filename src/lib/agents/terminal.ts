@@ -7,6 +7,7 @@
 import type { ThoughtData } from '../../types';
 import { toast } from '../ui-store';
 import { t } from '../../i18n';
+import { turnOf } from '../sessions/turn';
 
 /** Runtimes whose CLI the host can resume in a terminal (runtime/terminal.cjs). */
 const TERMINAL_RUNNERS = new Set(['claude-code', 'codex', 'pi']);
@@ -21,12 +22,11 @@ type Source = Pick<ThoughtData, 'agentSession' | 'importSource'>;
  *  a harness session inside the harness, which opens back in its chat. */
 export function terminalTarget(data: Source | undefined): { runner: string; cwd: string | null; sessionId: string; inChat: boolean } | null {
   if (!data || !window.desktopSessions) return null;
-  const runner = data.agentSession?.runtime ?? data.importSource?.runner;
-  const sessionId = data.agentSession?.sessionId ?? data.importSource?.sessionId;
-  if (!runner || !sessionId) return null;
-  const inChat = IN_HARNESS && runner === 'dsh';
-  if (!inChat && !TERMINAL_RUNNERS.has(runner)) return null;
-  return { runner, cwd: data.agentSession?.cwd ?? data.importSource?.cwd ?? null, sessionId, inChat };
+  const turn = turnOf(data);
+  if (!turn) return null;
+  const inChat = IN_HARNESS && turn.runtime === 'dsh';
+  if (!inChat && !TERMINAL_RUNNERS.has(turn.runtime)) return null;
+  return { runner: turn.runtime, cwd: turn.resumeCwd, sessionId: turn.sessionId, inChat };
 }
 
 /** Resume the node's session in a terminal; where no terminal opens, the

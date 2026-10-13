@@ -1,4 +1,4 @@
-import type { ThoughtNode, ThoughtEdge } from '../../types';
+import type { ThoughtNode, ThoughtEdge, TurnConfig } from '../../types';
 import { makeNode, type ImportableConversation } from '../import-chat';
 import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
@@ -6,6 +6,7 @@ import {
   turnsToBranch, seedPlaque, toolSteps, dropSelfCommandTurns, toolOpOf, clipText, attachSubagentBranches,
   ARTIFACT_CALL_LIMIT, TOOL_CALL_LIMIT, TOOL_RESULT_LIMIT, type RunnerTool, type SubagentRun,
 } from './shared';
+import { turnSource, noteConfig, cloneTurns } from './shared';
 
 // Pi session importer — the continuity layer's READ direction for the Pi
 // runner. A session is a JSONL under ~/.pi/agent/sessions/<encoded-cwd>/
@@ -37,12 +38,20 @@ interface PiEntry {
   timestamp?: string | number;
   version?: number;
   cwd?: string;
+  // model_change / thinking_level_change
+  provider?: string;
+  modelId?: string;
+  thinkingLevel?: string;
   message?: {
     role?: string;
     content?: PiBlock[] | string;
     toolCallId?: string;
     toolName?: string;
     timestamp?: number;
+    /** assistant messages: who answered, and why it stopped */
+    provider?: string;
+    model?: string;
+    stopReason?: string;
     /** the tool's own structured result (the subagent tool: mode and per-agent results) */
     details?: unknown;
   };
@@ -94,6 +103,8 @@ interface PiTurn {
   tools: RunnerTool[];
   at?: string;
   subagents?: SubagentRun[];
+  config?: TurnConfig;
+  complete?: boolean;
 }
 
 /** The runs a `subagent` tool call delegated (Pi's example extension: one agent, a parallel set,
@@ -127,6 +138,9 @@ export class PiSessionCollector {
   private sessionId: string | null = null;
   private cwd: string | null = null;
   private firstQuestion: string | null = null;
+  // the session's model and thinking level, as its last change entries set them
+  private model: { provider?: string; model?: string } = {};
+  private thinking: string | null = null;
 
   feedLine(raw: string): void {
     const t = raw.trim();
@@ -138,7 +152,7 @@ export class PiSessionCollector {
 
   private flush(): void {
     const c = this.current;
-    if (c && (c.question || c.response || c.tools.length)) this.turns.push(c);
+    if (c && (c.question || c.response || c.tools.length)) this.turns.push({ ...c, complete: true });
     this.current = null;
   }
 
@@ -150,6 +164,14 @@ export class PiSessionCollector {
       if (!this.sessionId) this.sessionId = e.id;
       if (typeof e.cwd === 'string' && !this.cwd) this.cwd = e.cwd;
       return;
+    }
+    if (e.type === 'model_change' && e.modelId) {
+      this.model = { provider: e.provider, model: e.modelId };
+      if (this.current) noteConfig(this.current, this.model);
+    }
+    if (e.type === 'thinking_level_change' && e.thinkingLevel) {
+      this.thinking = e.thinkingLevel;
+      if (this.current) noteConfig(this.current, { effort: e.thinkingLevel });
     }
     if (e.type !== 'message') {
       // bookkeeping entries (model_change, thinking_level_change, …) sit on
@@ -169,12 +191,18 @@ export class PiSessionCollector {
       this.current = {
         question: text, response: '', itemIds: typeof e.id === 'string' ? [e.id] : [], tools: [],
         ...(typeof e.parentId === 'string' ? { parentItemId: e.parentId } : {}), ...(at ? { at } : {}),
+        complete: false,
       };
+      // what the session is set to when the question goes in; the answer says what ran
+      noteConfig(this.current, { ...this.model, effort: this.thinking ?? undefined, cwd: this.cwd ?? undefined }, 'inferred');
       return;
     }
     if (m.role === 'assistant') {
       const cur = this.current ?? (this.current = { question: '', response: '', itemIds: [], tools: [] });
       if (typeof e.id === 'string') cur.itemIds.push(e.id);
+      if (m.model) noteConfig(cur, { provider: m.provider, model: m.model });
+      // a stop for good, not to call a tool
+      if (m.stopReason) cur.complete = m.stopReason !== 'toolUse';
       const text = textOf(m.content).trim();
       if (text) cur.response = cur.response ? `${cur.response}\n\n${text}` : text;
       if (Array.isArray(m.content)) {
@@ -193,6 +221,7 @@ export class PiSessionCollector {
       if (!reg) return;
       const cur = this.current ?? (this.current = { question: '', response: '', itemIds: [], tools: [] });
       if (typeof e.id === 'string') cur.itemIds.push(e.id);
+      cur.complete = false;
       const res = clipText(textOf(m.content), TOOL_RESULT_LIMIT);
       cur.tools.push({
         name: reg.name, call: reg.call, result: res.text, truncated: reg.truncated || res.truncated,
@@ -207,11 +236,13 @@ export class PiSessionCollector {
     }
   }
 
+  /** The session as read so far; reading may go on afterwards. */
   finish(): { sessionId: string; title: string; turns: PiTurn[]; cwd?: string } | null {
-    this.flush();
     if (!this.sessionId) return null;
+    const c = this.current;
+    const turns = cloneTurns(c && (c.question || c.response || c.tools.length) ? [...this.turns, c] : this.turns);
     const title = this.firstQuestion ?? `session ${this.sessionId.slice(0, 8)}`;
-    return { sessionId: this.sessionId, title, turns: dropSelfCommandTurns(this.turns), ...(this.cwd ? { cwd: this.cwd } : {}) };
+    return { sessionId: this.sessionId, title, turns: dropSelfCommandTurns(turns), ...(this.cwd ? { cwd: this.cwd } : {}) };
   }
 
   toConversation(): ImportableConversation | null {
@@ -235,7 +266,6 @@ function collectFromText(text: string): PiSessionCollector {
  *  fork becomes a branch on the canvas. A parent the file never named
  *  (the root) falls back to file order. */
 export function buildGraphFromTurns(turns: PiTurn[], sessionId: string, cwd?: string): { nodes: ThoughtNode[]; edges: ThoughtEdge[] } {
-  const origin = cwd ? { cwd } : {};
   const nodes: ThoughtNode[] = [];
   const edges: ThoughtEdge[] = [];
   const byItem = new Map<string, ThoughtNode>();
@@ -243,7 +273,7 @@ export function buildGraphFromTurns(turns: PiTurn[], sessionId: string, cwd?: st
   let prev: ThoughtNode | null = null;
   for (const turn of turns) {
     const node = makeNode(turn.question || '(tool-only turn)', turn.response, prev === null);
-    node.data.importSource = { runner: 'pi', sessionId, itemIds: turn.itemIds, ...origin };
+    node.data.importSource = turnSource(turn, 'pi', sessionId, cwd);
     node.data.source = { question: node.data.question, response: node.data.response };
     node.data.steps = toolSteps(turn);
     seedPlaque(node);

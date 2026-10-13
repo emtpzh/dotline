@@ -1,4 +1,4 @@
-import type { ThoughtNode, ThoughtEdge } from '../../types';
+import type { ThoughtNode, ThoughtEdge, TurnConfig } from '../../types';
 import { makeNode, type ImportableConversation } from '../import-chat';
 import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
@@ -6,6 +6,7 @@ import { toolScope, toolPaths, renderCall,
   turnsToBranch, seedPlaque, toolSteps, dropSelfCommandTurns, markImporterNote, toolOpOf, clipText,
   TOOL_CALL_LIMIT, ARTIFACT_CALL_LIMIT, TOOL_RESULT_LIMIT, type RunnerTool, attachSubagentBranches, adoptSubagentSessions, type SubagentRun, type SubagentSession
 } from './shared';
+import { turnSource, noteConfig, cloneTurns } from './shared';
 
 // Claude Code session importer — the continuity layer's READ direction for
 // one concrete runner. A session lives as JSONL under ~/.claude/projects/;
@@ -66,9 +67,16 @@ interface SessionLine {
   slug?: string;
   timestamp?: string;
   compactMetadata?: { preTokens?: number; postTokens?: number };
+  /** user lines: the permission mode the turn was sent under */
+  permissionMode?: string;
+  /** assistant lines: the effort the model ran at */
+  effort?: string;
   message?: {
     role?: string;
     content?: string | ContentPart[];
+    /** assistant lines: the model that wrote it */
+    model?: string;
+    stop_reason?: string | null;
   };
 }
 
@@ -86,7 +94,12 @@ interface Turn {
   compactionBefore?: string; // note text for a compaction boundary preceding this turn
   /** the subagents this turn launched (Agent / Task tool calls), in call order */
   subagents?: SubagentRun[];
+  config?: TurnConfig;
+  complete?: boolean;
 }
+
+/** The model of an assistant line, unless the CLI wrote the line itself. */
+const realModel = (m: string | undefined): string | undefined => (m && !m.startsWith('<') ? m : undefined);
 
 function textParts(content: string | ContentPart[] | undefined): string {
   if (typeof content === 'string') return content;
@@ -127,6 +140,8 @@ export class ClaudeSessionCollector {
   // result), so the real parent turn is found by walking up from there
   private parentOf = new Map<string, string | null>();
   private owned = new Set<string>();
+  // the permission mode the person last sent under (user lines carry it)
+  private permission: string | null = null;
 
   /** The nearest ancestor of `uuid` that belongs to a turn. Two clients on
    *  one session (the desktop app and a CLI resume) fork it from the SAME
@@ -153,7 +168,8 @@ export class ClaudeSessionCollector {
 
   private flush(): void {
     const c = this.current;
-    if (c && (c.question || c.response || c.tools.length)) this.turns.push(c);
+    // a later turn began: this one's answer is written out
+    if (c && (c.question || c.response || c.tools.length)) this.turns.push({ ...c, complete: true });
     this.current = null;
   }
 
@@ -183,7 +199,10 @@ export class ClaudeSessionCollector {
     }
 
     if (line.type === 'user') {
+      if (line.permissionMode) this.permission = line.permissionMode;
       const content = line.message?.content;
+      // a tool result: the model goes on with it
+      if (this.current && Array.isArray(content) && content.some((p) => p.type === 'tool_result')) this.current.complete = false;
       // tool results ride user lines — pair them with their pending call
       if (Array.isArray(content)) {
         for (const p of content) {
@@ -221,7 +240,9 @@ export class ClaudeSessionCollector {
           question: text, response: '', itemIds: line.uuid ? [line.uuid] : [], tools: [],
           parentItemId: this.turnAncestor(line.parentUuid),
           ...(line.timestamp ? { at: line.timestamp } : {}),
+          complete: false,
         };
+        noteConfig(this.current, { permission: this.permission ?? undefined, cwd: line.cwd ?? this.cwd ?? undefined });
         if (line.uuid) this.owned.add(line.uuid);
         if (this.pendingCompaction) {
           this.current.compactionBefore = this.pendingCompaction;
@@ -233,6 +254,10 @@ export class ClaudeSessionCollector {
 
     if (line.type === 'assistant' && this.current) {
       if (line.uuid) { this.current.itemIds.push(line.uuid); this.owned.add(line.uuid); }
+      noteConfig(this.current, { model: realModel(line.message?.model), effort: line.effort });
+      // the model stopped for good, not to call a tool
+      const stop = line.message?.stop_reason;
+      if (stop) this.current.complete = stop !== 'tool_use';
       const content = line.message?.content;
       const text = textParts(content);
       if (text.trim()) this.current.response = this.current.response ? `${this.current.response}\n\n${text}` : text;
@@ -252,15 +277,18 @@ export class ClaudeSessionCollector {
     }
   }
 
+  /** The session as read so far. Reading may go on afterwards: the turn in
+   *  progress stays the collector's, the snapshot holds a copy. */
   finish(): { sessionId: string; title: string; turns: Turn[]; cwd?: string } | null {
-    this.flush();
     if (!this.sessionId) return null;
+    const c = this.current;
+    const turns = cloneTurns(c && (c.question || c.response || c.tools.length) ? [...this.turns, c] : this.turns);
     // The name people recognize: their own title, the runner's summary
     // line (continued sessions), else the first thing they asked. The
     // slug is a random three-word tag and comes last.
     const asked = this.firstQuestion?.split('\n').map((l) => l.trim()).find((l) => l && !l.startsWith('<'))?.slice(0, 80) ?? null;
     const title = this.customTitle ?? this.summary ?? asked ?? this.slug ?? `session ${this.sessionId.slice(0, 8)}`;
-    return { sessionId: this.sessionId, title, turns: dropSelfCommandTurns(this.turns), ...(this.cwd ? { cwd: this.cwd } : {}) };
+    return { sessionId: this.sessionId, title, turns: dropSelfCommandTurns(turns), ...(this.cwd ? { cwd: this.cwd } : {}) };
   }
 
   toConversation(): ImportableConversation | null {
@@ -330,7 +358,7 @@ function buildGraphFromTurns(turns: Turn[], sessionId: string, cwd?: string): { 
       noteToWire = note;
     }
     const node = makeNode(turn.question, turn.response, prev === null);
-    node.data.importSource = { runner: 'claude-code', sessionId, itemIds: turn.itemIds, ...origin };
+    node.data.importSource = turnSource(turn, 'claude-code', sessionId, cwd);
     node.data.source = { question: node.data.question, response: node.data.response };
     seedPlaque(node);
     node.data.steps = toolSteps(turn);

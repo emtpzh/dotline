@@ -1,4 +1,4 @@
-import type { ThoughtNode, ThoughtEdge } from '../../types';
+import type { ThoughtNode, ThoughtEdge, TurnConfig } from '../../types';
 import { makeNode, type ImportableConversation } from '../import-chat';
 import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
@@ -7,6 +7,7 @@ import {
   toolPaths, toolScope, renderCall as renderArgCall, attachSubagentBranches, adoptSubagentSessions,
   ARTIFACT_CALL_LIMIT, TOOL_CALL_LIMIT, TOOL_RESULT_LIMIT, type RunnerTool, type SubagentRun, type SubagentSession,
 } from './shared';
+import { turnSource, noteConfig, cloneTurns } from './shared';
 
 // DeepSeek Harness session importer — the continuity layer's READ
 // direction for the DSH runner. A session lives as a zstd-compressed
@@ -167,6 +168,8 @@ interface DshTurn {
   tools: RunnerTool[];
   at?: string;
   subagents?: SubagentRun[];
+  config?: TurnConfig;
+  complete?: boolean;
 }
 
 /** The subagent tool's arguments (dsh-tool-subagent): a short label and the child's standalone prompt. */
@@ -190,6 +193,15 @@ export class DshSessionCollector {
   // background children: who each catalog entry is, and what each child sent back
   private catalog: { childId: string; label: string }[] = [];
   private reports = new Map<string, { relayed: string[]; closing?: string }>();
+  // what the session is set to: its model selection, permission preset and sandbox
+  private selection: { provider?: string; model?: string; effort?: string } = {};
+  private preset: string | null = null;
+  private sandbox: string | null = null;
+
+  private permission(): string | undefined {
+    const parts = [this.preset, this.sandbox && this.sandbox !== this.preset ? this.sandbox : null].filter(Boolean);
+    return parts.length ? parts.join(' · ') : undefined;
+  }
 
   feedLine(raw: string): void {
     const t = raw.trim();
@@ -201,7 +213,7 @@ export class DshSessionCollector {
 
   private flush(): void {
     const c = this.current;
-    if (c && (c.question || c.response || c.tools.length)) this.turns.push(c);
+    if (c && (c.question || c.response || c.tools.length)) this.turns.push({ ...c, complete: true });
     this.current = null;
   }
 
@@ -219,6 +231,24 @@ export class DshSessionCollector {
       const h = line as { origin?: string; createdAt?: number };
       if (h.origin === 'subagent') this.delegated = true;
       if (typeof h.createdAt === 'number' && !this.startedAt) this.startedAt = new Date(h.createdAt).toISOString();
+      return;
+    }
+    // what the turn runs on: the session's selection, then each request's own
+    const d = (line.data ?? {}) as { provider?: unknown; model?: unknown; reasoningEffort?: unknown; preset?: unknown; mode?: unknown; header?: { config?: { provider?: unknown; model?: unknown; reasoningEffort?: unknown } } };
+    const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
+    if (line.type === 'model/selection') {
+      this.selection = { provider: str(d.provider), model: str(d.model), effort: str(d.reasoningEffort) };
+      return;
+    }
+    if (line.type === 'permission/preset') { this.preset = str(d.preset) ?? this.preset; return; }
+    if (line.type === 'sandbox/mode') { this.sandbox = str(d.mode) ?? this.sandbox; return; }
+    if (line.type === 'request/header' || line.type === 'request/context') {
+      const c = line.type === 'request/header' ? d.header?.config ?? {} : d;
+      if (this.current) noteConfig(this.current, { provider: str(c.provider), model: str(c.model), effort: str(c.reasoningEffort) });
+      return;
+    }
+    if (line.type === 'turn/end') {
+      if (this.current) this.current.complete = true;
       return;
     }
     if (line.type === 'subagent/catalog') {
@@ -262,6 +292,8 @@ export class DshSessionCollector {
       t.question = text;
       t.itemIds = [um.data?.id ?? `u${um.seq}`];
       if (um.time) t.at = new Date(um.time).toISOString();
+      t.complete = false;
+      noteConfig(t, { ...this.selection, permission: this.permission(), cwd: this.cwd ?? undefined }, 'inferred');
       return;
     }
     if (line.type === 'assistant/message' && this.current) {
@@ -337,8 +369,8 @@ export class DshSessionCollector {
 
   /** Background runs: a run the result did not name takes the catalog entry its description
    *  labels, and a run still without an answer takes what its child sent back. */
-  private settleRuns(): void {
-    const runs = this.turns.flatMap((t) => t.subagents ?? []);
+  private settleRuns(turns: DshTurn[]): void {
+    const runs = turns.flatMap((t) => t.subagents ?? []);
     const claimed = new Set(runs.map((r) => r.child).filter(Boolean));
     for (const run of runs) {
       if (run.child) continue;
@@ -354,13 +386,16 @@ export class DshSessionCollector {
     }
   }
 
+  /** The session as read so far; reading may go on afterwards (runs are
+   *  settled on the snapshot's copy). */
   finish(): { sessionId: string; title: string; turns: DshTurn[]; cwd?: string } | null {
-    this.flush();
     if (!this.sessionId) return null;
-    this.settleRuns();
+    const c = this.current;
+    const turns = cloneTurns(c && (c.question || c.response || c.tools.length) ? [...this.turns, c] : this.turns);
+    this.settleRuns(turns);
     const asked = this.firstQuestion ?? null;
     const title = this.title ?? asked ?? `session ${this.sessionId.replace(/^session-/, '').slice(0, 8)}`;
-    return { sessionId: this.sessionId, title, turns: dropSelfCommandTurns(this.turns), ...(this.cwd ? { cwd: this.cwd } : {}) };
+    return { sessionId: this.sessionId, title, turns: dropSelfCommandTurns(turns), ...(this.cwd ? { cwd: this.cwd } : {}) };
   }
 
   toConversation(): ImportableConversation | null {
@@ -394,7 +429,6 @@ function collectFromText(text: string): DshSessionCollector {
 }
 
 export function buildGraphFromTurns(turns: DshTurn[], sessionId: string, cwd?: string): { nodes: ThoughtNode[]; edges: ThoughtEdge[] } {
-  const origin = cwd ? { cwd } : {};
   // faithful projection: EVERY turn imports — no tail cap (see the Claude
   // Code adapter for the rationale; the rule is runner-agnostic).
   const nodes: ThoughtNode[] = [];
@@ -403,7 +437,7 @@ export function buildGraphFromTurns(turns: DshTurn[], sessionId: string, cwd?: s
 
   for (const turn of turns) {
     const node = makeNode(turn.question || '(tool-only turn)', turn.response, prev === null);
-    node.data.importSource = { runner: 'dsh', sessionId, itemIds: turn.itemIds, ...origin };
+    node.data.importSource = turnSource(turn, 'dsh', sessionId, cwd);
     node.data.source = { question: node.data.question, response: node.data.response };
     node.data.steps = toolSteps(turn);
     seedPlaque(node);

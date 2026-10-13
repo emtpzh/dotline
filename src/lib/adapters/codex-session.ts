@@ -1,4 +1,4 @@
-import type { ThoughtNode, ThoughtEdge } from '../../types';
+import type { ThoughtNode, ThoughtEdge, TurnConfig } from '../../types';
 import { makeNode, type ImportableConversation } from '../import-chat';
 import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
@@ -6,6 +6,7 @@ import {
   turnsToBranch, seedPlaque, toolSteps, dropSelfCommandTurns, markImporterNote, toolOpOf, clipText,
   TOOL_CALL_LIMIT, ARTIFACT_CALL_LIMIT, TOOL_RESULT_LIMIT, type RunnerTool, attachSubagentBranches, adoptSubagentSessions, type SubagentRun, type SubagentSession
 } from './shared';
+import { turnSource, noteConfig, cloneTurns } from './shared';
 
 // Codex session importer — Tier 1 (read-only) of the second runner adapter.
 // A session lives as a rollout JSONL under ~/.codex/sessions/; each line is
@@ -59,6 +60,11 @@ interface RolloutLine {
     input?: string;
     call_id?: string;
     output?: unknown;
+    // turn_context: what the turn runs on
+    model?: string;
+    effort?: string;
+    approval_policy?: string;
+    sandbox_policy?: { type?: string } | string;
   };
 }
 
@@ -71,6 +77,14 @@ export interface CodexTurn {
   compactionBefore?: string;
   /** child threads adopted onto this turn (Codex names the parent in the child's header, never the child in the parent) */
   subagents?: SubagentRun[];
+  config?: TurnConfig;
+  complete?: boolean;
+}
+
+/** The sandbox and the approval policy, as one permission word. */
+function permissionOf(p: NonNullable<RolloutLine['payload']>): string | undefined {
+  const sandbox = typeof p.sandbox_policy === 'string' ? p.sandbox_policy : p.sandbox_policy?.type;
+  return [sandbox, p.approval_policy].filter(Boolean).join(' · ') || undefined;
 }
 
 const clip = clipText;
@@ -130,6 +144,12 @@ export class CodexSessionCollector {
     this.current = null;
   }
 
+  /** The turn in progress, or the last one when the runtime closes a turn
+   *  after its items are in (task_complete follows the last message). */
+  private latest(): CodexTurn | undefined {
+    return this.current ?? this.turns[this.turns.length - 1];
+  }
+
   private ensure(): CodexTurn {
     if (!this.current) {
       this.current = { question: '', response: '', itemIds: [], tools: [] };
@@ -159,10 +179,21 @@ export class CodexSessionCollector {
       this.pendingCompaction = '[Compaction] The source runner compacted its history here. Everything above this point reached later turns only as a summary.';
       return;
     }
+    if (line.type === 'event_msg' && (p.type === 'task_complete' || p.type === 'turn_aborted')) {
+      const t = this.latest();
+      if (t) t.complete = true;
+      return;
+    }
     if (line.type === 'turn_context' || (line.type === 'event_msg' && p.type === 'task_started')) {
       this.flush();
       const t = this.ensure();
       if (p.turn_id) t.itemIds.push(p.turn_id);
+      t.complete = false;
+      if (line.type === 'turn_context') {
+        noteConfig(t, { model: p.model, effort: p.effort, permission: permissionOf(p), cwd: p.cwd ?? this.cwd ?? undefined });
+      } else if (this.cwd) {
+        noteConfig(t, { cwd: this.cwd }, 'inferred');
+      }
       return;
     }
     if (line.type !== 'response_item') return;
@@ -205,9 +236,12 @@ export class CodexSessionCollector {
     }
   }
 
+  /** The session as read so far; reading may go on afterwards (the
+   *  snapshot folds a copy, the collector keeps its own turns). */
   finish(): { sessionId: string; title: string; turns: CodexTurn[]; subagent: boolean; cwd?: string } | null {
-    this.flush();
     if (!this.sessionId || !this.sawItems) return null;
+    const c = this.current;
+    const read = cloneTurns(c && (c.question || c.response || c.tools.length) ? [...this.turns, c] : this.turns);
     // A segment without a question is not a turn — it is the previous
     // answer's tool machinery, split off by an intermediate
     // turn_context / task_started scheduling marker. Fold it back in:
@@ -217,27 +251,31 @@ export class CodexSessionCollector {
     // into) stays as it is.
     const folded: CodexTurn[] = [];
     let carriedCompaction: string | undefined;
-    for (const turn of this.turns) {
+    for (const turn of read) {
       const prev = folded[folded.length - 1];
       if (!turn.question.trim() && prev) {
         if (turn.compactionBefore) carriedCompaction = carriedCompaction ?? turn.compactionBefore;
         if (turn.response) prev.response = prev.response ? `${prev.response}\n\n${turn.response}` : turn.response;
         prev.tools.push(...turn.tools);
         prev.itemIds.push(...turn.itemIds);
+        // the segment is the same turn going on: it says whether the turn ended
+        prev.complete = turn.complete;
+        if (turn.config) noteConfig(prev, { ...turn.config, ...prev.config }, turn.config.basis);
       } else {
         if (carriedCompaction && !turn.compactionBefore) turn.compactionBefore = carriedCompaction;
         carriedCompaction = undefined;
         folded.push(turn);
       }
     }
-    this.turns = folded;
+    // a turn the file has moved past is over, whatever closed it
+    for (let i = 0; i < folded.length - 1; i++) folded[i].complete = true;
     // the rollout file does NOT carry the thread's display name (that
     // lives in the app-server thread store) — the first real user prompt
     // is the closest honest stand-in
     const dir = this.cwd.split('/').filter(Boolean).pop();
     const title = this.firstQuestion?.split('\n')[0].slice(0, 60)
       || ['codex', dir, this.day].filter(Boolean).join(' · ');
-    return { sessionId: this.sessionId, title, turns: dropSelfCommandTurns(this.turns), subagent: !!this.parentThreadId, ...(this.cwd ? { cwd: this.cwd } : {}) };
+    return { sessionId: this.sessionId, title, turns: dropSelfCommandTurns(folded), subagent: !!this.parentThreadId, ...(this.cwd ? { cwd: this.cwd } : {}) };
   }
 
   toConversation(): ImportableConversation | null {
@@ -289,7 +327,7 @@ export function buildGraphFromTurns(turns: CodexTurn[], sessionId: string, cwd?:
       noteToWire = note;
     }
     const node = makeNode(turn.question || '(tool-only turn)', turn.response, prev === null);
-    node.data.importSource = { runner: 'codex', sessionId, itemIds: turn.itemIds, ...origin };
+    node.data.importSource = turnSource(turn, 'codex', sessionId, cwd);
     node.data.source = { question: node.data.question, response: node.data.response };
     node.data.steps = toolSteps(turn);
     seedPlaque(node);

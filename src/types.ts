@@ -63,6 +63,24 @@ export interface Highlight {
 /** The agent runtimes the desktop shell can run a turn on. */
 export type AgentRuntime = 'pi' | 'codex' | 'claude-code' | 'dsh';
 
+/** What one turn of an agent session ran on, in the runtime's own words —
+    the session file's record, never the canvas's guess. A follow-up off the
+    turn inherits it (lib/run-intent); the panel shows it. */
+export interface TurnConfig {
+  /** the model as the runtime names it: claude-haiku-5-5, gpt-5.6-sol, deepseek-flash */
+  model?: string;
+  /** the provider the runtime routed it through, where it names one (Pi, the harness) */
+  provider?: string;
+  /** effort / reasoning / thinking level */
+  effort?: string;
+  /** permission mode, sandbox or preset: auto, acceptEdits, workspace-write · never */
+  permission?: string;
+  /** the directory the turn ran in */
+  cwd?: string;
+  /** read straight off the record, or pieced together (a header, an earlier change) */
+  basis: 'observed' | 'inferred';
+}
+
 /** How far an agent turn may go, as each runtime's own permission mode:
     read = reads and searches only; write = may change the working directory.
     Anything beyond is refused inside the turn, never asked on the canvas. */
@@ -246,6 +264,8 @@ export interface ThoughtData extends Record<string, unknown> {
         thread): the agent's name in the runner's words, and the first item id of the turn that
         delegated — the node hangs off that turn as a branch */
     subagent?: { agent: string; of: string };
+    /** what the turn ran on, as its session file records it (lib/sessions/turn) */
+    config?: TurnConfig;
   };
   /** Frozen snapshot of the SOURCE projection at import time. The working
       question/response fields are free to iterate; this never changes, so

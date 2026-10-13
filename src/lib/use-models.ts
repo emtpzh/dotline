@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { API_BASE } from './constants';
 import { storedProviders, pushProviders } from './runtime-providers';
 import { agentModels, AGENT_PROVIDER, AGENT_RUNTIMES, agentTarget, isAgentModel, runtimeOf } from './agents/agent-runtime';
+import { setAgentEntries } from './agents/runtimes';
 
 export interface ModelInfo {
   id: string;
@@ -56,6 +57,7 @@ export function getModelsOnce(): Promise<ModelData | null> {
     // never touches an agent should not pay. Last launch's agent list stands
     // in; the runtimes are asked the first time a picker opens (ensureAgentsFresh).
     cache = withRemembered(base);
+    setAgentEntries(cache.models);
     return cache;
   })();
   return inflight;
@@ -78,7 +80,14 @@ export function reconcileModelId(pinned: string, models: ModelInfo[]): string | 
   const base = modelBasename(pinned);
   const runtime = runtimeOf(pinned);
   const match = models.find((m) => runtimeOf(m.id) === runtime && modelBasename(m.id) === base);
-  return match ? match.id : null;
+  if (match) return match.id;
+  // a session turn's own model, named the way its runtime recorded it
+  // (lib/agents/runtimes matchEntry): Claude Code takes a full model name as
+  // it is, and the bare harness entry keeps the session's own model —
+  // either runs wherever its runtime is installed
+  const installed = !!runtime && models.some((m) => runtimeOf(m.id) === runtime);
+  if (installed && (runtime === 'claude-code' || agentTarget(pinned)?.id === '')) return pinned;
+  return null;
 }
 
 const AGENT_CACHE_KEY = 'thoughtdag.agentModels';
@@ -195,6 +204,7 @@ if (typeof window !== 'undefined') {
 /** Replace the shared cache (after a runtime-key change) and notify every subscribed picker. */
 export function setModelsCache(d: ModelData): void {
   cache = d;
+  setAgentEntries(d.models);
   inflight = Promise.resolve(d);
   for (const fn of listeners) fn(d);
   // a list rebuilt from a runtime-key change carries no agent group yet:
@@ -202,6 +212,7 @@ export function setModelsCache(d: ModelData): void {
   // launch already asked (the runtimes are then alive anyway)
   if (d.agentsPending === undefined && hasAgentsBridge() && !d.models.some(isRuntimeAgent)) {
     cache = withRemembered(d);
+    setAgentEntries(cache.models);
     for (const fn of listeners) fn(cache);
     if (agentsAsked) void refreshAgents();
   }

@@ -11,6 +11,7 @@
 import type { AgentRuntime, ThoughtData, ThoughtEdge, ThoughtNode } from '../../types';
 import { AGENT_RUNTIMES } from './runtimes';
 import { whyNotPristine } from './pristine';
+import { turnOf } from '../sessions/turn';
 
 export type SessionBreak =
   | 'runtime' | 'cwd' | 'role' | 'material' | 'reference' | 'merge'
@@ -42,14 +43,11 @@ let ledgerSource: () => LedgerEntry[] = () => [];
 export function setLedgerSource(fn: () => LedgerEntry[]): void { ledgerSource = fn; }
 export function canvasLedger(): LedgerEntry[] { return ledgerSource(); }
 
-/** The agent session a node's turn lives in, if it lives in one. */
-export function sessionOf(data: Pick<ThoughtData, 'importSource' | 'agentSession'>): { runtime: AgentRuntime; sessionId: string; cwd: string | null } | null {
-  const src = data.importSource;
-  const cwd = data.agentSession?.cwd || src?.cwd || null;
-  if (src?.sessionId && src.runner in AGENT_RUNTIMES) return { runtime: src.runner as AgentRuntime, sessionId: src.sessionId, cwd };
-  const own = data.agentSession;
-  if (own?.sessionId) return { runtime: own.runtime, sessionId: own.sessionId, cwd };
-  return null;
+/** The agent session a node's turn lives in, if it lives in one, and the
+ *  directory it goes on in. */
+export function sessionOf(data: Partial<Pick<ThoughtData, 'importSource' | 'agentSession'>>): { runtime: AgentRuntime; sessionId: string; cwd: string | null } | null {
+  const turn = turnOf(data);
+  return turn ? { runtime: turn.runtime, sessionId: turn.sessionId, cwd: turn.resumeCwd } : null;
 }
 
 /** Which turn of its session a node is, counting from the session's first. */
