@@ -6,6 +6,7 @@ import type { ThoughtData } from '../../types';
 import { runtimeOf } from '../../lib/agents/runtimes';
 import { continueInTerminal, terminalTarget } from '../../lib/agents/terminal';
 import { turnOf } from '../../lib/sessions/turn';
+import { useStore } from '../../store';
 import { Button } from '../ui/button';
 
 // Where an agent turn ran, kept in view: the runtime, the model and effort
@@ -16,8 +17,16 @@ import { Button } from '../ui/button';
 
 const RUNTIME_LABEL: Record<string, string> = { pi: 'Pi', dsh: 'DeepSeek Harness', 'claude-code': 'Claude Code', codex: 'Codex' };
 
-export default function AgentSessionLine({ data }: { data: ThoughtData }) {
+export default function AgentSessionLine({ data, nodeId }: { data: ThoughtData; nodeId?: string }) {
   const t = useT();
+  // the turn went on in the session above it: the turn it follows is of the same session
+  const continued = useStore((s) => {
+    if (!nodeId || data.sessionLink) return false;
+    const own = turnOf(data);
+    if (!own) return false;
+    const up = s.edges.find((e) => e.target === nodeId && !e.data?.isCrossLink && turnOf(s.nodes.find((n) => n.id === e.source)?.data)?.sessionId === own.sessionId);
+    return !!up;
+  });
   const activeId = useProjects((s) => s.activeId);
   const chosen = useProjects((s) => s.projects.find((p) => p.id === s.activeId)?.agentCwd);
   const turn = turnOf(data);
@@ -44,7 +53,7 @@ export default function AgentSessionLine({ data }: { data: ThoughtData }) {
       {permission && <span className="text-2xs text-muted-foreground truncate max-w-[140px] shrink-0" title={t('agent.permissionTitle')} data-agent-session-access>{permission}</span>}
       <FolderOpen size={13} strokeWidth={1.75} className="text-muted-foreground shrink-0" />
       <span className="font-mono text-muted-foreground truncate flex-1 min-w-0" title={cwd} data-agent-session-cwd={cwd}>{short}</span>
-      {data.agentSession?.continued && <span className="text-2xs text-muted-foreground shrink-0" title={t('agent.continuedTitle')}>↩ {t('agent.continued')}</span>}
+      {(continued || data.agentSession?.continued) && <span className="text-2xs text-muted-foreground shrink-0" title={t('agent.continuedTitle')}>↩ {t('agent.continued')}</span>}
       {window.desktopLocal && (
         <Button variant="ghost" onClick={() => void window.desktopLocal!.open(cwd)} className="text-muted-foreground hover:text-primary shrink-0" title={t('agent.openDir')}>
           <FolderOpen strokeWidth={1.75} />

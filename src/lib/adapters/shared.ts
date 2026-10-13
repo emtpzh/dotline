@@ -70,6 +70,8 @@ export interface RunnerTurn {
   complete?: boolean;
   /** the item the turn's question answered, for runners whose sessions are trees (Claude Code, Pi) */
   parentItemId?: string;
+  /** the turn ended on the runtime's own error (a login expired, a model refused), not an answer */
+  failed?: boolean;
 }
 
 /** Fill a turn's config: fields already observed stay, new ones join. */

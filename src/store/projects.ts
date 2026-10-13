@@ -282,14 +282,16 @@ export function bootProjects(): Promise<void> {
 
 // ─── Switching ──────────────────────────────────────────────────
 // Danger window: between setOptions and rehydrate completion, any setState
-// would write the OLD graph under the NEW key. Defenses: every stream lets
-// go first (drain: stopped, or an agent turn left to its session file), and
-// the `switching` flag disables the switcher UI.
+// would write the OLD graph under the NEW key. Defenses: every stream stops
+// first (agent runs are the page's and go on: lib/agents/runs), and the
+// `switching` flag disables the switcher UI.
 let suppressTouch = false;
 
-/** Returns how many agent turns run on without the canvas. */
+/** Returns how many agent turns of the canvas left behind run on. */
 async function drainGenerations(): Promise<number> {
-  const kept = releaseGenerations(useStore.getState().nodes);
+  const { liveRunsOn } = await import('../lib/agents/runs');
+  const kept = liveRunsOn(useProjects.getState().activeId);
+  releaseGenerations();
   const deadline = Date.now() + 1000;
   while (activeAbortControllers.size > 0 && Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 30));

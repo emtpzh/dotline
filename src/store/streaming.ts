@@ -2,9 +2,10 @@ import type { StoreApi } from 'zustand';
 import { walkUpAncestors } from '../lib/graph';
 import { upstreamFingerprint } from './context-builder';
 import { pruneHighlights } from '../lib/highlight-match';
-import { llmCall, llmCallStream, answerApproval, type ContextMessage, type ImageAttachment } from '../lib/api';
-import { agentOutbound, adoptAgentTurn, isAgentModel } from '../lib/agents/agent-runtime';
-import { noticeTurnEnded, noticeQuestion, clearQuestionNotice } from '../lib/agents/offscreen';
+import { llmCall, llmCallStream, type ContextMessage, type ImageAttachment } from '../lib/api';
+import { agentOutbound, adoptAgentTurn, isAgentModel, type AgentRoute } from '../lib/agents/agent-runtime';
+import { abortAgentRun, awaitSettle, clearOverlay, runAgentTurn, patchBinding } from '../lib/agents/runs';
+import { noticeTurnEnded } from '../lib/agents/offscreen';
 import { lineModel } from '../lib/run-intent';
 import { countTokens, activeSummary } from '../utils';
 import { toast, useUiStore } from '../lib/ui-store';
@@ -13,7 +14,7 @@ import { contextLengthFor } from '../lib/runtime-providers';
 import { memoryContextBlock, judgeMemory } from '../lib/memory';
 import { t, fmt } from '../i18n';
 import { isViewerMode } from '../lib/viewer';
-import type { Reference, ThoughtNode } from '../types';
+import type { AgentRuntime, Reference } from '../types';
 import { markNaming, unmarkNaming } from '../lib/batch-naming';
 import { isAutoRerun } from '../lib/edge-look';
 import { continuity, linkOf } from '../lib/agents/continuity';
@@ -83,35 +84,21 @@ export const activeAbortControllers = new Map<string, AbortController>();
 // same node — alternating reasoning, clobbered answers.
 const generationSeq = new Map<string, number>();
 
-// Agent turns whose session file is named: the run lives in that file, not
-// in this page, so a canvas switch lets it go on instead of stopping it.
-const detachable = new Set<string>();
-
 /**
- * Before the canvas is swapped out, every generation on it lets go. An
- * ordinary stream is stopped. An agent turn whose session file is named
- * runs on, as it does when the page closes: its late callbacks are dropped
- * here (nothing of it may land on the next canvas), a question it asks from
- * now on is withdrawn — nobody is there to answer it — and the node stays
- * pending, so its own canvas reads the turn back from the session file
- * (reconcilePendingAgentTurns). Returns how many agent turns run on.
+ * Before the canvas is swapped out, its streams stop. Agent runs are not
+ * among them: a run belongs to the page (lib/agents/runs) and goes on, and
+ * its turn lands on its node from the session file when its canvas is in
+ * view again.
  */
-export function releaseGenerations(nodes: ThoughtNode[]): number {
-  let kept = 0;
-  for (const [nodeId, controller] of [...activeAbortControllers]) {
-    if (!detachable.has(nodeId)) { controller.abort(); continue; }
-    generationSeq.set(nodeId, (generationSeq.get(nodeId) ?? 0) + 1);
-    activeAbortControllers.delete(nodeId);
-    detachable.delete(nodeId);
-    for (const q of nodes.find((n) => n.id === nodeId)?.data.pendingApprovals ?? []) void answerApproval(q, { cancelled: true });
-    kept++;
-  }
-  return kept;
+export function releaseGenerations(): void {
+  for (const controller of activeAbortControllers.values()) controller.abort();
 }
 
-// How long a finished agent turn waits to be adopted from its session file
-// before the node is marked done anyway (adoption then lands late).
+// How long a finished agent turn waits for its session file before the page
+// says the turn is late (it lands when the file has it), and how long before
+// the run's own text stands in for it.
 const ADOPT_WAIT_MS = 6000;
+const ADOPT_GIVE_UP_MS = 10 * 60_000;
 
 // Auto-chain budget: how many times each autoRerun node has fired since the
 // last MANUAL action. A fresh user action resets all counters, so budgets
@@ -154,15 +141,13 @@ export async function runNodeGeneration(
   // Supersede: abort any generation already running on this node; its late
   // callbacks are dropped via the sequence check below.
   activeAbortControllers.get(nodeId)?.abort();
+  abortAgentRun(nodeId);
   const myGen = (generationSeq.get(nodeId) ?? 0) + 1;
   generationSeq.set(nodeId, myGen);
   const isCurrent = () => generationSeq.get(nodeId) === myGen;
   const abortController = new AbortController();
   activeAbortControllers.set(nodeId, abortController);
-  detachable.delete(nodeId);
-  const finished = () => { activeAbortControllers.delete(nodeId); detachable.delete(nodeId); };
-  // a run stopped, failed or empty leaves no turn for the session sync to bring in
-  const unbind = () => set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId && n.data.run ? { ...n, data: { ...n.data, run: undefined } } : n)) }));
+  const finished = () => { activeAbortControllers.delete(nodeId); };
 
   // A retry is starting — clear any previous failure flag and reasoning
   // buffer, and mark the old response as awaiting replacement (the canvas
@@ -211,6 +196,7 @@ export async function runNodeGeneration(
     const run = {
       runtime: agentRuntime, question, startedAt: new Date().toISOString(),
       ...(requestedModel ? { model: requestedModel } : {}),
+      ...(versionMode === 'append' ? { append: true } : {}),
       ...(agentRoute.continue && agentRoute.sessionId ? { sessionId: agentRoute.sessionId, ...(agentRoute.afterTurnId ? { afterTurnId: agentRoute.afterTurnId } : {}) } : {}),
     };
     set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, run } } : n)) }));
@@ -281,6 +267,25 @@ export async function runNodeGeneration(
       if (messages[i].role === 'assistant') { insertAt = i + 1; break; }
     }
     messages = [...messages.slice(0, insertAt), memBlock, ...messages.slice(insertAt)];
+  }
+
+  // what a finished answer sets going: its plaque, memory, the reruns and
+  // paradigm steps waiting on it
+  const afterAnswer = (response: string) => {
+    onSuccess?.(response);
+    get().pushHistory();
+    generateSummary(nodeId, question, response, get().setSummary, collectMapLines(nodeId, get().nodes, get().edges));
+    if (!selfData?.stepKind && !selfData?.digestOf) judgeMemory(question, response);
+    triggerAutoReruns(set, get, nodeId);
+    triggerParadigmCascade(get, nodeId);
+  };
+
+  if (agentRoute && agentRuntime && requestedModel) {
+    // an agent turn is the run manager's to run and the session sync's to
+    // write: nothing here streams into the node
+    finished();
+    await runAgentGeneration(set, get, nodeId, { question, messages, images, model: requestedModel, route: agentRoute, runtime: agentRuntime, isCurrent, writeFinal, afterAnswer });
+    return;
   }
 
   try {
@@ -358,74 +363,7 @@ export async function runNodeGeneration(
         }));
       },
       onSources: (sources) => { references = sources; },
-      onAgentTool: (call) => {
-        if (!isCurrent()) return;
-        const now = new Date().toISOString();
-        set((state) => ({
-          nodes: state.nodes.map((n) => {
-            if (n.id !== nodeId) return n;
-            const trace = [...(n.data.agentTrace ?? [])];
-            if (call.phase === 'start') trace.push({ id: call.id || `${trace.length}`, name: call.name, query: call.query, status: 'running', startedAt: now });
-            else { const i = trace.findIndex((e) => e.id === call.id && e.status === 'running'); if (i >= 0) trace[i] = { ...trace[i], status: call.isError ? 'error' : 'ok', endedAt: now }; }
-            return { ...n, data: { ...n.data, agentTrace: trace } };
-          }),
-        }));
-      },
-      onAgentSession: (session) => {
-        if (!isCurrent()) return;
-        const continued = !!agentRoute?.continue;
-        // a later session event (the file found, the effort read) adds to the
-        // record, never wipes it
-        set((state) => ({ nodes: state.nodes.map((n) => {
-          if (n.id !== nodeId) return n;
-          const run = n.data.run && !n.data.run.sessionId && session.sessionId ? { ...n.data.run, sessionId: session.sessionId } : n.data.run;
-          return { ...n, data: { ...n.data, run, agentSession: { ...n.data.agentSession, ...session, continued, ...(requestedModel ? { model: requestedModel } : {}) } } };
-        }) }));
-        if (session.sessionFile) detachable.add(nodeId);
-        // a session the run opened: the canvas follows it from now on — turns
-        // added to it later, from a terminal or a chat, grow here
-        if (!continued && session.sessionId) void import('../lib/sessions/subscribe').then((m) => m.followRunSession(session.runtime, session.sessionId!)).catch(() => {});
-      },
-      onAgentChanges: (changes) => {
-        if (!isCurrent()) return;
-        set((state) => ({ nodes: state.nodes.map((n) => n.id === nodeId ? { ...n, data: { ...n.data, ...(n.data.run ? { run: { ...n.data.run, changes } } : {}), ...(n.data.agentSession ? { agentSession: { ...n.data.agentSession, changes } } : {}) } } : n) }));
-      },
-      onApproval: (request) => {
-        // a turn let go of (another canvas is in view, or a rerun took the
-        // node) has nobody to ask: the question is withdrawn, the run goes on
-        if (!isCurrent()) { void answerApproval(request, { cancelled: true }); return; }
-        const askedAt = new Date().toISOString();
-        // append, never replace: a second parallel tool call must not evict the
-        // first one's card (that stranded the first approval and hung the turn)
-        set((state) => ({
-          nodes: state.nodes.map((n) => {
-            if (n.id !== nodeId) return n;
-            const cur = n.data.pendingApprovals ?? [];
-            if (cur.some((p) => p.id === request.id)) return n;
-            return { ...n, data: { ...n.data, pendingApprovals: [...cur, { ...request, askedAt }] } };
-          }),
-        }));
-        // the card shows the question; a card out of sight gets a toast that stays until it is answered
-        noticeQuestion(nodeId);
-      },
-      onApprovalDecided: ({ id, outcome, value }) => {
-        if (!isCurrent()) return;
-        const decidedAt = new Date().toISOString();
-        set((state) => ({
-          nodes: state.nodes.map((n) => {
-            if (n.id !== nodeId) return n;
-            const cur = n.data.pendingApprovals ?? [];
-            const pending = cur.find((p) => p.id === id);
-            const rest = cur.filter((p) => p.id !== id);
-            const nextPending = rest.length ? rest : undefined;
-            if (!nextPending) clearQuestionNotice(nodeId);
-            if (!pending) return { ...n, data: { ...n.data, pendingApprovals: nextPending } };
-            const asked = { ...pending };
-            delete asked.answered;
-            return { ...n, data: { ...n.data, pendingApprovals: nextPending, approvals: [...(n.data.approvals ?? []), { ...asked, outcome, decidedAt, ...(value ? { value } : {}) }] } };
-          }),
-        }));
-      },
+
       onRerouted: (_from, to) => { actualModel = to; },
       onImageFallback: (model) => { actualModel = model; },
       onReasoning: (_chunk, fullSoFar) => {
@@ -440,55 +378,23 @@ export async function runNodeGeneration(
         scholar: selfData?.scholarSearch ?? useUiStore.getState().scholarSearchEnabled,
         mcp: useUiStore.getState().mcpEnabled,
       };
-    })(), pinnedModel, agentRoute ? { ...agentRoute, nodeId } : undefined);
+    })(), pinnedModel);
     flushStream();
     if (!isCurrent()) return; // superseded while finishing: drop everything
-    // an agent turn stays registered until its answer is written: a canvas
-    // switch while it is adopted lets it finish from its session file
-    // instead of writing onto the next canvas
-    if (!agentRoute) finished();
+    finished();
     if (!response.trim()) {
       // The stream closed cleanly but the model sent nothing (upstream
       // hiccup, tool-only turn) — silent emptiness reads as a hang, so
       // surface it as a retryable failure instead.
       finished();
-      unbind();
       writeFinal(t('node.emptyResponse'), true);
       return;
     }
-    // an agent turn is read from its session file BEFORE the node is marked
-    // done: footprints, provenance and the subscription land in the same step
-    // as the answer, so a follow-up asked right away already continues the
-    // session — but only for a while: the answer is already here, and the
-    // file is read through the host, which can stall (every connection the
-    // browser keeps to it taken). Past the wait the node is done; its
-    // binding stays, and the sync fills the turn in when the file has it.
-    const bound = agentRoute ? get().nodes.find((n) => n.id === nodeId)?.data.run : undefined;
-    if (bound) set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId && n.data.run ? { ...n, data: { ...n.data, run: { ...n.data.run, endedAt: new Date().toISOString() } } } : n)) }));
-    const adoption = bound?.sessionId && window.desktopSessions ? adoptAgentTurn(nodeId, bound.runtime, bound.sessionId).catch(() => false) : null;
-    const adopted = adoption ? await Promise.race([adoption, new Promise<null>((r) => setTimeout(() => r(null), ADOPT_WAIT_MS))]) : false;
-    // no session file to find it in: nothing will bind it later either
-    if (bound && !adoption) set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, run: undefined } } : n)) }));
-    if (!isCurrent()) return; // let go meanwhile: its canvas reads the turn back
-    finished();
-    if (adopted === null) toast('info', t('agent.adoptLate'), 8000);
     writeFinal(response);
-    if (agentRoute) noticeTurnEnded(nodeId);
-    // the node now says what the session says: the answer as shown is the
-    // snapshot an edit is measured against (a follow-up continues only an unedited chain)
-    const markAdopted = () => set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId && n.data.source ? { ...n, data: { ...n.data, source: { ...n.data.source, response } } } : n)) }));
-    if (adopted) markAdopted();
-    else if (adopted === null) void adoption!.then((ok) => { if (ok) markAdopted(); });
-    onSuccess?.(response);
-    get().pushHistory();
-    generateSummary(nodeId, question, response, get().setSummary, collectMapLines(nodeId, get().nodes, get().edges));
-    if (!selfData?.stepKind && !selfData?.digestOf) judgeMemory(question, response);
-    triggerAutoReruns(set, get, nodeId);
-    triggerParadigmCascade(get, nodeId);
+    afterAnswer(response);
   } catch (err) {
     if (!isCurrent()) return; // superseded: the abort was ours to swallow
     finished();
-    unbind();
     const partial = get().nodes.find((n) => n.id === nodeId)?.data.response || '';
     const isAbort = err instanceof DOMException && err.name === 'AbortError';
     if (isAbort) {
@@ -514,6 +420,87 @@ export async function runNodeGeneration(
     }
     get().pushHistory();
   }
+}
+
+/**
+ * An agent turn: the run manager runs it (its overlay is what the node shows
+ * meanwhile), and the session sync writes the turn into the node from the
+ * session file — by the node's binding, once the file has the whole turn.
+ * Only a run with no session file to read (a host without the sessions
+ * bridge, a run that never named a session) has its own text written here,
+ * and a stopped or failed run says so here; its binding stays, so a turn
+ * the file holds after all still lands on the node.
+ */
+async function runAgentGeneration(set: Set, get: Get, nodeId: string, o: {
+  question: string; messages: ContextMessage[]; images?: ImageAttachment[];
+  model: string; route: AgentRoute; runtime: AgentRuntime;
+  isCurrent: () => boolean;
+  writeFinal: (response: string, failed?: boolean) => void;
+  afterAnswer: (response: string) => void;
+}): Promise<void> {
+  const { useProjects } = await import('./projects');
+  const canvasId = useProjects.getState().activeId;
+  if (!canvasId) return;
+  /** the node is on the canvas in view, and still this run's */
+  const here = () => o.isCurrent() && useProjects.getState().activeId === canvasId && !useProjects.getState().switching && get().nodes.some((n) => n.id === nodeId);
+  let sessionId = o.route.continue ? o.route.sessionId : undefined;
+  const end = await runAgentTurn({
+    nodeId, canvasId, runtime: o.runtime, question: o.question, messages: o.messages, images: o.images, model: o.model, route: o.route,
+    onSession: (session) => {
+      if (!session.sessionId) return;
+      sessionId = session.sessionId;
+      void patchBinding(canvasId, nodeId, (run) => (run.sessionId ? run : { ...run, sessionId: session.sessionId! }));
+      // a session the run opened: the canvas follows it from now on — turns
+      // added to it later, from a terminal or a chat, grow here
+      if (!o.route.continue) void import('../lib/sessions/subscribe').then((m) => m.followRunSession(session.runtime, session.sessionId!, canvasId)).catch(() => {});
+    },
+  });
+  if (!o.isCurrent()) return; // a newer generation took the node
+
+  const fileToRead = !!sessionId && !!window.desktopSessions;
+  if (end.how !== 'end' || !fileToRead) {
+    // stopped, failed, or nothing to read the turn from: the run's own account
+    if (end.how === 'error') {
+      const message = end.error ?? t('toast.unknownError');
+      if (here()) toast('error', fmt(t('toast.generationFailed'), { message }));
+    }
+    const text = end.text.trim() ? end.text : end.how === 'aborted' ? t('node.stoppedPlaceholder') : end.how === 'error' ? t('node.failedPlaceholder') : t('node.emptyResponse');
+    const failed = end.how === 'error' || !end.text.trim() && end.how === 'end';
+    if (here()) {
+      o.writeFinal(text, failed);
+      clearOverlay(nodeId);
+      // nothing will ever bind a run without a session file
+      if (!fileToRead) set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId && n.data.run ? { ...n, data: { ...n.data, run: undefined } } : n)) }));
+      get().pushHistory();
+      if (!failed && end.how === 'end') o.afterAnswer(text);
+    } else if (!fileToRead) {
+      const { patchNodeOn } = await import('../lib/agents/runs');
+      await patchNodeOn(canvasId, nodeId, (d) => ({ response: text, responses: [text], questions: [d.question], generatedBy: [o.model], responseIndex: 0, isLoading: false, generationFailed: failed || undefined, run: undefined }));
+      clearOverlay(nodeId);
+    }
+    return;
+  }
+
+  // the turn is in the file: the sync writes it (now, if the canvas is in
+  // view; when it is in view again, if not)
+  if (here()) void adoptAgentTurn(nodeId, o.runtime, sessionId!).catch(() => false);
+  let settled = await awaitSettle(nodeId, ADOPT_WAIT_MS);
+  if (!settled) {
+    if (here()) toast('info', t('agent.adoptLate'), 8000);
+    settled = await awaitSettle(nodeId, ADOPT_GIVE_UP_MS);
+  }
+  if (!here()) return;
+  const node = get().nodes.find((n) => n.id === nodeId);
+  if (!settled) {
+    // the file never showed the turn: the run's text stands in
+    o.writeFinal(end.text.trim() ? end.text : t('node.emptyResponse'), !end.text.trim());
+    clearOverlay(nodeId);
+    set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, run: undefined } } : n)) }));
+    if (end.text.trim()) o.afterAnswer(end.text);
+    return;
+  }
+  noticeTurnEnded(nodeId);
+  o.afterAnswer(node?.data.response ?? end.text);
 }
 
 /**

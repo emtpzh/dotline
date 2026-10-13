@@ -37,6 +37,7 @@ import { FaceBody, FaceName, FarMark, StateMark } from './app/NodeFace';
 import { sessionWhy } from '../lib/session-why';
 import { useTextSelection } from '../lib/use-text-selection';
 import { turnOf } from '../lib/sessions/turn';
+import { useNodeView } from '../lib/agents/runs';
 
 // The live tail of a streaming text: about the last `keep` characters, cut
 // at a line start so the lines on screen wrap exactly as they will in the
@@ -51,7 +52,9 @@ function liveTail(text: string, keep: number): string {
   return text.slice(Math.floor((text.length - keep) / keep) * keep);
 }
 
-export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
+export default function ThoughtNode({ id, data: stored }: NodeProps<ThoughtNodeType>) {
+  // an agent run of this page shows through its overlay until its turn is in
+  const data = useNodeView(id, stored);
   // Actions are stable references: selecting them one by one (instead of a
   // bare useStore() destructure) means this card no longer re-renders on
   // EVERY store change — with N cards mounted that multiplied every

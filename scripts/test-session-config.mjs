@@ -125,3 +125,15 @@ test('a recorded model finds the picker entry that runs it', () => {
   assert.equal(matchEntry('dsh', { provider: 'p', model: 'm' }, entries), 'harness/agent', 'the session keeps its own model');
   assert.equal(matchEntry('pi', undefined, entries), undefined);
 });
+
+test('claude code: a turn the CLI answered with its own error is failed, not answered', () => {
+  const c = new ClaudeSessionCollector();
+  const base = { sessionId: 's-2', cwd: '/w' };
+  feed(c, [
+    { ...base, type: 'user', uuid: 'u0', parentUuid: null, message: { role: 'user', content: 'hi' } },
+    { ...base, type: 'assistant', uuid: 'a0', parentUuid: 'u0', isApiErrorMessage: true, error: 'authentication_failed', message: { role: 'assistant', model: '<synthetic>', stop_reason: 'stop_sequence', content: [{ type: 'text', text: 'Failed to authenticate' }] } },
+  ]);
+  const s = c.finish();
+  assert.equal(s.turns[0].failed, true);
+  assert.equal(s.turns[0].config.model, undefined);
+});

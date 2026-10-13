@@ -23,12 +23,16 @@ export interface TurnRef {
   subagent?: boolean;
 }
 
-type Source = Partial<Pick<ThoughtData, 'importSource' | 'agentSession'>>;
+type Source = Partial<Pick<ThoughtData, 'importSource' | 'agentSession' | 'run' | 'cwd'>>;
 
 export function turnOf(data: Source | undefined): TurnRef | null {
   if (!data) return null;
   const src = data.importSource;
-  const run = data.agentSession;
+  // a canvas run from before bindings recorded its session here
+  const legacy = data.agentSession;
+  // a run of the canvas whose turn is not in the file yet: its binding, in the node's own directory
+  const bound = data.run?.sessionId ? { runtime: data.run.runtime, sessionId: data.run.sessionId, cwd: data.cwd ?? '' } : null;
+  const run = legacy?.sessionId ? legacy : bound;
   let runtime: AgentRuntime;
   let sessionId: string;
   if (src?.sessionId && src.runner in AGENT_RUNTIMES) {

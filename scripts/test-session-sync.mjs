@@ -136,3 +136,24 @@ test('a session a run forked holds the conversation it forked from: taken, never
   assert.equal(plan.append.length, 0);
   assert.deepEqual(plan.taken.sort(), ['u0', 'u1', 'u2']);
 });
+
+test('bindings: a new session, a page closed mid-run, a canvas switched away', () => {
+  // a fresh session the run opened: its first turn records the canvas's context ahead of the question
+  const fresh = session([user('n0', null, '[Dotline canvas context] …\n\n---\n\nfirst question'), said('b0', 'n0', 'first answer')]);
+  let plan = planSync({ built: fresh, handled: new Set(), canvas: [], bindings: [{ nodeId: 'q', question: 'first question' }] });
+  assert.deepEqual(plan.bound.map((b) => [b.nodeId, b.unit]), [['q', 'n0']]);
+  assert.equal(plan.append.length, 0);
+  // the page closed while it ran: no run here any more, the question recorded
+  // some other way — the turn after the one it went on from is still its own
+  const resumed = session([...BASE, user('u2', 'a1', 'rewritten by the runtime'), said('a2', 'u2', 'answer')]);
+  plan = planSync({ built: resumed, handled: new Set(['u0', 'u1']), canvas: canvasOf(resumed, ['u0', 'u1']), bindings: [{ nodeId: 'q', question: 'the question as asked', afterTurnId: 'u1', ended: true }] });
+  assert.deepEqual(plan.bound.map((b) => b.unit), ['u2']);
+  // still running (another canvas in view, the run going on): no guess
+  plan = planSync({ built: resumed, handled: new Set(['u0', 'u1']), canvas: canvasOf(resumed, ['u0', 'u1']), bindings: [{ nodeId: 'q', question: 'the question as asked', afterTurnId: 'u1' }] });
+  assert.equal(plan.bound.length, 0);
+  assert.deepEqual(plan.append.map(first), ['u2'], 'unclaimed, the turn is the file\'s like any other');
+  // two runs on one session: each takes its own turn, in order
+  const two = session([...BASE, user('u2', 'a1', 'one'), said('a2', 'u2', '1'), user('u3', 'a2', 'two'), said('a3', 'u3', '2')]);
+  plan = planSync({ built: two, handled: new Set(['u0', 'u1']), canvas: canvasOf(two, ['u0', 'u1']), bindings: [{ nodeId: 'p', question: 'one', afterTurnId: 'u1' }, { nodeId: 'q', question: 'two', afterTurnId: 'u2' }] });
+  assert.deepEqual(plan.bound.map((b) => [b.nodeId, b.unit]), [['p', 'u2'], ['q', 'u3']]);
+});

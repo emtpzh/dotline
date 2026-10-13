@@ -6,6 +6,7 @@ import { getDescendantIds, selectionSinks, walkUpAncestors } from '../../lib/gra
 import type { ContextMessage, ImageAttachment } from '../../lib/api';
 import { buildContext, resolveExplicitRole, applyRoleOverride, type MessageSource } from '../context-builder';
 import { activeAbortControllers, autoRunCounts, runNodeGeneration, triggerParadigmCascade } from '../streaming';
+import { abortAgentRun } from '../../lib/agents/runs';
 import { useUiStore, toast } from '../../lib/ui-store';
 import { t, fmt } from '../../i18n';
 import type { StoreState, LlmSlice, AddQuestionOptions } from '../types';
@@ -637,5 +638,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       controller.abort();
       activeAbortControllers.delete(nodeId);
     }
+    // an agent run is the run manager's
+    abortAgentRun(nodeId);
   },
 });

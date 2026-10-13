@@ -21,6 +21,9 @@ import { useUiStore } from '../ui-store';
 import { generateId, countTokens } from '../../utils';
 import { placeNewNodes } from '../layout';
 import { matchEntry } from '../agents/runtimes';
+import { agentRunLive, noteSettled, overlayOf } from '../agents/runs';
+import { pruneHighlights } from '../highlight-match';
+import { t } from '../../i18n';
 import { legacyTaken, planSync, unitIds, type Binding } from './plan';
 import { readSession, type FileLoc, type SessionSnapshot } from './read';
 import type { AgentRunBinding, AgentRuntime, AgentStep, ThoughtEdge, ThoughtNode } from '../../types';
@@ -69,7 +72,7 @@ export function placeSegment(
 function bindingsFor(nodes: ThoughtNode[], runner: string, sessionId: string): (Binding & { run: AgentRunBinding })[] {
   return nodes
     .filter((n) => n.data.run && n.data.run.runtime === runner && n.data.run.sessionId === sessionId)
-    .map((n) => ({ nodeId: n.id, question: n.data.run!.question, afterTurnId: n.data.run!.afterTurnId, turnId: n.data.run!.turnId, ended: !!n.data.run!.endedAt || !n.data.isLoading, run: n.data.run! }))
+    .map((n) => ({ nodeId: n.id, question: n.data.run!.question, afterTurnId: n.data.run!.afterTurnId, turnId: n.data.run!.turnId, ended: !!n.data.run!.endedAt || !agentRunLive(n.id), run: n.data.run! }))
     .sort((a, b) => a.run.startedAt.localeCompare(b.run.startedAt));
 }
 
@@ -115,22 +118,40 @@ function recheckLater(loc: FileLoc): void {
 }
 
 /** A turn the canvas ran and that is over in the file: its answer as the
- *  node's version, recorded the way a finished generation does. */
-function settledData(n: ThoughtNode, fresh: ThoughtNode, run: AgentRunBinding, edgesNodes: { nodes: ThoughtNode[]; edges: ThoughtEdge[] }): ThoughtNode['data'] {
+ *  node's version, recorded the way a finished generation records one — in
+ *  place of the earlier versions, or beside them for a run that appends —
+ *  with what only the run saw (its thinking, the questions it asked). */
+function settledData(n: ThoughtNode, fresh: ThoughtNode, run: AgentRunBinding, graph: { nodes: ThoughtNode[]; edges: ThoughtEdge[] }): ThoughtNode['data'] {
+  const d = n.data;
   const response = fresh.data.response;
   const now = new Date().toISOString();
   const config = fresh.data.importSource?.config;
   const ranOn = run.model ?? (config ? matchEntry(run.runtime, config) : undefined);
+  const overlay = overlayOf(n.id);
+  const failText = new Set([t('node.failedPlaceholder'), t('node.emptyResponse'), t('node.stoppedPlaceholder')]);
+  const kept = run.append
+    ? d.responses.map((r, i) => ({ r, q: d.questions?.[i], by: d.generatedBy?.[i], rs: d.reasonings?.[i], at: d.generatedAts?.[i], ed: d.editedAts?.[i], gw: d.gatewaySearches?.[i], ef: d.generatedEfforts?.[i] })).filter(({ r }) => r && !failText.has(r))
+    : [];
+  const responses = [...kept.map((k) => k.r), response];
   return {
-    ...n.data,
-    response, responses: [response], questions: [n.data.question],
-    generatedBy: [ranOn], generatedEfforts: [config?.effort ?? n.data.agentSession?.effort], generatedAts: [now], editedAts: [undefined],
-    gatewaySearches: [undefined], reasonings: [undefined], responseIndex: 0,
-    isLoading: false, generationFailed: undefined, restreaming: undefined, tokenCount: countTokens(n.data.question + response),
+    ...d,
+    response, responses,
+    questions: [...kept.map((k) => k.q ?? d.question), d.question],
+    generatedBy: [...kept.map((k) => k.by), ranOn],
+    generatedEfforts: [...kept.map((k) => k.ef), config?.effort],
+    generatedAts: [...kept.map((k) => k.at), now],
+    editedAts: [...kept.map((k) => k.ed), undefined],
+    gatewaySearches: [...kept.map((k) => k.gw), undefined],
+    reasonings: [...kept.map((k) => k.rs), overlay?.reasoning || undefined],
+    responseIndex: responses.length - 1,
+    approvals: overlay?.decided.length ? [...(d.approvals ?? []), ...overlay.decided] : d.approvals,
+    highlights: pruneHighlights(d.highlights, response),
+    isLoading: false, generationFailed: undefined, restreaming: undefined, reasoning: undefined,
+    pendingApprovals: undefined, agentTrace: undefined,
+    tokenCount: countTokens(d.question + response),
     source: { question: fresh.data.source?.question ?? fresh.data.question, response },
     run: undefined,
-    agentSession: n.data.agentSession ? { ...n.data.agentSession, pending: undefined } : undefined,
-    lastContextHash: upstreamFingerprint(n.id, edgesNodes.nodes, edgesNodes.edges), lastGeneratedAt: now,
+    lastContextHash: upstreamFingerprint(n.id, graph.nodes, graph.edges), lastGeneratedAt: now,
   };
 }
 
@@ -171,33 +192,51 @@ export async function syncConversation(
 
   // ── the canvas's own runs: their turns land in their nodes ──
   let waiting = false;
+  const settled: string[] = [];
   for (const b of plan.bound) {
     const binding = bindings.find((x) => x.nodeId === b.nodeId)!;
     const fd = b.fresh.data;
-    const running = !!useStore.getState().nodes.find((n) => n.id === b.nodeId)?.data.isLoading;
-    const ended = !!binding.run.endedAt;
-    const over = allComplete || complete.has(b.unit) || (!running && await fileQuiet(snapshot?.file ?? null));
+    const live = agentRunLive(b.nodeId);
+    // over: the file closed the turn, the run's last event came, or (no run
+    // here) the file has gone quiet
+    const over = allComplete || complete.has(b.unit) || !!binding.run.endedAt || (!live && await fileQuiet(snapshot?.file ?? null));
     const cwd = fd.importSource?.config?.cwd ?? fd.importSource?.cwd ?? '';
     const steps = fd.steps ?? [];
-    const fsStep = ended ? fsFootprint(cwd, binding.run.changes, steps) : null;
+    const fsStep = over ? fsFootprint(cwd, binding.run.changes, steps) : null;
+    const done = over && !!fd.response.trim();
+    // the runtime's own error, not an answer: recorded, with the retry a failed run gets
+    const failed = !!snapshot?.turns.find((x) => x.id === b.unit)?.failed;
     useStore.setState((st) => {
       const graph = { nodes: st.nodes, edges: st.edges };
       return {
         nodes: st.nodes.map((n) => {
           if (n.id !== b.nodeId) return n;
-          const provenance = { importSource: fd.importSource, source: fd.source ?? { question: fd.question, response: fd.response } };
-          // streaming in this page: the run fills the answer, the file says which turn it is
-          if (running && !ended) return { ...n, data: { ...n.data, ...provenance, run: { ...binding.run, turnId: b.unit } } };
-          const withSteps = { ...n.data, ...provenance, steps: fsStep ? [...steps, fsStep] : steps, includedStepIds: undefined, agentTrace: undefined };
-          // its run in this page is over: the run writes the answer it streamed
-          if (running) return { ...n, data: { ...withSteps, run: undefined } };
-          // nobody streams it here (the page closed, the canvas was away): the file is the answer
-          if (over && fd.response.trim()) return { ...n, data: settledData({ ...n, data: withSteps }, b.fresh, binding.run, graph) };
-          return { ...n, data: { ...withSteps, response: fd.response || n.data.response, run: { ...binding.run, turnId: b.unit } } };
+          const withTurn = {
+            ...n.data,
+            importSource: fd.importSource,
+            source: fd.source ?? { question: fd.question, response: fd.response },
+            steps: fsStep ? [...steps, fsStep] : steps,
+            includedStepIds: undefined,
+          };
+          if (done) {
+            const data = settledData({ ...n, data: withTurn }, b.fresh, binding.run, graph);
+            return { ...n, data: failed ? { ...data, generationFailed: true } : data };
+          }
+          // still being written: what the file holds so far (the overlay shows the live stream)
+          return { ...n, data: { ...withTurn, response: fd.response || n.data.response, run: { ...binding.run, turnId: b.unit } } };
         }),
       };
     });
-    if (!running && !over) waiting = true;
+    if (done) settled.push(b.nodeId);
+    else if (!live) waiting = true;
+  }
+  if (settled.length) {
+    const st = useStore.getState();
+    st.settleFrom(settled);
+    for (const id of settled) {
+      st.logEvent('generate', id, { chars: st.nodes.find((n) => n.id === id)?.data.response.length ?? 0, agent: true });
+      noteSettled(id);
+    }
   }
   if (waiting && snapshot) recheckLater(snapshot.file);
   // runs long over whose turn never showed up let go of their binding

@@ -95,6 +95,8 @@ export interface AgentRunBinding {
   startedAt: string;
   /** the picker entry it ran on */
   model?: string;
+  /** a new version beside the node's earlier ones, not in their place */
+  append?: boolean;
   /** its last event has arrived: the file holds all it will write */
   endedAt?: string;
   /** what the file system saw change during the run */

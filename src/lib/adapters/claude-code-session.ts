@@ -69,6 +69,8 @@ interface SessionLine {
   compactMetadata?: { preTokens?: number; postTokens?: number };
   /** user lines: the permission mode the turn was sent under */
   permissionMode?: string;
+  /** assistant lines the CLI wrote itself to say a call failed */
+  isApiErrorMessage?: boolean;
   /** assistant lines: the effort the model ran at */
   effort?: string;
   message?: {
@@ -96,6 +98,7 @@ interface Turn {
   subagents?: SubagentRun[];
   config?: TurnConfig;
   complete?: boolean;
+  failed?: boolean;
 }
 
 /** The model of an assistant line, unless the CLI wrote the line itself. */
@@ -255,6 +258,8 @@ export class ClaudeSessionCollector {
     if (line.type === 'assistant' && this.current) {
       if (line.uuid) { this.current.itemIds.push(line.uuid); this.owned.add(line.uuid); }
       noteConfig(this.current, { model: realModel(line.message?.model), effort: line.effort });
+      // the CLI's own error in place of an answer; a real answer after it clears it
+      this.current.failed = !!line.isApiErrorMessage;
       // the model stopped for good, not to call a tool
       const stop = line.message?.stop_reason;
       if (stop) this.current.complete = stop !== 'tool_use';

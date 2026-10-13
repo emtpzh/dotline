@@ -35,6 +35,7 @@ import SearchBar from './components/SearchBar';
 import DiagnosticsPanel from './components/DiagnosticsPanel';
 import MaterialReader from './components/MaterialReader';
 import ProjectSwitcher from './components/ProjectSwitcher';
+import WaitingQuestions from './components/app/WaitingQuestions';
 import SessionAtlas from './components/SessionAtlas';
 import { useStore } from './store';
 import { frameMembers } from './lib/frames';
@@ -1564,6 +1565,7 @@ function Canvas() {
           </Button>
         )}
         <ProjectSwitcher onSwitched={afterProjectSwitch} iconOnly={foldProjectName} />
+        <WaitingQuestions />
       </div>
       <div className="min-w-0 flex-1 self-stretch" data-topbar-gap />
       <div className="flex shrink-0 items-center gap-1.5 pointer-events-auto">

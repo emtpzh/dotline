@@ -12,6 +12,7 @@ import Composer from './composer/Composer';
 import SelectionActions from './SelectionActions';
 import { useTextSelection } from '../../lib/use-text-selection';
 import { turnOf } from '../../lib/sessions/turn';
+import { useRuns, withOverlay } from '../../lib/agents/runs';
 
 // The answer, reading-size: the same reading loop the PDF reader gives
 // external material, for the model's own text — select to highlight or to
@@ -23,6 +24,7 @@ import { turnOf } from '../../lib/sessions/turn';
 export default function ResponseViewer() {
   const nodeId = useUiStore((s) => s.responseViewerNodeId);
   const node = useStore((s) => (nodeId ? s.nodes.find((n) => n.id === nodeId) : undefined));
+  const runOverlay = useRuns((s) => (nodeId ? s.runs[nodeId] : undefined));
   const t = useT();
   const close = () => useUiStore.getState().setResponseViewerNodeId(null);
 
@@ -51,7 +53,7 @@ export default function ResponseViewer() {
   }
 
   if (!nodeId || !node) return null;
-  const data = node.data;
+  const data = withOverlay(node.data, runOverlay);
   const reasoning = data.reasonings?.[data.responseIndex];
   const canInteract = !isViewerMode && !data.stepKind;
 

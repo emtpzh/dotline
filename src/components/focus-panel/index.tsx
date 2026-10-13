@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useRuns, withOverlay } from '../../lib/agents/runs';
 import { X } from 'lucide-react';
 import { useStore } from '../../store';
 import { useUiStore } from '../../lib/ui-store';
@@ -81,6 +82,8 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
   // A card's quiet line points at a section ("5 sources" → the list):
   // scroll there once the panel shows this node, then forget it
   const scrollRef = useRef<HTMLDivElement>(null);
+  // an agent run of this page shows through its overlay until its turn is in
+  const runOverlay = useRuns((s) => (selectedNodeId ? s.runs[selectedNodeId] : undefined));
   const panelSection = useUiStore((s) => s.panelSection);
   useEffect(() => {
     if (!panelSection) return;
@@ -99,7 +102,7 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
     return null;
   }
 
-  const data = node.data;
+  const data = withOverlay(node.data, runOverlay);
   const hasMultipleVersions = data.responses.length > 1;
   // Waiting for its own question → the question box is open and the
   // follow-up input steps aside (nothing to follow up on yet)
@@ -160,7 +163,7 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
 
       {/* Scrollable content: one card per section */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
-        <AgentSessionLine data={data} />
+        <AgentSessionLine data={data} nodeId={selectedNodeId!} />
         {/* the question shows once it is asked — before that it is typed below */}
         {!awaiting && (
           <QuestionSection

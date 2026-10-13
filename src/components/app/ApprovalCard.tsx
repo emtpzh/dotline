@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { ShieldAlert, MessageCircleQuestion, ChevronDown, ChevronRight } from 'lucide-react';
 import { useT } from '../../i18n';
-import { useStore } from '../../store';
 import { answerApproval, type QuestionAnswer } from '../../lib/api';
+import { dropQuestion, markAnswered } from '../../lib/agents/runs';
 import type { ApprovalRequest, ApprovalRecord } from '../../types';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
@@ -28,22 +28,11 @@ export function ApprovalCard({ nodeId, request, compact }: { nodeId: string; req
 
   const send = async (answer: QuestionAnswer, mark: ApprovalRequest['answered']) => {
     if (busy) return;
-    useStore.setState((s) => ({
-      nodes: s.nodes.map((n) => n.id === nodeId
-        ? { ...n, data: { ...n.data, pendingApprovals: (n.data.pendingApprovals ?? []).map((p) => p.id === request.id ? { ...p, answered: mark } : p) } }
-        : n),
-    }));
+    // the question lives on the run (lib/agents/runs), wherever its node is
+    markAnswered(nodeId, request.id, mark);
     const ok = await answerApproval(request, answer);
-    if (!ok) {
-      // nothing was waiting: the runtime withdrew the question or the turn ended
-      useStore.setState((s) => ({
-        nodes: s.nodes.map((n) => {
-          if (n.id !== nodeId) return n;
-          const rest = (n.data.pendingApprovals ?? []).filter((p) => p.id !== request.id);
-          return { ...n, data: { ...n.data, pendingApprovals: rest.length ? rest : undefined } };
-        }),
-      }));
-    }
+    // nothing was waiting: the runtime withdrew the question or the turn ended
+    if (!ok) dropQuestion(nodeId, request.id);
   };
 
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();

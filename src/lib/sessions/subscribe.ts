@@ -8,11 +8,10 @@
 import type { AgentRuntime } from '../../types';
 import { addSubscription, findSubscription, subscriptionsOf, useProjects } from '../../store/projects';
 
-export async function followRunSession(runtime: AgentRuntime, sessionId: string): Promise<void> {
+export async function followRunSession(runtime: AgentRuntime, sessionId: string, canvasId: string): Promise<void> {
   if (findSubscription(sessionId)) return;
-  const { projects, activeId, switching } = useProjects.getState();
-  if (!activeId || switching) return;
-  const meta = projects.find((p) => p.id === activeId);
+  const meta = useProjects.getState().projects.find((p) => p.id === canvasId);
+  if (!meta) return;
   const role = subscriptionsOf(meta).some((s) => s.role === 'main') ? 'chapter' : 'main';
-  await addSubscription(activeId, { runner: runtime, sessionId, role, handled: [] });
+  await addSubscription(canvasId, { runner: runtime, sessionId, role, handled: [] });
 }

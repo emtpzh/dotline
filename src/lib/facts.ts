@@ -11,4 +11,4 @@ import type { ThoughtNode } from '../types';
 export const isFactNode = (n: Pick<ThoughtNode, 'data'> | null | undefined): boolean => !!n?.data.importSource;
 
 /** What a copy of a node must not carry: a copy is the canvas's, not the session's. */
-export const factless = { importSource: undefined, source: undefined, agentSession: undefined, revisionOf: undefined } as const;
+export const factless = { importSource: undefined, source: undefined, agentSession: undefined, run: undefined, revisionOf: undefined } as const;
