@@ -2,8 +2,8 @@
 // place that shows or continues an agent turn asks — the session line, the
 // continuity rule, the directory a follow-up runs in, the terminal button,
 // the context's relative paths. One answer, read off the node's provenance
-// (importSource: the turn as its session file records it), with the record
-// of the canvas's own run (agentSession) standing in until the file has it.
+// (importSource: the turn as its session file records it), with the
+// binding of the canvas's own run (run) standing in until the file has it.
 
 import type { AgentRuntime, ThoughtData, TurnConfig } from '../../types';
 import { AGENT_RUNTIMES } from '../agents/runtimes';
@@ -23,16 +23,13 @@ export interface TurnRef {
   subagent?: boolean;
 }
 
-type Source = Partial<Pick<ThoughtData, 'importSource' | 'agentSession' | 'run' | 'cwd'>>;
+type Source = Partial<Pick<ThoughtData, 'importSource' | 'run' | 'cwd'>>;
 
 export function turnOf(data: Source | undefined): TurnRef | null {
   if (!data) return null;
   const src = data.importSource;
-  // a canvas run from before bindings recorded its session here
-  const legacy = data.agentSession;
   // a run of the canvas whose turn is not in the file yet: its binding, in the node's own directory
-  const bound = data.run?.sessionId ? { runtime: data.run.runtime, sessionId: data.run.sessionId, cwd: data.cwd ?? '' } : null;
-  const run = legacy?.sessionId ? legacy : bound;
+  const run = data.run?.sessionId ? { runtime: data.run.runtime, sessionId: data.run.sessionId, cwd: data.cwd ?? '' } : null;
   let runtime: AgentRuntime;
   let sessionId: string;
   if (src?.sessionId && src.runner in AGENT_RUNTIMES) {

@@ -94,7 +94,8 @@ test('a lifted canvas compiles as it did, and its recorded fingerprints stay cur
 });
 
 test('downstream sees one line of what the turn did, outputs left out', () => {
-  const nodes = liftSteps(before());
+  // as a canvas loads: its steps lifted, its old run record with them
+  const nodes = liftCanvas(before(), edges);
   const msgs = buildContext('C', nodes, edges).messages.map((m) => m.content);
   assert.ok(msgs.includes('[What this turn did in /repo — outputs left out] ran: ls -lat | head; read: a.ts; write: out.txt'), msgs.join('\n---\n'));
   assert.ok(!msgs.some((m) => m.includes('total 8')));
@@ -112,4 +113,25 @@ test('a command reads as the person would type it', () => {
   assert.equal(stepSummary([{ id: 'x', tool: 'search', op: 'search', call: 'q', result: '' }], undefined), null);
   // a step that never had an op is still a shell call by its name
   assert.equal(stepSummary([{ id: 'y', tool: 'bash', call: '{"command":"make"}', result: '' }], undefined), '[What this turn did — outputs left out] ran: make');
+});
+
+test('a canvas run recorded the old way folds into what the node keeps now; its answers stay current', () => {
+  const ran = (id, extra) => node(id, {
+    responses: [`r-${id}`], responseIndex: 0, generatedBy: [undefined],
+    steps: [{ id: `${id}-s`, tool: 'bash', op: 'run', call: 'ls', result: 'x', paths: ['out.txt'] }], ...extra,
+  });
+  const old = [
+    ran('A', { agentSession: { runtime: 'pi', sessionId: 'p1', sessionFile: '/f', cwd: '/repo', effort: 'high', access: 'write', model: 'pi/x/y' } }),
+    ran('B', { agentSession: { runtime: 'pi', sessionId: 'p1', sessionFile: '/f', cwd: '/repo', pending: true, model: 'pi/x/y' } }),
+    node('C', {}),
+  ];
+  const edges = [edge('A', 'B'), edge('B', 'C')];
+  for (const n of old) n.data.lastContextHash = upstreamFingerprint(n.id, old, edges);
+  const nodes = liftCanvas(old, edges);
+  const [A, B] = nodes.map((n) => n.data);
+  assert.equal('agentSession' in A, false);
+  assert.deepEqual([A.access, A.cwd, A.generatedBy[0], A.generatedEfforts[0]], ['write', '/repo', 'pi/x/y', 'high']);
+  // a run that was still going is a binding the session sync finds its turn by
+  assert.deepEqual([B.run.runtime, B.run.sessionId, B.run.question, B.run.model], ['pi', 'p1', 'q-B', 'pi/x/y']);
+  for (const n of nodes) assert.equal(n.data.lastContextHash, upstreamFingerprint(n.id, nodes, edges), `${n.id} stays current`);
 });

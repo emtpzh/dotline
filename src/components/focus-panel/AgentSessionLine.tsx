@@ -30,14 +30,14 @@ export default function AgentSessionLine({ data, nodeId }: { data: ThoughtData; 
   const activeId = useProjects((s) => s.activeId);
   const chosen = useProjects((s) => s.projects.find((p) => p.id === s.activeId)?.agentCwd);
   const turn = turnOf(data);
-  const runner = turn?.runtime ?? data.agentSession?.runtime ?? data.importSource?.runner ?? runtimeOf(data.model);
-  const cwd = turn?.cwd ?? data.agentSession?.cwd ?? data.importSource?.cwd ?? data.cwd ?? null;
+  const runner = turn?.runtime ?? data.importSource?.runner ?? runtimeOf(data.model);
+  const cwd = turn?.cwd ?? data.importSource?.cwd ?? data.cwd ?? null;
   if (!runner || !cwd) return null;
   const config = turn?.config;
   const model = config?.model?.split('/').pop();
-  const effort = data.agentSession?.effort ?? config?.effort;
-  // the canvas's own level when it ran the turn; else the mode the record names
-  const permission = data.agentSession?.access ? (data.agentSession.access === 'write' ? t('access.ranWrite') : t('access.ranRead')) : config?.permission;
+  const effort = data.generatedEfforts?.[data.responseIndex] ?? config?.effort;
+  // the mode the turn ran under, as its session file records it; else the level the canvas gave it
+  const permission = config?.permission ?? (data.access ? (data.access === 'write' ? t('access.ranWrite') : t('access.ranRead')) : undefined);
   // the pin is offered only when this directory is not already the canvas's:
   // neither the chosen one nor the canvas's own workspace by default
   const isOwnWorkspace = !chosen && !!activeId && cwd.endsWith(`/workspaces/${activeId}`);
@@ -53,7 +53,7 @@ export default function AgentSessionLine({ data, nodeId }: { data: ThoughtData; 
       {permission && <span className="text-2xs text-muted-foreground truncate max-w-[140px] shrink-0" title={t('agent.permissionTitle')} data-agent-session-access>{permission}</span>}
       <FolderOpen size={13} strokeWidth={1.75} className="text-muted-foreground shrink-0" />
       <span className="font-mono text-muted-foreground truncate flex-1 min-w-0" title={cwd} data-agent-session-cwd={cwd}>{short}</span>
-      {(continued || data.agentSession?.continued) && <span className="text-2xs text-muted-foreground shrink-0" title={t('agent.continuedTitle')}>↩ {t('agent.continued')}</span>}
+      {continued && <span className="text-2xs text-muted-foreground shrink-0" title={t('agent.continuedTitle')}>↩ {t('agent.continued')}</span>}
       {window.desktopLocal && (
         <Button variant="ghost" onClick={() => void window.desktopLocal!.open(cwd)} className="text-muted-foreground hover:text-primary shrink-0" title={t('agent.openDir')}>
           <FolderOpen strokeWidth={1.75} />

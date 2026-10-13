@@ -34,7 +34,9 @@ Choose how to run a question in the canvas model picker:
 
 A follow-up continues or forks a session only when nothing above it was edited on the canvas and nothing else is wired into the question. Otherwise the turn runs in a fresh session that receives the compiled canvas context, so your edits reach the agent.
 
-When an Agent model is selected, the folder chip on the toolbar sets where the turn runs. By default it follows the mirrored project, then the session open in the chat. You can type an absolute path on the machine running Harness. An Agent turn keeps running if you close the canvas; when you reopen it, the node picks up the finished answer from the session.
+When an Agent model is selected, the folder chip on the toolbar sets where the turn runs. By default it follows the mirrored project, then the session open in the chat. You can type an absolute path on the machine running Harness. An Agent turn keeps running if you close the canvas or switch to another one; when the canvas is open again, the node picks up the finished answer from the session. A question the turn asks while its canvas is out of view waits in the top bar until you answer it.
+
+A follow-up that continues a Harness session keeps the session's own model. Picking another model in the ask box switches the session itself, so the chat window's session changes model too — the ask box says so before you send.
 
 Selecting a regular model is not the same as running the Harness Agent. Choose **DeepSeek Harness · Agent** when you want tool execution and a recorded harness turn.
 

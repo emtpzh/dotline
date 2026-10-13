@@ -292,7 +292,7 @@ export function buildContext(
       messages.push({ role: 'user', content: `[File: ${att.name}]\n${att.content}` });
       sources.push({ layer, nodeId: node.id, part: 'step' });
     }
-    const where = node.data.agentSession?.cwd ?? node.data.importSource?.cwd;
+    const where = node.data.importSource?.cwd ?? node.data.cwd;
     const line = (format?.legacySummary ? legacyStepSummary : stepSummary)(left, where);
     if (line) {
       messages.push({ role: 'user', content: line });

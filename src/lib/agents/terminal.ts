@@ -15,7 +15,7 @@ const TERMINAL_RUNNERS = new Set(['claude-code', 'codex', 'pi']);
  *  in the harness's own chat instead (dsh-bridge's openInCli). */
 const IN_HARNESS = !!import.meta.env.VITE_DSH_BRIDGE;
 
-type Source = Pick<ThoughtData, 'agentSession' | 'importSource'>;
+type Source = Partial<Pick<ThoughtData, 'importSource' | 'run' | 'cwd'>>;
 
 /** The session a node's turn lives in, as a terminal would resume it; null
  *  when there is none, or its runtime has no terminal to resume in. `inChat`:

@@ -32,13 +32,13 @@ const node = (extra = {}) => ({ question: 'q', response: 'r', responses: ['r'], 
 
 test('a Pi turn asked through the global picker keeps running on Pi', () => {
   // pi issue: no intent written, the run recorded on the node
-  const pi = node({ agentSession: { runtime: 'pi', model: PI, effort: 'high' }, generatedBy: [PI], generatedEfforts: ['high'] });
+  const pi = node({ generatedBy: [PI], generatedEfforts: ['high'] });
   assert.deepEqual(intentOf(pi), { model: PI, effort: 'high' });
   assert.deepEqual(inheritIntent([pi], GLOBAL), { model: PI, effort: 'high' });
 });
 
 test('the intent on the node wins over what its answer ran on', () => {
-  const n = node({ model: API, agentSession: { model: PI }, generatedBy: [PI] });
+  const n = node({ model: API, generatedBy: [PI] });
   assert.equal(lineModel(n), API);
   assert.deepEqual(intentOf(n), { model: API });
 });
@@ -87,9 +87,9 @@ test('the fields a node is written with carry effort for agent entries, access f
 
 test('the access level travels down a line, and only where the parents agree', () => {
   const defaults = { model: PI, access: 'read' };
-  // a node's own level, else the one its last turn ran at
+  // a node's own level (a run from before levels were written has its level lifted onto the node: store/lift)
   assert.deepEqual(intentOf(node({ model: PI, access: 'write' })), { model: PI, access: 'write' });
-  assert.deepEqual(intentOf(node({ agentSession: { runtime: 'pi', model: PI, cwd: '/p', access: 'write' }, generatedBy: [PI] })), { model: PI, access: 'write' });
+  assert.deepEqual(intentOf(node({ access: 'write', generatedBy: [PI] })), { model: PI, access: 'write' });
   // a child inherits its parent's level
   assert.deepEqual(inheritIntent([node({ model: PI, access: 'write' })], defaults), { model: PI, access: 'write' });
   // parents that disagree start from the default level
@@ -101,8 +101,10 @@ test('the access level travels down a line, and only where the parents agree', (
 test('a node keeps the directory it runs in, whatever the canvas default says later', () => {
   // its intent, when it runs on that runtime
   assert.equal(lineCwd(node({ model: PI, cwd: '/proj/a' }), 'pi'), '/proj/a');
-  // a turn from before directories were written: where its own turn ran
-  assert.equal(lineCwd(node({ agentSession: { runtime: 'pi', model: PI, cwd: '/proj/b' }, generatedBy: [PI] }), 'pi'), '/proj/b');
+  // a turn the canvas ran: the directory of the session it ran in
+  assert.equal(lineCwd(node({ importSource: { runner: 'pi', sessionId: 'p', itemIds: ['u'], cwd: '/proj/b' }, generatedBy: [PI] }), 'pi'), '/proj/b');
+  // a run whose turn is not in the file yet: its binding, in the node's own directory
+  assert.equal(lineCwd(node({ model: HARNESS, cwd: '/proj/d', run: { runtime: 'dsh', sessionId: 'd', question: 'q', startedAt: '' } }), 'dsh'), '/proj/d');
   // a mirrored session turn: the session's directory
   assert.equal(lineCwd(node({ importSource: { runner: 'dsh', sessionId: 's', itemIds: ['u'], cwd: '/proj/c' } }), 'dsh'), '/proj/c');
   // an intent for another runtime says nothing about this one
@@ -112,7 +114,7 @@ test('a node keeps the directory it runs in, whatever the canvas default says la
 });
 
 test('a follow-up on the same runtime goes on in its parent\'s session directory', () => {
-  const pi = node({ agentSession: { runtime: 'pi', model: PI, cwd: '/proj/b' }, generatedBy: [PI] });
+  const pi = node({ importSource: { runner: 'pi', sessionId: 'p', itemIds: ['u'], cwd: '/proj/b' }, generatedBy: [PI] });
   assert.equal(inheritCwd([pi], 'pi'), '/proj/b');
   // another runtime, a plain parent, several parents: the canvas default decides
   assert.equal(inheritCwd([pi], 'dsh'), undefined);

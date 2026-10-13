@@ -5,7 +5,7 @@ import { buildGraphFromTurns, type CodexTurn } from './codex-session';
 // real names, fork lineage, structured turns. This adapter projects a
 // thread/read result into the SAME CodexTurn shape the rollout
 // collector produces, so everything downstream (canonical routing,
-// ledger idempotence, uniqueness) works unchanged. Files stay the
+// idempotence by turn id, uniqueness) works unchanged. Files stay the
 // import truth when both exist: this road is for what files cannot
 // tell (a thread's name) or do not hold (a fork with no rollout).
 

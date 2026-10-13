@@ -118,11 +118,9 @@ export async function mirroredCwd(): Promise<string | null> {
   } catch { return null; }
 }
 
-/** The session file for a session id: the tail node's own record, else the
- *  session registry's (which finds it by name under the runtime's root). */
-async function agentSessionFile(runtime: AgentRuntime, sessionId: string, tail: { data: { agentSession?: { sessionId: string | null; sessionFile: string | null } } } | undefined): Promise<string | null> {
-  const own = tail?.data.agentSession;
-  if (own?.sessionId === sessionId && own.sessionFile) return own.sessionFile;
+/** The session file for a session id, as the session registry knows it
+ *  (or finds it, by name under the runtime's root). */
+async function agentSessionFile(runtime: AgentRuntime, sessionId: string): Promise<string | null> {
   const { sessionFile, absolutePath } = await import('../sessions/store');
   const loc = await sessionFile(runtime, sessionId);
   return loc ? absolutePath(loc) : null;
@@ -185,7 +183,7 @@ export async function agentOutbound(model: string | undefined, nodeId?: string):
     }
     if (!c || c.kind === 'new') return { cwd, link: linkOf(c) };
     const parent = nodes.find((n) => n.id === c.parentId);
-    const sessionPath = await agentSessionFile(runtime, c.sessionId, parent);
+    const sessionPath = await agentSessionFile(runtime, c.sessionId);
     // the session is named but its record is gone: nothing to lean on
     if (!sessionPath) return { cwd, link: { kind: 'new', reason: 'missing' } };
     if (c.kind === 'continue') return { cwd, sessionPath, continue: true, sessionId: c.sessionId, ...(parent?.data.importSource?.itemIds?.[0] ? { afterTurnId: parent.data.importSource.itemIds[0] } : {}) };
@@ -459,7 +457,7 @@ export async function agentCallStream(
  * finds the turn by the node's binding (ThoughtData.run). True once the node
  * carries the turn.
  */
-export async function adoptAgentTurn(nodeId: string, runtime: AgentRuntime, sessionId: string): Promise<boolean> {
+export async function syncAgentTurn(nodeId: string, runtime: AgentRuntime, sessionId: string): Promise<boolean> {
   if (!window.desktopSessions) return false;
   const { syncSession } = await import('../sessions/sync');
   await syncSession(runtime, sessionId).catch(() => null);

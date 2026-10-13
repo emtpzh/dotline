@@ -70,7 +70,7 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
     setOpen(false);
     await switchProject(id);
     onSwitched();
-    // arrival reconciliation: heal the ledger, then close the mirror gap
+    // arrival reconciliation: heal the subscriptions, then close the mirror gap
     // (the live watcher only follows the ACTIVE canvas — this one may
     // have missed its sessions' growth while another was open)
     void import('../lib/atlas/canonical').then((m) => m.unsubscribeOrphanedSessions());
@@ -102,7 +102,7 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
         {!!mainSubscription(active) && (() => {
           const main = mainSubscription(active)!;
           // three states, honest about the source: reachable (live),
-          // unreachable on this machine (grey — the ledger holds only
+          // unreachable on this machine (grey — a subscription holds only
           // UUIDs, so the moment the source appears anywhere in a
           // scanned root, listening resumes on its own), or no scan yet
           // (assume live: never a false alarm)

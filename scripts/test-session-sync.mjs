@@ -21,7 +21,7 @@ const src = `${process.cwd()}/src/lib`;
 writeFileSync(entry, [
   `export { ClaudeSessionCollector } from '${src}/adapters/claude-code-session.ts';`,
   `export { planSync, legacyTaken, unitIds } from '${src}/sessions/plan.ts';`,
-  `export { readSession, forgetReads } from '${src}/sessions/read.ts';`,
+  `export { readSession } from '${src}/sessions/read.ts';`,
 ].join('\n'));
 const out = join(dir, 'bundle.mjs');
 await build({ entryPoints: [entry], bundle: true, format: 'esm', platform: 'node', outfile: out, logLevel: 'silent', define: { 'import.meta.env.DEV': 'false', 'import.meta.env': '{}' } });

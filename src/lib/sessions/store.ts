@@ -98,17 +98,6 @@ export async function absolutePath(loc: FileLoc): Promise<string | null> {
   return root ? `${root.path.replace(/\/$/, '')}/${loc.rel}` : null;
 }
 
-/** An absolute session file path as the bridge names it (its root and the path under it). */
-export async function locate(runtime: AgentRuntime, path: string): Promise<FileLoc | null> {
-  const bridge = window.desktopSessions;
-  if (!bridge) return null;
-  const rootKey = AGENT_RUNTIMES[runtime].rootKey;
-  const root = (await bridge.roots().catch(() => [])).find((x) => x.key === rootKey);
-  if (!root) return null;
-  const base = root.path.replace(/\/$/, '') + '/';
-  return path.startsWith(base) ? { rootKey, rel: path.slice(base.length) } : null;
-}
-
 const dirChecks = new Map<string, { exists: boolean; at: number }>();
 const DIR_TTL_MS = 30_000;
 

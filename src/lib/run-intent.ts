@@ -4,9 +4,9 @@
 // so nothing already on the canvas changes when the global pick moves on.
 //
 //   intent  — model / effort / access on the node: what its next run uses
-//   record  — generatedBy / generatedEfforts / agentSession, per version:
-//             what actually ran (never rewritten); for a session turn the
-//             canvas did not run, its session file's record (importSource.config)
+//   record  — generatedBy / generatedEfforts, per version: what actually
+//             ran (never rewritten); for a session turn the canvas did not
+//             run, its session file's record (importSource.config)
 //
 // A node from before intents were written reads its record as its intent:
 // a rerun reproduces what it answered with. Pure: no store, no picker state
@@ -17,8 +17,8 @@ import { AGENT_RUNTIMES, isAgentModel, matchEntry, offersAccess, runtimeOf } fro
 import { turnOf } from './sessions/turn';
 
 type Data = ThoughtNode['data'];
-type IntentSource = Pick<Data, 'model' | 'effort' | 'access' | 'agentSession' | 'generatedBy' | 'generatedEfforts' | 'responseIndex'> & Partial<Pick<Data, 'importSource'>>;
-type CwdSource = Pick<Data, 'model' | 'cwd' | 'agentSession' | 'importSource' | 'generatedBy' | 'responseIndex'>;
+type IntentSource = Pick<Data, 'model' | 'effort' | 'access' | 'generatedBy' | 'generatedEfforts' | 'responseIndex'> & Partial<Pick<Data, 'importSource'>>;
+type CwdSource = Pick<Data, 'model' | 'cwd' | 'importSource' | 'generatedBy' | 'responseIndex'> & Partial<Pick<Data, 'run'>>;
 
 /** The runtime and record of the session turn a node mirrors, when it
  *  mirrors one of an agent runtime's (a delegated child's run excepted). */
@@ -36,7 +36,7 @@ const INERT = new Set(['note', 'file', 'link', 'frame', 'human']);
 /** The model a node runs on next: its intent, else what its answer ran on. */
 /** The model a node's own intent or the canvas's own record names. */
 const lineModelOwn = (data: IntentSource): string | undefined =>
-  data.model ?? data.agentSession?.model ?? data.generatedBy?.[data.responseIndex] ?? undefined;
+  data.model ?? data.generatedBy?.[data.responseIndex] ?? undefined;
 
 export function lineModel(data: IntentSource | undefined): string | undefined {
   if (!data) return undefined;
@@ -55,9 +55,9 @@ export function intentOf(data: IntentSource | undefined): RunIntent {
   if (!data || !model) return {};
   if (!isAgentModel(model)) return { model };
   const effort = data.effort !== undefined ? data.effort
-    : (data.agentSession?.effort ?? data.generatedEfforts?.[data.responseIndex] ?? recordedTurn(data)?.config?.effort ?? undefined);
+    : (data.generatedEfforts?.[data.responseIndex] ?? recordedTurn(data)?.config?.effort ?? undefined);
   // the level is the canvas's to give: a recorded mode never widens it (the ask box offers the raise)
-  const access = data.access ?? data.agentSession?.access;
+  const access = data.access;
   return { model, ...(effort ? { effort } : {}), ...(access ? { access } : {}) };
 }
 
@@ -96,9 +96,7 @@ export function lineCwd(data: CwdSource | undefined, runtime: AgentRuntime): str
   if (data.cwd !== undefined && runtimeOf(lineModel(data)) === runtime) return data.cwd;
   // where its session goes on: the turn's directory, or (Codex) its last one
   const turn = turnOf(data);
-  const resume = turn?.runtime === runtime ? turn.resumeCwd : null;
-  if (data.agentSession?.runtime === runtime) return resume ?? data.agentSession.cwd;
-  return resume ?? undefined;
+  return (turn?.runtime === runtime ? turn.resumeCwd : null) ?? undefined;
 }
 
 /** The directory a node asked off these parents inherits on this runtime:

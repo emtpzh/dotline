@@ -55,9 +55,9 @@ export async function backupActiveProject(): Promise<string | null> {
     projectId: activeId,
     exportedAt: new Date().toISOString(),
     instantiatedFrom: activeMeta?.instantiatedFrom,
-    // the LEDGER travels with the archive: a restored canvas keeps its
-    // subscriptions, so listening and appending come back to life — the
-    // ledger holds only UUIDs (session ids), never paths, so the file
+    // the SUBSCRIPTIONS travel with the archive: a restored canvas keeps
+    // them, so listening and appending come back to life — they hold only
+    // UUIDs (session and turn ids), never paths, so the file
     // survives machines and moves; a source that isn't on this machine
     // simply stays silent until it appears.
     // by turn id; the count-based ledger beside it is what older versions read

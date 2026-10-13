@@ -41,13 +41,13 @@ export function linkOf(c: Continuity | null | undefined): SessionLink | undefine
 /** The sessions this canvas mirrors and where each one's tail is. */
 export interface LedgerEntry { runner: string; sessionId: string; tailNodeId: string }
 let ledgerSource: () => LedgerEntry[] = () => [];
-/** The project store hands over its ledger (it cannot be imported from here). */
+/** The project store hands over its subscriptions (it cannot be imported from here). */
 export function setLedgerSource(fn: () => LedgerEntry[]): void { ledgerSource = fn; }
 export function canvasLedger(): LedgerEntry[] { return ledgerSource(); }
 
 /** The agent session a node's turn lives in, if it lives in one, and the
  *  directory it goes on in. */
-export function sessionOf(data: Partial<Pick<ThoughtData, 'importSource' | 'agentSession'>>): { runtime: AgentRuntime; sessionId: string; cwd: string | null } | null {
+export function sessionOf(data: Partial<Pick<ThoughtData, 'importSource' | 'run' | 'cwd'>>): { runtime: AgentRuntime; sessionId: string; cwd: string | null } | null {
   const turn = turnOf(data);
   return turn ? { runtime: turn.runtime, sessionId: turn.sessionId, cwd: turn.resumeCwd } : null;
 }
@@ -105,7 +105,7 @@ export function continuity(
     return { kind: 'fork', parentId, runtime, sessionId: src.sessionId, turn: turnNumber(parent, src.sessionId, byId, edges) };
   }
   // the parent is its session's last turn here, but the canvas does not
-  // follow that session (its ledger does not name the tail): nothing to go on in
+  // follow that session (no subscription names the tail): nothing to go on in
   const later = edges.some((e) => e.source === parentId && e.target !== nodeId && sessionOf(byId.get(e.target)?.data ?? {})?.sessionId === session.sessionId);
   return broken(later ? 'no-fork' : 'unfollowed');
 }

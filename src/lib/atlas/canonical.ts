@@ -58,14 +58,14 @@ export async function importOrAppendConversation(
   const allTaken = legacyTaken(built, qa.length);
 
   // ── 1a. provenance adoption: a canvas that still HOLDS this
-  //       session's mirror nodes but lost its ledger entry (a healed
-  //       or legacy subscription) is the session's home. Re-register at
-  //       the exact break point — the LAST surviving mirrored turn — so
+  //       session's mirror nodes but lost its subscription (a healed
+  //       or legacy one) is the session's home. Re-subscribe at the
+  //       exact break point — the LAST surviving mirrored turn — so
   //       reopening continues there instead of splitting the mirror
   //       across a second canvas. Turns pruned BEFORE the break point
-  //       stay pruned (importedCount covers them); a pruned TAIL does
-  //       come back — the rebuilt ledger cannot know it once reached
-  //       further, and a split canvas would be the worse failure. ──
+  //       stay pruned (taken, by id); a pruned TAIL does come back — the
+  //       rebuilt subscription cannot know it once reached further, and
+  //       a split canvas would be the worse failure. ──
   if (conv.sessionId) {
     const claim = await findProvenanceClaim(conv.sessionId);
     if (claim) {
@@ -102,8 +102,8 @@ export async function importOrAppendConversation(
         anchorNode = store.nodes.find((n) => n.id === main.tailNodeId)
           ?? store.nodes.filter((n) => n.data.importSource?.sessionId === main.sessionId).at(-1) ?? null;
       }
-      // native canvases mount too — the ledger grows an empty-main
-      // container on registration; no subscription is required to host
+      // native canvases mount too: the session joins as a chapter or a
+      // branch; no main session is required to host
       if (anchorNode) {
         // The opening turn REPLAYS what the canvas already holds (the
         // compiled context, anchor included) — mounted verbatim, every
@@ -262,11 +262,11 @@ export { subscribedSessionIds };
 
 /** Deletion IS unsubscription. After nodes are removed, any subscribed
  *  session with no surviving mirror node on the ACTIVE canvas loses its
- *  ledger entry: listening stops, nothing regrows from a canvas the
+ *  subscription: listening stops, nothing regrows from a canvas the
  *  user just weeded. (Undo restores the nodes but not the entry — the
  *  toast points at the atlas, where reopening resubscribes.) */
 export async function unsubscribeOrphanedSessions(): Promise<void> {
-  // never judge a ledger before its canvas exists: boot hydration races
+  // never judge subscriptions before their canvas exists: boot hydration races
   // this call on startup, and an un-hydrated store reads as "zero
   // mirror nodes" — which once mass-unsubscribed healthy canvases.
   // After the await, an empty canvas is the truth, not an artifact.
@@ -298,8 +298,8 @@ export async function unsubscribeOrphanedSessions(): Promise<void> {
  *  EQUAL chapter (empty-main container, no main line), laid out as
  *  side-by-side columns with NO cross-links: the sessions share no
  *  context, and a wire is context, so drawing one would be a lie — the
- *  joins are the curator's to wire. Each chapter keeps its own ledger
- *  entry, so every session listens and appends independently. Sessions
+ *  joins are the curator's to wire. Each chapter keeps its own
+ *  subscription, so every session listens and appends independently. Sessions
  *  already subscribed elsewhere are skipped (one session, one canvas). */
 export async function mergeSessionsIntoProject(
   convs: (import('../import-chat').ImportableConversation | null)[],

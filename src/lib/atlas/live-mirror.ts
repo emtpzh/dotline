@@ -56,7 +56,7 @@ export function startLiveMirror(): void {
         const anyRegistered = projects.some((p) => subscribedSessionIds(p).includes(sid));
         if (anyRegistered) return; // another canvas's session; not ours to touch
         // the ACTIVE canvas may hold this session's mirror nodes without
-        // a ledger entry (a healed-away subscription): let the canonical
+        // a subscription (a healed-away one): let the canonical
         // router adopt it at the break point instead of ignoring it
         const { useStore } = await import('../../store');
         const activeHasProvenance = useStore.getState().nodes.some((n) => n.data.importSource?.sessionId === sid);

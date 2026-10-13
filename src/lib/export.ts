@@ -212,7 +212,7 @@ export async function importProjectFromFile(file: File, pre?: unknown): Promise<
     });
     if (!ok) return false;
   }
-  // An archive carrying a ledger restores a SUBSCRIBED canvas — but one
+  // An archive carrying subscriptions restores a SUBSCRIBED canvas — but one
   // session, one canvas: if a canvas already subscribes to this session,
   // open it instead of minting a duplicate the listener would fight over.
   const { subscriptionsFromLegacy, mainSubscription } = await import('../store/projects');

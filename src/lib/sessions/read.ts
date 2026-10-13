@@ -193,8 +193,3 @@ export function shellSessionReader(rootKey: string, rel: string): () => Promise<
     return r.text;
   };
 }
-
-/** Forget what was read of a file (tests, a root removed). */
-export function forgetReads(): void {
-  files.clear();
-}

@@ -194,9 +194,9 @@ export default function App() {
     if (isViewerMode) return;
     void import('./lib/session-handoff').then((m) => m.consumeSessionHandoff());
     // desktop only: the live mirror — the active canvas follows its
-    // session file on its own (idempotent append via the ledger)
+    // session file on its own (idempotent by turn id: lib/sessions/sync)
     void import('./lib/atlas/live-mirror').then((m) => m.startLiveMirror());
-    // ledger self-heal: canvases weeded before deletion-as-unsubscription
+    // subscription self-heal: canvases weeded before deletion-as-unsubscription
     // existed may still carry dead subscriptions — clear them on arrival
     void import('./lib/atlas/canonical').then((m) => m.unsubscribeOrphanedSessions());
   }, []);

@@ -100,16 +100,16 @@ The command does not upload a session or give a web page arbitrary filesystem ac
 
 ## Understand listening and incremental append
 
-A mirror is not rebuilt from scratch after every change. The desktop shell observes supported JSONL locations, debounces file changes, and reports which source file changed. Atlas then uses the per-session ledger to determine how many turns have already been imported.
+A mirror is not rebuilt from scratch after every change. The desktop shell observes supported JSONL locations, debounces file changes, and reports which source file changed. Each canvas remembers, turn by turn, which turns of a session it has already taken — mirrored, or deleted by hand — so it knows exactly which turns are new, wherever in the session they appear.
 
 ```text
 source session gains a turn
         ↓
 desktop shell reports the changed source file
         ↓
-Atlas parses the session and skips turns before the ledger boundary
+Atlas reads what the file gained and skips the turns the canvas has already taken
         ↓
-only the new turns attach to that session's canvas tail
+only new turns land: under the tail, or beside the earlier turn they branch from
 ```
 
 ![Atlas automatically appends a third turn while keeping the two existing mirror nodes in place](../atlas-live-sync-en.gif)
@@ -117,7 +117,9 @@ only the new turns attach to that session's canvas tail
 Incremental append follows these rules:
 
 - already recorded turns are not duplicated;
+- a turn that another client adds from an earlier point in the session (the desktop app and a terminal answering the same session) grows beside the turn it continues, not under the tail;
 - existing nodes are not moved;
+- each turn keeps the model, effort, permission mode and folder its session recorded; a follow-up from a turn runs on what that turn ran on, not on the toolbar's pick;
 - source text does not overwrite a mirror node the user has edited;
 - changes made while the app was closed are checked during startup or canvas arrival;
 - a session registered to another canvas does not silently append to the current one;
@@ -126,7 +128,7 @@ Incremental append follows these rules:
 ### When listening stops
 
 - Deleting a wire, editing node text, or deleting only some mirror nodes does **not** unsubscribe the session.
-- Once every mirror node belonging to a session is deleted from the canvas, Atlas removes that session's ledger entry and stops listening to it.
+- Once every mirror node belonging to a session is deleted from the canvas, Atlas removes that session's subscription and stops listening to it.
 - If it was the last subscribed session, the canvas becomes a regular ThoughtDAG canvas again.
 - Undo can restore deleted nodes, but it does not restore the subscription automatically. Reopen the session in Atlas to subscribe again.
 - If a source file is temporarily unavailable, Atlas cannot append new turns, but that is not the same as an intentional unsubscribe.
@@ -156,7 +158,7 @@ Pick two or more cards to reveal the multi-selection bar:
 
 - **Merge into a new canvas** creates a canvas and places each chain side by side.
 - **Merge into a canvas** uses an existing canvas as the container.
-- Every session keeps independent provenance and an incremental ledger.
+- Every session keeps its own provenance and its own record of which turns the canvas has taken.
 - **No wires are added automatically** between session chains.
 
 That last rule matters: a wire can affect context in ThoughtDAG. Co-location is not evidence of a context relationship; you decide whether and how the sessions connect.

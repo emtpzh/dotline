@@ -21,9 +21,12 @@ A run emits exactly these event kinds (the renderer reads nothing else):
 
 Nothing starts at launch. A runtime's process (Pi's rpc, Codex's app-server, a Pi catalog read) is started by the first request that needs it and retires after ten minutes without one (`TD_AGENT_IDLE_MS`); Claude Code runs one process per turn. A launch that never opens the agent group never starts a CLI.
 
-The finished turn is adopted from the session file by the atlas's adapter for that
-runtime; the stream is for showing, the file is the truth. Anything a runtime does
-beyond these kinds stays inside its own file.
+The stream is for showing; the file is the truth. While a run goes on, the
+canvas shows its events (text, thinking, tool calls, questions) in an overlay
+kept by the run manager (`src/lib/agents/runs.ts`); the turn itself is written
+into its node by the session sync (`src/lib/sessions/sync.ts`) from the session
+file, read by the same adapters the atlas uses — the one writer of session turns
+on the canvas. Anything a runtime does beyond these kinds stays inside its own file.
 
 When a branch cannot be cut (the file does not hold the turn that way, the turn
 is still open), a runtime opens a fresh session and sends `context` ahead of the
@@ -32,9 +35,11 @@ the question was edited on the canvas or wired in beside the conversation
 (`src/lib/agents/pristine.ts`); which runtimes can branch at all is `caps.forkAt`
 in `src/lib/agents/agent-runtime.ts`.
 
-A run is not tied to the page that started it: closing or reloading the page, or
-switching to another canvas once the run has named its session file, does not
-stop it (only `abort` does; a question it asks while its canvas is out of view
-is withdrawn). The node remembers the run as pending; its canvas, opened later,
-reads the turn back from the session file once the file has been quiet for a
-minute.
+A run is not tied to the page or the canvas that started it: closing or
+reloading the page, or switching to another canvas, does not stop it (only
+`abort` does). Before it starts, the node records a binding: the session it
+continues and the turn it follows, or — for a fresh session — the session the
+run names in its first `session` event. The session sync finds the run's turn in
+the file by that binding and writes it into the node, now or whenever that canvas
+is in view again; a question the run asks while its canvas is out of view waits
+in the page's top bar.

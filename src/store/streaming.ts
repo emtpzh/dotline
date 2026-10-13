@@ -3,7 +3,7 @@ import { walkUpAncestors } from '../lib/graph';
 import { upstreamFingerprint } from './context-builder';
 import { pruneHighlights } from '../lib/highlight-match';
 import { llmCall, llmCallStream, type ContextMessage, type ImageAttachment } from '../lib/api';
-import { agentOutbound, adoptAgentTurn, isAgentModel, type AgentRoute } from '../lib/agents/agent-runtime';
+import { agentOutbound, syncAgentTurn, type AgentRoute } from '../lib/agents/agent-runtime';
 import { abortAgentRun, awaitSettle, clearOverlay, runAgentTurn, patchBinding } from '../lib/agents/runs';
 import { noticeTurnEnded } from '../lib/agents/offscreen';
 import { lineModel } from '../lib/run-intent';
@@ -239,7 +239,8 @@ export async function runNodeGeneration(
         const generatedBy = [...kept.map(({ by }) => by), modelUsed];
         const gatewaySearches = [...kept.map(({ gw }) => gw), gatewaySearched || undefined];
         // the effort this version ran at: only an agent turn has one, from the run's own record
-        const generatedEfforts = [...kept.map(({ ef }) => ef), (isAgentModel(modelUsed) && n.data.agentSession?.effort) || undefined];
+        // an agent turn's effort is its session file's to say (lib/sessions/sync); a run written here has none on record
+        const generatedEfforts = [...kept.map(({ ef }) => ef), undefined];
         const reasonings = [...kept.map(({ rs }) => rs), n.data.reasoning || undefined];
         const generatedAts = [...kept.map(({ at }) => at), now];
         const editedAts = [...kept.map(({ ed }) => ed), undefined];
@@ -483,7 +484,7 @@ async function runAgentGeneration(set: Set, get: Get, nodeId: string, o: {
 
   // the turn is in the file: the sync writes it (now, if the canvas is in
   // view; when it is in view again, if not)
-  if (here()) void adoptAgentTurn(nodeId, o.runtime, sessionId!).catch(() => false);
+  if (here()) void syncAgentTurn(nodeId, o.runtime, sessionId!).catch(() => false);
   let settled = await awaitSettle(nodeId, ADOPT_WAIT_MS);
   if (!settled) {
     if (here()) toast('info', t('agent.adoptLate'), 8000);

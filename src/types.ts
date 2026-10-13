@@ -210,25 +210,6 @@ export interface ThoughtData extends Record<string, unknown> {
       the OLD text (cleared on the first new chunk) — display shows the live
       thinking, not the stale answer. */
   restreaming?: boolean;
-  /** The runtime session this node's last agent turn ran in (desktop agent lanes). */
-  agentSession?: {
-    runtime: AgentRuntime; sessionId: string | null; sessionFile: string | null; cwd: string;
-    /** the effort level the turn actually ran at, in the runtime's own words, from its own record */
-    effort?: string;
-    /** the access level the turn ran at */
-    access?: AgentAccess;
-    /** the agent preset the session was composed from, when the turn opened it */
-    preset?: string;
-    /** the turn continued the mirrored session instead of opening a fresh one */
-    continued?: boolean;
-    /** the run was still going when this record was last written: a canvas
-        reopened meanwhile adopts the turn from the session file once it ends */
-    pending?: boolean;
-    /** the picker id the turn ran under, for the version it becomes */
-    model?: string;
-    /** what changed on disk during the turn, by the file system's account */
-    changes?: { changed: string[]; added: string[]; removed: string[]; truncated?: boolean };
-  };
   /** An agent run the canvas started on this node, until its turn is in the
       session file: the session sync (lib/sessions/sync) finds the turn there
       by this binding — the session it runs in (known before it starts when
