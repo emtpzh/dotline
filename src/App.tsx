@@ -193,12 +193,17 @@ export default function App() {
   useEffect(() => {
     if (isViewerMode) return;
     void import('./lib/session-handoff').then((m) => m.consumeSessionHandoff());
-    // desktop only: the live mirror — the active canvas follows its
-    // session file on its own (idempotent by turn id: lib/sessions/sync)
-    void import('./lib/atlas/live-mirror').then((m) => m.startLiveMirror());
+    // the live mirror — the active canvas follows its session file on its
+    // own (idempotent by turn id: lib/sessions/sync). A local server's
+    // session bridge is installed only once its agents probe answers: the
+    // mirror starts then too (it starts once, whichever comes first)
+    const startMirror = () => { void import('./lib/atlas/live-mirror').then((m) => m.startLiveMirror()); };
+    startMirror();
+    window.addEventListener('td:agents-ready', startMirror);
     // subscription self-heal: canvases weeded before deletion-as-unsubscription
     // existed may still carry dead subscriptions — clear them on arrival
     void import('./lib/atlas/canonical').then((m) => m.unsubscribeOrphanedSessions());
+    return () => window.removeEventListener('td:agents-ready', startMirror);
   }, []);
 
   useEffect(() => {
