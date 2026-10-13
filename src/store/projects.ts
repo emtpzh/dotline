@@ -27,19 +27,16 @@ export interface ProjectMeta {
   kind?: 'chat' | 'paradigm';
   /** Provenance: which paradigm this run canvas was instantiated from. */
   instantiatedFrom?: { name: string; at: string };
-  /** The CANONICAL-canvas contract, chapter edition: this canvas
-      SUBSCRIBES to a sequence of runner sessions. The main entry is the
-      first chapter; `chapters` are later sessions CONTINUING the same
-      line of thought (context surgery, then onward — mounted at the main
-      line's tail); `branches` are experiment sessions mounted at an
-      anchor node. Every entry appends idempotently past its own
-      importedCount. One canvas = one line of thought; sessions are its
-      physical chapters. */
-  sourceSession?: {
-    sessionId: string; runner: string; importedCount: number; tailNodeId: string;
-    chapters?: { sessionId: string; runner: string; importedCount: number; tailNodeId: string }[];
-    branches?: { sessionId: string; runner: string; importedCount: number; tailNodeId: string; anchorNodeId: string }[];
-  };
+  /** The sessions this canvas SUBSCRIBES to (store/projects Subscription):
+      its main session, later sessions continuing the same line of thought
+      (chapters, mounted at the main line's tail) and experiment sessions
+      mounted at an anchor node (branches). One canvas = one line of
+      thought; sessions are its physical chapters. */
+  sessions?: Subscription[];
+  /** The ledger from before subscriptions were kept by turn: read once to
+      build `sessions` (and written into backups, which older versions
+      read); never kept in the metadata after that. */
+  sourceSession?: LegacyLedger;
   /** The working directory this canvas hands to agent runtimes, when the
       person chose one; absent = the mirrored project, else the canvas's
       own workspace. */
@@ -70,89 +67,139 @@ export async function setProjectArchived(id: string, archived: boolean): Promise
   await saveMeta();
 }
 
-/** Update the canonical-canvas ledger after an appendix lands. */
-export async function updateSourceSession(projectId: string, patch: Partial<NonNullable<ProjectMeta['sourceSession']>>): Promise<void> {
-  useProjects.setState((s) => ({
-    projects: s.projects.map((p) => (p.id === projectId && p.sourceSession
-      ? { ...p, sourceSession: { ...p.sourceSession, ...patch } } : p)),
-  }));
-  await saveMeta();
+/** One session a canvas subscribes to. Which of its turns the canvas has
+ *  taken is kept by turn id — mirrored, or removed by hand and not to come
+ *  back — so a turn the file adds anywhere (a second client, a fork above
+ *  the tail) is new exactly when its id is not here. */
+export interface Subscription {
+  /** `runner:sessionId` (lib/sessions/read sessionKey) */
+  key: string;
+  runner: string;
+  sessionId: string;
+  role: 'main' | 'chapter' | 'branch';
+  /** a branch: the node it was mounted at */
+  anchorNodeId?: string;
+  /** the turns (and the runs and notes they brought) the canvas has taken */
+  handled: string[];
+  /** a ledger from before ids: how many of the session's nodes it had taken.
+   *  The first sync turns it into `handled`; until then it is the count. */
+  legacyCount?: number;
+  /** the main line's last turn on the canvas (derivable; kept for the continuity rule) */
+  tailNodeId?: string;
 }
 
-type LedgerEntryPatch = { importedCount?: number; tailNodeId?: string };
+type LegacyEntry = { sessionId: string; runner: string; importedCount: number; tailNodeId: string };
+export type LegacyLedger = LegacyEntry & { chapters?: LegacyEntry[]; branches?: (LegacyEntry & { anchorNodeId: string })[] };
 
-/** Patch whichever ledger entry (main / chapter / branch) holds this
- *  session — the append path doesn't care which kind it landed in. */
-export async function patchLedgerEntry(projectId: string, sessionId: string, patch: LedgerEntryPatch): Promise<void> {
-  useProjects.setState((s) => ({
-    projects: s.projects.map((p) => {
-      if (p.id !== projectId || !p.sourceSession) return p;
-      const ss = p.sourceSession;
-      if (ss.sessionId === sessionId) return { ...p, sourceSession: { ...ss, ...patch } };
-      return {
-        ...p,
-        sourceSession: {
-          ...ss,
-          chapters: ss.chapters?.map((c) => (c.sessionId === sessionId ? { ...c, ...patch } : c)),
-          branches: ss.branches?.map((b) => (b.sessionId === sessionId ? { ...b, ...patch } : b)),
-        },
-      };
-    }),
-  }));
-  await saveMeta();
+const subKey = (runner: string, sessionId: string) => `${runner}:${sessionId}`;
+
+/** A ledger from before ids, as subscriptions that still count. */
+export function subscriptionsFromLegacy(ss: LegacyLedger | undefined): Subscription[] {
+  if (!ss) return [];
+  const one = (e: LegacyEntry, role: Subscription['role'], anchorNodeId?: string): Subscription => ({
+    key: subKey(e.runner, e.sessionId), runner: e.runner, sessionId: e.sessionId, role,
+    handled: [], legacyCount: e.importedCount, ...(e.tailNodeId ? { tailNodeId: e.tailNodeId } : {}), ...(anchorNodeId ? { anchorNodeId } : {}),
+  });
+  return [
+    ...(ss.sessionId ? [one(ss, 'main')] : []),
+    ...(ss.chapters ?? []).filter((c) => c.sessionId).map((c) => one(c, 'chapter')),
+    ...(ss.branches ?? []).filter((b) => b.sessionId).map((b) => one(b, 'branch', b.anchorNodeId)),
+  ];
 }
 
-/** Register a newly mounted session in the chapter or branch ledger. */
-export async function registerLedgerEntry(
-  projectId: string,
-  kind: 'chapter' | 'branch',
-  entry: { sessionId: string; runner: string; importedCount: number; tailNodeId: string; anchorNodeId?: string },
-): Promise<void> {
+/** How many of a session's nodes a subscription has taken (the old ledger's count). */
+export const takenCount = (sub: Subscription): number => sub.legacyCount ?? sub.handled.length;
+
+/** The old ledger shape, for backups older versions open (and the atlas's counts). */
+export function legacyLedgerOf(subs: Subscription[] | undefined): LegacyLedger | undefined {
+  if (!subs?.length) return undefined;
+  const entry = (s: Subscription): LegacyEntry => ({ sessionId: s.sessionId, runner: s.runner, importedCount: takenCount(s), tailNodeId: s.tailNodeId ?? '' });
+  const main = subs.find((s) => s.role === 'main');
+  const chapters = subs.filter((s) => s.role === 'chapter').map(entry);
+  const branches = subs.filter((s) => s.role === 'branch').map((s) => ({ ...entry(s), anchorNodeId: s.anchorNodeId ?? '' }));
+  return {
+    ...(main ? entry(main) : { sessionId: '', runner: '', importedCount: 0, tailNodeId: '' }),
+    ...(chapters.length ? { chapters } : {}),
+    ...(branches.length ? { branches } : {}),
+  };
+}
+
+/** A canvas's subscriptions (the legacy ledger read through, for a meta not migrated yet). */
+export function subscriptionsOf(meta: ProjectMeta | undefined): Subscription[] {
+  if (!meta) return [];
+  return meta.sessions ?? subscriptionsFromLegacy(meta.sourceSession);
+}
+
+/** The session a canvas mirrors first, if it mirrors one. */
+export const mainSubscription = (meta: ProjectMeta | undefined): Subscription | undefined =>
+  subscriptionsOf(meta).find((s) => s.role === 'main');
+
+/** Which canvas subscribes to a session, and how. One session, one canvas. */
+export function findSubscription(sessionId: string | undefined): { project: ProjectMeta; sub: Subscription } | null {
+  if (!sessionId) return null;
+  for (const p of useProjects.getState().projects) {
+    const sub = subscriptionsOf(p).find((s) => s.sessionId === sessionId);
+    if (sub) return { project: p, sub };
+  }
+  return null;
+}
+
+function setSubscriptions(projectId: string, fn: (subs: Subscription[]) => Subscription[]): void {
   useProjects.setState((s) => ({
     projects: s.projects.map((p) => {
       if (p.id !== projectId) return p;
-      // a NATIVE canvas can host mounted sessions too: the ledger gains
-      // an empty main entry — a container, not a subscription
-      const ss = p.sourceSession ?? { sessionId: '', runner: '', importedCount: 0, tailNodeId: '' };
-      if (kind === 'chapter') {
-        return { ...p, sourceSession: { ...ss, chapters: [...(ss.chapters ?? []), { sessionId: entry.sessionId, runner: entry.runner, importedCount: entry.importedCount, tailNodeId: entry.tailNodeId }] } };
-      }
-      return { ...p, sourceSession: { ...ss, branches: [...(ss.branches ?? []), { ...entry, anchorNodeId: entry.anchorNodeId ?? '' }] } };
+      const next = fn(subscriptionsOf(p));
+      const out: ProjectMeta = { ...p, sessions: next.length ? next : undefined };
+      delete out.sourceSession;
+      return out;
     }),
+  }));
+}
+
+/** Subscribe a canvas to a session (a main session, a chapter, a branch). */
+export async function addSubscription(projectId: string, sub: Omit<Subscription, 'key'> & { key?: string }): Promise<void> {
+  const full: Subscription = { ...sub, key: sub.key ?? subKey(sub.runner, sub.sessionId) };
+  setSubscriptions(projectId, (subs) => {
+    const rest = subs.filter((s) => s.sessionId !== full.sessionId);
+    // a canvas has one main session: a second one joins as a chapter
+    const role = full.role === 'main' && rest.some((s) => s.role === 'main') ? 'chapter' : full.role;
+    return [...rest, { ...full, role }];
+  });
+  await saveMeta();
+}
+
+/** Change whichever subscription holds this session. */
+export async function patchSubscription(projectId: string, sessionId: string, patch: Partial<Omit<Subscription, 'key' | 'sessionId' | 'runner'>>): Promise<void> {
+  setSubscriptions(projectId, (subs) => subs.map((s) => {
+    if (s.sessionId !== sessionId) return s;
+    const next = { ...s, ...patch };
+    if ('legacyCount' in patch && patch.legacyCount === undefined) delete next.legacyCount;
+    return next;
   }));
   await saveMeta();
 }
 
-/** Deletion IS unsubscription: drop whichever ledger entry (main /
- *  chapter / branch) holds this session. The main entry degrades to an
- *  empty container while chapters or branches remain; when the last
- *  entry goes, sourceSession goes with it and the canvas is native
- *  again. Reopening the session from the atlas resubscribes. */
-export async function removeLedgerEntry(projectId: string, sessionId: string): Promise<void> {
-  useProjects.setState((s) => ({
-    projects: s.projects.map((p) => {
-      if (p.id !== projectId || !p.sourceSession) return p;
-      const ss = p.sourceSession;
-      const chapters = (ss.chapters ?? []).filter((c) => c.sessionId !== sessionId);
-      const branches = (ss.branches ?? []).filter((b) => b.sessionId !== sessionId);
-      const next = { ...ss, chapters: chapters.length ? chapters : undefined, branches: branches.length ? branches : undefined };
-      if (next.sessionId === sessionId) {
-        next.sessionId = ''; next.runner = ''; next.importedCount = 0; next.tailNodeId = '';
-      }
-      if (!next.sessionId && chapters.length === 0 && branches.length === 0) {
-        return { ...p, sourceSession: undefined };
-      }
-      return { ...p, sourceSession: next };
-    }),
+/** Mark turns of a subscribed session as taken. */
+export async function noteHandled(projectId: string, sessionId: string, ids: string[], tailNodeId?: string): Promise<void> {
+  setSubscriptions(projectId, (subs) => subs.map((s) => {
+    if (s.sessionId !== sessionId) return s;
+    const handled = [...s.handled, ...ids.filter((id) => !s.handled.includes(id))];
+    return { ...s, handled, ...(tailNodeId ? { tailNodeId } : {}) };
   }));
   await saveMeta();
 }
 
-/** Every session id a canvas subscribes to, across all ledger kinds. */
+/** Deletion IS unsubscription: drop this session from the canvas. When the
+ *  last one goes the canvas is native again. Reopening the session from the
+ *  atlas resubscribes. */
+export async function removeSubscription(projectId: string, sessionId: string): Promise<void> {
+  setSubscriptions(projectId, (subs) => subs.filter((s) => s.sessionId !== sessionId));
+  await saveMeta();
+}
+
+/** Every session id a canvas subscribes to. */
 export function subscribedSessionIds(meta: ProjectMeta): string[] {
-  const ss = meta.sourceSession;
-  if (!ss) return [];
-  return [ss.sessionId, ...(ss.chapters ?? []).map((c) => c.sessionId), ...(ss.branches ?? []).map((b) => b.sessionId)].filter(Boolean);
+  return subscriptionsOf(meta).map((s) => s.sessionId).filter(Boolean);
 }
 
 /** Stamp paradigm provenance on a project (persisted with the meta list). */
@@ -179,8 +226,9 @@ export const useProjects = create<ProjectsState>(() => ({
 // whether a question continues a session (lib/agents/continuity).
 setLedgerSource(() => {
   const { projects, activeId } = useProjects.getState();
-  const ss = projects.find((p) => p.id === activeId)?.sourceSession;
-  return ss ? [ss, ...(ss.chapters ?? []), ...(ss.branches ?? [])].filter((e) => e.sessionId) : [];
+  return subscriptionsOf(projects.find((p) => p.id === activeId))
+    .filter((s) => s.sessionId && s.tailNodeId)
+    .map((s) => ({ runner: s.runner, sessionId: s.sessionId, tailNodeId: s.tailNodeId! }));
 });
 
 async function saveMeta(): Promise<void> {
@@ -205,8 +253,20 @@ export function bootProjects(): Promise<void> {
       await idbSet(META_KEY, meta);
       if (legacy) await idbDel(LEGACY_KEY);
     }
-    if (!meta.projects.some((p) => p.id === meta.activeId)) {
+    if (!meta.projects.some((p) => p.id === meta!.activeId)) {
       meta.activeId = meta.projects[0].id;
+    }
+    // the ledger by count becomes subscriptions (still counting until each
+    // session's first sync reads which turns the count covered)
+    if (meta.projects.some((p) => p.sourceSession && !p.sessions)) {
+      meta = { ...meta, projects: meta.projects.map((p) => {
+        if (!p.sourceSession || p.sessions) return p;
+        const subs = subscriptionsFromLegacy(p.sourceSession);
+        const out: ProjectMeta = { ...p, ...(subs.length ? { sessions: subs } : {}) };
+        delete out.sourceSession;
+        return out;
+      }) };
+      await idbSet(META_KEY, meta);
     }
     useProjects.setState({ projects: meta.projects, activeId: meta.activeId });
     useStore.persist.setOptions({ name: projectStorageKey(meta.activeId) });
@@ -265,7 +325,7 @@ export async function switchProject(id: string): Promise<void> {
   if (kept > 0) toast('info', fmt(t('agent.runsOn'), { n: kept }), 8000);
   // agent turns left running when this canvas was last in view (here, or
   // in a page since closed) are read back from their session files
-  void import('../lib/agents/agent-runtime').then((m) => m.reconcilePendingAgentTurns({ arrival: true })).catch(() => {});
+  void import('../lib/sessions/sync').then((m) => m.syncWaitingRuns()).catch(() => {});
 }
 
 // ─── CRUD ───────────────────────────────────────────────────────
@@ -312,11 +372,13 @@ export async function adoptImportedProject(
   id: string,
   name: string,
   kind: 'chat' | 'paradigm' = 'chat',
-  extras?: Partial<Pick<ProjectMeta, 'instantiatedFrom' | 'sourceSession'>>,
+  extras?: Partial<Pick<ProjectMeta, 'instantiatedFrom' | 'sessions' | 'sourceSession'>>,
 ): Promise<void> {
   const now = Date.now();
+  const { sourceSession, sessions, ...rest } = extras ?? {};
+  const subs = sessions ?? subscriptionsFromLegacy(sourceSession);
   useProjects.setState((s) => ({
-    projects: [...s.projects, { id, name, createdAt: now, updatedAt: now, kind, ...extras }],
+    projects: [...s.projects, { id, name, createdAt: now, updatedAt: now, kind, ...rest, ...(subs.length ? { sessions: subs } : {}) }],
   }));
   await saveMeta();
   await switchProject(id);

@@ -406,6 +406,7 @@ export class DshSessionCollector {
       messageCount: s.turns.length,
       source: 'dsh',
       sessionId: s.sessionId,
+      session: { turns: s.turns, ...(s.cwd ? { cwd: s.cwd } : {}), ...(this.delegated ? { subagent: true } : {}) },
       build: () => buildGraphFromTurns(s.turns, s.sessionId, s.cwd),
       adopt: (subs) => adoptSubagentSessions(s.turns, subs),
       children: () => s.turns.flatMap((t) => (t.subagents ?? []).map((r) => r.child).filter((c): c is string => !!c)),

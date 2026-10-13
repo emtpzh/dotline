@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { useProjects } from '../store/projects';
 import { globalIntent } from '../store/intent';
@@ -57,17 +57,37 @@ export function predictAsk(parentId: string | null, nodes: ThoughtNode[], edges:
   return c;
 }
 
+/** Whether the directory a session ran in is gone, as the host says
+ *  (undefined while it has not said, or cannot). */
+function useDirGone(dir: string | null | undefined): boolean {
+  const [gone, setGone] = useState<{ dir: string; gone: boolean } | null>(null);
+  useEffect(() => {
+    if (!dir) return;
+    let alive = true;
+    void import('./sessions/store').then((m) => m.dirExists(dir)).then((exists) => { if (alive) setGone({ dir, gone: exists === false }); });
+    return () => { alive = false; };
+  }, [dir]);
+  return !!dir && gone?.dir === dir && gone.gone;
+}
+
 export function useContinuity(parentId: string | null, draft: AskDraft): Continuity | null {
   const nodes = useStore((s) => s.nodes);
   const edges = useStore((s) => s.edges);
   // the mirrored sessions and their tails move as turns land
-  const ledger = useProjects((s) => s.projects.find((p) => p.id === s.activeId)?.sourceSession);
+  const ledger = useProjects((s) => s.projects.find((p) => p.id === s.activeId)?.sessions);
   const { model, rolePrompt, roleName, branchContext, attachments, mentions } = draft;
   const mentionKey = (mentions ?? []).join(',');
   const attachmentKey = (attachments ?? []).map((a) => `${a.id}:${a.type}`).join(',');
-  return useMemo(
+  const predicted = useMemo(
     () => predictAsk(parentId, nodes, edges, { model, rolePrompt, roleName, branchContext, attachments, mentions }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on what the draft actually changes
     [parentId, nodes, edges, ledger, model, rolePrompt, roleName, branchContext, attachmentKey, mentionKey],
+  );
+  // a session goes on only in its own directory: gone, the question opens a new one
+  const dir = predicted && predicted.kind !== 'new' ? sessionOf(nodes.find((n) => n.id === predicted.parentId)?.data ?? {})?.cwd : null;
+  const gone = useDirGone(dir);
+  return useMemo(
+    () => (gone && predicted && predicted.kind !== 'new' ? { kind: 'new', parentId: predicted.parentId, reason: 'gone', detail: dir ?? undefined } : predicted),
+    [gone, predicted, dir],
   );
 }

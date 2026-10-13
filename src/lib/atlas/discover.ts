@@ -28,25 +28,8 @@ export interface SessionCard {
   parentSessionId?: string;
 }
 
-/** The identity a session file answers to. One rule for every reader
- *  (cards, the live watcher, deep links): a codex rollout is its
- *  session_meta id; a claude-code file is its sessionId — EXCEPT a
- *  subagent's own file, whose sessionId names the PARENT and whose real
- *  name is the agentId. Reading the parent's id there would hang the
- *  parent's badges on the child and let the parent's canvas adopt it. */
-export function identityFromHead(head: string): string | null {
-  for (const raw of head.split('\n')) {
-    let l: { type?: string; payload?: { id?: string }; sessionId?: string; isSidechain?: boolean; agentId?: string; id?: string };
-    try { l = JSON.parse(raw) as typeof l; } catch { continue; }
-    // dsh: the session-open event names the file at the TOP level
-    if (l.type === 'session' && typeof l.id === 'string') return l.id;
-    if (l.type === 'session_meta' && l.payload?.id) return l.payload.id;
-    if ((l.type === 'user' || l.type === 'assistant') && typeof l.sessionId === 'string') {
-      return l.isSidechain && typeof l.agentId === 'string' ? l.agentId : l.sessionId;
-    }
-  }
-  return null;
-}
+/** The identity a session file answers to: one rule, the read layer's. */
+export { identityFromHead } from '../sessions/read';
 
 export interface AtlasGroup {
   /** Absolute cwd, or null for the unfiled group. */

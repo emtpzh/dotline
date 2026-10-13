@@ -299,6 +299,7 @@ export class ClaudeSessionCollector {
       messageCount: s.turns.length,
       source: 'claude-code',
       sessionId: s.sessionId,
+      session: { turns: s.turns, ...(s.cwd ? { cwd: s.cwd } : {}), ...(this.mode === 'sidechain' ? { subagent: true } : {}) },
       build: () => buildGraphFromTurns(s.turns, s.sessionId, s.cwd),
       adopt: (subs) => adoptSubagentSessions(s.turns, subs),
     };

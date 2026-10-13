@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('desktopAgents', {
   run: (request) => ipcRenderer.invoke('agents:run', request),
   abort: (runId) => ipcRenderer.invoke('agents:abort', runId),
   workspace: (canvasId) => ipcRenderer.invoke('agents:workspace', canvasId),
+  stat: (p) => ipcRenderer.invoke('agents:stat', p),
   answer: (runId, requestId, response) => ipcRenderer.invoke('agents:answer', runId, requestId, response),
   pickCwd: () => ipcRenderer.invoke('agents:pick-cwd'),
   writeMaterials: (cwd, files) => ipcRenderer.invoke('agents:write-materials', cwd, files),

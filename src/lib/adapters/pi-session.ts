@@ -250,6 +250,7 @@ export class PiSessionCollector {
     if (!s || s.turns.length === 0) return null;
     return {
       title: s.title, messageCount: s.turns.length, source: 'pi', sessionId: s.sessionId,
+      session: { turns: s.turns, ...(s.cwd ? { cwd: s.cwd } : {}) },
       build: () => buildGraphFromTurns(s.turns, s.sessionId, s.cwd),
     };
   }

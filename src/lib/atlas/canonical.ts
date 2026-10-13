@@ -1,20 +1,20 @@
 import { set as idbSet } from 'idb-keyval';
-import { makeNode } from '../import-chat';
 import { useStore, stripTransient } from '../../store';
 import {
   useProjects, switchProject, adoptImportedProject, createProject, projectStorageKey,
-  patchLedgerEntry, registerLedgerEntry, removeLedgerEntry, subscribedSessionIds, type ProjectMeta,
+  addSubscription, removeSubscription, subscribedSessionIds, subscriptionsOf, mainSubscription, findSubscription, takenCount,
 } from '../../store/projects';
 import { useUiStore, toast } from '../ui-store';
 import { t, fmt } from '../../i18n';
-import { generateId } from '../../utils';
-import { placeNewNodes } from '../layout';
-import type { ThoughtNode, ThoughtEdge } from '../../types';
+import { placeSegment, syncConversation } from '../sessions/sync';
+import { legacyTaken } from '../sessions/plan';
+import type { SessionSnapshot } from '../sessions/read';
+import type { ThoughtNode } from '../../types';
 
 // The canonical-canvas contract, chapter edition. One canvas = one line
 // of thought; sessions are its physical chapters. Routing order:
-//   1. SUBSCRIBED session (main / chapter / branch ledger) → open the
-//      canvas, append only the turns past that entry's ledger.
+//   1. SUBSCRIBED session (main / chapter / branch) → open the canvas and
+//      sync it (lib/sessions/sync): only turns it has not taken land.
 //   2. UNREGISTERED session whose opening carries a live anchor → MOUNT
 //      it: mode=branch hangs sideways at the anchor node (a side
 //      experiment), mode=continue extends the main line below it (the
@@ -22,8 +22,6 @@ import type { ThoughtNode, ThoughtEdge } from '../../types';
 //      what makes every later arrival idempotent.
 //   3. Otherwise → a fresh canvas subscribing to this session.
 // Appending and mounting never move an existing node.
-
-const APPEND_GAP = 190;
 
 export type CanonicalResult =
   | { kind: 'imported'; nodeCount: number }
@@ -38,84 +36,26 @@ export async function importOrAppendSession(text: string): Promise<CanonicalResu
   return importOrAppendConversation(conv);
 }
 
-/** Chunked reader over the shell's readRange — the road for any size. */
-export function shellSessionReader(rootKey: string, rel: string): () => Promise<string | null> {
-  const CHUNK = 8 * 1024 * 1024;
-  let start = 0;
-  let done = false;
-  return async () => {
-    if (done) return null;
-    const r = await window.desktopSessions!.readRange(rootKey, rel, start, CHUNK);
-    start = r.nextStart;
-    if (r.eof) done = true;
-    return r.text;
-  };
-}
-
-interface LedgerHit {
-  project: ProjectMeta;
-  entry: { sessionId: string; importedCount: number; tailNodeId: string };
-}
-
-function findSubscription(sessionId: string | undefined): LedgerHit | null {
-  if (!sessionId) return null;
-  for (const p of useProjects.getState().projects) {
-    const ss = p.sourceSession;
-    if (!ss) continue;
-    if (ss.sessionId === sessionId) return { project: p, entry: ss };
-    const ch = ss.chapters?.find((c) => c.sessionId === sessionId);
-    if (ch) return { project: p, entry: ch };
-    const br = ss.branches?.find((b) => b.sessionId === sessionId);
-    if (br) return { project: p, entry: br };
-  }
-  return null;
-}
-
-/** Place a segment of freshly built nodes under/beside an anchor, above
- *  the collision floor of its column band. Never moves existing nodes. */
-function placeSegment(
-  store: { nodes: ThoughtNode[] },
-  nodes: ThoughtNode[],
-  innerEdges: ThoughtEdge[],
-  anchorNode: ThoughtNode,
-  sideways: boolean,
-): { moved: ThoughtNode[]; edges: ThoughtEdge[] } {
-  const baseX = anchorNode.position.x + (sideways ? 560 : 0);
-  const bandLeft = baseX - 40;
-  const bandRight = baseX + 580;
-  const floor = store.nodes.reduce((acc, n) => {
-    const w = n.width ?? n.measured?.width ?? 540;
-    if (n.position.x + w < bandLeft || n.position.x > bandRight) return acc;
-    const h = n.height ?? n.measured?.height ?? 300;
-    return Math.max(acc, n.position.y + h);
-  }, sideways ? anchorNode.position.y - 300 : anchorNode.position.y + (anchorNode.height ?? 140));
-  const dx = baseX - nodes[0].position.x;
-  const dy = Math.max(floor + APPEND_GAP, sideways ? anchorNode.position.y : -Infinity) - nodes[0].position.y;
-  const moved = nodes.map((n): ThoughtNode => ({ ...n, position: { x: n.position.x + dx, y: n.position.y + dy } }));
-  const edges: ThoughtEdge[] = [
-    { id: generateId(), source: anchorNode.id, target: moved[0].id, type: 'smoothstep' } as ThoughtEdge,
-    ...innerEdges,
-  ];
-  return { moved, edges };
-}
+export { shellSessionReader } from '../sessions/read';
 
 /** `background`: the live watcher's sync, not a person opening the session —
  *  a sync that finds nothing new leaves the camera where it is. */
 export async function importOrAppendConversation(
   conv: import('../import-chat').ImportableConversation | null,
-  opts: { background?: boolean } = {},
+  opts: { background?: boolean; snapshot?: SessionSnapshot | null } = {},
 ): Promise<CanonicalResult> {
   if (!conv) return null;
+
+  // ── 1. subscribed somewhere? open + sync ──
+  const hit = findSubscription(conv.sessionId);
+  if (hit) return syncConversation(conv, opts.snapshot ?? null, hit, opts);
 
   const built = conv.build();
   const qa = built.nodes.filter((n) => n.data.importSource);
   // the tail is the line's last turn: a subagent branch beside it never is
   const tailQaId = qa.filter((n) => !n.data.importSource?.subagent).at(-1)?.id ?? qa.at(-1)?.id ?? built.nodes.at(-1)?.id ?? '';
   if (built.nodes.length === 0) return null;
-
-  // ── 1. subscribed somewhere? open + idempotent append ──
-  const hit = findSubscription(conv.sessionId);
-  if (hit) return appendPastLedger(conv, built, qa, tailQaId, hit, opts);
+  const allTaken = legacyTaken(built, qa.length);
 
   // ── 1a. provenance adoption: a canvas that still HOLDS this
   //       session's mirror nodes but lost its ledger entry (a healed
@@ -137,11 +77,11 @@ export async function importOrAppendConversation(
         if (nid) { lastIdx = i; tailNode = nid; }
       });
       if (lastIdx >= 0) {
-        await registerLedgerEntry(claim.projectId, 'chapter', {
-          sessionId: conv.sessionId, runner: conv.source, importedCount: lastIdx + 1, tailNodeId: tailNode,
+        await addSubscription(claim.projectId, {
+          runner: conv.source, sessionId: conv.sessionId, role: 'chapter', handled: legacyTaken(built, lastIdx + 1), tailNodeId: tailNode,
         });
         const adopted = findSubscription(conv.sessionId);
-        if (adopted) return appendPastLedger(conv, built, qa, tailQaId, adopted, opts);
+        if (adopted) return syncConversation(conv, opts.snapshot ?? null, adopted, opts);
       }
     }
   }
@@ -156,11 +96,11 @@ export async function importOrAppendConversation(
       const store = useStore.getState();
       const meta = useProjects.getState().projects.find((p) => p.id === anchor.project)!;
       let anchorNode = store.nodes.find((n) => n.id === anchor.node) ?? null;
-      if (!anchorNode && anchor.mode === 'continue' && meta.sourceSession?.sessionId) {
+      const main = mainSubscription(meta);
+      if (!anchorNode && anchor.mode === 'continue' && main) {
         // a chapter continues the MAIN line: fall back to its living tail
-        const ss = meta.sourceSession;
-        anchorNode = store.nodes.find((n) => n.id === ss.tailNodeId)
-          ?? store.nodes.filter((n) => n.data.importSource?.sessionId === ss.sessionId).at(-1) ?? null;
+        anchorNode = store.nodes.find((n) => n.id === main.tailNodeId)
+          ?? store.nodes.filter((n) => n.data.importSource?.sessionId === main.sessionId).at(-1) ?? null;
       }
       // native canvases mount too — the ledger grows an empty-main
       // container on registration; no subscription is required to host
@@ -184,9 +124,9 @@ export async function importOrAppendConversation(
         }
         store.pushHistory();
         useStore.setState((s) => ({ nodes: [...s.nodes, ...seg.moved], edges: [...s.edges, ...seg.edges] }));
-        await registerLedgerEntry(anchor.project, sideways ? 'branch' : 'chapter', {
-          sessionId: conv.sessionId, runner: conv.source, importedCount: qa.length,
-          tailNodeId: tailQaId, anchorNodeId: anchorNode.id,
+        await addSubscription(anchor.project, {
+          runner: conv.source, sessionId: conv.sessionId, role: sideways ? 'branch' : 'chapter',
+          handled: allTaken, tailNodeId: tailQaId, ...(sideways ? { anchorNodeId: anchorNode.id } : {}),
         });
         useUiStore.getState().setArrivalFocusNodeId(seg.moved[seg.moved.length - 1].id);
         return { kind: 'mounted', mode: sideways ? 'branch' : 'continue', turns: qa.length };
@@ -200,7 +140,7 @@ export async function importOrAppendConversation(
   await idbSet(projectStorageKey(id), JSON.stringify({ state: { nodes: stripTransient(built.nodes), edges: built.edges }, version: 1 }));
   useUiStore.getState().setArrivalFocusNodeId(built.nodes[built.nodes.length - 1].id);
   await adoptImportedProject(id, conv.title.slice(0, 60), 'chat', conv.sessionId ? {
-    sourceSession: { sessionId: conv.sessionId, runner: conv.source, importedCount: qa.length, tailNodeId: tailQaId },
+    sessions: [{ key: `${conv.source}:${conv.sessionId}`, runner: conv.source, sessionId: conv.sessionId, role: 'main', handled: allTaken, tailNodeId: tailQaId }],
   } : undefined);
   return { kind: 'imported', nodeCount: built.nodes.length };
 }
@@ -222,9 +162,9 @@ export async function mountConversationToProject(
   const store = useStore.getState();
   const meta = useProjects.getState().projects.find((p) => p.id === projectId);
   if (!meta) return null;
-  const ss = meta.sourceSession;
-  const anchorNode = (ss?.sessionId ? store.nodes.find((n) => n.id === ss.tailNodeId)
-    ?? store.nodes.filter((n) => n.data.importSource?.sessionId === ss.sessionId).at(-1) : null)
+  const main = mainSubscription(meta);
+  const anchorNode = (main ? store.nodes.find((n) => n.id === main.tailNodeId)
+    ?? store.nodes.filter((n) => n.data.importSource?.sessionId === main.sessionId).at(-1) : null)
     ?? store.nodes.at(-1) ?? null;
   if (!anchorNode) return null;
   const inSet = new Set(built.nodes.map((n) => n.id));
@@ -232,9 +172,9 @@ export async function mountConversationToProject(
   const seg = placeSegment(store, built.nodes, innerEdges, anchorNode, false);
   store.pushHistory();
   useStore.setState((s) => ({ nodes: [...s.nodes, ...seg.moved], edges: [...s.edges, ...seg.edges] }));
-  await registerLedgerEntry(projectId, 'chapter', {
-    sessionId: conv.sessionId, runner: conv.source, importedCount: qa.length,
-    tailNodeId: qa.at(-1)?.id ?? built.nodes.at(-1)!.id, anchorNodeId: anchorNode.id,
+  await addSubscription(projectId, {
+    runner: conv.source, sessionId: conv.sessionId, role: 'chapter', handled: legacyTaken(built, qa.length),
+    tailNodeId: qa.filter((n) => !n.data.importSource?.subagent).at(-1)?.id ?? qa.at(-1)?.id ?? built.nodes.at(-1)!.id,
   });
   useUiStore.getState().setArrivalFocusNodeId(seg.moved[seg.moved.length - 1].id);
   return { kind: 'mounted', mode: 'continue', turns: qa.length };
@@ -281,198 +221,6 @@ async function findProvenanceClaim(sessionId: string): Promise<{ projectId: stri
   return null;
 }
 
-async function appendPastLedger(
-  conv: import('../import-chat').ImportableConversation,
-  built: { nodes: ThoughtNode[]; edges: ThoughtEdge[] },
-  qa: ThoughtNode[],
-  tailQaId: string,
-  hit: LedgerHit,
-  opts: { background?: boolean } = {},
-): Promise<CanonicalResult> {
-  await switchProject(hit.project.id);
-  const store = useStore.getState();
-  // Anchor resolution, three tiers — deletion is the user's prerogative
-  // (removed mirror nodes NEVER come back), so the recorded tail may be
-  // gone: ① the entry's tail if it survives; ② the last surviving mirror
-  // node of THIS session; ③ nothing left — the appendix lands
-  // free-floating with an honest note.
-  const survivors = store.nodes.filter((n) => n.data.importSource?.sessionId === conv.sessionId);
-  const anchor = store.nodes.find((n) => n.id === hit.entry.tailNodeId) ?? survivors.at(-1) ?? null;
-
-  // Half-turn refresh: CLI files stream — the question lands first, the
-  // answer follows later. The LAST imported turn may therefore sit on
-  // the canvas answerless (or mid-answer). If its node still matches
-  // its frozen source (the user never touched it), bring content and
-  // snapshot up to date TOGETHER, so the pristine test keeps passing on
-  // the next tick; an edited node is the user's and is never
-  // overwritten. Matching is by the turn's first item id (the user
-  // message), which never changes as the answer grows.
-  const lastImported = hit.entry.importedCount > 0 && qa.length >= hit.entry.importedCount
-    ? qa[hit.entry.importedCount - 1] : null;
-  // A delegated child lands as soon as it starts; a background one's report
-  // reaches the parent's log later, often after the turn that launched it.
-  // Imported children get the same refresh as the last turn.
-  const imported = qa.slice(0, Math.min(hit.entry.importedCount, qa.length));
-  const refreshable = [...imported.filter((n) => n.data.importSource?.subagent && n !== lastImported), ...(lastImported ? [lastImported] : [])];
-  let refreshed = false;
-  for (const fresh of refreshable) {
-    const key = fresh.data.importSource?.itemIds?.[0];
-    const node = key ? survivors.find((n) => n.data.importSource?.itemIds?.[0] === key) : undefined;
-    const src = node?.data.source;
-    const pristine = !!src && node.data.question === src.question && (node.data.response ?? '') === (src.response ?? '');
-    const fd = fresh.data;
-    const textChanged = !!node && (fd.question !== node.data.question || (fd.response ?? '') !== (node.data.response ?? ''));
-    // Arrivals land on a finished turn too: a subagent's report (task
-    // notification) reaches the file minutes after the answer that
-    // launched it. When the fresh turn carries MORE tool attachments and
-    // the node's own are its untouched prefix, append the newcomers —
-    // keeping the node's attachment objects (and the ids the user's
-    // exclusions point at) as they are.
-    const oldAtts = node?.data.attachments ?? [];
-    const newAtts = fd.attachments ?? [];
-    const attachmentsGrew = !!node && newAtts.length > oldAtts.length && oldAtts.every((a, i) => newAtts[i]?.name === a.name);
-    // a child's steps come with its transcript, which may be read only after the node landed
-    // (a turn's own steps are left to whoever wrote them: an agent run adds its file footprint)
-    const stepsGrew = !!node && !!fd.importSource?.subagent && (fd.steps?.length ?? 0) > (node.data.steps?.length ?? 0);
-    const changed = textChanged || attachmentsGrew || stepsGrew;
-    if (node && pristine && changed) {
-      const attachments = textChanged ? fd.attachments : [...oldAtts, ...newAtts.slice(oldAtts.length)];
-      useStore.setState((s) => ({
-        nodes: s.nodes.map((n) => (n.id === node.id ? {
-          ...n,
-          data: {
-            ...n.data,
-            question: fd.question, response: fd.response,
-            responses: fd.responses, responseIndex: fd.responseIndex,
-            tokenCount: fd.tokenCount, attachments,
-            ...(stepsGrew ? { steps: fd.steps } : {}),
-            importSource: fd.importSource, source: fd.source,
-          },
-        } : n)),
-      }));
-      refreshed = true;
-    }
-  }
-  if (refreshed) useStore.getState().recomputeStaleness();
-
-  if (qa.length <= hit.entry.importedCount) {
-    // Opening an up-to-date session lands on its tail. The watcher reaches
-    // here on every write of a file that grows without new turns — an agent
-    // turn running on this canvas (claimed ahead of the file), or a
-    // half-turn filling in — and landing each time would drag the camera
-    // back to that node every few seconds.
-    if (!opts.background) useUiStore.getState().setArrivalFocusNodeId(anchor?.id ?? null);
-    return { kind: 'opened' };
-  }
-
-  const firstNew = qa[hit.entry.importedCount];
-  const from = built.nodes.findIndex((n) => n.id === firstNew.id);
-  const appendix = built.nodes.slice(from);
-  const inSet = new Set(appendix.map((n) => n.id));
-  const innerEdges = built.edges.filter((e) => inSet.has(e.source) && inSet.has(e.target));
-  // Tree-aware re-attachment: a session is a TREE (Esc-rewind forks it),
-  // so an appendix turn's real parent may be an ALREADY-IMPORTED turn.
-  // Map those cross-boundary edges onto the surviving canvas nodes (by
-  // the turn's first item id); an appendix root left parentless falls
-  // back to the anchor, exactly the old linear behavior.
-  const canvasByFirstId = new Map<string, string>();
-  for (const n of survivors) {
-    const k = n.data.importSource?.itemIds?.[0];
-    if (k) canvasByFirstId.set(k, n.id);
-  }
-  // A turn the canvas is running was claimed before the file named its
-  // items (claimAgentTurn): the ledger's tail node stands for the last
-  // imported turn, so what that turn launches meanwhile still finds it.
-  const tailTurnKey = qa.slice(0, hit.entry.importedCount).filter((n) => !n.data.importSource?.subagent).at(-1)?.data.importSource?.itemIds?.[0];
-  const tailOnCanvas = store.nodes.find((n) => n.id === hit.entry.tailNodeId);
-  if (tailTurnKey && tailOnCanvas && !canvasByFirstId.has(tailTurnKey) && !tailOnCanvas.data.importSource?.itemIds?.length) canvasByFirstId.set(tailTurnKey, tailOnCanvas.id);
-  const builtFirstId = new Map<string, string>();
-  for (const n of built.nodes) {
-    const k = n.data.importSource?.itemIds?.[0];
-    if (k && !inSet.has(n.id)) builtFirstId.set(n.id, k);
-  }
-  const crossEdges: ThoughtEdge[] = [];
-  for (const e of built.edges) {
-    if (!inSet.has(e.target) || inSet.has(e.source)) continue;
-    const k = builtFirstId.get(e.source);
-    const canvasId = k ? canvasByFirstId.get(k) : undefined;
-    if (canvasId) crossEdges.push({ ...e, id: generateId(), source: canvasId });
-  }
-  const crossTargets = new Set(crossEdges.map((e) => e.target));
-
-  let moved: ThoughtNode[];
-  let extraEdges: ThoughtEdge[];
-  if (anchor) {
-    const seg = placeSegment(store, appendix, innerEdges, anchor, false);
-    moved = seg.moved;
-    // placeSegment's automatic anchor edge is the LINEAR fallback: drop
-    // it when the appendix head found its real parent among the
-    // survivors, and give every other parentless appendix root the same
-    // anchor fallback the head gets.
-    const hasInner = new Set(innerEdges.map((e) => e.target));
-    extraEdges = seg.edges.filter((e) => !(e.source === anchor.id && crossTargets.has(e.target)));
-    for (const n of moved) {
-      if (n.id === moved[0].id) continue;
-      if (!hasInner.has(n.id) && !crossTargets.has(n.id) && n.data.stepKind !== 'note') {
-        extraEdges.push({ id: generateId(), source: anchor.id, target: n.id, type: 'smoothstep' } as ThoughtEdge);
-      }
-    }
-    extraEdges = [...extraEdges, ...crossEdges];
-  } else {
-    // every earlier mirror node was removed by hand: land beside the
-    // canvas, say so, and do not pretend to continue anything
-    const maxX = store.nodes.length ? Math.max(...store.nodes.map((n) => n.position.x)) : 0;
-    const dx = maxX + 560 - appendix[0].position.x;
-    const dy = -appendix[0].position.y;
-    moved = appendix.map((n): ThoughtNode => ({ ...n, position: { x: n.position.x + dx, y: n.position.y + dy } }));
-    const note = makeNote(orphanNoteText(qa.length - hit.entry.importedCount), moved[0]);
-    moved = [note, ...moved];
-    extraEdges = [
-      { id: generateId(), source: note.id, target: moved[1].id, type: 'smoothstep' } as ThoughtEdge,
-      ...innerEdges,
-    ];
-  }
-
-  store.pushHistory();
-  useStore.setState((s) => ({ nodes: [...s.nodes, ...moved], edges: [...s.edges, ...extraEdges] }));
-  // placeSegment stacks the appendix under the anchor, the right place for a
-  // turn but not for a subagent that found its turn on the canvas: that one
-  // is seated by the arrow grammar, beside its parent like any branch
-  // — nor for a turn that forks the session above its tail: another client
-  // on the same session (the desktop app answering while the canvas resumed
-  // it from the CLI) grows its own line from an earlier turn, and stacked
-  // under the tail it would read as the tail's next turn. That one and the
-  // turns below it are seated the same way, as a branch beside its parent.
-  const forkHead = anchor && crossEdges.some((e) => e.target === moved[0].id && e.source !== anchor.id);
-  const kids = forkHead
-    ? moved.filter((n) => n.data.stepKind !== 'note').map((n) => n.id)
-    : moved.filter((n) => n.data.importSource?.subagent && crossTargets.has(n.id)).map((n) => n.id);
-  if (kids.length) useStore.setState((s) => ({ nodes: placeNewNodes(s.nodes, s.edges, kids) }));
-  // the tail stays on the line: an appendix of subagent branches alone leaves it where it was
-  const lineTail = moved.filter((n) => n.data.importSource?.itemIds?.length && !n.data.importSource.subagent).at(-1)?.id ?? hit.entry.tailNodeId ?? tailQaId;
-  await patchLedgerEntry(hit.project.id, conv.sessionId!, { importedCount: qa.length, tailNodeId: lineTail });
-  useUiStore.getState().setArrivalFocusNodeId(moved[anchor ? 0 : 1].id);
-  // turns as a person counts them: a subagent branch is not one
-  return { kind: 'appended', turns: qa.slice(hit.entry.importedCount).filter((n) => !n.data.importSource?.subagent).length };
-}
-
-function orphanNoteText(n: number): string {
-  return `[Mirror] The source session grew by ${n} turn(s); the earlier mirrored turns were removed from this canvas by hand, so the new turns land here on their own.`;
-}
-
-function makeNote(text: string, beside: ThoughtNode): ThoughtNode {
-  const note = makeNode(text, '', false);
-  note.data.stepKind = 'note';
-  // mirror-owned, not hand-made: provenance rides along (see the
-  // uniqueness check — nodes WITHOUT importSource are the user's own)
-  note.data.importSource = beside.data.importSource
-    ? { ...beside.data.importSource, itemIds: [] }
-    : undefined;
-  note.width = 460;
-  note.position = { x: beside.position.x - 520, y: beside.position.y };
-  return note;
-}
-
 /** How much of this canvas is one of a kind? Coverage is a RELATIONSHIP
  *  question: only nodes whose provenance matches the MAIN subscribed
  *  session count as rebuildable (recast rebuilds the main line only).
@@ -483,8 +231,10 @@ export type CanvasUniqueness = 'native' | 'pristine-mirror' | 'diverged-mirror';
 export async function canvasUniqueness(projectId: string): Promise<CanvasUniqueness> {
   const { projects, activeId } = useProjects.getState();
   const meta = projects.find((p) => p.id === projectId);
-  if (!meta?.sourceSession) return 'native';
-  if ((meta.sourceSession.chapters?.length ?? 0) > 0 || (meta.sourceSession.branches?.length ?? 0) > 0) {
+  const subs = subscriptionsOf(meta);
+  const main = subs.find((s) => s.role === 'main');
+  if (!main) return subs.length ? 'diverged-mirror' : 'native';
+  if (subs.length > 1) {
     return 'diverged-mirror'; // a multi-session composition is always unique
   }
   let nodes: ThoughtNode[];
@@ -498,12 +248,12 @@ export async function canvasUniqueness(projectId: string): Promise<CanvasUniquen
       nodes = (parsed?.state?.nodes ?? []) as ThoughtNode[];
     } catch { return 'diverged-mirror'; } // unreadable — warn high, never low
   }
-  const sid = meta.sourceSession.sessionId;
+  const sid = main.sessionId;
   const mirror = nodes.filter((n) => n.data.importSource?.sessionId === sid);
   const diverged =
     nodes.some((n) => !n.data.importSource)
     || nodes.some((n) => n.data.importSource && n.data.importSource.sessionId !== sid)
-    || mirror.filter((n) => n.data.source).length < meta.sourceSession.importedCount
+    || mirror.filter((n) => n.data.source).length < takenCount(main)
     || mirror.some((n) => n.data.source && (n.data.question !== n.data.source.question || n.data.response !== n.data.source.response));
   return diverged ? 'diverged-mirror' : 'pristine-mirror';
 }
@@ -524,21 +274,23 @@ export async function unsubscribeOrphanedSessions(): Promise<void> {
   await bootProjects();
   const { projects, activeId } = useProjects.getState();
   const meta = projects.find((p) => p.id === activeId);
-  if (!meta?.sourceSession) return;
+  if (!meta) return;
   const subscribed = subscribedSessionIds(meta);
   if (subscribed.length === 0) return;
   const alive = new Set<string>();
   for (const n of useStore.getState().nodes) {
     const sid = n.data.importSource?.sessionId;
     if (sid) alive.add(sid);
+    // a run waiting for its first turn holds its session too
+    if (n.data.run?.sessionId) alive.add(n.data.run.sessionId);
   }
   const orphaned = subscribed.filter((sid) => !alive.has(sid));
   if (orphaned.length === 0) return;
-  for (const sid of orphaned) await removeLedgerEntry(meta.id, sid);
+  for (const sid of orphaned) await removeSubscription(meta.id, sid);
   // identity is announced, not implied: when the last subscription goes,
   // the canvas says out loud that it is native again
   const after = useProjects.getState().projects.find((p) => p.id === meta.id);
-  const key = after?.sourceSession ? 'toast.unsubscribed' : 'toast.unsubscribedNative';
+  const key = subscriptionsOf(after).length ? 'toast.unsubscribed' : 'toast.unsubscribedNative';
   toast('info', fmt(t(key), { n: orphaned.length }), 8000);
 }
 
@@ -577,9 +329,9 @@ export async function mergeSessionsIntoProject(
     const inSet = new Set(moved.map((n) => n.id));
     const innerEdges = built.edges.filter((e) => inSet.has(e.source) && inSet.has(e.target));
     useStore.setState((st) => ({ nodes: [...st.nodes, ...moved], edges: [...st.edges, ...innerEdges] }));
-    await registerLedgerEntry(pid, 'chapter', {
-      sessionId: sid, runner: conv.source, importedCount: qa.length,
-      tailNodeId: qa.at(-1)?.id ?? moved[moved.length - 1].id,
+    await addSubscription(pid, {
+      runner: conv.source, sessionId: sid, role: 'chapter', handled: legacyTaken(built, qa.length),
+      tailNodeId: qa.filter((n) => !n.data.importSource?.subagent).at(-1)?.id ?? qa.at(-1)?.id ?? moved[moved.length - 1].id,
     });
     mounted++;
   }

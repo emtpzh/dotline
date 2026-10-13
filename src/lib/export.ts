@@ -189,7 +189,7 @@ async function reconcileImportedModels(nodes: ThoughtNode[]): Promise<ThoughtNod
 }
 
 export async function importProjectFromFile(file: File, pre?: unknown): Promise<boolean> {
-  let parsed: { name?: string; nodes?: ThoughtNode[]; edges?: ThoughtEdge[]; events?: unknown[]; instantiatedFrom?: ProjectMeta['instantiatedFrom']; sourceSession?: ProjectMeta['sourceSession']; sharedReadonly?: boolean };
+  let parsed: { name?: string; nodes?: ThoughtNode[]; edges?: ThoughtEdge[]; events?: unknown[]; instantiatedFrom?: ProjectMeta['instantiatedFrom']; sourceSession?: ProjectMeta['sourceSession']; sessions?: ProjectMeta['sessions']; sharedReadonly?: boolean };
   try {
     parsed = (pre ?? JSON.parse(await file.text())) as typeof parsed;
   } catch {
@@ -215,10 +215,13 @@ export async function importProjectFromFile(file: File, pre?: unknown): Promise<
   // An archive carrying a ledger restores a SUBSCRIBED canvas — but one
   // session, one canvas: if a canvas already subscribes to this session,
   // open it instead of minting a duplicate the listener would fight over.
-  if (parsed.sourceSession?.sessionId) {
+  const { subscriptionsFromLegacy, mainSubscription } = await import('../store/projects');
+  const archived = Array.isArray(parsed.sessions) ? parsed.sessions : subscriptionsFromLegacy(parsed.sourceSession);
+  const archivedMain = archived.find((s) => s.role === 'main');
+  if (archivedMain) {
     const { useProjects, switchProject } = await import('../store/projects');
     const existing = useProjects.getState().projects.find(
-      (p) => p.sourceSession?.sessionId === parsed.sourceSession!.sessionId);
+      (p) => mainSubscription(p)?.sessionId === archivedMain.sessionId);
     if (existing) {
       await switchProject(existing.id);
       toast('info', fmt(t('toast.importAlreadySubscribed'), { name: existing.name }), 9000);
@@ -233,7 +236,7 @@ export async function importProjectFromFile(file: File, pre?: unknown): Promise<
     version: PERSIST_VERSION,
   }));
   const name = parsed.name?.trim() || file.name.replace(/\.thoughtdag\.json$|\.json$/i, '') || 'Imported canvas';
-  await adoptImportedProject(id, name, 'chat', { instantiatedFrom: parsed.instantiatedFrom, sourceSession: parsed.sourceSession });
+  await adoptImportedProject(id, name, 'chat', { instantiatedFrom: parsed.instantiatedFrom, sessions: archived });
   toast('success', fmt(t('toast.imported'), { name, n: parsed.nodes.length }));
   return true;
 }

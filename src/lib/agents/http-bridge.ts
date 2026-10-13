@@ -121,6 +121,8 @@ export async function installAgentsHttpBridge(apiBase: string): Promise<boolean>
       return ((await r.json()) as { path: string }).path;
     },
     writeMaterials: async (cwd, files) => post('/agents/materials', { cwd, files }),
+    // an older host has no such endpoint: it answers 404, and the page cannot tell
+    stat: async (path) => post('/agents/stat', { path }),
     onEvent: (cb) => { listeners.push(cb); void ensureFeed(); },
   };
   return true;

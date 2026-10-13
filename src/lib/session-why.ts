@@ -22,6 +22,8 @@ export function sessionWhy(link: Broken, nodes: ThoughtNode[], t: Translate): st
       const name = about ? shortName(about.data) : '';
       return name ? fmt(t(`session.why.${link.reason}Named`), { x: name }) : t(`session.why.${link.reason}`);
     }
+    case 'gone':
+      return link.detail ? fmt(t('session.why.goneNamed'), { x: link.detail }) : t('session.why.gone');
     default:
       return t(`session.why.${link.reason}`);
   }

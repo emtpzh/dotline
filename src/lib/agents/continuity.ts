@@ -15,7 +15,9 @@ import { turnOf } from '../sessions/turn';
 
 export type SessionBreak =
   | 'runtime' | 'cwd' | 'role' | 'material' | 'reference' | 'merge'
-  | 'attachment' | 'passage' | 'edited' | 'no-fork' | 'unfollowed' | 'missing';
+  | 'attachment' | 'passage' | 'edited' | 'no-fork' | 'unfollowed' | 'missing'
+  /** the directory the session ran in is not there any more */
+  | 'gone';
 
 export type Continuity =
   /** only the question travels: the session holds the conversation; `turn`

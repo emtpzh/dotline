@@ -40,4 +40,11 @@ async function writeMaterials(cwd, files) {
   return { dir, written };
 }
 
-module.exports = { workspaceFor, writeMaterials };
+/** Whether a path is there and is a directory: a session's directory may
+ *  have been moved or deleted since the session ran in it. */
+async function statDir(p) {
+  if (typeof p !== 'string' || !path.isAbsolute(p)) return { exists: false, dir: false };
+  try { const st = await fsp.stat(p); return { exists: true, dir: st.isDirectory() }; } catch { return { exists: false, dir: false }; }
+}
+
+module.exports = { workspaceFor, writeMaterials, statDir };

@@ -81,6 +81,26 @@ export interface TurnConfig {
   basis: 'observed' | 'inferred';
 }
 
+/** A canvas run waiting for its turn in the session file (ThoughtData.run). */
+export interface AgentRunBinding {
+  runtime: AgentRuntime;
+  /** the session the turn lands in; absent until a fresh session names itself */
+  sessionId?: string;
+  /** the turn it goes on from (a continued session): its turn comes after it */
+  afterTurnId?: string;
+  /** the question as asked (the file may hold the canvas's context ahead of it) */
+  question: string;
+  /** the turn the sync found for it, while the run still writes it */
+  turnId?: string;
+  startedAt: string;
+  /** the picker entry it ran on */
+  model?: string;
+  /** its last event has arrived: the file holds all it will write */
+  endedAt?: string;
+  /** what the file system saw change during the run */
+  changes?: { changed: string[]; added: string[]; removed: string[]; truncated?: boolean };
+}
+
 /** How far an agent turn may go, as each runtime's own permission mode:
     read = reads and searches only; write = may change the working directory.
     Anything beyond is refused inside the turn, never asked on the canvas. */
@@ -207,6 +227,13 @@ export interface ThoughtData extends Record<string, unknown> {
     /** what changed on disk during the turn, by the file system's account */
     changes?: { changed: string[]; added: string[]; removed: string[]; truncated?: boolean };
   };
+  /** An agent run the canvas started on this node, until its turn is in the
+      session file: the session sync (lib/sessions/sync) finds the turn there
+      by this binding — the session it runs in (known before it starts when
+      it continues one, else from its first event), the turn it follows, the
+      question as asked — and writes it into the node. Persisted: a page
+      closed mid-run finds its turn in the file the same way. */
+  run?: AgentRunBinding;
   /** What became of the agent session above when this turn last ran (or,
       before its first run, what its ask box predicted): it opened a new
       session and why, or it forked the session at turn N. Absent = it went

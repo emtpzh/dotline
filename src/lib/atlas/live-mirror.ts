@@ -1,35 +1,18 @@
 import { toast } from '../ui-store';
 import { t, fmt } from '../../i18n';
-import { identityFromHead } from './discover';
-import { withSubagents } from './subagents';
+import { identityFromHead, readSession } from '../sessions/read';
+import { pickSessionFile } from '../sessions/store';
 
-// The live mirror, phase one of the listener: when the file behind the
-// ACTIVE canvas's mirrored session grows, the appendix arrives on its
-// own — the "refresh" button's job, automated. importOrAppendSession is
-// idempotent (the ledger knows how far the mirror reached), so a noisy
-// watcher can never double-append. Anchor-mounting NEW sessions stays
-// manual until the chapter ledger lands — an auto-mount without
-// idempotence would stack duplicate branches.
+// The live mirror only triggers: a session file changes, and the session
+// layer reads it (lib/sessions/read, incrementally) and syncs it into the
+// canvas that subscribes to it (lib/sessions/sync — idempotent by turn id,
+// so a noisy watcher can never double-append). A NEW session whose opening
+// carries a live anchor mounts on the canvas the anchor names.
 
-/** The file a session id names, by FILENAME: cc files are `<id>.jsonl`,
- *  codex rollouts embed the id, a subagent file is `agent-<id>.jsonl`. A
- *  path-wide match would hit `<parent-id>/subagents/…` first for any
- *  session that ever spawned an agent. */
-export function pickSessionFile<T extends { rel: string }>(files: T[], sid: string): T | undefined {
-  return files.find((f) => (f.rel.split('/').pop() ?? f.rel).includes(sid));
-}
+export { pickSessionFile };
 
 let started = false;
 let sweep: (() => Promise<void>) | null = null;
-let mirrorFile: ((ev: { rootKey: string; rel: string }) => Promise<void>) | null = null;
-
-/** Run one session file through the live pipeline now, without waiting for
- *  it to change: an agent turn adopted after its run may already hold what
- *  the turn produced beside itself (subagent runs), and a file that has gone
- *  quiet sends no further change to bring them in. */
-export function remirrorSession(ev: { rootKey: string; rel: string }): void {
-  void mirrorFile?.(ev);
-}
 
 /** Sweep the freshest session files through the idempotent pipeline —
  *  the offline/inactive gap closer. Called at startup and on every
@@ -89,10 +72,10 @@ export function startLiveMirror(): void {
         }
       }
 
-      const { streamRunnerConversation } = await import('../adapters');
-      const { importOrAppendConversation, shellSessionReader } = await import('./canonical');
-      const conv = await withSubagents(await streamRunnerConversation(shellSessionReader(ev.rootKey, ev.rel)).catch(() => null), ev.rootKey, ev.rel);
-      const result = await importOrAppendConversation(conv, { background: true });
+      const read = await readSession(ev);
+      if (!read) return;
+      const { importOrAppendConversation } = await import('./canonical');
+      const result = await importOrAppendConversation(read.conv, { background: true, snapshot: read.snapshot });
       if (result?.kind === 'appended' && result.turns > 0) {
         toast('success', fmt(t('atlas.liveAppended'), { n: result.turns }), 8000);
       } else if (result?.kind === 'mounted') {
@@ -104,12 +87,7 @@ export function startLiveMirror(): void {
     }
   };
 
-  mirrorFile = handle;
-
-  // agent turns that ran on while no page was there to finish them read
-  // their answers back from the same files
-  const reconcile = (): void => { void import('../agents/agent-runtime').then((m) => m.reconcilePendingAgentTurns()).catch(() => {}); };
-  bridge.onSessionsChanged((ev) => { void handle(ev); reconcile(); });
+  bridge.onSessionsChanged((ev) => { void handle(ev); });
 
   // thoughtdag://open?session=<id> — the /thoughtdag command's front
   // door. Locate the file (filename fast path: cc files are named by
@@ -154,10 +132,9 @@ export function startLiveMirror(): void {
       }
     }
     if (!target) { toast('error', t('handoff.deeplinkMiss')); return; }
-    const { streamRunnerConversation } = await import('../adapters');
-    const { importOrAppendConversation, shellSessionReader } = await import('./canonical');
-    const conv = await withSubagents(await streamRunnerConversation(shellSessionReader(target.rootKey, target.rel)).catch(() => null), target.rootKey, target.rel);
-    const result = await importOrAppendConversation(conv);
+    const read = await readSession(target);
+    const { importOrAppendConversation } = await import('./canonical');
+    const result = read ? await importOrAppendConversation(read.conv, { snapshot: read.snapshot }) : null;
     if (!result) toast('error', t('handoff.notASession'));
     else if (result.kind === 'appended') toast('success', fmt(t('atlas.liveAppended'), { n: result.turns }), 8000);
     else if (result.kind === 'mounted') toast('success', fmt(t(result.mode === 'continue' ? 'atlas.mountedChapter' : 'atlas.mountedBranch'), { n: result.turns }), 9000);
@@ -202,7 +179,8 @@ export function startLiveMirror(): void {
     for (const f of todo) await handle({ rootKey: f.rootKey, rel: f.rel });
     for (const f of files) mark[`${f.rootKey}|${f.rel}`] = `${f.mtime}|${f.size}`;
     localStorage.setItem(MARK_KEY, JSON.stringify(mark));
-    reconcile();
+    // runs this canvas left waiting while no page was there read their turns
+    void import('../sessions/sync').then((m) => m.syncWaitingRuns()).catch(() => {});
   };
   void sweep();
 }

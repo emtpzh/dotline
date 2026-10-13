@@ -1,6 +1,6 @@
 import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
 import { useStore, stripTransient } from '../store';
-import { useProjects } from '../store/projects';
+import { useProjects, subscriptionsOf, legacyLedgerOf } from '../store/projects';
 import { toast, useUiStore } from './ui-store';
 import { t } from '../i18n';
 import { EXPORT_FORMAT_VERSION, activeProjectName } from './export';
@@ -43,8 +43,10 @@ export async function backupActiveProject(): Promise<string | null> {
   const base = (activeProjectName().replace(/[\\/:*?"<>|]/g, '_') || 'canvas').slice(0, 48);
   // mirror canvases are named after their first prompt — suffix the
   // session id so long/similar prompts can't collide on disk
-  const isMirror = !!activeMeta?.sourceSession;
-  const name = activeMeta?.sourceSession?.sessionId ? `${base}-${activeMeta.sourceSession.sessionId.slice(0, 8)}` : base;
+  const subs = subscriptionsOf(activeMeta);
+  const main = subs.find((s) => s.role === 'main');
+  const isMirror = subs.length > 0;
+  const name = main ? `${base}-${main.sessionId.slice(0, 8)}` : base;
   const payload = JSON.stringify({
     version: EXPORT_FORMAT_VERSION,
     name: activeProjectName(),
@@ -58,7 +60,9 @@ export async function backupActiveProject(): Promise<string | null> {
     // ledger holds only UUIDs (session ids), never paths, so the file
     // survives machines and moves; a source that isn't on this machine
     // simply stays silent until it appears.
-    sourceSession: activeMeta?.sourceSession,
+    // by turn id; the count-based ledger beside it is what older versions read
+    sessions: subs.length ? subs : undefined,
+    sourceSession: legacyLedgerOf(subs),
     nodes: stripTransient(nodes),
     edges,
     events,

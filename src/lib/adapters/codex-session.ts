@@ -286,6 +286,7 @@ export class CodexSessionCollector {
       messageCount: s.turns.length,
       source: 'codex',
       sessionId: s.sessionId,
+      session: { turns: s.turns, ...(s.cwd ? { cwd: s.cwd } : {}), ...(s.subagent ? { subagent: true } : {}) },
       build: () => buildGraphFromTurns(s.turns, s.sessionId, s.cwd),
       adopt: (subs) => adoptSubagentSessions(s.turns, subs),
     };

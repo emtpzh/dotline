@@ -37,7 +37,7 @@ export async function withSubagents(
   if (!conv?.adopt || !conv.sessionId || !window.desktopSessions) return conv;
   const subs: SubagentSession[] = [];
   try {
-    const { shellSessionReader } = await import('./canonical');
+    const { shellSessionReader } = await import('../sessions/read');
     if (conv.source === 'claude-code') {
       // <project>/<sessionId>.jsonl → <project>/<sessionId>/subagents/agent-*.jsonl
       const prefix = `${rel.replace(/\.jsonl$/, '')}/subagents/`;

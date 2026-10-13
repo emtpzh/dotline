@@ -24,6 +24,9 @@ export interface ImportableConversation {
   /** The child sessions the parent's own log names (DSH's subagent catalog),
       so their transcripts can be read by id before `adopt`. */
   children?: () => string[];
+  /** Session adapters: the turns `build` projects (adoption writes into
+      them), for the session layer's snapshot (lib/sessions/read). */
+  session?: { turns: import('./adapters/shared').RunnerTurn[]; cwd?: string; subagent?: boolean };
 }
 
 // ─── format detection ───────────────────────────────────────────

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Archive, ChevronDown, Dna, FolderOpen, Loader2, Map as MapIcon, Pencil, Plus, RefreshCw, Trash2, Upload } from 'lucide-react';
 import SessionAtlas from './SessionAtlas';
 import { knownSessionIds } from '../lib/atlas/discover';
-import { useProjects, switchProject, createProject, renameProject, deleteProject, setProjectArchived } from '../store/projects';
+import { useProjects, switchProject, createProject, renameProject, deleteProject, setProjectArchived, mainSubscription } from '../store/projects';
 import { useI18n } from '../i18n';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { parseImportFile } from '../lib/export';
@@ -99,23 +99,24 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
         </PopoverTrigger>
         {/* the twin badge: this canvas is one face of a session — the
             other face is one click away on the map */}
-        {!!active?.sourceSession?.sessionId && (() => {
+        {!!mainSubscription(active) && (() => {
+          const main = mainSubscription(active)!;
           // three states, honest about the source: reachable (live),
           // unreachable on this machine (grey — the ledger holds only
           // UUIDs, so the moment the source appears anywhere in a
           // scanned root, listening resumes on its own), or no scan yet
           // (assume live: never a false alarm)
-          const unreachable = knownSessionIds.size > 0 && !knownSessionIds.has(active.sourceSession.sessionId);
+          const unreachable = knownSessionIds.size > 0 && !knownSessionIds.has(main.sessionId);
           return (
             <Button variant="chrome"
               title={unreachable
                 ? ti('switcher.mirrorBadgeGone')
-                : fmt(ti('switcher.mirrorBadge'), { runner: active.sourceSession!.runner })}
-              onClick={() => { setAtlasFocus(active.sourceSession!.sessionId); setAtlasOpen(true); }}
+                : fmt(ti('switcher.mirrorBadge'), { runner: main.runner })}
+              onClick={() => { setAtlasFocus(main.sessionId); setAtlasOpen(true); }}
               className={`gap-1 px-2 text-2xs font-mono ${unreachable ? 'text-muted-foreground/50 line-through decoration-1' : 'hover:text-primary'}`}
               data-twin-badge={unreachable ? 'unreachable' : 'live'}
             >
-              ⇄ {active.sourceSession!.runner}
+              ⇄ {main.runner}
             </Button>
           );
         })()}
@@ -166,9 +167,9 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
                         </span>
                         <span className="flex items-center gap-1.5 text-2xs text-muted-foreground">
                           <span>{relativeTime(p.updatedAt)}</span>
-                          {!!p.sourceSession?.sessionId && (
+                          {!!mainSubscription(p) && (
                             <span className="truncate rounded border border-border px-1 font-mono" data-mirror-mark>
-                              {p.sourceSession.runner}
+                              {mainSubscription(p)!.runner}
                             </span>
                           )}
                         </span>

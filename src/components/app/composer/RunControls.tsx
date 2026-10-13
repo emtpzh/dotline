@@ -380,6 +380,20 @@ export function RunStatus({ session, intent, base, onIntent, onLocate }: {
           {fmt(t('composer.undoRuntime'), { x: AGENT_RUNTIMES[runtimeOf(base!.model)!].label })}
         </Button>
       )}
+      {session.reason === 'gone' && window.desktopAgents?.pickCwd && window.desktopAgents.capabilities?.nativePicker !== false && (
+        <Button variant="outline" size="xs" className="h-5 px-1.5 text-2xs" data-composer-pick-dir
+          onClick={(e) => {
+            e.stopPropagation();
+            // where new lines start: the question that leaves the gone directory starts there
+            void window.desktopAgents!.pickCwd().then(async (dir) => {
+              const { useProjects, setProjectAgentCwd } = await import('../../../store/projects');
+              const id = useProjects.getState().activeId;
+              if (dir && id) await setProjectAgentCwd(id, dir);
+            });
+          }}>
+          {t('session.pickDir')}
+        </Button>
+      )}
       {locatable && (
         <Button variant="link" size="xs" className="h-auto px-0 text-2xs" onClick={(e) => { e.stopPropagation(); onLocate!(about!.id); }}>
           {fmt(t('session.locate'), { x: shortName(about!.data) })}

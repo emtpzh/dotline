@@ -2,11 +2,15 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { AppWindow, Archive, ArrowDownUp, Link2, Folder, FolderOpen, Loader2, Plug, RefreshCw, RotateCcw, Search, Square, SquareCheckBig, SquareTerminal, Import, Trash2, X, Inbox } from 'lucide-react';
 import { scanSessions, groupByCwd, disabledRoots, setRootDisabled, type SessionCard, type AtlasGroup } from '../lib/atlas/discover';
 import { diffAgainstWatermark, markSeen, markAllSeen, changeKeyOf, type CardChange } from '../lib/atlas/watermark';
-import { useProjects, switchProject, setProjectArchived, subscribedSessionIds } from '../store/projects';
+import { useProjects, switchProject, setProjectArchived, subscribedSessionIds, subscriptionsOf, mainSubscription, takenCount, type Subscription } from '../store/projects';
+
+/** How a canvas holds each session it listens to: its main line, a later chapter, a side branch. */
+const ROLE_MARK: Record<Subscription['role'], string> = { main: '◉', chapter: '↳', branch: '⑂' };
+const ROLE_ORDER: Record<Subscription['role'], number> = { main: 0, chapter: 1, branch: 2 };
 import { useT, t as ti, fmt } from '../i18n';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-import { withSubagents } from '../lib/atlas/subagents';
+import { readSession } from '../lib/sessions/read';
 import { toast } from '../lib/ui-store';
 import { Button } from './ui/button';
 
@@ -151,7 +155,7 @@ function SourcesDialog({ roots, counts, onChanged, onClose }: {
 export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { onClose: () => void; onSwitched: () => void; focusSessionId?: string }) {
   const t = useT();
   const projects = useProjects((s) => s.projects);
-  const activeSessionId = useProjects((s) => s.projects.find((p) => p.id === s.activeId)?.sourceSession?.sessionId);
+  const activeSessionId = useProjects((s) => mainSubscription(s.projects.find((p) => p.id === s.activeId))?.sessionId);
   const isDesktop = !!window.desktopSessions;
   const [cards, setCards] = useState<SessionCard[] | null>(null);
   const [roots, setRoots] = useState<SessionRoot[]>([]);
@@ -269,10 +273,9 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
     try {
       // streamed end to end: a session bigger than one V8 string can hold
       // (600MB+ rollouts exist) must never be read whole
-      const { streamRunnerConversation } = await import('../lib/adapters');
-      const { importOrAppendConversation, shellSessionReader } = await import('../lib/atlas/canonical');
-      const conv = await withSubagents(await streamRunnerConversation(shellSessionReader(card.rootKey, card.rel)), card.rootKey, card.rel, cards);
-      const result = await importOrAppendConversation(conv);
+      const { importOrAppendConversation } = await import('../lib/atlas/canonical');
+      const read = await readSession(card, { cards });
+      const result = await importOrAppendConversation(read?.conv ?? null, { snapshot: read?.snapshot });
       if (!result) throw new Error(ti('handoff.notASession'));
       if (result.kind === 'appended') toast('success', fmt(ti('atlas.appended'), { n: result.turns }), 9000);
       else if (result.kind === 'mounted') toast('success', fmt(ti(result.mode === 'continue' ? 'atlas.mountedChapter' : 'atlas.mountedBranch'), { n: result.turns }), 9000);
@@ -291,11 +294,10 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
     if (busyRel || picked.size < 2) return;
     setBusyRel('__merge__');
     try {
-      const { streamRunnerConversation } = await import('../lib/adapters');
-      const { mergeSessionsIntoProject, shellSessionReader } = await import('../lib/atlas/canonical');
+      const { mergeSessionsIntoProject } = await import('../lib/atlas/canonical');
       const convs = [];
       for (const card of picked.values()) {
-        convs.push(await withSubagents(await streamRunnerConversation(shellSessionReader(card.rootKey, card.rel)), card.rootKey, card.rel, cards));
+        convs.push((await readSession(card, { cards }))?.conv ?? null);
         seen(card);
       }
       const result = await mergeSessionsIntoProject(convs, projectId);
@@ -316,7 +318,7 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
   // a permanent undo floor — delete the twin canvas (edits and all, after
   // an explicit confirm) and rebuild the full mirror from the file.
   const recast = async (card: SessionCard) => {
-    const twin = useProjects.getState().projects.find((p) => p.sourceSession?.sessionId === card.sessionId);
+    const twin = useProjects.getState().projects.find((p) => mainSubscription(p)?.sessionId === card.sessionId);
     if (!twin || busyRel) return;
     const { confirmDialog } = await import('../lib/ui-store');
     const ok = await confirmDialog({
@@ -328,13 +330,12 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
     if (!ok) return;
     setBusyRel(card.rel);
     try {
-      const { streamRunnerConversation } = await import('../lib/adapters');
-      const { importOrAppendConversation, shellSessionReader } = await import('../lib/atlas/canonical');
-      const conv = await withSubagents(await streamRunnerConversation(shellSessionReader(card.rootKey, card.rel)), card.rootKey, card.rel, cards);
-      if (!conv) throw new Error(ti('handoff.notASession'));
+      const { importOrAppendConversation } = await import('../lib/atlas/canonical');
+      const read = await readSession(card, { cards });
+      if (!read) throw new Error(ti('handoff.notASession'));
       const { deleteProject } = await import('../store/projects');
       await deleteProject(twin.id);
-      const result = await importOrAppendConversation(conv);
+      const result = await importOrAppendConversation(read.conv, { snapshot: read.snapshot });
       if (!result) throw new Error(ti('handoff.notASession'));
       toast('success', ti('atlas.recastDone'), 8000);
       onClose();
@@ -453,8 +454,8 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
                 className="w-full text-left text-foreground hover:bg-accent"
                 data-atlas-recent={p.id}
               >
-                {p.sourceSession?.sessionId
-                  ? <span className="text-2xs font-mono border border-border rounded px-1 py-px shrink-0 text-muted-foreground">{p.sourceSession.runner}</span>
+                {mainSubscription(p)
+                  ? <span className="text-2xs font-mono border border-border rounded px-1 py-px shrink-0 text-muted-foreground">{mainSubscription(p)!.runner}</span>
                   : <Inbox strokeWidth={1.75} className="shrink-0 text-muted-foreground" />}
                 <span className="flex-1 truncate text-sm">{p.name}</span>
               </Button>
@@ -513,7 +514,7 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
                       <div className="text-sm text-foreground font-medium truncate">{p.name}</div>
                       <div className="text-2xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
                         <span>{dateLabel(p.updatedAt)}</span>
-                        {!!p.sourceSession?.sessionId && <span className="font-mono border border-border rounded px-1 py-px">{p.sourceSession.runner}</span>}
+                        {!!mainSubscription(p) && <span className="font-mono border border-border rounded px-1 py-px">{mainSubscription(p)!.runner}</span>}
                       </div>
                     </div>
                     <Button variant="ghost"
@@ -526,16 +527,10 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
                     </Button>
                     {/* the listening cluster: every session this canvas
                         subscribes to, with its role and progress */}
-                    {!!p.sourceSession && subscribedSessionIds(p).length > 0 && (
+                    {subscribedSessionIds(p).length > 0 && (
                       <div className="w-full basis-full text-2xs text-muted-foreground font-mono flex flex-wrap gap-x-3 gap-y-0.5 pt-1" data-atlas-cluster>
-                        {p.sourceSession.sessionId && (
-                          <span>◉ {p.sourceSession.runner} {p.sourceSession.sessionId.slice(0, 8)} · {fmt(t('atlas.turnsN'), { n: p.sourceSession.importedCount })}</span>
-                        )}
-                        {(p.sourceSession.chapters ?? []).map((c) => (
-                          <span key={c.sessionId}>↳ {c.runner} {c.sessionId.slice(0, 8)} · {fmt(t('atlas.turnsN'), { n: c.importedCount })}</span>
-                        ))}
-                        {(p.sourceSession.branches ?? []).map((b) => (
-                          <span key={b.sessionId}>⑂ {b.runner} {b.sessionId.slice(0, 8)} · {fmt(t('atlas.turnsN'), { n: b.importedCount })}</span>
+                        {[...subscriptionsOf(p)].sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role]).map((sub) => (
+                          <span key={sub.sessionId}>{ROLE_MARK[sub.role]} {sub.runner} {sub.sessionId.slice(0, 8)} · {fmt(t('atlas.turnsN'), { n: takenCount(sub) })}</span>
                         ))}
                       </div>
                     )}
@@ -557,7 +552,7 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
                         >
                           <div className="text-sm text-foreground truncate flex items-center gap-1.5">
                             <span className="truncate">{p.name}</span>
-                            {!!p.sourceSession?.sessionId && <span className="text-2xs font-mono border border-border rounded px-1 py-px shrink-0 text-muted-foreground">{p.sourceSession.runner}</span>}
+                            {!!mainSubscription(p) && <span className="text-2xs font-mono border border-border rounded px-1 py-px shrink-0 text-muted-foreground">{mainSubscription(p)!.runner}</span>}
                           </div>
                           <div className="text-2xs text-muted-foreground mt-0.5">{dateLabel(p.updatedAt)}</div>
                         </Button>
@@ -682,7 +677,7 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
                               </Button>
                             )}
                             <span title={t('atlas.import')} className="text-muted-foreground hover:text-primary p-1.5"><Import size={16} strokeWidth={1.75} /></span>
-                            {projects.some((p) => p.sourceSession?.sessionId === card.sessionId) && (
+                            {projects.some((p) => mainSubscription(p)?.sessionId === card.sessionId) && (
                               <Button variant="ghost"
                                 title={t('atlas.recast')}
                                 className="text-muted-foreground hover:text-destructive/90"
@@ -777,10 +772,8 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
                     void (async () => {
                       setBusyRel(card.rel);
                       try {
-                        const { streamRunnerConversation } = await import('../lib/adapters');
-                        const { mountConversationToProject, shellSessionReader } = await import('../lib/atlas/canonical');
-                        const conv = await withSubagents(await streamRunnerConversation(shellSessionReader(card.rootKey, card.rel)), card.rootKey, card.rel, cards);
-                        const result = await mountConversationToProject(conv, p.id);
+                        const { mountConversationToProject } = await import('../lib/atlas/canonical');
+                        const result = await mountConversationToProject((await readSession(card, { cards }))?.conv ?? null, p.id);
                         if (!result) throw new Error(ti('handoff.notASession'));
                         toast('success', fmt(ti('atlas.mountedChapter'), { n: result.kind === 'mounted' || result.kind === 'appended' ? result.turns : 0 }), 9000);
                         onClose();

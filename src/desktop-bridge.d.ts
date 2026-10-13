@@ -155,6 +155,8 @@ interface DesktopAgentsBridge {
   abort(runId: string): Promise<boolean>;
   /** the shell-managed working directory of a canvas, created on demand */
   workspace(canvasId: string): Promise<string>;
+  /** whether a path exists and is a directory (absent on older hosts) */
+  stat?(path: string): Promise<{ exists: boolean; dir: boolean }>;
   /** the person's answer to a runtime's question during a run */
   answer(runId: string, requestId: string, response: { confirmed: boolean } | { value: string } | { cancelled: true }): Promise<boolean>;
   /** a folder picked in the system dialog, or null */
