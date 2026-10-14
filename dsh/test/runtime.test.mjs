@@ -21,10 +21,15 @@ function fakeHarness({ turn, version = 3, presets } = {}) {
   const agents = new Map()
   const log = { created: [], forks: [], injected: [], prompts: [], selected: [], cancelled: [], cleared: [] }
   let n = 0
-  const fire = (id, event) => { for (const h of handlers.get('session/event') ?? []) h({ id }, event) }
+  // an event goes into the session's log, then out to listeners, as the harness does
+  const fire = (id, event) => {
+    const session = sessions.get(id)
+    if (session) { session.seq += 1; session.events.push({ seq: session.seq, ...event }) }
+    for (const h of handlers.get('session/event') ?? []) h({ id }, event)
+  }
   fire.stream = (id, frame) => { for (const h of handlers.get('agent/assistant-stream') ?? []) h({ agent: agents.get(id), frame }) }
   const addSession = (id, cwd, events = [], pending = []) => {
-    sessions.set(id, { id, header: { version, meta: { cwd } }, events, seq: events.length })
+    sessions.set(id, { id, header: { version, meta: { cwd } }, events: [...events], seq: events.length })
     const inbox = {
       pending: [...pending],
       get hasPending() { return inbox.pending.length > 0 },
@@ -65,7 +70,7 @@ function fakeHarness({ turn, version = 3, presets } = {}) {
       selectModel: async (x) => { log.selected.push(x) },
       prompt: async ({ sessionId, content }) => {
         log.prompts.push({ sessionId, text: content[0].text })
-        setImmediate(() => (turn ?? defaultTurn)(sessionId, fire))
+        setImmediate(() => (turn ?? defaultTurn)(sessionId, fire, content[0].text))
       },
       resolveAgent: async (id) => (agents.has(id) ? { agent: agents.get(id) } : { error: { code: 'NOT_FOUND' } }),
     },
@@ -74,9 +79,9 @@ function fakeHarness({ turn, version = 3, presets } = {}) {
   return { ctx, log, addSession, pendingOf }
 }
 
-function defaultTurn(id, fire) {
+function defaultTurn(id, fire, question = '') {
   fire(id, { type: 'turn/start', data: { turn: 1 } })
-  fire(id, { type: 'user/message', data: { id: 'msg-q', source: { kind: 'user' } } })
+  fire(id, { type: 'user/message', data: { id: 'msg-q', source: { kind: 'user' }, content: [{ type: 'text', text: question }] } })
   fire(id, { type: 'tool/call', data: { callId: 'c1', name: 'read', arguments: '{"path":"/w/a.txt"}' } })
   fire(id, { type: 'tool/result', data: { message: { source: { callId: 'c1' }, content: [] } } })
   fire(id, { type: 'assistant/chunk', data: { chunk: { type: 'reasoning-delta', text: 'hm' } } })
@@ -131,7 +136,9 @@ test('a fresh run opens a session in the chosen folder, the context injected ahe
   assert.deepEqual(events.filter(e => e.type === 'message_update').map(e => [e.assistantMessageEvent.type, e.assistantMessageEvent.delta]), [['thinking_delta', 'hm'], ['text_delta', 'Hel'], ['text_delta', 'lo']])
   assert.deepEqual(events.find(e => e.type === 'tool_execution_start'), { type: 'tool_execution_start', toolCallId: 'c1', toolName: 'read', args: { path: '/w/a.txt' } })
   assert.deepEqual(events.find(e => e.type === 'tool_execution_end'), { type: 'tool_execution_end', toolCallId: 'c1', toolName: 'read', isError: false })
-  assert.deepEqual(events.at(-1), { type: 'run_end', text: 'Hello', how: 'end' })
+  // the run names its turn (the message carrying its question) and ends once the session holds it whole
+  assert.deepEqual(events.find(e => e.type === 'turn'), { type: 'turn', turnId: 'msg-q' })
+  assert.deepEqual(events.at(-1), { type: 'run_end', text: 'Hello', how: 'end', turnId: 'msg-q', held: true })
 })
 
 const roster = [
@@ -293,7 +300,8 @@ test('a v4 harness takes the context under a producer-owned source kind and stre
   const { events } = await runToEnd(createDshRuntime(ctx), { runtime: 'dsh', cwd: '/p', prompt: 'CTX\n\n---\n\nQ?', context: 'CTX', question: 'Q?' })
   assert.deepEqual(log.injected[0].source, { kind: 'plugin:dsh-dotline' })
   assert.deepEqual(events.filter(e => e.type === 'message_update').map(e => [e.assistantMessageEvent.type, e.assistantMessageEvent.delta]), [['thinking_delta', 'hm'], ['text_delta', 'Hel'], ['text_delta', 'lo']])
-  assert.deepEqual(events.at(-1), { type: 'run_end', text: 'Hello', how: 'end' })
+  // a turn with no message carrying the question is not one the run can name
+  assert.deepEqual(events.at(-1), { type: 'run_end', text: 'Hello', how: 'end', held: false })
 })
 
 test('a turn the harness ends in an error is the run\'s error, not an empty answer', async () => {

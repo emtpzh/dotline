@@ -10,6 +10,10 @@
 // continues with `--resume`, branches with `--fork-session`. Claude Code
 // keeps its session files under ~/.claude/projects, its login and its model
 // aliases; the shell only asks. Same event kinds as the other runtimes.
+//
+// The turn is named (`turn`) by the transcript line carrying the prompt this
+// run wrote, once the CLI has written it; `run_end` goes out after the
+// process is gone, when the transcript holds all the turn will ever get.
 'use strict';
 
 const { spawn, execFile } = require('node:child_process');
@@ -18,6 +22,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const { randomUUID } = require('node:crypto');
 const { snapshotDir, diffSnapshots } = require('./fs-diff.cjs');
+const { sizeOf, linesFrom, samePrompt } = require('./turn-file.cjs');
 
 const fsp = fs.promises;
 const CANDIDATE_DIRS = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', path.join(os.homedir(), '.local', 'bin'), path.join(os.homedir(), '.claude', 'local'), path.join(os.homedir(), '.npm-global', 'bin'), path.join(os.homedir(), '.bun', 'bin')];
@@ -76,6 +81,16 @@ async function turnEffortOf(file) {
     }
   } catch { /* no file */ }
   return null;
+}
+
+/** The uuid of the transcript's last user line carrying `prompt` (after
+ *  byte `from`): the line the CLI wrote for this run's prompt. */
+async function promptEntryIn(file, from, prompt) {
+  let id = null;
+  for (const l of await linesFrom(file, from)) {
+    if (l?.type === 'user' && !l.isMeta && typeof l.uuid === 'string' && samePrompt(l.message?.content, prompt)) id = l.uuid;
+  }
+  return id;
 }
 
 /** The CLI's configured effort (`effortLevel` in ~/.claude/settings.json), when set. */
@@ -137,7 +152,7 @@ function createClaudeRuntime({ log } = {}) {
       const runId = randomUUID();
       const emit = (event) => { try { onEvent({ runId, event }); } catch { /* renderer gone */ } };
       const access = req.access === 'write' ? 'write' : 'read';
-      const state = { runId, proc: null, asks: new Map(), text: '', final: null, sessionId: null, waiting: false, ended: false, aborted: false };
+      const state = { runId, proc: null, asks: new Map(), text: '', final: null, sessionId: null, waiting: false, ended: false, aborted: false, turnId: null, file: null };
       runs.set(runId, state);
 
       void (async () => {
@@ -155,6 +170,21 @@ function createClaudeRuntime({ log } = {}) {
           // only a level the CLI itself lists; anything else means its default
           if (req.effort && (await effortsOf(b)).includes(req.effort)) args.push('--effort', req.effort);
           if (resumeId) { args.push('--resume', resumeId); if (req.forkEntryId) args.push('--fork-session'); }
+          // where this run's lines begin: a continued session's file as it
+          // is now; a fresh or forked one is a new file (its copied history
+          // comes first, the run's prompt last)
+          const from = resumeId && !req.forkEntryId ? await sizeOf(await sessionFileFor(cwd, resumeId)) : 0;
+          // the transcript line carrying this run's prompt, looked for as the turn goes until found
+          let looking = false;
+          const findTurn = async () => {
+            if (state.turnId || looking || !state.sessionId) return;
+            looking = true;
+            try {
+              state.file ??= await sessionFileFor(cwd, state.sessionId);
+              const id = await promptEntryIn(state.file, state.file && !req.forkEntryId && resumeId === state.sessionId ? from : 0, req.prompt);
+              if (id && !state.turnId) { state.turnId = id; mark({ type: 'turn', turnId: id }); }
+            } finally { looking = false; }
+          };
           const proc = spawn(b, args, { cwd, env: childEnv(), stdio: ['pipe', 'pipe', 'pipe'] });
           state.proc = proc;
           let buf = '';
@@ -202,6 +232,7 @@ function createClaudeRuntime({ log } = {}) {
                 break;
               }
               case 'assistant':
+                void findTurn();
                 // the alias resolved to a real model inside the CLI; the final session event carries it
                 if (!state.resolvedModel && typeof m.message?.model === 'string') state.resolvedModel = m.message.model;
                 for (const b of m.message?.content ?? []) if (b.type === 'tool_use') mark({ type: 'tool_execution_start', toolCallId: b.id, toolName: b.name, args: b.input ?? {} });
@@ -231,8 +262,10 @@ function createClaudeRuntime({ log } = {}) {
           // let the CLI finish writing its transcript: it exits on its own
           // after the result; a kill is only the fallback
           await new Promise((resolve) => { if (proc.exitCode !== null || proc.signalCode) return resolve(); const t = setTimeout(() => { try { proc.kill(); } catch { /* gone */ } resolve(); }, 8000); proc.once('exit', () => { clearTimeout(t); resolve(); }); });
+          // the process is gone: the transcript holds all this turn will get
+          await findTurn();
           if (state.sessionId) {
-            const file = await sessionFileFor(cwd, state.sessionId);
+            const file = state.file ?? await sessionFileFor(cwd, state.sessionId);
             const ran = await turnEffortOf(file);
             mark({ type: 'session', effort: ran, sessionId: state.sessionId, sessionFile: file, model: { provider: 'claude-code', id: model ?? 'default', name: model ?? 'default', ...(state.resolvedModel ? { resolved: state.resolvedModel } : {}) }, cwd });
           }
@@ -240,10 +273,10 @@ function createClaudeRuntime({ log } = {}) {
             const after = await snapshotDir(cwd).catch(() => null);
             if (after) { const d = diffSnapshots(before, after); if (d.changed.length || d.added.length || d.removed.length || d.truncated) mark({ type: 'fs_changes', ...d }); }
           }
-          mark({ type: 'run_end', text: state.final ?? state.text, how });
+          mark({ type: 'run_end', text: state.final ?? state.text, how, ...(state.turnId ? { turnId: state.turnId } : {}), held: !!state.turnId });
         } catch (e) {
           mark({ type: 'run_error', message: e instanceof Error ? e.message : String(e) });
-          mark({ type: 'run_end', text: state.final ?? state.text, how: 'error' });
+          mark({ type: 'run_end', text: state.final ?? state.text, how: 'error', ...(state.turnId ? { turnId: state.turnId } : {}), held: false });
         } finally {
           if (watchdog) clearInterval(watchdog);
           runs.delete(runId);
@@ -277,4 +310,4 @@ function createClaudeRuntime({ log } = {}) {
 
 function write(proc, obj) { try { proc.stdin.write(JSON.stringify(obj) + '\n'); return true; } catch { return false; } }
 
-module.exports = { createClaudeRuntime, findClaude };
+module.exports = { promptEntryIn, createClaudeRuntime, findClaude };

@@ -4,8 +4,10 @@ import { upstreamFingerprint } from './context-builder';
 import { pruneHighlights } from '../lib/highlight-match';
 import { llmCall, llmCallStream, type ContextMessage, type ImageAttachment } from '../lib/api';
 import { agentOutbound, syncAgentTurn, type AgentRoute } from '../lib/agents/agent-runtime';
-import { abortAgentRun, awaitSettle, clearOverlay, runAgentTurn, patchNodeOn } from '../lib/agents/runs';
+import { abortAgentRun, clearOverlay, runAgentTurn, patchNodeOn } from '../lib/agents/runs';
 import { noticeTurnEnded } from '../lib/agents/offscreen';
+import { underSession } from '../lib/sessions/serial';
+import { sameRun } from '../lib/sessions/writes';
 import { lineModel } from '../lib/run-intent';
 import { countTokens, activeSummary } from '../utils';
 import { toast, useUiStore } from '../lib/ui-store';
@@ -93,12 +95,6 @@ const generationSeq = new Map<string, number>();
 export function releaseGenerations(): void {
   for (const controller of activeAbortControllers.values()) controller.abort();
 }
-
-// How long a finished agent turn waits for its session file before the page
-// says the turn is late (it lands when the file has it), and how long before
-// the run's own text stands in for it.
-const ADOPT_WAIT_MS = 6000;
-const ADOPT_GIVE_UP_MS = 10 * 60_000;
 
 // Auto-chain budget: how many times each autoRerun node has fired since the
 // last MANUAL action. A fresh user action resets all counters, so budgets
@@ -445,8 +441,12 @@ async function runAgentGeneration(set: Set, get: Get, nodeId: string, o: {
   /** the node is on the canvas in view, and still this run's */
   const here = () => o.isCurrent() && useProjects.getState().activeId === canvasId && !useProjects.getState().switching && get().nodes.some((n) => n.id === nodeId);
   let sessionId = o.route.continue ? o.route.sessionId : undefined;
+  // the binding this run set on the node: what is written on its behalf
+  // lands only while the node still carries it
+  const binding = get().nodes.find((n) => n.id === nodeId)?.data.run;
   const end = await runAgentTurn({
     nodeId, canvasId, runtime: o.runtime, question: o.question, messages: o.messages, images: o.images, model: o.model, route: o.route,
+    ...(binding ? { startedAt: binding.startedAt } : {}),
     onSession: (session) => {
       if (!session.sessionId) return;
       sessionId = session.sessionId;
@@ -466,6 +466,11 @@ async function runAgentGeneration(set: Set, get: Get, nodeId: string, o: {
   if (!o.isCurrent()) return; // a newer generation took the node
 
   const fileToRead = !!sessionId && !!window.desktopSessions;
+  /** the node still waits for this run's turn: nothing has written it */
+  const waiting = () => sameRun(get().nodes.find((n) => n.id === nodeId)?.data.run, binding);
+  // what the run writes of its own goes in line with the sync's writes of
+  // the session, and only while the node still waits for this run
+  const inLine = (job: () => Promise<void>): Promise<void> => (sessionId ? underSession(o.runtime, sessionId, job) : job());
   if (end.how !== 'end' || !fileToRead) {
     // stopped, failed, or nothing to read the turn from: the run's own account
     if (end.how === 'error') {
@@ -474,40 +479,48 @@ async function runAgentGeneration(set: Set, get: Get, nodeId: string, o: {
     }
     const text = end.text.trim() ? end.text : end.how === 'aborted' ? t('node.stoppedPlaceholder') : end.how === 'error' ? t('node.failedPlaceholder') : t('node.emptyResponse');
     const failed = end.how === 'error' || !end.text.trim() && end.how === 'end';
-    if (here()) {
-      o.writeFinal(text, failed);
-      clearOverlay(nodeId);
-      // nothing will ever bind a run without a session file
-      if (!fileToRead) set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId && n.data.run ? { ...n, data: { ...n.data, run: undefined } } : n)) }));
-      get().pushHistory();
-      if (!failed && end.how === 'end') o.afterAnswer(text);
-    } else if (!fileToRead) {
-      await patchNodeOn(canvasId, nodeId, (d) => ({ response: text, responses: [text], questions: [d.question], generatedBy: [o.model], responseIndex: 0, isLoading: false, generationFailed: failed || undefined, run: undefined }));
-      clearOverlay(nodeId);
-    }
+    await inLine(async () => {
+      if (here()) {
+        // the file's account of this run is on the node already: it stands
+        if (binding && !waiting()) { clearOverlay(nodeId); return; }
+        o.writeFinal(text, failed);
+        clearOverlay(nodeId);
+        // nothing will ever bind a run without a session file; with one, the
+        // binding stays and the turn the file holds after all takes the
+        // place of this account
+        set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId && n.data.run ? { ...n, data: { ...n.data, run: fileToRead ? { ...n.data.run, standIn: true } : undefined } } : n)) }));
+        get().pushHistory();
+        if (!failed && end.how === 'end') o.afterAnswer(text);
+      } else if (!fileToRead) {
+        await patchNodeOn(canvasId, nodeId, (d) => (binding && !sameRun(d.run, binding) ? {} : { response: text, responses: [text], questions: [d.question], generatedBy: [o.model], responseIndex: 0, isLoading: false, generationFailed: failed || undefined, run: undefined }));
+        clearOverlay(nodeId);
+      }
+    });
     return;
   }
 
-  // the turn is in the file: the sync writes it (now, if the canvas is in
-  // view; when it is in view again, if not)
-  if (here()) void syncAgentTurn(nodeId, o.runtime, sessionId!).catch(() => false);
-  let settled = await awaitSettle(nodeId, ADOPT_WAIT_MS);
-  if (!settled) {
-    if (here()) toast('info', t('agent.adoptLate'), 8000);
-    settled = await awaitSettle(nodeId, ADOPT_GIVE_UP_MS);
-  }
+  // the run is over, and its binding says so — with its turn and whether
+  // the file held all of it — before this goes on: the sync writes the turn
+  // from the file now (the canvas out of view: when it is in view again)
   if (!here()) return;
-  const node = get().nodes.find((n) => n.id === nodeId);
-  if (!settled) {
-    // the file never showed the turn: the run's text stands in
-    o.writeFinal(end.text.trim() ? end.text : t('node.emptyResponse'), !end.text.trim());
+  await syncAgentTurn(nodeId, o.runtime, sessionId!).catch(() => false);
+  await inLine(async () => {
+    if (!here()) return;
+    if (waiting()) {
+      // the file did not show the turn: the run's own text stands in, and
+      // the binding stays — the turn, should the file show it, takes its place
+      o.writeFinal(end.text.trim() ? end.text : t('node.emptyResponse'), !end.text.trim());
+      clearOverlay(nodeId);
+      set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId && n.data.run ? { ...n, data: { ...n.data, run: { ...n.data.run, standIn: true } } } : n)) }));
+      if (end.text.trim()) o.afterAnswer(end.text);
+      return;
+    }
+    // the sync may have written the turn while the run was still going: the
+    // overlay (the run's own text) must not stand over the file's answer
     clearOverlay(nodeId);
-    set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, run: undefined } } : n)) }));
-    if (end.text.trim()) o.afterAnswer(end.text);
-    return;
-  }
-  noticeTurnEnded(nodeId);
-  o.afterAnswer(node?.data.response ?? end.text);
+    noticeTurnEnded(nodeId);
+    o.afterAnswer(get().nodes.find((n) => n.id === nodeId)?.data.response ?? end.text);
+  });
 }
 
 /**

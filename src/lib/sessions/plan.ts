@@ -20,8 +20,12 @@ export interface Binding {
   afterTurnId?: string;
   /** its last event arrived: the file holds all it will write */
   ended?: boolean;
-  /** the turn an earlier sync found for it */
+  /** its turn: named by the run itself, or found by an earlier sync */
   turnId?: string;
+  /** the run names its own turn (a run on a host that records runs): its
+   *  turn is found by that id, never by the question's wording, and turns
+   *  after the one it goes on from wait while it has not named it yet */
+  exact?: boolean;
 }
 
 export interface SyncPlan {
@@ -87,33 +91,52 @@ export function planSync(input: {
   // from ahead of the run's own turn: the canvas has it already, as the
   // chain the run was asked off
   const inherited = new Set<string>();
+  const inherit = (b: Binding, hit: ThoughtNode) => {
+    if (b.afterTurnId !== undefined) return;
+    for (const n of built.nodes.slice(0, built.nodes.indexOf(hit))) {
+      const u = ids.get(n.id);
+      if (u && !handled.has(u) && !claimed.has(u)) inherited.add(u);
+    }
+  };
+  // turns after the one a running exact run goes on from, while it has not
+  // named its own: one of them may be its turn, so none is taken as another's
+  let holdFrom = Infinity;
   for (const b of bindings) {
-    // found before (the run was still writing it): the same turn, taken or not
-    const known = b.turnId ? turns.find((n) => ids.get(n.id) === b.turnId) : undefined;
-    if (known) {
-      claimed.add(b.turnId!);
-      bound.push({ nodeId: b.nodeId, fresh: known, unit: b.turnId! });
+    // named (by the run, or found before while it was written): that turn,
+    // taken or not — the id is the turn's first item, or any item of it
+    if (b.turnId) {
+      const known = turns.find((n) => ids.get(n.id) === b.turnId) ?? turns.find((n) => n.data.importSource?.itemIds?.includes(b.turnId!));
+      const unit = known ? ids.get(known.id)! : undefined;
+      if (known && unit && !claimed.has(unit)) {
+        claimed.add(unit);
+        bound.push({ nodeId: b.nodeId, fresh: known, unit });
+        inherit(b, known);
+      }
+      continue;
+    }
+    if (b.exact && !b.ended) {
+      const from = b.afterTurnId !== undefined && order.has(b.afterTurnId) ? order.get(b.afterTurnId)! + 1 : 0;
+      holdFrom = Math.min(holdFrom, from);
       continue;
     }
     const from = b.afterTurnId !== undefined && order.has(b.afterTurnId) ? order.get(b.afterTurnId)! + 1 : 0;
     const open = turns.slice(from).filter((n) => { const u = ids.get(n.id)!; return !handled.has(u) && !claimed.has(u); });
     // the turn asking this question; a run that is over takes the first one
     // after its own when the runtime recorded the question otherwise
-    const hit = open.find((n) => asksTheSame(n.data.question, b.question)) ?? (b.ended ? open[0] : undefined);
+    // (a run that names its turn and did not: by the wording alone)
+    const hit = open.find((n) => asksTheSame(n.data.question, b.question)) ?? (b.ended && !b.exact ? open[0] : undefined);
     if (!hit) continue;
     const unit = ids.get(hit.id)!;
     claimed.add(unit);
     bound.push({ nodeId: b.nodeId, fresh: hit, unit });
-    if (b.afterTurnId === undefined) {
-      for (const n of built.nodes.slice(0, built.nodes.indexOf(hit))) {
-        const u = ids.get(n.id);
-        if (u && !handled.has(u) && !claimed.has(u)) inherited.add(u);
-      }
-    }
+    inherit(b, hit);
   }
-  const append = built.nodes.filter((n) => {
+  // everything the file holds from the first held turn on waits
+  const heldTurn = Number.isFinite(holdFrom) ? turns.find((n) => order.get(ids.get(n.id)!)! >= holdFrom && !handled.has(ids.get(n.id)!) && !claimed.has(ids.get(n.id)!)) : undefined;
+  const heldAt = heldTurn ? built.nodes.indexOf(heldTurn) : Infinity;
+  const append = built.nodes.filter((n, i) => {
     const u = ids.get(n.id);
-    return !!u && !handled.has(u) && !claimed.has(u) && !inherited.has(u);
+    return !!u && !handled.has(u) && !claimed.has(u) && !inherited.has(u) && i < heldAt;
   });
   const onCanvas = new Map<string, string>();
   for (const n of canvas) {

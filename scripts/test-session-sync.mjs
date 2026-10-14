@@ -157,3 +157,42 @@ test('bindings: a new session, a page closed mid-run, a canvas switched away', (
   plan = planSync({ built: two, handled: new Set(['u0', 'u1']), canvas: canvasOf(two, ['u0', 'u1']), bindings: [{ nodeId: 'p', question: 'one', afterTurnId: 'u1' }, { nodeId: 'q', question: 'two', afterTurnId: 'u2' }] });
   assert.deepEqual(plan.bound.map((b) => [b.nodeId, b.unit]), [['p', 'u2'], ['q', 'u3']]);
 });
+
+test('a run that names its turn: found by that id, whatever the question became', () => {
+  // the runtime rewrote the question: the wording would not find it, the id does
+  const resumed = session([...BASE, user('u2', 'a1', 'rewritten by the runtime'), said('a2', 'u2', 'answer')]);
+  let plan = planSync({ built: resumed, handled: new Set(['u0', 'u1']), canvas: canvasOf(resumed, ['u0', 'u1']), bindings: [{ nodeId: 'q', question: 'the question as asked', afterTurnId: 'u1', exact: true, turnId: 'u2' }] });
+  assert.deepEqual(plan.bound.map((b) => [b.nodeId, b.unit]), [['q', 'u2']]);
+  assert.equal(plan.append.length, 0);
+  // an id of any item of the turn finds it too
+  plan = planSync({ built: resumed, handled: new Set(['u0', 'u1']), canvas: canvasOf(resumed, ['u0', 'u1']), bindings: [{ nodeId: 'q', question: 'x', afterTurnId: 'u1', exact: true, turnId: 'a2' }] });
+  assert.deepEqual(plan.bound.map((b) => b.unit), ['u2']);
+  // a named turn the file does not hold yet: nothing else is taken for it
+  plan = planSync({ built: resumed, handled: new Set(['u0', 'u1']), canvas: canvasOf(resumed, ['u0', 'u1']), bindings: [{ nodeId: 'q', question: 'rewritten by the runtime', afterTurnId: 'u1', exact: true, turnId: 'u9' }] });
+  assert.equal(plan.bound.length, 0);
+});
+
+test('a run that names its turn and has not yet: the turns after the one it goes on from wait', () => {
+  const two = session([...BASE, user('u2', 'a1', 'from another client'), said('a2', 'u2', 'x'), user('u3', 'a2', 'mine'), said('a3', 'u3', 'y')]);
+  const running = { nodeId: 'q', question: 'something else', afterTurnId: 'u1', exact: true };
+  let plan = planSync({ built: two, handled: new Set(['u0', 'u1']), canvas: canvasOf(two, ['u0', 'u1']), bindings: [running] });
+  assert.equal(plan.bound.length, 0);
+  assert.equal(plan.append.length, 0, 'held while the run has not named its turn');
+  assert.equal(plan.taken.length, 0);
+  // named: its turn is its own, the other client's lands beside
+  plan = planSync({ built: two, handled: new Set(['u0', 'u1']), canvas: canvasOf(two, ['u0', 'u1']), bindings: [{ ...running, turnId: 'u3' }] });
+  assert.deepEqual(plan.bound.map((b) => b.unit), ['u3']);
+  assert.deepEqual(plan.append.map(first), ['u2']);
+  // over without a name (the runtime could not find it): the wording alone, never the first open turn
+  plan = planSync({ built: two, handled: new Set(['u0', 'u1']), canvas: canvasOf(two, ['u0', 'u1']), bindings: [{ ...running, ended: true }] });
+  assert.equal(plan.bound.length, 0);
+  assert.deepEqual(plan.append.map(first), ['u2', 'u3']);
+});
+
+test('a forked session a run named its turn in: the conversation it forked from is taken, never appended', () => {
+  const built = session([...BASE, user('u2', 'a1', 'the forked question'), said('a2', 'u2', 'answer')]);
+  const plan = planSync({ built, handled: new Set(), canvas: [], bindings: [{ nodeId: 'run-node', question: 'q', exact: true, turnId: 'u2' }] });
+  assert.deepEqual(plan.bound.map((b) => b.unit), ['u2']);
+  assert.equal(plan.append.length, 0);
+  assert.deepEqual(plan.taken.sort(), ['u0', 'u1', 'u2']);
+});

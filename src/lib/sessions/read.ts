@@ -14,6 +14,7 @@ import type { AgentRuntime, TurnConfig } from '../../types';
 import type { ImportableConversation } from '../import-chat';
 import type { RunnerTurn } from '../adapters/shared';
 import type { SessionCard } from '../atlas/discover';
+import { serial } from './serial';
 
 export interface FileLoc { rootKey: string; rel: string }
 
@@ -77,7 +78,6 @@ const HEAD_BYTES = 4096;
 const CHUNK = 8 * 1024 * 1024;
 const KEEP_FILES = 48;
 const files = new Map<string, FileState>();
-const queues = new Map<string, Promise<unknown>>();
 
 async function freshCollectors(): Promise<Collector[]> {
   const [{ ClaudeSessionCollector }, { CodexSessionCollector }, { DshSessionCollector }, { PiSessionCollector }] = await Promise.all([
@@ -127,15 +127,6 @@ async function catchUp(loc: FileLoc): Promise<FileState> {
   return state;
 }
 
-/** Reads of one file wait for each other: collectors are fed in order. */
-function serial<T>(key: string, job: () => Promise<T>): Promise<T> {
-  const prev = queues.get(key) ?? Promise.resolve();
-  const next = prev.catch(() => {}).then(job);
-  queues.set(key, next);
-  void next.finally(() => { if (queues.get(key) === next) queues.delete(key); }).catch(() => {});
-  return next;
-}
-
 /** The turns as a snapshot names them: ids, parent turns, completion. */
 function snapshotTurns(turns: RunnerTurn[], cwd: string | undefined): SessionTurn[] {
   const byItem = new Map<string, string>();
@@ -160,6 +151,7 @@ function snapshotTurns(turns: RunnerTurn[], cwd: string | undefined): SessionTur
 export async function readSession(loc: FileLoc, opts: { cards?: SessionCard[] | null } = {}): Promise<{ snapshot: SessionSnapshot; conv: ImportableConversation } | null> {
   if (!window.desktopSessions) return null;
   const key = `${loc.rootKey}|${loc.rel}`;
+  // reads of one file wait for each other: collectors are fed in order
   const state = await serial(key, () => catchUp(loc)).catch(() => null);
   if (!state) return null;
   let conv: ImportableConversation | null = null;

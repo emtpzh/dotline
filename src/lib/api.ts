@@ -192,6 +192,12 @@ export interface StreamCallbacks {
   onAgentTool?: (call: { id: string; name: string; query: string; phase: 'start' | 'end'; isError?: boolean }) => void;
   /** An agent runtime in the desktop app: what changed on disk during the turn. */
   onAgentChanges?: (changes: { changed: string[]; added: string[]; removed: string[]; truncated?: boolean }) => void;
+  /** An agent run started: its id on the host that runs it. */
+  onAgentRun?: (run: { runId: string }) => void;
+  /** The run named its turn in its session file. */
+  onAgentTurn?: (turnId: string) => void;
+  /** The run's last word: its turn, and whether the session file held all of it. */
+  onAgentEnd?: (end: { turnId?: string; held?: boolean }) => void;
   /** An agent runtime in the desktop app: which session this turn ran in. */
   onAgentSession?: (session: { runtime: import('../types').AgentRuntime; sessionId: string | null; sessionFile: string | null; cwd: string; access?: import('../types').AgentAccess; effort?: string; preset?: string }) => void;
   /** An agent runtime asks the person something (a pick, a text, an extension's yes/no); the turn waits. */

@@ -90,17 +90,29 @@ export interface AgentRunBinding {
   afterTurnId?: string;
   /** the question as asked (the file may hold the canvas's context ahead of it) */
   question: string;
-  /** the turn the sync found for it, while the run still writes it */
+  /** its turn in the session file: named by the run (exact), or — a run
+   *  from before runs named their turns — the one the sync found for it */
   turnId?: string;
+  /** the host's id for the run, and the host process (boot) running it:
+   *  what a page that missed the run's events asks the host about */
+  runId?: string;
+  bootId?: string;
   startedAt: string;
   /** the picker entry it ran on */
   model?: string;
   /** a new version beside the node's earlier ones, not in their place */
   append?: boolean;
-  /** its last event has arrived: the file holds all it will write */
+  /** the run is over (its last event, or the host's record, said so) */
   endedAt?: string;
+  /** when it ended, the session file held its whole turn: reading the file
+   *  now reads all of it. False: the runtime could not confirm it (the turn
+   *  may still arrive); absent: a run from before runs said so */
+  held?: boolean;
   /** what the file system saw change during the run */
   changes?: { changed: string[]; added: string[]; removed: string[]; truncated?: boolean };
+  /** the node's last version is the run's own account (it stopped or
+   *  failed): the file's turn, if it comes, takes that version's place */
+  standIn?: boolean;
 }
 
 /** How far an agent turn may go, as each runtime's own permission mode:

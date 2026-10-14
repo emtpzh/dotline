@@ -49,6 +49,8 @@ contextBridge.exposeInMainWorld('desktopAgents', {
   models: (runtime) => ipcRenderer.invoke('agents:models', runtime),
   run: (request) => ipcRenderer.invoke('agents:run', request),
   abort: (runId) => ipcRenderer.invoke('agents:abort', runId),
+  // the runs the shell knows, for a page that missed their events
+  runs: () => ipcRenderer.invoke('agents:runs'),
   workspace: (canvasId) => ipcRenderer.invoke('agents:workspace', canvasId),
   stat: (p) => ipcRenderer.invoke('agents:stat', p),
   answer: (runId, requestId, response) => ipcRenderer.invoke('agents:answer', runId, requestId, response),

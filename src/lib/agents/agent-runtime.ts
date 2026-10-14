@@ -263,12 +263,21 @@ const handlers = new Map<string, (event: AgentEvent['event']) => void>();
 const early = new Map<string, AgentEvent['event'][]>();
 const EARLY_RUNS = 16;
 let subscribed = false;
+const strayListeners: ((runId: string, event: AgentEvent['event']) => void)[] = [];
+/** Events of runs no stream on this page handles: another page's, one this
+ *  page started before a reload, or a run's last word after its stream
+ *  closed on an error. Whoever keeps the runs' record on the canvas listens. */
+export function onStrayRunEvent(cb: (runId: string, event: AgentEvent['event']) => void): void {
+  strayListeners.push(cb);
+  subscribe();
+}
 function subscribe() {
   if (subscribed || !window.desktopAgents) return;
   subscribed = true;
   window.desktopAgents.onEvent(({ runId, event }) => {
     const h = handlers.get(runId);
     if (h) { h(event); return; }
+    for (const cb of strayListeners) { try { cb(runId, event); } catch { /* a listener's own failure */ } }
     const q = early.get(runId) ?? [];
     if (q.length < 2000) q.push(event);
     early.delete(runId);
@@ -367,6 +376,7 @@ export async function agentCallStream(
       ...(access ? { access } : {}),
       ...(preset ? { preset } : {}),
     }).then((runId) => {
+      callbacks?.onAgentRun?.({ runId });
       const stop = () => { void bridge.abort(runId); };
       if (signal?.aborted) { stop(); }
       signal?.addEventListener('abort', stop, { once: true });
@@ -429,7 +439,11 @@ export async function agentCallStream(
           case 'fs_changes':
             callbacks?.onAgentChanges?.({ changed: (event.changed as string[]) ?? [], added: (event.added as string[]) ?? [], removed: (event.removed as string[]) ?? [], truncated: !!event.truncated });
             break;
+          case 'turn':
+            if (typeof event.turnId === 'string' && event.turnId) callbacks?.onAgentTurn?.(event.turnId);
+            break;
           case 'run_end':
+            callbacks?.onAgentEnd?.({ ...(typeof event.turnId === 'string' && event.turnId ? { turnId: event.turnId } : {}), ...(typeof event.held === 'boolean' ? { held: event.held } : {}) });
             finalText = typeof event.text === 'string' && event.text ? event.text : full;
             handlers.delete(runId);
             signal?.removeEventListener('abort', stop);

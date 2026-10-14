@@ -10,6 +10,10 @@
 // as a failed tool call, and any approval request that still arrives is
 // declined. Codex keeps its rollout files, login and model
 // list; the shell only asks.
+//
+// The turn is named as it starts (`turn`, the server's turn id — the id the
+// rollout records on the turn's `turn_context`), and `run_end` goes out once
+// the rollout holds the turn's close (`task_complete` / `turn_aborted`).
 'use strict';
 
 const { spawn } = require('node:child_process');
@@ -18,6 +22,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const { randomUUID } = require('node:crypto');
 const { snapshotDir, diffSnapshots } = require('./fs-diff.cjs');
+const { sizeOf, linesFrom, until } = require('./turn-file.cjs');
 
 const fsp = fs.promises;
 const RESPONSE_MS = 30 * 1000;
@@ -308,19 +313,23 @@ function createCodexRuntime({ log } = {}) {
           const input = [{ type: 'text', text: String(req.prompt ?? ''), text_elements: [] }];
           for (const img of Array.isArray(req.images) ? req.images : []) if (img && typeof img.data === 'string') input.push({ type: 'image', url: `data:${img.mimeType};base64,${img.data}` });
           const effort = req.effort && model ? effortFor(model, req.effort) : null;
+          // where this run's lines begin in the rollout
+          const from = await sizeOf(thread.path);
           const started = await send('turn/start', { threadId: thread.id, input, ...(model ? { model } : {}), ...(effort ? { effort } : {}) }, 60 * 1000);
           state.turnId = started?.turn?.id ?? null;
+          if (state.turnId) state.emit({ type: 'turn', turnId: state.turnId });
           const how = await state.done;
+          const held = state.turnId && thread.path ? !!(await until(() => rolloutHolds(thread.path, from, state.turnId))) : false;
           const ran = await turnEffortOf(thread.path);
           if (ran) state.emit({ type: 'session', sessionId: thread.id, sessionFile: thread.path ?? null, model: model ? { provider: 'codex', id: model, name: model } : null, cwd, effort: ran });
           if (before) {
             const after = await snapshotDir(cwd).catch(() => null);
             if (after) { const d = diffSnapshots(before, after); if (d.changed.length || d.added.length || d.removed.length || d.truncated) state.emit({ type: 'fs_changes', ...d }); }
           }
-          state.emit({ type: 'run_end', text: state.final ?? state.text, how });
+          state.emit({ type: 'run_end', text: state.final ?? state.text, how, ...(state.turnId ? { turnId: state.turnId } : {}), held });
         } catch (e) {
           state.emit({ type: 'run_error', message: e instanceof Error ? e.message : String(e) });
-          state.emit({ type: 'run_end', text: state.final ?? state.text, how: 'error' });
+          state.emit({ type: 'run_end', text: state.final ?? state.text, how: 'error', ...(state.turnId ? { turnId: state.turnId } : {}), held: false });
         } finally {
           clearInterval(watchdog);
           if (state.threadId) byThread.delete(state.threadId);
@@ -353,4 +362,17 @@ function createCodexRuntime({ log } = {}) {
   };
 }
 
-module.exports = { createCodexRuntime, findCodex };
+/** The rollout holds the turn to its close: its `turn_context` (or
+ *  `task_started`) and, after it, its `task_complete` or `turn_aborted`. */
+async function rolloutHolds(file, from, turnId) {
+  let open = false;
+  for (const l of await linesFrom(file, from)) {
+    const p = l?.payload ?? {};
+    const starts = l?.type === 'turn_context' || (l?.type === 'event_msg' && p.type === 'task_started');
+    if (starts) { open = p.turn_id === turnId; continue; }
+    if (open && l?.type === 'event_msg' && (p.type === 'task_complete' || p.type === 'turn_aborted') && (!p.turn_id || p.turn_id === turnId)) return true;
+  }
+  return false;
+}
+
+module.exports = { createCodexRuntime, findCodex, rolloutHolds };

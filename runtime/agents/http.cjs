@@ -10,6 +10,7 @@ const os = require('node:os');
 const ops = require('./ops.cjs');
 const terminal = require('../terminal.cjs');
 const { acceptWebSocket } = require('./ws-feed.cjs');
+const { createRunRegistry } = require('./registry.cjs');
 
 const RUNTIME_FACTORIES = {
   pi: (log) => require('./pi.cjs').createPiRuntime({ log }),
@@ -28,6 +29,7 @@ function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag
   const runtimes = new Map();
   const owners = new Map();      // runId → runtime name
   const clients = new Set();     // pages on the feed: { send(text), ping(), close() }
+  const registry = createRunRegistry();
   const host = { listening: () => clients.size > 0 };
   const runtime = (name = 'pi') => {
     const key = factories[name] ? name : 'pi';
@@ -80,10 +82,13 @@ function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag
         const r = body && typeof body === 'object' ? body : {};
         if (r.runtime && !factories[r.runtime]) return json(res, 400, { error: `no ${r.runtime} runtime on this host` }), true;
         const name = r.runtime || 'pi';
-        const runId = await runtime(name).run(r, broadcast);
+        const runId = await runtime(name).run(r, registry.relay(name, broadcast));
         owners.set(runId, name);
+        registry.started(name, runId);
         return json(res, 200, { runId }), true;
       }
+      // the runs this host process knows: what a page that missed their events asks
+      if (p === '/agents/runs' && method === 'GET') return json(res, 200, registry.list()), true;
       if (p === '/agents/abort' && method === 'POST') {
         const id = String(body?.runId ?? '');
         return json(res, 200, { ok: runtime(owners.get(id)).abort(id) }), true;

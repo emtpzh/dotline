@@ -142,6 +142,22 @@ interface DesktopDirListing {
   truncated: boolean;
 }
 
+/** A run as the host that runs it records it (runtime/agents/registry.cjs). */
+interface DesktopHostRun {
+  runId: string;
+  runtime: string;
+  status: 'running' | 'ended';
+  startedAt: string;
+  sessionId?: string;
+  sessionFile?: string;
+  /** the run's turn in its session file (the id of its first item) */
+  turnId?: string;
+  how?: string;
+  endedAt?: string;
+  /** the session file held the whole turn when the run ended */
+  held?: boolean;
+}
+
 interface DesktopAgentsBridge {
   /** what this host can do beyond the calls: a native folder dialog, or
    *  folder listings the page browses itself (a host whose dialog would open
@@ -153,6 +169,11 @@ interface DesktopAgentsBridge {
   /** resolves with the run id at once; events follow through onEvent */
   run(request: DesktopAgentRunRequest): Promise<string>;
   abort(runId: string): Promise<boolean>;
+  /** the runs this host process knows, running and lately ended, and the
+   *  process's boot id: a run of another boot is over (absent on older hosts) */
+  runs?(): Promise<{ bootId: string; runs: DesktopHostRun[] }>;
+  /** the event feed is back after a drop: runs' events sent meanwhile were missed */
+  onFeedReopen?(cb: () => void): void;
   /** the shell-managed working directory of a canvas, created on demand */
   workspace(canvasId: string): Promise<string>;
   /** whether a path exists and is a directory (absent on older hosts) */
