@@ -308,7 +308,7 @@ export async function mergeSessionsIntoProject(
   const real = convs.filter((c): c is NonNullable<(typeof convs)[number]> => !!c && !!c.sessionId);
   if (real.length === 0) return null;
   const pid = projectId
-    ?? await createProject(fmt(t('atlas.mergedName'), { title: real[0].title.slice(0, 24), n: real.length }));
+    ?? await createProject(real.length === 1 ? real[0].title : fmt(t('atlas.mergedName'), { title: real[0].title.slice(0, 24), n: real.length }));
   await switchProject(pid);
   useStore.getState().pushHistory();
   let mounted = 0, skipped = 0;

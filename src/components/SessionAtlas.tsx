@@ -1,30 +1,32 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { AppWindow, Archive, ArrowDownUp, Link2, Folder, FolderOpen, Loader2, Plug, RefreshCw, RotateCcw, Search, Square, SquareCheckBig, SquareTerminal, Import, Trash2, X, Inbox } from 'lucide-react';
-import { scanSessions, groupByCwd, disabledRoots, setRootDisabled, type SessionCard, type AtlasGroup } from '../lib/atlas/discover';
+import { ArrowUpRight, ChevronDown, FolderOpen, GitBranch, ListFilter, Loader2, MoreHorizontal, Plug, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { scanSessions, groupByCwd, disabledRoots, setRootDisabled, runnerLabel, type SessionCard } from '../lib/atlas/discover';
 import { diffAgainstWatermark, markSeen, markAllSeen, changeKeyOf, type CardChange } from '../lib/atlas/watermark';
-import { useProjects, switchProject, setProjectArchived, subscribedSessionIds, subscriptionsOf, mainSubscription, takenCount, type Subscription } from '../store/projects';
-
-/** How a canvas holds each session it listens to: its main line, a later chapter, a side branch. */
-const ROLE_MARK: Record<Subscription['role'], string> = { main: '◉', chapter: '↳', branch: '⑂' };
-const ROLE_ORDER: Record<Subscription['role'], number> = { main: 0, chapter: 1, branch: 2 };
+import type { CanonicalResult } from '../lib/atlas/canonical';
+import { useProjects, subscribedSessionIds, mainSubscription } from '../store/projects';
 import { useT, t as ti, fmt } from '../i18n';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuSeparator } from './ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from './ui/command';
+import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
+import { InputGroup, InputGroupAddon, InputGroupInput } from './ui/input-group';
+import { ButtonGroup, ButtonGroupSeparator } from './ui/button-group';
 import { readSession } from '../lib/sessions/read';
 import { toast } from '../lib/ui-store';
+import { Badge } from './ui/badge';
 import { Button } from './ui/button';
+import { Checkbox } from './ui/checkbox';
 
-// The session atlas: the external world's view. Project folders on the
-// left are cwd groups discovered across ALL runner stores — one folder can
-// hold sessions from different CLIs, which is the whole point: the canvas
-// is where their knowledge meets. "My canvases" is the separate, native
-// region — hand-made canvases belong to no folder.
-// Desktop-only surface: it exists exactly where the fenced fs bridge does.
+// Session discovery is a list of sources. Canvas management lives in ProjectSwitcher.
 
 const dateLabel = (ms: number) => new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 const sizeLabel = (b: number) => (b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+const folderName = (cwd: string) => cwd.split('/').filter(Boolean).pop() ?? cwd;
 
 type SortKey = 'time' | 'name' | 'size' | 'runner';
+const SORT_LABEL = { time: 'atlas.sortTime', name: 'atlas.sortName', size: 'atlas.sortSize', runner: 'atlas.sortRunner' } as const;
 const SORTERS: Record<SortKey, (a: SessionCard, b: SessionCard) => number> = {
   time: (a, b) => b.mtime - a.mtime,
   name: (a, b) => a.title.localeCompare(b.title),
@@ -32,10 +34,13 @@ const SORTERS: Record<SortKey, (a: SessionCard, b: SessionCard) => number> = {
   runner: (a, b) => a.runner.localeCompare(b.runner) || b.mtime - a.mtime,
 };
 
+const ALL = '__all__';
+
 // The intake dialog: built-in sources probe their standard paths; runners
 // whose parser isn't ready yet stand as honest placeholders; custom
 // directories enter ONLY through the native picker (shell-side whitelist).
-function SourcesDialog({ roots, counts, onChanged, onClose }: {
+function SourcesDialog({ roots, counts, onChanged, onClose, terminalSettings }: {
+  terminalSettings?: React.ReactNode;
   roots: SessionRoot[];
   counts: Map<string, number>;
   onChanged: () => void;
@@ -47,60 +52,86 @@ function SourcesDialog({ roots, counts, onChanged, onClose }: {
   // one-command handoff: install /thoughtdag ($thoughtdag) into the
   // agent's own commands directory, content-compare driving the state
   const [cmds, setCmds] = useState<Record<string, { state: string; dest: string; invoke: string }> | null>(null);
-  const refreshCmds = () => { void window.desktopSessions?.commandsStatus?.().then(setCmds).catch(() => {}); };
+  const refreshCmds = () => { void window.desktopSessions?.commandsStatus?.().then(setCmds).catch(() => { }); };
   useEffect(refreshCmds, []);
-  const runnerLabel: Record<string, string> = { 'claude-code': 'Claude Code', codex: 'Codex', dsh: 'DeepSeek Harness', pi: 'Pi' };
   const row = (root: SessionRoot) => (
-    <div key={root.key} className="flex items-center gap-3 px-4 py-2.5 border-b border-border last:border-b-0" data-atlas-source={root.key}>
-      <input
-        type="checkbox"
+    <div key={root.key} className="flex items-center gap-3 border-b border-border py-2.5 last:border-b-0" data-atlas-source={root.key}>
+      <Checkbox
+        aria-label={root.path}
         checked={!off.has(root.key)}
         disabled={!root.exists}
-        onChange={(e) => { setRootDisabled(root.key, !e.target.checked); onChanged(); }}
-        className="shrink-0"
-      />
-      <div className="flex-1 min-w-0">
-        <div className="text-sm text-foreground">{builtinLabel[root.key] ?? root.path.split('/').filter(Boolean).pop()}</div>
-        <div className="text-2xs text-muted-foreground truncate">{root.path}</div>
+        onCheckedChange={checked => { setRootDisabled(root.key, !checked); onChanged(); }} />
+      <div className="min-w-0 flex-1">
+        <div className="text-sm text-foreground">{builtinLabel[root.key] ?? folderName(root.path)}</div>
+        <div className="truncate text-xs text-muted-foreground">{root.path}</div>
       </div>
-      <span className="text-2xs text-muted-foreground shrink-0">
+      <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
         {root.exists ? (counts.get(root.key) ?? 0) : t('atlas.rootMissing')}
       </span>
       {!root.builtin && (
-        <Button variant="ghost"
-          className="text-muted-foreground hover:text-destructive/90 shrink-0"
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('common.delete')}
+          className="shrink-0 text-muted-foreground hover:text-destructive"
           onClick={() => { void window.desktopSessions!.removeRoot(root.key).then(onChanged); }}
         >
-          <Trash2 strokeWidth={1.75} />
+          <Trash2 />
         </Button>
       )}
     </div>
   );
+  const handoff = cmds ? Object.entries(cmds).filter(([, c]) => c.state !== 'unavailable') : [];
   return (
-    <div className="absolute inset-0 z-10 bg-foreground/20 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-background border border-border rounded-2xl shadow-xl w-[440px] max-h-[80%] overflow-y-auto" onClick={(e) => e.stopPropagation()} data-atlas-sources-dialog>
-        <div className="px-4 pt-3.5 pb-2.5 border-b border-border">
-          <div className="text-sm font-semibold text-foreground">{t('atlas.sourcesTitle')}</div>
-          <div className="text-2xs text-muted-foreground mt-0.5">{t('atlas.sourcesHint')}</div>
+    <Dialog open onOpenChange={open => !open && onClose()}>
+      <DialogContent size="md" className="max-h-[80dvh] overflow-y-auto" data-atlas-sources-dialog>
+        <DialogHeader>
+          <DialogTitle>{t('atlas.sourcesTitle')}</DialogTitle>
+          <DialogDescription>{t('atlas.sourcesHint')}</DialogDescription>
+        </DialogHeader>
+        <div>
+          {roots.filter((r) => r.builtin).map(row)}
+          {roots.filter((r) => !r.builtin).map(row)}
         </div>
-        {roots.filter((r) => r.builtin).map(row)}
-        {cmds && Object.values(cmds).some((c) => c.state !== 'unavailable') && (
-          <>
-            <div className="px-4 pt-3 pb-1.5 text-2xs uppercase tracking-wide text-muted-foreground">{t('atlas.handoffTitle')}</div>
-            {Object.entries(cmds).filter(([, c]) => c.state !== 'unavailable').map(([runner, c]) => (
-              <div key={runner} className="flex items-center gap-3 px-4 py-2.5 border-b border-border" data-atlas-handoff={runner} data-handoff-state={c.state}>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-foreground flex items-center gap-2">
-                    {runnerLabel[runner] ?? runner}
-                    <code className="text-2xs bg-muted border border-border rounded px-1.5 py-px font-mono">{c.invoke}</code>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={onChanged}>
+            <RefreshCw />
+            {t('atlas.autoDetect')}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { void window.desktopSessions!.addRoot().then((r) => { if (r) onChanged(); }); }}
+            data-atlas-add-dir>
+            <Plug />
+            {t('atlas.addDir')}
+          </Button>
+        </div>
+        {terminalSettings && (
+          <div className="flex items-center gap-3 border-t border-border pt-4">
+            <span className="flex-1 text-sm text-foreground">{t('atlas.terminalChoice')}</span>
+            {terminalSettings}
+          </div>
+        )}
+        {handoff.length > 0 && (
+          <div className="border-t border-border pt-4">
+            <div className="pb-1 text-xs font-medium text-muted-foreground">{t('atlas.handoffTitle')}</div>
+            {handoff.map(([runner, c]) => (
+              <div key={runner} className="flex items-center gap-3 border-b border-border py-2.5 last:border-b-0" data-atlas-handoff={runner} data-handoff-state={c.state}>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 text-sm text-foreground">
+                    {runnerLabel(runner)}
+                    <code className="rounded-md border border-border bg-muted px-1.5 font-mono text-xs">{c.invoke}</code>
                   </div>
-                  <div className="text-2xs text-muted-foreground truncate">
+                  <div className="truncate text-xs text-muted-foreground">
                     {t(c.state === 'installed' ? 'atlas.handoffOn' : c.state === 'outdated' ? 'atlas.handoffOutdated' : 'atlas.handoffOff')}
                   </div>
                 </div>
                 {c.state !== 'installed' && (
-                  <Button variant="ghost" size="xs"
-                    className="text-2xs bg-primary/10 text-primary hover:bg-primary/20 shrink-0"
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="shrink-0"
                     data-handoff-install
                     onClick={() => void (async () => {
                       const { confirmDialog } = await import('../lib/ui-store');
@@ -120,60 +151,57 @@ function SourcesDialog({ roots, counts, onChanged, onClose }: {
                   </Button>
                 )}
                 {(c.state === 'installed' || c.state === 'outdated') && (
-                  <Button variant="ghost"
-                    className="text-muted-foreground hover:text-destructive/90 shrink-0"
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                    aria-label={t('atlas.handoffRemove')}
                     title={t('atlas.handoffRemove')}
                     data-handoff-remove
                     onClick={() => void window.desktopSessions!.commandsRemove!(runner).then(refreshCmds)}
                   >
-                    <Trash2 strokeWidth={1.75} />
+                    <Trash2 />
                   </Button>
                 )}
               </div>
             ))}
-          </>
+          </div>
         )}
-        {roots.filter((r) => !r.builtin).map(row)}
-        <div className="flex items-center gap-2 px-4 py-3">
-          <Button variant="outline" size="sm"
-            onClick={onChanged}>
-            <RefreshCw strokeWidth={1.75} /> {t('atlas.autoDetect')}
-          </Button>
-          <Button variant="outline" size="sm"
-            onClick={() => { void window.desktopSessions!.addRoot().then((r) => { if (r) onChanged(); }); }}
-            
-            data-atlas-add-dir>
-            <Plug strokeWidth={1.75} /> {t('atlas.addDir')}
-          </Button>
-        </div>
-
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
+}
+
+/** One toast per outcome of the canonical road, wherever it led. */
+function reportCanonical(result: NonNullable<CanonicalResult>) {
+  if (result.kind === 'appended') toast('success', fmt(ti('atlas.appended'), { n: result.turns }), 9000);
+  else if (result.kind === 'mounted') toast('success', fmt(ti(result.mode === 'continue' ? 'atlas.mountedChapter' : 'atlas.mountedBranch'), { n: result.turns }), 9000);
+  else if (result.kind === 'opened') toast('info', ti('atlas.upToDate'), 6000);
+  else toast('success', fmt(ti('toast.importedChats'), { n: 1, m: result.nodeCount }), 9000);
 }
 
 export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { onClose: () => void; onSwitched: () => void; focusSessionId?: string }) {
   const t = useT();
   const projects = useProjects((s) => s.projects);
-  const activeSessionId = useProjects((s) => mainSubscription(s.projects.find((p) => p.id === s.activeId))?.sessionId);
+  const activeId = useProjects(s => s.activeId);
   const isDesktop = !!window.desktopSessions;
   const [cards, setCards] = useState<SessionCard[] | null>(null);
   const [roots, setRoots] = useState<SessionRoot[]>([]);
   const [scanning, setScanning] = useState(false);
-  // group cwd key, or the native region; the web build (no fs bridge)
-  // starts — and mostly lives — on the native side
-  const [selected, setSelected] = useState<string | 'canvases' | null>(window.desktopSessions ? null : 'canvases');
-  const [busyRel, setBusyRel] = useState<string | null>(null);
+  // All directories are visible until the user narrows the list.
+  const [folder, setFolder] = useState<string>(ALL);
+  const [busy, setBusy] = useState<string | null>(null);
   const [sourcesOpen, setSourcesOpen] = useState(false);
-  const [mountPick, setMountPick] = useState<SessionCard | null>(null);
+  const [targetOpen, setTargetOpen] = useState(false);
   // Tier 2 enrichment: the thread store's REAL names and fork lineage.
   // Purely additive — absent codex CLI, the maps stay empty and every
   // card keeps its Tier 1 identity (first user prompt).
   const [threadNames, setThreadNames] = useState<Map<string, string>>(new Map());
   const [threadForks, setThreadForks] = useState<Map<string, string>>(new Map());
-  // curation picks: sessions selected for a side-by-side merge
+  // the picks: sessions on their way onto a canvas. A row click picks;
+  // only the footer's button writes — nothing lands on a canvas by a
+  // single stray click.
   const [picked, setPicked] = useState<Map<string, SessionCard>>(new Map());
-  const [mergePick, setMergePick] = useState(false);
   const pickKey = (card: SessionCard) => `${card.rootKey}|${card.rel}`;
   const togglePick = (card: SessionCard) => setPicked((prev) => {
     const next = new Map(prev);
@@ -186,11 +214,13 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
   const [query, setQuery] = useState('');
   const [runnerOff, setRunnerOff] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>('time');
-  const [onlyChanged, setOnlyChanged] = useState(false);
+  const [only, setOnly] = useState<string[]>([]);
+  const onlyUnlinked = only.includes('unlinked');
+  const onlyChanged = only.includes('changed');
   const [showSubagents, setShowSubagents] = useState(false);
   const [changes, setChanges] = useState<Map<string, CardChange>>(new Map());
   const [targets, setTargets] = useState<Awaited<ReturnType<NonNullable<Window['desktopSessions']>['openTargets']>> | null>(null);
-  useEffect(() => { void window.desktopSessions?.openTargets().then(setTargets).catch(() => {}); }, []);
+  useEffect(() => { void window.desktopSessions?.openTargets().then(setTargets).catch(() => { }); }, []);
   const appHosts = useMemo(() => new Map((targets?.apps ?? []).map((a) => [a.runner, a.name])), [targets]);
 
   const refresh = async () => {
@@ -206,30 +236,38 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
         if (!threads) return;
         setThreadNames(new Map(threads.filter((t) => t.name && t.sessionId).map((t) => [t.sessionId, t.name!])));
         setThreadForks(new Map(threads.filter((t) => t.forkedFromId && t.sessionId).map((t) => [t.sessionId, t.forkedFromId!])));
-      }).catch(() => {});
-      // twin-badge arrival: land on the folder that holds the session
+      }).catch(() => { });
+      // arrival from a mirror canvas: land on the folder that holds the session
       // this canvas mirrors
       if (focusSessionId) {
         const hit = scanned.find((c) => c.sessionId === focusSessionId);
-        if (hit) setSelected(hit.cwd ?? '');
+        if (hit) setFolder(hit.cwd ?? '');
       }
+    } catch (err) {
+      toast('error', fmt(ti('atlas.parseFailed'), { msg: err instanceof Error ? err.message : String(err) }));
     } finally { setScanning(false); }
   };
   // one scan on mount; refresh is recreated per render and must not re-run the scan
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { void refresh(); }, []);
+  // ...and the twin badge's session scrolls into view once the scan lands
+  const landed = cards !== null;
+  useEffect(() => {
+    if (landed && focusSessionId) document.querySelector(`[data-atlas-session="${CSS.escape(focusSessionId)}"]`)?.scrollIntoView({ block: 'center' });
+  }, [landed, focusSessionId]);
 
   // live freshness: the watcher (live-mirror) broadcasts store changes;
   // an open atlas rescans, throttled — badges and counts stay current
   useEffect(() => {
     let cooling = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const onChanged = () => {
       if (cooling || scanning) return;
       cooling = true;
-      setTimeout(() => { cooling = false; void refresh(); }, 2000);
+      timer = setTimeout(() => { cooling = false; void refresh(); }, 2000);
     };
     window.addEventListener('td:sessions-changed', onChanged);
-    return () => window.removeEventListener('td:sessions-changed', onChanged);
+    return () => { clearTimeout(timer); window.removeEventListener('td:sessions-changed', onChanged); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanning]);
 
@@ -244,74 +282,90 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
     !runnerOff.has(c.runner)
     && (showSubagents || !c.subagent)
     && (!onlyChanged || changes.has(changeKeyOf(c)))
-    && (!query.trim() || displayTitle(c).toLowerCase().includes(query.trim().toLowerCase()))), [cards, runnerOff, query, onlyChanged, changes, showSubagents, displayTitle]);
-  const groups = useMemo(() => groupByCwd(visible), [visible]);
+    && (!query.trim() || `${displayTitle(c)} ${c.cwd ?? ''}`.toLowerCase().includes(query.trim().toLowerCase()))), [cards, runnerOff, query, onlyChanged, changes, showSubagents, displayTitle]);
+  const folders = useMemo(() => groupByCwd(visible), [visible]);
   const runners = useMemo(() => [...new Set((cards ?? []).map((c) => c.runner))].sort(), [cards]);
   const rootCounts = useMemo(() => {
     const m = new Map<string, number>();
     for (const c of cards ?? []) m.set(c.rootKey, (m.get(c.rootKey) ?? 0) + 1);
     return m;
   }, [cards]);
-  const activeGroup: AtlasGroup | null = selected === 'canvases' ? null : groups.find((g) => (g.cwd ?? '') === (selected ?? groups[0]?.cwd ?? '')) ?? groups[0] ?? null;
-  const shownCards = useMemo(() => {
-    if (!activeGroup) return [];
-    const sorter = sortKey === 'name'
-      ? (a: SessionCard, b: SessionCard) => displayTitle(a).localeCompare(displayTitle(b))
-      : SORTERS[sortKey];
-    return [...activeGroup.cards].sort(sorter);
-  }, [activeGroup, sortKey, displayTitle]);
+  const sorter = sortKey === 'name' ? (a: SessionCard, b: SessionCard) => displayTitle(a).localeCompare(displayTitle(b)) : SORTERS[sortKey];
+  const shown = visible
+    .filter(c => (folder === ALL || (c.cwd ?? '') === folder) && (!onlyUnlinked || !canvasOf(c.sessionId)))
+    .sort(sorter);
+  // across every folder the list reads by project: one heading per
+  // folder, so a row never has to repeat its path
+  const sections = folder === ALL
+    ? groupByCwd(shown).map((g) => ({ key: g.cwd ?? '', name: g.name || t('atlas.unfiled'), path: g.cwd, cards: [...g.cards].sort(sorter) }))
+    : [{ key: folder, name: null, path: null, cards: shown }];
+  const pickable = shown.filter(c => !!c.sessionId && !canvasOf(c.sessionId));
+  const allPicked = pickable.length > 0 && pickable.every(c => picked.has(pickKey(c)));
+  const somePicked = pickable.some(c => picked.has(pickKey(c)));
+  const hiddenFilters = runnerOff.size + (showSubagents ? 1 : 0);
+  const destinations = projects
+    .filter(p => !p.archived && p.kind !== 'paradigm')
+    .sort((a, b) => (a.id === activeId ? -1 : b.id === activeId ? 1 : b.updatedAt - a.updatedAt));
 
   const seen = (card: SessionCard) => {
     markSeen(card);
     setChanges((m) => { const n = new Map(m); n.delete(changeKeyOf(card)); return n; });
   };
 
-  const importCard = async (card: SessionCard) => {
-    if (busyRel) return;
-    setBusyRel(card.rel);
-    seen(card); // opening a card IS looking at it, whatever import does next
+  const fail = (err: unknown) => toast('error', fmt(ti('atlas.parseFailed'), { msg: err instanceof Error ? err.message : String(err) }));
+
+  // a session that already lives on a canvas: open it there and sync
+  // what it said since
+  const openLinked = async (card: SessionCard) => {
+    if (busy) return;
+    setBusy(card.rel);
     try {
       // streamed end to end: a session bigger than one V8 string can hold
       // (600MB+ rollouts exist) must never be read whole
       const { importOrAppendConversation } = await import('../lib/atlas/canonical');
       const read = await readSession(card, { cards });
-      const result = await importOrAppendConversation(read?.conv ?? null, { snapshot: read?.snapshot });
+      if (!read) throw new Error(ti('handoff.notASession'));
+      const result = await importOrAppendConversation(read.conv, { snapshot: read.snapshot });
+      seen(card);
       if (!result) throw new Error(ti('handoff.notASession'));
-      if (result.kind === 'appended') toast('success', fmt(ti('atlas.appended'), { n: result.turns }), 9000);
-      else if (result.kind === 'mounted') toast('success', fmt(ti(result.mode === 'continue' ? 'atlas.mountedChapter' : 'atlas.mountedBranch'), { n: result.turns }), 9000);
-      else if (result.kind === 'opened') toast('info', ti('atlas.upToDate'), 6000);
-      else toast('success', fmt(ti('toast.importedChats'), { n: 1, m: result.nodeCount }), 9000);
+      reportCanonical(result);
       onClose();
       onSwitched();
-    } catch (err) {
-      toast('error', fmt(ti('atlas.parseFailed'), { msg: err instanceof Error ? err.message : String(err) }));
-    } finally {
-      setBusyRel(null);
-    }
+    } catch (err) { fail(err); } finally { setBusy(null); }
   };
 
-  const mergeRun = async (projectId?: string) => {
-    if (busyRel || picked.size < 2) return;
-    setBusyRel('__merge__');
+  // the picks onto a canvas. `projectId` absent = a new canvas.
+  const addPicked = async (projectId?: string) => {
+    if (busy || picked.size < 1) return;
+    setTargetOpen(false);
+    setBusy('__add__');
     try {
-      const { mergeSessionsIntoProject } = await import('../lib/atlas/canonical');
-      const convs = [];
-      for (const card of picked.values()) {
-        convs.push((await readSession(card, { cards }))?.conv ?? null);
-        seen(card);
+      const { importOrAppendConversation, mergeSessionsIntoProject } = await import('../lib/atlas/canonical');
+      const list = [...picked.values()];
+      const reads = [];
+      for (const card of list) {
+        const read = await readSession(card, { cards });
+        if (!read) throw new Error(ti('handoff.notASession'));
+        reads.push(read);
       }
-      const result = await mergeSessionsIntoProject(convs, projectId);
-      if (!result) throw new Error(ti('handoff.notASession'));
-      toast('success', fmt(ti('atlas.merged'), { n: result.mounted }), 10000);
-      if (result.skipped > 0) toast('info', fmt(ti('atlas.mergeSkippedInfo'), { n: result.skipped }), 8000);
+      if (!projectId && reads.length === 1) {
+        // one session onto a canvas of its own takes the canonical road:
+        // it re-adopts a canvas that still holds its mirror, mounts back
+        // at the node it departed from, or opens as a fresh mirror
+        const result = await importOrAppendConversation(reads[0].conv, { snapshot: reads[0].snapshot });
+        if (!result) throw new Error(ti('handoff.notASession'));
+        reportCanonical(result);
+      } else {
+        const result = await mergeSessionsIntoProject(reads.map((r) => r.conv), projectId);
+        if (!result) throw new Error(ti('handoff.notASession'));
+        toast('success', fmt(ti('atlas.merged'), { n: result.mounted }), 10000);
+        if (result.skipped > 0) toast('info', fmt(ti('atlas.mergeSkippedInfo'), { n: result.skipped }), 8000);
+      }
+      for (const card of list) seen(card);
       setPicked(new Map());
       onClose();
       onSwitched();
-    } catch (err) {
-      toast('error', fmt(ti('atlas.parseFailed'), { msg: err instanceof Error ? err.message : String(err) }));
-    } finally {
-      setBusyRel(null);
-    }
+    } catch (err) { fail(err); } finally { setBusy(null); }
   };
 
   // Re-mirror: the coarse tier of recoverability. The read-only source is
@@ -319,7 +373,7 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
   // an explicit confirm) and rebuild the full mirror from the file.
   const recast = async (card: SessionCard) => {
     const twin = useProjects.getState().projects.find((p) => mainSubscription(p)?.sessionId === card.sessionId);
-    if (!twin || busyRel) return;
+    if (!twin || busy) return;
     const { confirmDialog } = await import('../lib/ui-store');
     const ok = await confirmDialog({
       title: ti('confirm.recastTitle'),
@@ -328,7 +382,7 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
       danger: true,
     });
     if (!ok) return;
-    setBusyRel(card.rel);
+    setBusy(card.rel);
     try {
       const { importOrAppendConversation } = await import('../lib/atlas/canonical');
       const read = await readSession(card, { cards });
@@ -340,11 +394,7 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
       toast('success', ti('atlas.recastDone'), 8000);
       onClose();
       onSwitched();
-    } catch (err) {
-      toast('error', fmt(ti('atlas.parseFailed'), { msg: err instanceof Error ? err.message : String(err) }));
-    } finally {
-      setBusyRel(null);
-    }
+    } catch (err) { fail(err); } finally { setBusy(null); }
   };
 
   const openInCli = async (card: SessionCard, mode: 'app' | 'terminal') => {
@@ -353,452 +403,255 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
     if (r.opened && r.via === 'app') {
       // no documented deep link to a specific session yet — hand the user
       // the id so the app's own search can land on it
-      await navigator.clipboard.writeText(card.sessionId).catch(() => {});
+      await navigator.clipboard.writeText(card.sessionId).catch(() => { });
       toast('success', ti('atlas.appOpened'), 9000);
     } else if (r.opened) toast('success', ti('atlas.opened'));
     else if (r.command) {
-      await navigator.clipboard.writeText(r.command).catch(() => {});
+      await navigator.clipboard.writeText(r.command).catch(() => { });
       toast('info', ti('atlas.cmdCopied'), 9000);
     }
   };
 
-  // Portal to body: the switcher that opens us lives in a z-20 stacking
-  // context, which would clamp this overlay UNDER the focus panel — the
-  // atlas must veil the whole canvas, side panel included.
-  return (
-    <Dialog open onOpenChange={(next: boolean) => { if (!next) onClose(); }}>
-      <DialogContent
-        size="xl"
-        className="p-0 gap-0 h-[min(680px,90vh)] flex flex-col overflow-hidden"
-        data-session-atlas
-      >
-        <DialogHeader className="flex-row items-start gap-3 px-5 pt-4 pb-3 pr-14 border-b">
-          <div className="flex-1 min-w-0">
-            <DialogTitle>{t('atlas.title')}</DialogTitle>
-            <DialogDescription className="mt-0.5">{t('atlas.subtitle')}</DialogDescription>
-            {changes.size > 0 && (
-              <div className="text-xs mt-1 flex items-center gap-2" data-atlas-changes>
-                <span className="text-primary">
-                  {fmt(t('atlas.changesSummary'), {
-                    n: [...changes.values()].filter((c) => c.kind === 'new').length,
-                    m: [...changes.values()].filter((c) => c.kind === 'updated').length,
-                  })}
-                </span>
-                <Button variant="ghost"
-                  className="text-muted-foreground hover:text-foreground underline decoration-dotted"
-                  onClick={() => { markAllSeen(cards ?? []); setChanges(new Map()); }}
-                  data-atlas-mark-all
-                >
-                  {t('atlas.markAllSeen')}
-                </Button>
-              </div>
-            )}
+  const sessionRow = (card: SessionCard) => {
+    const home = canvasOf(card.sessionId);
+    const change = changes.get(changeKeyOf(card));
+    const canPick = !home && !!card.sessionId;
+    const isPicked = picked.has(pickKey(card));
+    const fork = threadForks.get(card.sessionId);
+    return (
+      // the row picks (or, on a canvas already, opens it); its controls
+      // keep their clicks to themselves — a menu item must not also pick
+      <div
+        key={pickKey(card)}
+        className={`flex items-center gap-3 border-b border-border px-3 py-2.5 last:border-b-0 ${canPick || home ? 'cursor-pointer hover:bg-muted/60' : ''} ${isPicked ? 'bg-primary/5' : ''} ${card.sessionId === focusSessionId ? 'bg-accent' : ''}`}
+        onClick={() => { if (busy) return; if (canPick) togglePick(card); else if (home) void openLinked(card); }}
+        data-atlas-session={card.sessionId}
+        data-atlas-pick={isPicked ? 'on' : 'off'}>
+        <span className="flex" onClick={e => e.stopPropagation()}>
+          <Checkbox
+            aria-label={fmt(t('atlas.selectSession'), { name: displayTitle(card) })}
+            disabled={!!busy || !canPick}
+            checked={isPicked}
+            onCheckedChange={() => togglePick(card)} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate text-sm text-foreground">{displayTitle(card)}</span>
+            {fork && <GitBranch className="size-3.5 shrink-0 text-muted-foreground" aria-label={fmt(t('atlas.forkedFrom'), { id: fork })} data-atlas-fork />}
           </div>
-          {isDesktop && targets && targets.terminals.length > 0 && (
-            <Select
-              items={{
-                ...Object.fromEntries(targets.terminals.map((term) => [term.id, term.name])),
-                __add__: t('atlas.otherTerminal'),
-              }}
-              value={targets.prefs.terminal}
-              onValueChange={(value) => {
-                const terminal = value as string;
-                if (terminal === '__add__') {
-                  // native app picker; the chosen app becomes the selection
-                  void window.desktopSessions?.addTerminal().then(() =>
-                    window.desktopSessions?.openTargets().then(setTargets));
-                  return;
-                }
-                void window.desktopSessions?.setOpenPrefs({ terminal }).then((p) => setTargets((tg) => (tg ? { ...tg, prefs: p } : tg)));
-              }}
-            >
-              <SelectTrigger size="sm" title={t('atlas.terminalChoice')} data-atlas-terminal-select>
-                <SquareTerminal size={14} strokeWidth={1.75} />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {targets.terminals.map((term) => <SelectItem key={term.id} value={term.id}>{term.name}</SelectItem>)}
-                {targets.canAddCustom && <SelectItem value="__add__">{t('atlas.otherTerminal')}</SelectItem>}
-              </SelectContent>
-            </Select>
-          )}
-          {isDesktop && (
-          <Button variant="outline" size="sm"
-            onClick={() => setSourcesOpen(true)}
-            
-            data-atlas-sources>
-            <Plug strokeWidth={1.75} /> {t('atlas.sources')}
-          </Button>
-          )}
-          {isDesktop && (
-          <Button variant="outline" size="sm"
-            onClick={() => void refresh()}
-            disabled={scanning}
-            
-            data-atlas-refresh>
-            {scanning ? <Loader2 className="animate-spin" /> : <RefreshCw strokeWidth={1.75} />}
-            {scanning ? t('atlas.scanning') : t('atlas.refresh')}
-          </Button>
-          )}
-        </DialogHeader>
-
-        <div className="flex-1 flex min-h-0">
-          {/* left: recent work first (the "where was I" answer), then the
-              external world's folders, then the native region */}
-          <div className="w-[260px] border-r border-border overflow-y-auto py-2 shrink-0">
-            <div className="px-4 py-1 text-2xs uppercase tracking-wide text-muted-foreground">{t('atlas.recent')}</div>
-            {projects.filter((p) => !p.archived).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6).map((p) => (
-              <Button variant="ghost" size="sm"
-                key={p.id}
-                onClick={() => { onClose(); void switchProject(p.id).then(onSwitched); }}
-                className="w-full text-left text-foreground hover:bg-accent"
-                data-atlas-recent={p.id}
-              >
-                {mainSubscription(p)
-                  ? <span className="text-2xs font-mono border border-border rounded px-1 py-px shrink-0 text-muted-foreground">{mainSubscription(p)!.runner}</span>
-                  : <Inbox strokeWidth={1.75} className="shrink-0 text-muted-foreground" />}
-                <span className="flex-1 truncate text-sm">{p.name}</span>
-              </Button>
-            ))}
-            <div className="border-t border-border mt-2 pt-2 px-4 py-1 text-2xs uppercase tracking-wide text-muted-foreground">{t('atlas.folders')}</div>
-            {!isDesktop && (
-              <div className="px-4 py-2 text-xs text-muted-foreground">{t('atlas.webNoScan')}</div>
-            )}
-            {isDesktop && cards === null && (
-              <div className="px-4 py-2 text-sm text-muted-foreground flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> {t('atlas.scanning')}</div>
-            )}
-            {isDesktop && cards !== null && groups.length === 0 && (
-              <div className="px-4 py-2 text-xs text-muted-foreground">{t('atlas.empty')}</div>
-            )}
-            {groups.map((g) => {
-              const key = g.cwd ?? '';
-              const isActive = selected !== 'canvases' && activeGroup === g;
-              return (
-                <Button variant="ghost"
-                  key={key}
-                  onClick={() => setSelected(key)}
-                  className={`w-full text-left px-4 py-2 flex items-center gap-2 transition-colors ${isActive ? 'bg-primary/5 text-primary' : 'text-foreground hover:bg-accent'}`}
-                  data-atlas-folder={g.name || 'unfiled'}
-                >
-                  {isActive ? <FolderOpen strokeWidth={1.75} className="shrink-0" /> : <Folder strokeWidth={1.75} className="shrink-0 text-muted-foreground" />}
-                  <span className="flex-1 truncate text-sm">{g.name || t('atlas.unfiled')}</span>
-                  {(() => {
-                    const n = g.cards.filter((c) => changes.has(changeKeyOf(c))).length;
-                    return n > 0 ? <span className="text-2xs text-primary shrink-0" data-atlas-folder-changes>+{n}</span> : null;
-                  })()}
-                  <span className="text-2xs text-muted-foreground shrink-0">{g.cards.length}</span>
-                </Button>
-              );
-            })}
-            <div className="border-t border-border mt-2 pt-2">
-              <Button variant="ghost"
-                onClick={() => setSelected('canvases')}
-                className={`w-full text-left px-4 py-2 flex items-center gap-2 transition-colors ${selected === 'canvases' ? 'bg-primary/5 text-primary' : 'text-foreground hover:bg-accent'}`}
-                data-atlas-canvases
-              >
-                <Inbox strokeWidth={1.75} className="shrink-0" />
-                <span className="flex-1 truncate text-sm">{t('atlas.myCanvases')}</span>
-                <span className="text-2xs text-muted-foreground shrink-0">{projects.length}</span>
-              </Button>
-            </div>
-          </div>
-
-          {/* right: the selected group's sessions, or native canvases */}
-          <div className="flex-1 overflow-y-auto p-4">
-            {selected === 'canvases' ? (
-              <div className="space-y-1.5">
-                {projects.filter((p) => !p.archived).sort((a, b) => b.updatedAt - a.updatedAt).map((p) => (
-                  <div key={p.id} className="group flex items-center flex-wrap gap-2 border border-border rounded-xl px-4 py-3 hover:bg-accent transition-colors cursor-pointer"
-                    onClick={() => { onClose(); void switchProject(p.id).then(onSwitched); }}>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-foreground font-medium truncate">{p.name}</div>
-                      <div className="text-2xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
-                        <span>{dateLabel(p.updatedAt)}</span>
-                        {!!mainSubscription(p) && <span className="font-mono border border-border rounded px-1 py-px">{mainSubscription(p)!.runner}</span>}
-                      </div>
-                    </div>
-                    <Button variant="ghost"
-                      title={t('switcher.archive')}
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-warning/90 shrink-0"
-                      onClick={(e) => { e.stopPropagation(); void setProjectArchived(p.id, true); }}
-                      data-atlas-archive
-                    >
-                      <Archive strokeWidth={1.75} />
-                    </Button>
-                    {/* the listening cluster: every session this canvas
-                        subscribes to, with its role and progress */}
-                    {subscribedSessionIds(p).length > 0 && (
-                      <div className="w-full basis-full text-2xs text-muted-foreground font-mono flex flex-wrap gap-x-3 gap-y-0.5 pt-1" data-atlas-cluster>
-                        {[...subscriptionsOf(p)].sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role]).map((sub) => (
-                          <span key={sub.sessionId}>{ROLE_MARK[sub.role]} {sub.runner} {sub.sessionId.slice(0, 8)} · {fmt(t('atlas.turnsN'), { n: takenCount(sub) })}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {projects.some((p) => p.archived) && (
-                  <details className="pt-2" data-atlas-archived-group>
-                    <summary className="text-2xs uppercase tracking-wide text-muted-foreground cursor-pointer px-1 py-1">
-                      {fmt(t('atlas.archivedGroup'), { n: projects.filter((p) => p.archived).length })}
-                    </summary>
-                    <div className="space-y-1.5 mt-1.5">
-                      {projects.filter((p) => p.archived).sort((a, b) => b.updatedAt - a.updatedAt).map((p) => (
-                        <Button variant="outline"
-                          key={p.id}
-                          title={t('atlas.restoreOpen')}
-                          onClick={() => { void setProjectArchived(p.id, false).then(() => { onClose(); void switchProject(p.id).then(onSwitched); }); }}
-                          className="w-full text-left border-dashed opacity-70 hover:opacity-100"
-                          data-atlas-archived-item
-                        >
-                          <div className="text-sm text-foreground truncate flex items-center gap-1.5">
-                            <span className="truncate">{p.name}</span>
-                            {!!mainSubscription(p) && <span className="text-2xs font-mono border border-border rounded px-1 py-px shrink-0 text-muted-foreground">{mainSubscription(p)!.runner}</span>}
-                          </div>
-                          <div className="text-2xs text-muted-foreground mt-0.5">{dateLabel(p.updatedAt)}</div>
-                        </Button>
-                      ))}
-                    </div>
-                  </details>
-                )}
-              </div>
-            ) : (
-              <>
-                {/* the toolbar stands OUTSIDE the group view: filters that
-                    empty the atlas must stay reachable to be undone */}
-                {(cards?.length ?? 0) > 0 && (
-                <div className="flex items-center gap-2 mb-3 flex-wrap">
-                  <div className="flex items-center gap-1.5 border border-border rounded-lg px-2 py-1 bg-card">
-                    <Search size={13} strokeWidth={1.75} className="text-muted-foreground shrink-0" />
-                    <input
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      placeholder={t('atlas.filterTitle')}
-                      className="text-sm bg-transparent focus:outline-none w-[150px] text-foreground placeholder:text-muted-foreground"
-                      data-atlas-filter
-                    />
-                  </div>
-                  {runners.map((r) => (
-                    <Button variant="ghost"
-                      key={r}
-                      onClick={() => setRunnerOff((s) => { const n = new Set(s); if (n.has(r)) n.delete(r); else n.add(r); return n; })}
-                      className={`text-2xs font-mono border rounded-lg px-2 py-1 transition-colors ${runnerOff.has(r) ? 'border-border text-muted-foreground line-through' : 'border-primary/40 text-primary bg-primary/5'}`}
-                      data-atlas-runner-toggle={r}
-                    >
-                      {r}
-                    </Button>
-                  ))}
-                  {changes.size > 0 && (
-                    <Button variant="ghost"
-                      onClick={() => setOnlyChanged((v) => !v)}
-                      className={`text-2xs border rounded-lg px-2 py-1 transition-colors ${onlyChanged ? 'border-primary text-white bg-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
-                      data-atlas-only-changed
-                    >
-                      {t('atlas.onlyChanged')}
-                    </Button>
-                  )}
-                  {(cards ?? []).some((c) => c.subagent) && (
-                    <Button variant="ghost"
-                      onClick={() => setShowSubagents((v) => !v)}
-                      className={`text-2xs border rounded-lg px-2 py-1 transition-colors ${showSubagents ? 'border-primary text-primary bg-primary/5' : 'border-border text-muted-foreground hover:text-foreground'}`}
-                      data-atlas-show-sub
-                    >
-                      {t('atlas.showSub')}
-                    </Button>
-                  )}
-                  <Button variant="outline" size="xs"
-                    onClick={() => setSortKey((k) => (({ time: 'name', name: 'size', size: 'runner', runner: 'time' } as const)[k]))}
-                    className="ml-auto"
-                    data-atlas-sort
-                  >
-                    <ArrowDownUp strokeWidth={1.75} />
-                    {t(`atlas.sort${sortKey[0].toUpperCase()}${sortKey.slice(1)}` as 'atlas.sortTime')}
-                  </Button>
-                </div>
-                )}
-                {!activeGroup ? (
-                  <div className="py-16 text-center text-sm text-muted-foreground">
-                    {cards === null ? t('atlas.scanning') : (cards.length > 0 ? t('atlas.filteredOut') : t('atlas.empty'))}
-                  </div>
-                ) : (
-                <>
-                {activeGroup.cwd && <div className="text-2xs text-muted-foreground mb-3 truncate">{activeGroup.cwd} · {fmt(t('atlas.sessions'), { n: activeGroup.cards.length })}</div>}
-                <div className="space-y-1.5">
-                  {shownCards.map((card) => (
-                    <div
-                      key={card.rel}
-                      className={`group border rounded-xl px-4 py-3 hover:bg-accent transition-colors cursor-pointer flex items-center gap-3 ${picked.has(pickKey(card)) ? 'border-primary/60 bg-primary/5' : 'border-border'}`}
-                      onClick={() => void importCard(card)}
-                      data-atlas-session={card.sessionId}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm text-foreground truncate flex items-center gap-1.5">
-                          <span className="truncate">{displayTitle(card)}</span>
-                          {threadForks.has(card.sessionId) && (
-                            <span className="text-2xs text-muted-foreground border border-border rounded px-1 py-px shrink-0 font-mono" title={`⑂ ${threadForks.get(card.sessionId)}`} data-atlas-fork>⑂</span>
-                          )}
-                          {changes.get(changeKeyOf(card))?.kind === 'new' && (
-                            <span className="text-2xs text-white bg-primary rounded px-1 py-px shrink-0" data-atlas-badge="new">{t('atlas.badgeNew')}</span>
-                          )}
-                          {changes.get(changeKeyOf(card))?.kind === 'updated' && (
-                            <span className="text-2xs text-primary border border-primary/40 rounded px-1 py-px shrink-0" data-atlas-badge="updated">
-                              +{sizeLabel(changes.get(changeKeyOf(card))!.deltaSize)}
-                            </span>
-                          )}
-                          {card.sessionId === activeSessionId ? (
-                            <span className="text-2xs text-white bg-foreground rounded px-1 py-px shrink-0" data-atlas-badge="current">{t('atlas.currentOpen')}</span>
-                          ) : (() => {
-                            const home = canvasOf(card.sessionId);
-                            return home ? (
-                              <span className="text-2xs text-muted-foreground border border-border rounded px-1 py-px shrink-0" title={home.name} data-atlas-badge="canvas">{t('atlas.onCanvas')}</span>
-                            ) : null;
-                          })()}
-                        </div>
-                        <div className="text-2xs text-muted-foreground mt-0.5 flex items-center gap-2">
-                          {/* runner identity is functional provenance, not promotion */}
-                          <span className="border border-border rounded px-1 py-px font-mono">{card.runner}</span>
-                          <span>{dateLabel(card.mtime)}</span>
-                          <span>{sizeLabel(card.size)}</span>
-                        </div>
-                      </div>
-                      {busyRel === card.rel
-                        ? <Loader2 size={16} className="animate-spin text-primary shrink-0" />
-                        : (
-                          // three doors per session, each an explicit choice:
-                          // canvas, host app (when one is installed), terminal
-                          <div className={`${picked.has(pickKey(card)) ? '' : 'opacity-0 group-hover:opacity-100'} transition-opacity flex items-center gap-1 shrink-0`}>
-                            {!canvasOf(card.sessionId) && !!card.sessionId && (
-                              <Button variant="ghost"
-                                title={t('atlas.pickForMerge')}
-                                className={`p-1.5 rounded transition-colors ${picked.has(pickKey(card)) ? 'text-primary' : 'text-muted-foreground hover:text-primary'}`}
-                                onClick={(e) => { e.stopPropagation(); togglePick(card); }}
-                                data-atlas-pick={picked.has(pickKey(card)) ? 'on' : 'off'}
-                              >
-                                {picked.has(pickKey(card)) ? <SquareCheckBig strokeWidth={1.75} /> : <Square strokeWidth={1.75} />}
-                              </Button>
-                            )}
-                            <span title={t('atlas.import')} className="text-muted-foreground hover:text-primary p-1.5"><Import size={16} strokeWidth={1.75} /></span>
-                            {projects.some((p) => mainSubscription(p)?.sessionId === card.sessionId) && (
-                              <Button variant="ghost"
-                                title={t('atlas.recast')}
-                                className="text-muted-foreground hover:text-destructive/90"
-                                onClick={(e) => { e.stopPropagation(); void recast(card); }}
-                                data-atlas-recast
-                              >
-                                <RotateCcw strokeWidth={1.75} />
-                              </Button>
-                            )}
-                            {!canvasOf(card.sessionId) && (
-                              <Button variant="ghost"
-                                title={t('atlas.mountTo')}
-                                className="text-muted-foreground hover:text-primary"
-                                onClick={(e) => { e.stopPropagation(); setMountPick(card); }}
-                                data-atlas-mount
-                              >
-                                <Link2 strokeWidth={1.75} />
-                              </Button>
-                            )}
-                            {appHosts.has(card.runner) && (
-                              <Button variant="ghost"
-                                title={fmt(t('atlas.openApp'), { name: appHosts.get(card.runner)! })}
-                                className="text-muted-foreground hover:text-primary"
-                                onClick={(e) => { e.stopPropagation(); void openInCli(card, 'app'); }}
-                                data-atlas-open-app
-                              >
-                                <AppWindow strokeWidth={1.75} />
-                              </Button>
-                            )}
-                            <Button variant="ghost"
-                              title={t('atlas.openTerminal')}
-                              className="text-muted-foreground hover:text-primary"
-                              onClick={(e) => { e.stopPropagation(); void openInCli(card, 'terminal'); }}
-                              data-atlas-open-cli
-                            >
-                              <SquareTerminal strokeWidth={1.75} />
-                            </Button>
-                          </div>
-                        )}
-                    </div>
-                  ))}
-                </div>
-                </>
-                )}
-              </>
-            )}
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden text-xs whitespace-nowrap text-muted-foreground" title={card.cwd ?? undefined}>
+            <span className="shrink-0">{runnerLabel(card.runner)}</span>
+            <span aria-hidden>·</span>
+            <span className="shrink-0">{dateLabel(card.mtime)}</span>
+            <span aria-hidden>·</span>
+            <span className="truncate">{sizeLabel(card.size)}</span>
           </div>
         </div>
-        {picked.size >= 2 && !mergePick && (
-          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 bg-background border border-border rounded-xl shadow-lg px-4 py-2.5 flex items-center gap-3" data-atlas-merge-bar>
-            <span className="text-xs text-muted-foreground whitespace-nowrap">{fmt(t('atlas.mergeSelected'), { n: picked.size })}</span>
-            {busyRel === '__merge__'
-              ? <Loader2 size={15} className="animate-spin text-primary" />
-              : (
-                <>
-                  <Button size="sm"
-                    className="whitespace-nowrap"
-                    onClick={() => void mergeRun()}
-                    data-atlas-merge-new
-                  >
-                    {t('atlas.mergeNew')}
-                  </Button>
-                  <Button variant="ghost" size="sm"
-                    className="text-xs text-muted-foreground hover:text-foreground hover:bg-accent whitespace-nowrap"
-                    onClick={() => setMergePick(true)}
-                    data-atlas-merge-into
-                  >
-                    {t('atlas.mergeInto')}
-                  </Button>
-                </>
-              )}
-            <Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={() => setPicked(new Map())} title={t('common.cancel')}>
-              <X strokeWidth={1.75} />
+        {change && (change.kind === 'new'
+          ? <Badge data-atlas-badge="new">{t('atlas.badgeNew')}</Badge>
+          : <Badge variant="outline" className="border-primary/40 text-primary" data-atlas-badge="updated">+{sizeLabel(change.deltaSize)}</Badge>)}
+        {home && (
+          <Badge variant="secondary" className="hidden max-w-44 sm:inline-flex" title={home.name} data-atlas-badge="canvas">
+            <span className="truncate">{home.id === activeId ? t('atlas.onCurrent') : fmt(t('atlas.linkedCanvas'), { name: home.name })}</span>
+          </Badge>
+        )}
+        <span className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+          {home && (
+            <Button variant="outline" size="sm" disabled={!!busy} onClick={() => void openLinked(card)} data-atlas-open>
+              {busy === card.rel ? <Loader2 className="animate-spin" /> : <ArrowUpRight />}
+              {t('atlas.openCanvas')}
             </Button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger disabled={!!busy} render={<Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label={t('atlas.more')} />}>
+              <MoreHorizontal />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {appHosts.has(card.runner) && <DropdownMenuItem onClick={() => void openInCli(card, 'app')}>{fmt(t('atlas.openApp'), { name: appHosts.get(card.runner)! })}</DropdownMenuItem>}
+              <DropdownMenuItem onClick={() => void openInCli(card, 'terminal')}>{t('atlas.openTerminal')}</DropdownMenuItem>
+              {projects.some(p => mainSubscription(p)?.sessionId === card.sessionId) && <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onClick={() => void recast(card)}>{t('atlas.recast')}</DropdownMenuItem>
+              </>}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </span>
+      </div>
+    );
+  };
+
+  return <>
+    <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }}>
+      <DialogContent size="lg" className="flex max-h-[90dvh] flex-col overflow-hidden" data-session-atlas showCloseButton={!busy}>
+        <DialogHeader>
+          <DialogTitle>{t('atlas.title')}</DialogTitle>
+          <DialogDescription>{t('atlas.subtitle')}</DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-wrap items-center gap-2">
+          <InputGroup className="min-w-40 flex-1">
+            <InputGroupInput
+              aria-label={t('atlas.filterTitle')}
+              placeholder={t('atlas.filterTitle')}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              data-atlas-filter />
+            <InputGroupAddon><Search /></InputGroupAddon>
+          </InputGroup>
+          <Select value={folder} onValueChange={v => v !== null && setFolder(v)}>
+            <SelectTrigger aria-label={t('atlas.folders')} className="max-w-48">
+              <FolderOpen className="text-muted-foreground" />
+              <SelectValue>{folder === ALL ? t('atlas.allFolders') : folder ? folderName(folder) : t('atlas.unfiled')}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>{t('atlas.allFolders')}</SelectItem>
+              {folders.map(g => <SelectItem key={g.cwd ?? ''} value={g.cwd ?? ''}>
+                <span className="flex-1 truncate">{g.name || t('atlas.unfiled')}</span>
+                <span className="text-xs text-muted-foreground tabular-nums">{g.cards.length}</span>
+              </SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={sortKey} onValueChange={v => v && setSortKey(v as SortKey)}>
+            <SelectTrigger aria-label={t('atlas.sortLabel')}>
+              <SelectValue>{fmt(t('atlas.sortBy'), { key: t(SORT_LABEL[sortKey]) })}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(SORT_LABEL) as SortKey[]).map(k => <SelectItem key={k} value={k}>{t(SORT_LABEL[k])}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {isDesktop && <Button variant="outline" size="icon" disabled={scanning || !!busy} aria-label={t('atlas.refresh')} title={t('atlas.refresh')} onClick={() => void refresh()}>
+            <RefreshCw className={scanning ? 'animate-spin' : ''} />
+          </Button>}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <ToggleGroup multiple variant="outline" size="sm" value={only} onValueChange={setOnly}>
+            <ToggleGroupItem value="unlinked">{t('atlas.unlinked')}</ToggleGroupItem>
+            <ToggleGroupItem value="changed" data-atlas-only-changed>
+              {t('atlas.onlyChanged')}
+              {changes.size > 0 && <span className="text-primary tabular-nums">{changes.size}</span>}
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button variant="ghost" size="sm" />}>
+              <ListFilter />
+              {t('atlas.filters')}
+              {hiddenFilters > 0 && <Badge variant="secondary" className="h-4 px-1.5">{hiddenFilters}</Badge>}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>{t('atlas.filterSources')}</DropdownMenuLabel>
+                {runners.map(r => <DropdownMenuCheckboxItem
+                  key={r}
+                  checked={!runnerOff.has(r)}
+                  onCheckedChange={on => setRunnerOff(prev => { const next = new Set(prev); if (on) next.delete(r); else next.add(r); return next; })}>
+                  {runnerLabel(r)}
+                </DropdownMenuCheckboxItem>)}
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem checked={showSubagents} onCheckedChange={setShowSubagents} data-atlas-show-sub>{t('atlas.showSub')}</DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        {/* fixed height: the dialog never jumps when the scan lands or a
+            filter empties the list */}
+        <div className="flex h-[min(56dvh,480px)] min-h-0 flex-col overflow-hidden rounded-xl border border-border">
+          <div className="flex items-center gap-3 border-b border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+            <Checkbox
+              aria-label={t('atlas.selectAll')}
+              title={t('atlas.selectAll')}
+              disabled={!!busy || !pickable.length}
+              checked={allPicked}
+              indeterminate={somePicked && !allPicked}
+              onCheckedChange={checked => setPicked(prev => { const next = new Map(prev); for (const c of pickable) { if (checked) next.set(pickKey(c), c); else next.delete(pickKey(c)); } return next; })} />
+            <span className="flex-1 tabular-nums">{cards ? fmt(t('atlas.sessions'), { n: shown.length }) : ''}</span>
+            {changes.size > 0 && <Button variant="ghost" size="xs" onClick={() => { markAllSeen(cards ?? []); setChanges(new Map()); }} data-atlas-mark-all>
+              {t('atlas.markAllSeen')}
+            </Button>}
           </div>
-        )}
-        {(mountPick || mergePick) && (
-          <div className="absolute inset-0 z-10 bg-foreground/20 flex items-center justify-center" onClick={() => { setMountPick(null); setMergePick(false); }}>
-            <div className="bg-background border border-border rounded-2xl shadow-xl w-[400px] max-h-[70%] overflow-y-auto" onClick={(e) => e.stopPropagation()} data-atlas-mount-picker>
-              <div className="px-4 pt-3.5 pb-2.5 border-b border-border">
-                <div className="text-sm font-semibold text-foreground">{t(mergePick ? 'atlas.mergeInto' : 'atlas.mountTo')}</div>
-                <div className="text-2xs text-muted-foreground mt-0.5">{t(mergePick ? 'atlas.mergeSelected' : 'atlas.mountHint').replace('{n}', String(picked.size))}</div>
-              </div>
-              {projects.filter((p) => !p.archived && p.kind !== 'paradigm').sort((a, b) => b.updatedAt - a.updatedAt).map((p) => (
-                <Button variant="outline"
-                  key={p.id}
-                  className="w-full text-left border-b last:border-b-0"
-                  onClick={() => {
-                    if (mergePick) { setMergePick(false); void mergeRun(p.id); return; }
-                    const card = mountPick!;
-                    setMountPick(null);
-                    void (async () => {
-                      setBusyRel(card.rel);
-                      try {
-                        const { mountConversationToProject } = await import('../lib/atlas/canonical');
-                        const result = await mountConversationToProject((await readSession(card, { cards }))?.conv ?? null, p.id);
-                        if (!result) throw new Error(ti('handoff.notASession'));
-                        toast('success', fmt(ti('atlas.mountedChapter'), { n: result.kind === 'mounted' || result.kind === 'appended' ? result.turns : 0 }), 9000);
-                        onClose();
-                        onSwitched();
-                      } catch (err) {
-                        toast('error', fmt(ti('atlas.parseFailed'), { msg: err instanceof Error ? err.message : String(err) }));
-                      } finally { setBusyRel(null); }
-                    })();
-                  }}
-                >
-                  {p.name}
-                </Button>
-              ))}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {cards === null && scanning
+              ? Array.from({ length: 6 }, (_, i) => (
+                <div key={i} className="flex items-center gap-3 border-b border-border px-3 py-3.5 last:border-b-0">
+                  <div className="size-4 rounded-[4px] bg-muted" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 w-2/3 animate-pulse rounded-md bg-muted" />
+                    <div className="h-2.5 w-1/3 animate-pulse rounded-md bg-muted" />
+                  </div>
+                </div>
+              ))
+              : shown.length === 0
+                ? <p className="p-8 text-center text-sm text-muted-foreground">
+                  {!isDesktop ? t('atlas.webNoScan') : cards?.length ? t('atlas.filteredOut') : t('atlas.empty')}
+                </p>
+                : sections.map(s => <section key={s.key} data-atlas-folder={s.name ?? undefined}>
+                  {s.name && <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground" title={s.path ?? undefined}>
+                    <FolderOpen className="size-3.5" />
+                    <span className="truncate">{s.name}</span>
+                    <span className="tabular-nums">{s.cards.length}</span>
+                  </div>}
+                  {s.cards.map(sessionRow)}
+                </section>)}
+          </div>
+        </div>
+        <DialogFooter className="items-center sm:justify-between">
+          {picked.size > 0
+            ? <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="tabular-nums">{fmt(t('atlas.mergeSelected'), { n: picked.size })}</span>
+              <Button variant="ghost" size="sm" disabled={!!busy} onClick={() => setPicked(new Map())}>{t('atlas.clearPick')}</Button>
             </div>
-          </div>
-        )}
-        {sourcesOpen && (
-          <SourcesDialog
-            roots={roots}
-            counts={rootCounts}
-            onChanged={() => void refresh()}
-            onClose={() => setSourcesOpen(false)}
-          />
-        )}
+            : <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              {isDesktop
+                ? <Button variant="ghost" size="sm" onClick={() => setSourcesOpen(true)} data-atlas-sources><Plug />{t('atlas.sourcesTitle')}</Button>
+                : null}
+              <span className="hidden sm:inline">{t('atlas.pickHint')}</span>
+            </div>}
+          <ButtonGroup>
+            <Button disabled={!!busy || picked.size === 0} onClick={() => void addPicked()} data-atlas-add-new>
+              {busy === '__add__' ? <Loader2 className="animate-spin" /> : <Plus />}
+              {t('atlas.addNew')}
+            </Button>
+            <ButtonGroupSeparator className="bg-primary-foreground/30" />
+            <Popover open={targetOpen} onOpenChange={setTargetOpen}>
+              <PopoverTrigger
+                disabled={!!busy || picked.size === 0 || destinations.length === 0}
+                render={<Button size="icon" aria-label={t('atlas.addTo')} title={t('atlas.addTo')} data-atlas-add-to />}>
+                <ChevronDown />
+              </PopoverTrigger>
+              <PopoverContent align="end" side="top" className="w-72 gap-0 p-0">
+                <Command className="bg-transparent">
+                  <CommandInput autoFocus placeholder={t('switcher.search')} />
+                  <CommandList>
+                    <CommandEmpty>{t('switcher.noResults')}</CommandEmpty>
+                    <CommandGroup heading={t('atlas.addTo')}>
+                      {destinations.map(p => <CommandItem key={p.id} value={p.id} keywords={[p.name]} onSelect={() => void addPicked(p.id)}>
+                        <FolderOpen className="text-muted-foreground" />
+                        <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                        {p.id === activeId && <CommandShortcut className="tracking-normal">{t('atlas.currentOpen')}</CommandShortcut>}
+                      </CommandItem>)}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+                <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">{t('atlas.independentHint')}</p>
+              </PopoverContent>
+            </Popover>
+          </ButtonGroup>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+    {sourcesOpen && <SourcesDialog
+      terminalSettings={targets && targets.terminals.length > 0 && <Select
+        value={targets.prefs.terminal}
+        onValueChange={value => { if (!value) return; if (value === '__add__') { void window.desktopSessions?.addTerminal().then(() => window.desktopSessions?.openTargets().then(setTargets)); return; } void window.desktopSessions?.setOpenPrefs({ terminal: value }).then(p => setTargets(tg => tg ? { ...tg, prefs: p } : tg)); }}>
+        <SelectTrigger aria-label={t('atlas.terminalChoice')}>
+          <SelectValue>{targets.terminals.find(term => term.id === targets.prefs.terminal)?.name}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {targets.terminals.map(term => <SelectItem key={term.id} value={term.id}>{term.name}</SelectItem>)}
+          {targets.canAddCustom && <SelectItem value="__add__">{t('atlas.otherTerminal')}</SelectItem>}
+        </SelectContent>
+      </Select>}
+      roots={roots}
+      counts={rootCounts}
+      onChanged={() => void refresh()}
+      onClose={() => setSourcesOpen(false)} />}
+  </>;
 }

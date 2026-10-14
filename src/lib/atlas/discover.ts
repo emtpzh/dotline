@@ -31,6 +31,10 @@ export interface SessionCard {
 /** The identity a session file answers to: one rule, the read layer's. */
 export { identityFromHead } from '../sessions/read';
 
+/** The name a runner goes by on screen — its id is a key, not a label. */
+const RUNNER_LABEL: Record<string, string> = { 'claude-code': 'Claude Code', codex: 'Codex', dsh: 'DeepSeek Harness', pi: 'Pi' };
+export const runnerLabel = (runner: string): string => RUNNER_LABEL[runner] ?? runner;
+
 export interface AtlasGroup {
   /** Absolute cwd, or null for the unfiled group. */
   cwd: string | null;
