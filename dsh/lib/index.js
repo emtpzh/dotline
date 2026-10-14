@@ -732,6 +732,7 @@ async function runHarnessTurn(ctx, turn, sink, { signal, ask } = {}) {
   canvasTurns.set(sessionId, entry)
   let sawChunk = false
   let fullText = ''
+  let turnId = null
   // why the turn ended, when the harness says it failed: reported as the
   // run's error, never as a quiet end with nothing said
   let failure = null
@@ -754,6 +755,10 @@ async function runHarnessTurn(ctx, turn, sink, { signal, ask } = {}) {
       // chunks did not reach us live (e.g. a compacted row): the whole text at once
       const text = (event.data?.message?.content ?? []).filter(b => b.type === 'text').map(b => b.text).join('')
       if (text) { fullText += text; sink.text(text) }
+    } else if (event.type === 'user/message' && !turnId && (event.data?.source?.kind ?? 'user') === 'user' && partsText(event.data?.content).trim() === turn.question.trim()) {
+      // the message carrying this run's question: the turn's id, as the session's readers name it
+      turnId = event.data?.id ?? `u${event.seq}`
+      sink.turn?.(turnId)
     } else if (event.type === 'tool/call' || event.type === 'tool/code-dispatch-start') {
       const callId = event.data?.callId ?? null
       if (callId) entry.calls.set(callId, { name: event.data?.name ?? 'tool', arguments: event.data?.arguments })
@@ -771,7 +776,7 @@ async function runHarnessTurn(ctx, turn, sink, { signal, ask } = {}) {
   // marked first: cancelling may end the turn on the spot
   const onAbort = () => { done('aborted'); try { agent.cancel({ kind: 'user' }) } catch { /* best effort */ } }
   try {
-    if (signal?.aborted) return { sessionId, text: fullText, how: 'aborted' }
+    if (signal?.aborted) return { sessionId, turnId, text: fullText, how: 'aborted' }
     signal?.addEventListener('abort', onAbort, { once: true })
     // a session that already holds the conversation gets only the question
     if (!inheritsHistory && turn.context) agent.inject({ id: 'td-' + randomUUID(), role: 'user', content: [{ type: 'text', text: turn.context }], source: sourceFor(agent.session) })
@@ -779,14 +784,32 @@ async function runHarnessTurn(ctx, turn, sink, { signal, ask } = {}) {
     for (const img of turn.images) promptContent.push({ type: 'image', mediaType: img.mimeType, data: img.data })
     await ctx.sessionController.prompt({ requestId: 'td-' + randomUUID(), sessionId, mode: 'queue', content: promptContent }, AbortSignal.timeout(30000))
     const how = await Promise.race([finished, agent.whenIdle().then(() => finished)])
-    if (how === 'end' && failure) throw new Error(failure)
-    return { sessionId, text: fullText, how }
+    if (how === 'end' && failure) throw Object.assign(new Error(failure), { sessionId, turnId })
+    return { sessionId, turnId, text: fullText, how }
   } finally {
     signal?.removeEventListener('abort', onAbort)
     if (typeof off === 'function') off()
     if (typeof offStream === 'function') offStream()
     if (canvasTurns.get(sessionId) === entry) canvasTurns.delete(sessionId)
   }
+}
+
+/** A message's text blocks, as the session's readers take them. */
+const partsText = (content) => (Array.isArray(content) ? content : []).filter(b => b && b.type === 'text' && typeof b.text === 'string').map(b => b.text).join('\n')
+
+/** The session the canvas reads holds the turn to its end: its turn/end is in. */
+async function turnHeld(ctx, sessionId, turnId) {
+  const events = await eventsOfSession(ctx, sessionId)
+  return !!events && turnsOf(events).some(t => t.userMessageId === turnId && t.endSeq !== null)
+}
+
+/** Waits for the session to hold a run's turn (runtime/agents/turn-file.cjs:
+ *  a watchdog, not a guess); false when it never does. */
+async function heldBy(ctx, sessionId, turnId) {
+  if (!sessionId || !turnId) return false
+  let until
+  try { ({ until } = require(resolve(__dirname, 'runtime', 'agents', 'turn-file.cjs'))) } catch { return turnHeld(ctx, sessionId, turnId) }
+  return !!(await until(() => turnHeld(ctx, sessionId, turnId)))
 }
 
 /** The images of a request the harness can take (base64, a known type). */
@@ -878,11 +901,16 @@ function createDshRuntime(ctx, { log = () => {}, host = { listening: () => false
             reasoning: (t) => emit({ type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', delta: t } }),
             toolStart: (c) => emit({ type: 'tool_execution_start', toolCallId: c.callId ?? '', toolName: c.name, args: argsObject(c.arguments) }),
             toolEnd: (c) => emit({ type: 'tool_execution_end', toolCallId: c.callId, toolName: c.name, isError: c.isError }),
+            turn: (turnId) => emit({ type: 'turn', turnId }),
           }, { signal: run.abort.signal, ask })
-          emit({ type: 'run_end', text: r.text, how: r.how })
+          // the run's end goes out once the session holds the whole turn
+          const held = await heldBy(ctx, r.sessionId, r.turnId)
+          emit({ type: 'run_end', text: r.text, how: r.how, ...(r.turnId ? { turnId: r.turnId } : {}), held })
         } catch (e) {
           log(`[dsh-dotline] agent run failed: ${e instanceof Error ? e.message : String(e)}`)
           emit({ type: 'run_error', message: e instanceof Error ? e.message : String(e) })
+          const held = await heldBy(ctx, e?.sessionId, e?.turnId).catch(() => false)
+          emit({ type: 'run_end', text: '', how: 'error', ...(e?.turnId ? { turnId: e.turnId } : {}), held })
         } finally {
           runs.delete(runId)
         }

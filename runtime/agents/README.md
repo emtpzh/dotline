@@ -12,12 +12,13 @@ A run emits exactly these event kinds (the renderer reads nothing else):
 | kind | meaning |
 |---|---|
 | `session` | which session file this run writes to, and where (cwd); `model.resolved` names the real model when the run used an alias (Claude Code's `opus` → `claude-opus-5`); `effort` is the level the turn actually ran at, read back from the runtime's own record (Pi's state, Codex's rollout `turn_context`, Claude Code's transcript entries), never assumed |
+| `turn` | the run's turn in its session file, by the id the session's readers give it (the id of its first item): Codex's turn id; for Claude Code, Pi and the harness, the entry carrying the prompt the run wrote, found by that exact text after where the file stood when the run began |
 | `message_update` with a text or thinking delta | the answer or the reasoning growing |
 | `tool_execution_start` / `tool_execution_end` | a tool call, for the live trace |
 | `question` | the agent asks the person: select / input / editor (Codex's user-input requests, Pi's dialogs), or a confirm from an extension of the agent's own — never a permission prompt |
 | `question_answered` | the person's answer went back (record) |
 | `fs_changes` | what the shell saw change on disk (produced here, not by the agent) |
-| `run_end` / `run_error` | the turn is over |
+| `run_end` / `run_error` | the turn is over. `run_end` always comes last (after a `run_error` too), with the turn's id when the run has one and `held`: whether the session file held the whole turn when it went out. A runtime sends it only once the file does (Claude Code: its process has exited; Codex: the rollout has the turn's `task_complete` / `turn_aborted`; Pi: an assistant entry after the prompt that stops for good; the harness: the turn's `turn/end` in the session), or once a watchdog on the file (`TD_AGENT_FLUSH_MS`, 15 s) gives up — then `held: false` |
 
 Nothing starts at launch. A runtime's process (Pi's rpc, Codex's app-server, a Pi catalog read) is started by the first request that needs it and retires after ten minutes without one (`TD_AGENT_IDLE_MS`); Claude Code runs one process per turn. A launch that never opens the agent group never starts a CLI.
 
@@ -37,7 +38,13 @@ in `src/lib/agents/agent-runtime.ts`.
 
 A run is not tied to the page or the canvas that started it: closing or
 reloading the page, or switching to another canvas, does not stop it (only
-`abort` does). Before it starts, the node records a binding: the session it
+`abort` does). So every host keeps a record of its runs (`registry.cjs`):
+each run's session, turn, whether it has ended and whether its file held the
+turn, under the host process's boot id. A page that missed a run's events
+asks for it (`runs()`, `GET /agents/runs`) when a canvas comes into view and
+when the event feed comes back after a drop; a run its host's current boot
+does not know is over. Nothing on the canvas decides a run is over, or which
+turn is its, from how long a file has been quiet. Before it starts, the node records a binding: the session it
 continues and the turn it follows, or — for a fresh session — the session the
 run names in its first `session` event. The session sync finds the run's turn in
 the file by that binding and writes it into the node, now or whenever that canvas

@@ -775,6 +775,8 @@ function agentsRuntime(name = 'pi') {
   return runtimes.get(key);
 }
 const runOwners = new Map(); // runId → runtime name
+// the shell's record of its runs: what a reloaded page asks (runtime/agents/registry.cjs)
+const runRegistry = require(path.join(RUNTIME_DIR, 'agents', 'registry.cjs')).createRunRegistry();
 
 const workspaceFor = (canvasId) => agentOps.workspaceFor(path.join(app.getPath('userData'), 'workspaces'), canvasId);
 
@@ -793,10 +795,12 @@ function setupAgents() {
     const r = req && typeof req === 'object' ? req : {};
     if (r.runtime && !RUNTIME_FACTORIES[r.runtime]) throw new Error(`no ${r.runtime} runtime in the desktop app`);
     const name = r.runtime || 'pi';
-    const runId = await agentsRuntime(name).run(r, (payload) => { if (win && !win.isDestroyed()) win.webContents.send('agents:event', payload); });
+    const runId = await agentsRuntime(name).run(r, runRegistry.relay(name, (payload) => { if (win && !win.isDestroyed()) win.webContents.send('agents:event', payload); }));
     runOwners.set(runId, name);
+    runRegistry.started(name, runId);
     return runId;
   });
+  ipcMain.handle('agents:runs', async () => runRegistry.list());
   ipcMain.handle('agents:abort', async (_e, runId) => agentsRuntime(runOwners.get(String(runId))).abort(String(runId)));
   ipcMain.handle('agents:workspace', async (_e, canvasId) => workspaceFor(canvasId));
   ipcMain.handle('agents:stat', async (_e, p) => agentOps.statDir(p));

@@ -17,6 +17,8 @@ import type { AgentRunBinding, AgentRuntime, AgentTraceEntry, ApprovalOutcome, A
 import type { ContextMessage, ImageAttachment } from '../api';
 import { useStore } from '../../store';
 import type { AgentRoute } from './agent-runtime';
+import { lateFootprint } from '../sessions/writes';
+import { hostBootId, watchHostRuns } from '../sessions/host-runs';
 
 export interface RunOverlay {
   nodeId: string;
@@ -39,7 +41,6 @@ export interface RunOverlay {
 export const useRuns = create<{ runs: Record<string, RunOverlay> }>(() => ({ runs: {} }));
 
 const controllers = new Map<string, AbortController>();
-const settleWaiters = new Map<string, ((ok: boolean) => void)[]>();
 
 const patchOverlay = (nodeId: string, fn: (r: RunOverlay) => RunOverlay): void => {
   useRuns.setState((s) => {
@@ -78,27 +79,10 @@ export function clearOverlay(nodeId: string): void {
   });
 }
 
-/** The session sync wrote the run's turn into its node. */
+/** The session sync wrote the run's turn into its node: the overlay goes
+ *  (once the run is over, if it is not yet). */
 export function noteSettled(nodeId: string): void {
-  for (const w of settleWaiters.get(nodeId) ?? []) w(true);
-  settleWaiters.delete(nodeId);
   clearOverlay(nodeId);
-}
-
-/** Resolves true once the sync has written the turn, false after `ms`. */
-export function awaitSettle(nodeId: string, ms: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const list = settleWaiters.get(nodeId) ?? [];
-    let done = false;
-    const finish = (ok: boolean) => { if (done) return; done = true; resolve(ok); };
-    list.push(finish);
-    settleWaiters.set(nodeId, list);
-    setTimeout(() => {
-      finish(false);
-      const rest = (settleWaiters.get(nodeId) ?? []).filter((w) => w !== finish);
-      if (rest.length) settleWaiters.set(nodeId, rest); else settleWaiters.delete(nodeId);
-    }, ms);
-  });
 }
 
 type StoredCanvas = { state?: { nodes?: ThoughtNode[] } };
@@ -147,10 +131,14 @@ export async function runAgentTurn(o: {
   images?: ImageAttachment[];
   model: string;
   route: AgentRoute;
+  /** the binding the run answers to (its startedAt): what the run learns lands only there */
+  startedAt?: string;
   /** the run named its session: the binding and the subscription follow */
   onSession: (session: { runtime: AgentRuntime; sessionId: string | null; sessionFile: string | null; cwd: string; effort?: string; preset?: string }) => void;
 }): Promise<RunEnd> {
   const { nodeId } = o;
+  // the run's last words, should they come after its stream closed, still land
+  watchHostRuns();
   controllers.get(nodeId)?.abort();
   const controller = new AbortController();
   controllers.set(nodeId, controller);
@@ -159,6 +147,10 @@ export async function runAgentTurn(o: {
     text: '', reasoning: '', trace: [], approvals: [], decided: [],
   } } }));
   const mine = () => controllers.get(nodeId) === controller;
+  // what the run learns goes onto its own binding: never onto a newer run's
+  const patchOwn = (fn: (run: AgentRunBinding) => AgentRunBinding) =>
+    patchBinding(o.canvasId, nodeId, (run) => (!o.startedAt || run.startedAt === o.startedAt ? fn(run) : run));
+  let last: { turnId?: string; held?: boolean } = {};
   // stream frames arrive fast: the overlay commits at most every ~100ms
   let latest: { text?: string; reasoning?: string } | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -194,7 +186,15 @@ export async function runAgentTurn(o: {
         });
       },
       onAgentSession: (session) => { if (mine()) o.onSession(session); },
-      onAgentChanges: (changes) => { if (mine()) void patchBinding(o.canvasId, nodeId, (run) => ({ ...run, changes })); },
+      // the run's id on its host, and the host's boot: what a page that
+      // misses the run's events asks the host about
+      onAgentRun: ({ runId }) => { if (mine()) void hostBootId().then((bootId: string | null) => patchOwn((run) => ({ ...run, runId, ...(bootId ? { bootId } : {}) }))); },
+      onAgentTurn: (turnId) => { if (mine()) void patchOwn((run) => ({ ...run, turnId })); },
+      onAgentEnd: (end) => { last = end; },
+      // onto the binding for the sync to write with the turn — or, the turn
+      // written before the run's last word (the file can close it first),
+      // straight onto the turn's steps
+      onAgentChanges: (changes) => { if (mine()) void patchNodeOn(o.canvasId, nodeId, (d) => (d.run ? (!o.startedAt || d.run.startedAt === o.startedAt ? { run: { ...d.run, changes } } : {}) : lateFootprint(d, changes) ?? {})); },
       onApproval: (request) => {
         if (!mine()) return;
         const askedAt = new Date().toISOString();
@@ -231,8 +231,9 @@ export async function runAgentTurn(o: {
       controllers.delete(nodeId);
       patchOverlay(nodeId, (r) => ({ ...r, ended: true, approvals: [] }));
       clearQuestionNotice(nodeId);
-      // the file holds all the run will write
-      void patchBinding(o.canvasId, nodeId, (run) => ({ ...run, endedAt: new Date().toISOString() }));
+      // over, with its turn and whether the file held all of it — on the
+      // binding before anyone reads the file for it
+      await patchOwn((run) => ({ ...run, endedAt: new Date().toISOString(), ...(last.turnId ? { turnId: last.turnId } : {}), ...(last.held !== undefined ? { held: last.held } : {}) }));
     }
   }
 }

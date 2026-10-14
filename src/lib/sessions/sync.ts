@@ -9,6 +9,17 @@
 //
 // A canvas out of view is not written: its sessions catch up when it is in
 // view again. Appending and mounting never move an existing node.
+//
+// One sync of a session at a time (lib/sessions/serial), each from the file
+// as it stands when its turn comes: syncs started by the run, the watcher,
+// a recheck or an arrival never interleave, and none applies an older read
+// over a newer one. What a write may do to a node is lib/sessions/writes.
+//
+// Nothing here is decided by how long anything took. A canvas run's turn is
+// the one the run named (its `turn`), written once the run is over — its
+// host says so (lib/sessions/host-runs) — from the file, which then holds
+// all of it. Only a run from before runs named their turns is still found by
+// its question's wording and closed by the file.
 
 import { makeNode } from '../import-chat';
 import { useStore } from '../../store';
@@ -26,14 +37,12 @@ import { pruneHighlights } from '../highlight-match';
 import { t } from '../../i18n';
 import { legacyTaken, planSync, unitIds, type Binding } from './plan';
 import { readSession, type FileLoc, type SessionSnapshot } from './read';
-import type { AgentRunBinding, AgentRuntime, AgentStep, ThoughtEdge, ThoughtNode } from '../../types';
+import { underSession } from './serial';
+import { fsFootprint, refreshedTurn, sameRun, withTurnVersion } from './writes';
+import type { AgentRunBinding, AgentRuntime, ThoughtEdge, ThoughtNode } from '../../types';
 import type { ImportableConversation } from '../import-chat';
 
 const APPEND_GAP = 190;
-/** A session file quiet this long holds all its open turn will get (a run killed mid-turn writes no end). */
-const QUIET_MS = 60_000;
-/** A run over this long whose turn the file never showed: it is not coming. */
-const GIVE_UP_MS = 10 * 60_000;
 
 export type SyncResult =
   | { kind: 'opened' } // nothing new
@@ -68,53 +77,20 @@ export function placeSegment(
   return { moved, edges };
 }
 
-/** The runs on the canvas in view waiting for a turn of this session. */
+/** The runs on the canvas in view waiting for a turn of this session. A run
+ *  on a host that records runs is over when the host says so (its last
+ *  event, or its record); one from before, when this page saw its end or
+ *  does not run it. */
 function bindingsFor(nodes: ThoughtNode[], runner: string, sessionId: string): (Binding & { run: AgentRunBinding })[] {
   return nodes
     .filter((n) => n.data.run && n.data.run.runtime === runner && n.data.run.sessionId === sessionId)
-    .map((n) => ({ nodeId: n.id, question: n.data.run!.question, afterTurnId: n.data.run!.afterTurnId, turnId: n.data.run!.turnId, ended: !!n.data.run!.endedAt || !agentRunLive(n.id), run: n.data.run! }))
+    .map((n) => {
+      const run = n.data.run!;
+      // a run on a host that records runs: it names its turn, the host says when it is over
+      const exact = !!run.runId && !!run.bootId;
+      return { nodeId: n.id, question: run.question, afterTurnId: run.afterTurnId, turnId: run.turnId, exact, ended: !!run.endedAt || (!exact && !agentRunLive(n.id)), run };
+    })
     .sort((a, b) => a.run.startedAt.localeCompare(b.run.startedAt));
-}
-
-/** One step naming the files the file system saw change during the turn
- *  that the tools did not already declare — absolute paths, op "write",
- *  like any footprint. */
-export function fsFootprint(
-  cwd: string,
-  changes: AgentRunBinding['changes'],
-  steps: AgentStep[],
-): AgentStep | null {
-  const ch = changes;
-  if (!ch) return null;
-  const declared = new Set<string>();
-  for (const a of steps) for (const p of a.paths ?? []) declared.add(p.startsWith('/') ? p : `${cwd.replace(/\/$/, '')}/${p}`);
-  const changed = [...ch.changed, ...ch.added].filter((p) => !declared.has(p));
-  const removed = ch.removed.filter((p) => !declared.has(p));
-  if (changed.length === 0 && removed.length === 0 && !ch.truncated) return null;
-  const rel = (p: string) => (p.startsWith(cwd) ? p.slice(cwd.length).replace(/^\//, '') : p);
-  const lines: string[] = [];
-  if (changed.length) lines.push('Changed on disk during this turn (seen by the file system, not declared by a tool):', ...changed.map((p) => '- ' + rel(p)));
-  if (removed.length) lines.push('Removed:', ...removed.map((p) => '- ' + rel(p)));
-  if (ch.truncated) lines.push('(the directory was too large to scan completely)');
-  return { id: `fs-${Date.now().toString(36)}`, tool: 'fs-changes', op: 'write', call: '', result: lines.join('\n'), paths: [...changed, ...removed] };
-}
-
-/** Whether a session file has been quiet long enough that its open turn is all it will be. */
-async function fileQuiet(loc: FileLoc | null): Promise<boolean> {
-  if (!loc || !window.desktopSessions) return true;
-  const listed = (await window.desktopSessions.list(loc.rootKey).catch(() => [])).find((f) => f.rel === loc.rel);
-  if (!listed) return true;
-  if (listed.live === false) return true; // no host holds the session: nothing more is coming
-  return Date.now() - listed.mtime >= QUIET_MS;
-}
-
-const rechecks = new Map<string, ReturnType<typeof setTimeout>>();
-/** Read a file again later: a turn the canvas waits for is not over, and the
- *  file may not change again to say so. */
-function recheckLater(loc: FileLoc): void {
-  const key = `${loc.rootKey}|${loc.rel}`;
-  if (rechecks.has(key)) return;
-  rechecks.set(key, setTimeout(() => { rechecks.delete(key); void syncFile(loc, { background: true }); }, QUIET_MS / 2));
 }
 
 /** A turn the canvas ran and that is over in the file: its answer as the
@@ -129,21 +105,9 @@ function settledData(n: ThoughtNode, fresh: ThoughtNode, run: AgentRunBinding, g
   const ranOn = run.model ?? (config ? matchEntry(run.runtime, config) : undefined);
   const overlay = overlayOf(n.id);
   const failText = new Set([t('node.failedPlaceholder'), t('node.emptyResponse'), t('node.stoppedPlaceholder')]);
-  const kept = run.append
-    ? d.responses.map((r, i) => ({ r, q: d.questions?.[i], by: d.generatedBy?.[i], rs: d.reasonings?.[i], at: d.generatedAts?.[i], ed: d.editedAts?.[i], gw: d.gatewaySearches?.[i], ef: d.generatedEfforts?.[i] })).filter(({ r }) => r && !failText.has(r))
-    : [];
-  const responses = [...kept.map((k) => k.r), response];
   return {
     ...d,
-    response, responses,
-    questions: [...kept.map((k) => k.q ?? d.question), d.question],
-    generatedBy: [...kept.map((k) => k.by), ranOn],
-    generatedEfforts: [...kept.map((k) => k.ef), config?.effort],
-    generatedAts: [...kept.map((k) => k.at), now],
-    editedAts: [...kept.map((k) => k.ed), undefined],
-    gatewaySearches: [...kept.map((k) => k.gw), undefined],
-    reasonings: [...kept.map((k) => k.rs), overlay?.reasoning || undefined],
-    responseIndex: responses.length - 1,
+    ...withTurnVersion(d, { response, by: ranOn, effort: config?.effort, at: now, reasoning: overlay?.reasoning || undefined }, run, failText),
     approvals: overlay?.decided.length ? [...(d.approvals ?? []), ...overlay.decided] : d.approvals,
     highlights: pruneHighlights(d.highlights, response),
     isLoading: false, generationFailed: undefined, restreaming: undefined, reasoning: undefined,
@@ -161,11 +125,24 @@ function settledData(n: ThoughtNode, fresh: ThoughtNode, run: AgentRunBinding, g
  * a sync that finds nothing new leaves the camera where it is, and a
  * session subscribed by another canvas waits for that canvas.
  */
-export async function syncConversation(
+export function syncConversation(
   conv: ImportableConversation,
   snapshot: SessionSnapshot | null,
   hit: { project: ProjectMeta; sub: Subscription },
   opts: { background?: boolean } = {},
+): Promise<SyncResult> {
+  return underSession(conv.source, conv.sessionId!, async () => {
+    // the file as it stands now: a read that waited for an earlier sync is behind it
+    const now = snapshot ? await readSession(snapshot.file).catch(() => null) : null;
+    return applySync(now?.conv ?? conv, now?.snapshot ?? snapshot, hit, opts);
+  });
+}
+
+async function applySync(
+  conv: ImportableConversation,
+  snapshot: SessionSnapshot | null,
+  hit: { project: ProjectMeta; sub: Subscription },
+  opts: { background?: boolean },
 ): Promise<SyncResult> {
   const sessionId = conv.sessionId!;
   if (useProjects.getState().activeId !== hit.project.id) {
@@ -191,18 +168,20 @@ export async function syncConversation(
   const allComplete = !snapshot;
 
   // ── the canvas's own runs: their turns land in their nodes ──
-  let waiting = false;
   const settled: string[] = [];
   for (const b of plan.bound) {
     const binding = bindings.find((x) => x.nodeId === b.nodeId)!;
+    // the node still waits for THIS run, as it stands now: a turn already
+    // written, a binding a newer run replaced, take nothing
+    const run = useStore.getState().nodes.find((n) => n.id === b.nodeId)?.data.run;
+    if (!run || !sameRun(run, binding.run)) continue;
     const fd = b.fresh.data;
-    const live = agentRunLive(b.nodeId);
-    // over: the file closed the turn, the run's last event came, or (no run
-    // here) the file has gone quiet
-    const over = allComplete || complete.has(b.unit) || !!binding.run.endedAt || (!live && await fileQuiet(snapshot?.file ?? null));
+    // over: the run is (its host said so — the file then holds the whole
+    // turn); a run from before runs named their turns, also when the file closed it
+    const over = allComplete || !!run.endedAt || (!binding.exact && complete.has(b.unit));
     const cwd = fd.importSource?.config?.cwd ?? fd.importSource?.cwd ?? '';
     const steps = fd.steps ?? [];
-    const fsStep = over ? fsFootprint(cwd, binding.run.changes, steps) : null;
+    const fsStep = over ? fsFootprint(cwd, run.changes, steps) : null;
     const done = over && !!fd.response.trim();
     // the runtime's own error, not an answer: recorded, with the retry a failed run gets
     const failed = !!snapshot?.turns.find((x) => x.id === b.unit)?.failed;
@@ -219,16 +198,15 @@ export async function syncConversation(
             includedStepIds: undefined,
           };
           if (done) {
-            const data = settledData({ ...n, data: withTurn }, b.fresh, binding.run, graph);
+            const data = settledData({ ...n, data: withTurn }, b.fresh, run, graph);
             return { ...n, data: failed ? { ...data, generationFailed: true } : data };
           }
           // still being written: what the file holds so far (the overlay shows the live stream)
-          return { ...n, data: { ...withTurn, response: fd.response || n.data.response, run: { ...binding.run, turnId: b.unit } } };
+          return { ...n, data: { ...withTurn, response: fd.response || n.data.response, run: { ...run, turnId: b.unit } } };
         }),
       };
     });
     if (done) settled.push(b.nodeId);
-    else if (!live) waiting = true;
   }
   if (settled.length) {
     const st = useStore.getState();
@@ -238,11 +216,22 @@ export async function syncConversation(
       noteSettled(id);
     }
   }
-  if (waiting && snapshot) recheckLater(snapshot.file);
-  // runs long over whose turn never showed up let go of their binding
+  // runs over whose turn the file does not show, with no run of this page
+  // to write its own account: the node says the run failed, and keeps its
+  // binding — the turn, should the file show it after all, takes that place
   const found = new Set(plan.bound.map((b) => b.nodeId));
-  const lost = bindings.filter((b) => !found.has(b.nodeId) && b.run.endedAt && Date.now() - Date.parse(b.run.endedAt) > GIVE_UP_MS).map((b) => b.nodeId);
-  if (lost.length) useStore.setState((st) => ({ nodes: st.nodes.map((n) => (lost.includes(n.id) ? { ...n, data: { ...n.data, run: undefined } } : n)) }));
+  const unanswered = bindings.filter((b) => b.exact && !found.has(b.nodeId) && b.run.endedAt && b.run.held !== undefined && !b.run.standIn && !overlayOf(b.nodeId)).map((b) => b.nodeId);
+  if (unanswered.length) {
+    const failText = new Set([t('node.failedPlaceholder'), t('node.emptyResponse'), t('node.stoppedPlaceholder')]);
+    const now = new Date().toISOString();
+    useStore.setState((st) => ({
+      nodes: st.nodes.map((n) => {
+        if (!unanswered.includes(n.id) || !n.data.run) return n;
+        const run = n.data.run;
+        return { ...n, data: { ...n.data, ...withTurnVersion(n.data, { response: t('node.failedPlaceholder'), by: run.model, at: now }, { append: true }, failText), generationFailed: true, isLoading: false, run: { ...run, standIn: true } } };
+      }),
+    }));
+  }
 
   // ── turns still being written, runs whose report came late ──
   let refreshed = false;
@@ -266,9 +255,11 @@ export async function syncConversation(
         ...n,
         data: {
           ...n.data,
-          ...(textChanged ? { question: fd.question, response: fd.response, responses: fd.responses, responseIndex: fd.responseIndex, tokenCount: fd.tokenCount } : {}),
+          // the turn's own version, not the node's others (a canvas run may have appended it beside them)
+          ...(textChanged ? refreshedTurn(n.data, fd) : {}),
           attachments,
-          ...(stepsGrew ? { steps: fd.steps } : {}),
+          // what the file system saw is the canvas's, not the file's: it stays
+          ...(stepsGrew ? { steps: [...(fd.steps ?? []), ...(n.data.steps ?? []).filter((x) => x.tool === 'fs-changes')] } : {}),
           importSource: { ...fd.importSource!, ...(n.data.importSource?.subagent ? { subagent: n.data.importSource.subagent } : {}) },
           source: fd.source,
         },
@@ -400,9 +391,13 @@ export async function syncSession(runtime: AgentRuntime, sessionId: string): Pro
   return loc ? syncFile(loc, { background: true }) : null;
 }
 
-/** On arrival (a canvas switched to, a page opened): runs this canvas left
- *  waiting for their turns read them from their files. */
+/** On arrival (a canvas switched to, a page opened) and when the host's feed
+ *  is back: runs this canvas left waiting learn from the host what became
+ *  of them, and read their turns from their files. */
 export async function syncWaitingRuns(): Promise<void> {
+  const { reconcileHostRuns, watchHostRuns } = await import('./host-runs');
+  watchHostRuns();
+  await reconcileHostRuns();
   const seen = new Set<string>();
   for (const n of useStore.getState().nodes) {
     const r = n.data.run;

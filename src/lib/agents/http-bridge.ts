@@ -35,6 +35,13 @@ export async function installAgentsHttpBridge(apiBase: string): Promise<boolean>
   };
 
   const listeners: ((p: AgentEvent) => void)[] = [];
+  const reopenListeners: (() => void)[] = [];
+  let feedOpenedBefore = false;
+  /** The feed is up: after a drop, what was sent meanwhile is missed — say so. */
+  const feedOpened = () => {
+    if (feedOpenedBefore) for (const cb of reopenListeners) { try { cb(); } catch { /* a listener's own failure */ } }
+    feedOpenedBefore = true;
+  };
   const dispatch = (data: unknown) => {
     if (typeof data !== 'string') return;
     try { const p = JSON.parse(data) as AgentEvent; for (const cb of listeners) cb(p); } catch { /* a heartbeat */ }
@@ -68,7 +75,7 @@ export async function installAgentsHttpBridge(apiBase: string): Promise<boolean>
         const sock = new WebSocket(socketUrl());
         ws = sock;
         let opened = false;
-        sock.onopen = () => { opened = true; socketEverOpened = true; retries = 0; resolve(); };
+        sock.onopen = () => { opened = true; socketEverOpened = true; retries = 0; feedOpened(); resolve(); };
         sock.onmessage = (ev) => dispatch(ev.data);
         sock.onclose = () => {
           if (ws !== sock) return;
@@ -81,7 +88,7 @@ export async function installAgentsHttpBridge(apiBase: string): Promise<boolean>
       }
       const src = new EventSource(api + '/agents/events');
       es = src;
-      src.onopen = () => { retries = 0; resolve(); };
+      src.onopen = () => { retries = 0; feedOpened(); resolve(); };
       src.onmessage = (ev) => dispatch(ev.data);
       // a dropped stream is retried by EventSource itself; a refused one is
       // closed for good — a new one after a pause, or no event ever arrives again
@@ -106,6 +113,12 @@ export async function installAgentsHttpBridge(apiBase: string): Promise<boolean>
     },
     run: async (request) => { await feedUp(); const r = await post<{ runId: string }>('/agents/run', request); return r.runId; },
     abort: async (runId) => (await post<{ ok: boolean }>('/agents/abort', { runId })).ok,
+    runs: async () => {
+      const r = await hostFetch(api + '/agents/runs', { credentials: 'same-origin' });
+      if (!r.ok) throw new Error(`runs: ${r.status}`);
+      return r.json();
+    },
+    onFeedReopen: (cb) => { reopenListeners.push(cb); },
     answer: async (runId, requestId, response) => (await post<{ ok: boolean }>('/agents/answer', { runId, requestId, response })).ok,
     workspace: async (canvasId) => (await post<{ dir: string }>('/agents/workspace', { canvasId })).dir,
     pickCwd: async () => (dirPicker === 'native' ? (await post<{ path: string | null }>('/dir-picker/pick', {})).path : null),

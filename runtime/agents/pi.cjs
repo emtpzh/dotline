@@ -10,6 +10,10 @@
 // (`switch_session` to a file), or branched (`fork` at an entry of the
 // current session). Runs on one process are serialized; a process idle for
 // a while is closed; a process that dies is replaced on the next run.
+//
+// The turn is named (`turn`) by the session entry carrying the prompt this
+// run sent, once Pi has written it; `run_end` goes out once the file holds
+// the turn's last answer (an assistant message that stops for good).
 
 'use strict';
 
@@ -18,6 +22,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const { randomUUID } = require('node:crypto');
+const { sizeOf, linesFrom, samePrompt, until } = require('./turn-file.cjs');
 
 const fsp = fs.promises;
 const IDLE_MS = Number(process.env.TD_AGENT_IDLE_MS) || 10 * 60 * 1000; // a Pi process (session or catalog) retires after this long without a listener
@@ -177,6 +182,21 @@ const { snapshotDir, diffSnapshots } = require('./fs-diff.cjs');
 const textOf = (message) => (Array.isArray(message?.content) ? message.content : [])
   .filter((b) => b && b.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('');
 
+/** The entry carrying `prompt` (the last such user message after byte
+ *  `from`) and whether the file holds the turn to its end: an assistant
+ *  message after it that stops for good, not to call a tool. */
+async function piTurnIn(file, from, prompt) {
+  let turnId = null;
+  let held = false;
+  for (const e of await linesFrom(file, from)) {
+    if (e?.type !== 'message' || typeof e.id !== 'string') continue;
+    const m = e.message ?? {};
+    if (m.role === 'user' && samePrompt(m.content, prompt)) { turnId = e.id; held = false; }
+    else if (turnId && m.role === 'assistant' && m.stopReason && m.stopReason !== 'toolUse') held = true;
+  }
+  return { turnId, held };
+}
+
 /**
  * How to branch a Pi session file so the new session ends exactly with one
  * turn (its entry ids, in file order): Pi's `fork` cuts BEFORE a user
@@ -317,8 +337,19 @@ function createPiRuntime({ log } = {}) {
           proc.send({ type: 'abort' }).catch(() => {});
           setTimeout(() => ended('idle'), 5000);
         }, 15000);
+        // the session entry carrying this run's prompt, looked for as the turn goes until found
+        const mine = { file: null, from: 0, prompt: null, turnId: null, looking: false };
+        const findTurn = async () => {
+          if (mine.turnId || mine.looking || !mine.file || mine.prompt === null) return;
+          mine.looking = true;
+          try {
+            const t = await piTurnIn(mine.file, mine.from, mine.prompt);
+            if (t.turnId && !mine.turnId) { mine.turnId = t.turnId; emit({ type: 'turn', turnId: t.turnId }); }
+          } finally { mine.looking = false; }
+        };
         proc.listener = (event) => {
           lastEvent = Date.now();
+          if (event.type === 'message_end') void findTurn();
           if (event.type === 'question') waitingOnPerson = true;
           if (event.type === 'question_answered') waitingOnPerson = false;
           if (event.type === 'message_end' && event.message?.role === 'assistant') text = textOf(event.message) || text;
@@ -352,14 +383,23 @@ function createPiRuntime({ log } = {}) {
           const level = req.thinkingLevel || (req.effort && (await levelsOf(await bin())).includes(req.effort) ? req.effort : null);
           if (level) await proc.send({ type: 'set_thinking_level', level });
           const state = await proc.send({ type: 'get_state' });
+          // where this run's lines begin in the session file
+          mine.file = typeof state?.sessionFile === 'string' && state.sessionFile ? state.sessionFile : null;
+          mine.from = await sizeOf(mine.file);
           emit({ type: 'session', effort: typeof state?.thinkingLevel === 'string' ? state.thinkingLevel : null, sessionId: state?.sessionId ?? null, sessionFile: state?.sessionFile ?? null, model: state?.model ? { provider: state.model.provider, id: state.model.id, name: state.model.name } : null, cwd });
           const before = await snapshotDir(cwd).catch(() => null);
           if (aborter.aborted) { ended('aborted'); }
           else {
             // the prompt's response may follow the whole turn; the end is read from events
+            mine.prompt = prompt;
             proc.send({ type: 'prompt', message: prompt, ...(Array.isArray(req.images) && req.images.length ? { images: req.images } : {}) }, 24 * 60 * 60 * 1000).catch((e) => { emit({ type: 'run_error', message: e.message }); ended('error'); });
           }
           const how = await finished;
+          // the file holding the turn to its last answer, or what it holds when the watchdog fires
+          const turn = mine.file && mine.prompt !== null
+            ? (await until(async () => { const t = await piTurnIn(mine.file, mine.from, mine.prompt); return t.held ? t : null; })) ?? await piTurnIn(mine.file, mine.from, mine.prompt)
+            : { turnId: null, held: false };
+          if (turn.turnId && !mine.turnId) { mine.turnId = turn.turnId; emit({ type: 'turn', turnId: turn.turnId }); }
           if (before) {
             const after = await snapshotDir(cwd).catch(() => null);
             if (after) {
@@ -367,10 +407,10 @@ function createPiRuntime({ log } = {}) {
               if (d.changed.length || d.added.length || d.removed.length || d.truncated) emit({ type: 'fs_changes', ...d });
             }
           }
-          emit({ type: 'run_end', text, how });
+          emit({ type: 'run_end', text, how, ...(mine.turnId ? { turnId: mine.turnId } : {}), held: turn.held });
         } catch (e) {
           emit({ type: 'run_error', message: e instanceof Error ? e.message : String(e) });
-          emit({ type: 'run_end', text, how: 'error' });
+          emit({ type: 'run_end', text, how: 'error', ...(mine.turnId ? { turnId: mine.turnId } : {}), held: false });
         } finally {
           clearInterval(watchdog);
           proc.withdrawDialogs();
@@ -415,4 +455,4 @@ function createPiRuntime({ log } = {}) {
   };
 }
 
-module.exports = { createPiRuntime, findPi, forkPlan };
+module.exports = { createPiRuntime, findPi, forkPlan, piTurnIn };
