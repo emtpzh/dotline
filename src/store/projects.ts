@@ -7,6 +7,7 @@ import { buildRuleOutRuleIn } from '../lib/paradigms/rule-out-rule-in';
 import { toast } from '../lib/ui-store';
 import { t, fmt } from '../i18n';
 import { setLedgerSource } from '../lib/agents/continuity';
+import { normDir } from '../lib/local-path';
 
 // Project layer: each canvas persists under its own IndexedDB key; this
 // module owns the metadata list and the switching choreography.
@@ -344,7 +345,7 @@ export async function createProject(name = 'Untitled', kind: 'chat' | 'paradigm'
 
 export async function setProjectAgentCwd(id: string, cwd: string | undefined): Promise<void> {
   useProjects.setState((s) => ({
-    projects: s.projects.map((p) => (p.id === id ? { ...p, agentCwd: cwd } : p)),
+    projects: s.projects.map((p) => (p.id === id ? { ...p, agentCwd: cwd && normDir(cwd) } : p)),
   }));
   await saveMeta();
 }

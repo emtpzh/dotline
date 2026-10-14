@@ -32,6 +32,7 @@ import { continuity, linkOf, sessionOf, type SessionLink } from './continuity';
 export { AGENT_RUNTIMES, LIVE_RUNTIMES, AGENT_PROVIDER, runtimeOf, isAgentModel, agentTarget, type RuntimeCaps } from './runtimes';
 import { AGENT_RUNTIMES, LIVE_RUNTIMES, AGENT_PROVIDER, runtimeOf, agentTarget } from './runtimes';
 import { intentOf, lineCwd, inheritCwd } from '../run-intent';
+import { normDir } from '../local-path';
 
 /** Every live runtime's configured models as picker entries; a runtime
  *  that is not installed contributes nothing. */
@@ -93,7 +94,7 @@ export async function resolveAgentCwd(runtime: AgentRuntime | null = runtimeOf(u
     const { useProjects } = await import('../../store/projects');
     const { projects, activeId } = useProjects.getState();
     const meta = projects.find((p) => p.id === activeId);
-    if (meta?.agentCwd) return { cwd: meta.agentCwd, kind: 'chosen' };
+    if (meta?.agentCwd) return { cwd: normDir(meta.agentCwd), kind: 'chosen' };
     const best = majorityCwd(useStore.getState().nodes);
     if (runtime && !AGENT_RUNTIMES[runtime].caps.workspace) {
       if (best) return { cwd: best, kind: 'mirrored' };

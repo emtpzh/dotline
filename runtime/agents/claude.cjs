@@ -125,9 +125,13 @@ function createClaudeRuntime({ log } = {}) {
     },
 
     async run(req, onEvent) {
-      const cwd = String(req.cwd || '');
-      if (!cwd || !path.isAbsolute(cwd)) throw new Error('run needs an absolute cwd');
-      await fsp.mkdir(cwd, { recursive: true });
+      const asked = String(req.cwd || '');
+      if (!asked || !path.isAbsolute(asked)) throw new Error('run needs an absolute cwd');
+      await fsp.mkdir(asked, { recursive: true });
+      // the folder's one spelling (no trailing slash, links resolved): the
+      // one the CLI writes into its session file, and the one the canvas
+      // compares a follow-up's directory against
+      const cwd = await fsp.realpath(asked);
       const b = await bin();
       if (!b) throw new Error('claude is not installed (no `claude` on PATH or in the usual places)');
       const runId = randomUUID();

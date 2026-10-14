@@ -4,7 +4,7 @@ import { upstreamFingerprint } from './context-builder';
 import { pruneHighlights } from '../lib/highlight-match';
 import { llmCall, llmCallStream, type ContextMessage, type ImageAttachment } from '../lib/api';
 import { agentOutbound, syncAgentTurn, type AgentRoute } from '../lib/agents/agent-runtime';
-import { abortAgentRun, awaitSettle, clearOverlay, runAgentTurn, patchBinding } from '../lib/agents/runs';
+import { abortAgentRun, awaitSettle, clearOverlay, runAgentTurn, patchNodeOn } from '../lib/agents/runs';
 import { noticeTurnEnded } from '../lib/agents/offscreen';
 import { lineModel } from '../lib/run-intent';
 import { countTokens, activeSummary } from '../utils';
@@ -450,7 +450,14 @@ async function runAgentGeneration(set: Set, get: Get, nodeId: string, o: {
     onSession: (session) => {
       if (!session.sessionId) return;
       sessionId = session.sessionId;
-      void patchBinding(canvasId, nodeId, (run) => (run.sessionId ? run : { ...run, sessionId: session.sessionId! }));
+      // with the session, the directory as the runtime settled it (links
+      // resolved, its default filled in): the spelling its session file
+      // records, so a follow-up inheriting it stays in the session's directory
+      const ran = session.cwd;
+      void patchNodeOn(canvasId, nodeId, (d) => ({
+        ...(d.run && !d.run.sessionId ? { run: { ...d.run, sessionId: session.sessionId! } } : {}),
+        ...(ran && d.cwd !== ran ? { cwd: ran } : {}),
+      }));
       // a session the run opened: the canvas follows it from now on — turns
       // added to it later, from a terminal or a chat, grow here
       if (!o.route.continue) void import('../lib/sessions/subscribe').then((m) => m.followRunSession(session.runtime, session.sessionId!, canvasId)).catch(() => {});
@@ -475,7 +482,6 @@ async function runAgentGeneration(set: Set, get: Get, nodeId: string, o: {
       get().pushHistory();
       if (!failed && end.how === 'end') o.afterAnswer(text);
     } else if (!fileToRead) {
-      const { patchNodeOn } = await import('../lib/agents/runs');
       await patchNodeOn(canvasId, nodeId, (d) => ({ response: text, responses: [text], questions: [d.question], generatedBy: [o.model], responseIndex: 0, isLoading: false, generationFailed: failed || undefined, run: undefined }));
       clearOverlay(nodeId);
     }

@@ -6,6 +6,7 @@ import type { ThoughtData } from '../../types';
 import { runtimeOf } from '../../lib/agents/runtimes';
 import { continueInTerminal, terminalTarget } from '../../lib/agents/terminal';
 import { turnOf } from '../../lib/sessions/turn';
+import { normDir } from '../../lib/local-path';
 import { useStore } from '../../store';
 import { Button } from '../ui/button';
 
@@ -41,7 +42,7 @@ export default function AgentSessionLine({ data, nodeId }: { data: ThoughtData; 
   // the pin is offered only when this directory is not already the canvas's:
   // neither the chosen one nor the canvas's own workspace by default
   const isOwnWorkspace = !chosen && !!activeId && cwd.endsWith(`/workspaces/${activeId}`);
-  const canPin = !!window.desktopAgents && !!activeId && chosen !== cwd && !isOwnWorkspace;
+  const canPin = !!window.desktopAgents && !!activeId && (!chosen || normDir(chosen) !== normDir(cwd)) && !isOwnWorkspace;
   const short = cwd.split('/').filter(Boolean).slice(-2).join('/');
   const target = terminalTarget(data);
 
