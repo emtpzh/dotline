@@ -41,3 +41,7 @@ export async function openLocalPath(path: string): Promise<void> {
 }
 
 export const basenameOf = (path: string): string => path.split('/').filter(Boolean).pop() ?? path;
+
+/** One spelling per directory: a typed or picked path may keep its trailing
+ *  slash, a session file records the same folder without one. */
+export const normDir = (dir: string): string => dir.replace(/(.)\/+$/, '$1');

@@ -12,6 +12,7 @@ import type { AgentRuntime, ThoughtData, ThoughtEdge, ThoughtNode } from '../../
 import { AGENT_RUNTIMES } from './runtimes';
 import { whyNotPristine } from './pristine';
 import { turnOf } from '../sessions/turn';
+import { normDir } from '../local-path';
 
 export type SessionBreak =
   | 'runtime' | 'cwd' | 'role' | 'material' | 'reference' | 'merge'
@@ -70,7 +71,8 @@ function turnNumber(node: ThoughtNode, sessionId: string, byId: Map<string, Thou
 /**
  * Where the turn of `nodeId` would run, given the runtime it runs on (null:
  * an ordinary model) and its directory (undefined: whatever it inherits,
- * which is the parent's session directory). null when no agent session sits
+ * which is the parent's session directory; '': the runtime's own default,
+ * which a continued session settles as its own). null when no agent session sits
  * above it — an ordinary chain has nothing to continue or to break.
  */
 export function continuity(
@@ -93,7 +95,7 @@ export function continuity(
   const parentId = parent.id;
   const broken = (reason: SessionBreak, extra: { about?: string; detail?: string } = {}): Continuity => ({ kind: 'new', parentId, reason, ...extra });
   if (runtime !== session.runtime) return broken('runtime', runtime ? { detail: AGENT_RUNTIMES[runtime].label } : {});
-  if (cwd !== undefined && session.cwd && cwd !== session.cwd) return broken('cwd', { detail: cwd });
+  if (cwd && session.cwd && normDir(cwd) !== normDir(session.cwd)) return broken('cwd', { detail: cwd });
   if (parents.length > 1) return broken('merge');
   const why = whyNotPristine(nodeId, nodes, edges);
   if (why) return broken(why.reason, 'nodeId' in why ? { about: why.nodeId } : {});
