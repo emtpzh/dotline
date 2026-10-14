@@ -33,6 +33,16 @@ const DOCS = DOCS_URL;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.4.22',
+    date: '2026-10-15',
+    announce: false,
+    lead: {
+      zh: '画布切换和会话地图重新整理。左上角的画布切换改回下拉面板：可以搜索、用方向键和回车切换，每张画布一行，新建画布固定在底部，归档后可以在提示里撤销，已归档的画布需要时再展开。会话地图里单击一行只是勾选，点底部按钮才会添加到新画布或选定的画布，不会再一点就写进当前画布；单个会话加到新画布时，会回到它原来的画布或挂回出发的节点。会话按项目目录分组，新会话和有更新的会话有标记。同步会话的画布在名称前显示终端图标，在这样的画布上打开会话地图会直接定位到对应会话。另外，从画布打开的会话里，即使上一轮在打开前改过，追问也会留在这个会话里。',
+      en: 'The canvas switcher and the session map, reworked. The switcher in the top-left is a dropdown again: search, switch with the arrow keys and Enter, one line per canvas, New canvas pinned at the bottom, archiving undoable from its notice, and archived canvases shown on request. In the session map a click only picks a session; the footer button adds the picks to a new canvas or one you choose, so nothing lands on the current canvas by a stray click, and a single session added to a new canvas returns to its earlier canvas or mounts back at the node it left from. Sessions are grouped by project folder, with new and updated ones marked. A canvas that follows a session shows a terminal icon by its name, and opening the session map there lands on that session. A follow-up in a session the canvas opened also stays in that session when the turn above it was edited before it opened.',
+    },
+    items: [],
+  },
+  {
     version: '0.4.21',
     date: '2026-10-13',
     announce: false,
