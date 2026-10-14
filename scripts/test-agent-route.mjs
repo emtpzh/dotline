@@ -4,7 +4,7 @@
 // the session recorded. Bundled for node the way test-layout.mjs does it.
 //
 // Run: node scripts/test-agent-route.mjs
-import { execFileSync } from 'node:child_process';
+import { build as esbuild } from 'esbuild';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -15,17 +15,27 @@ import assert from 'node:assert/strict';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const tmp = mkdtempSync(join(tmpdir(), 'tdag-route-'));
 after(() => rmSync(tmp, { recursive: true, force: true }));
-const build = (name) => {
+// continuity reaches local-path, whose toast and strings are page stores that
+// read the browser at load: the rules under test never call them
+const pageStores = {
+  name: 'page-stores',
+  setup(b) {
+    b.onResolve({ filter: /\/(ui-store|i18n)$/ }, (a) => ({ path: a.path, namespace: 'stub' }));
+    b.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: 'export const toast = () => {}; export const t = (k) => k; export const fmt = (k) => k;', loader: 'js' }));
+  },
+};
+const build = async (name, dir = 'lib/agents') => {
   const out = join(tmp, `${name}.mjs`);
-  execFileSync(join(ROOT, 'node_modules/.bin/esbuild'), [
-    join(ROOT, `src/lib/agents/${name}.ts`), '--bundle', '--format=esm', '--platform=node',
-    `--outfile=${out}`, '--define:import.meta.env.VITE_API_BASE=""', '--define:import.meta.env.DEV=false',
-  ], { stdio: ['ignore', 'ignore', 'pipe'] });
+  await esbuild({
+    entryPoints: [join(ROOT, `src/${dir}/${name}.ts`)], bundle: true, format: 'esm', platform: 'node', outfile: out,
+    logLevel: 'silent', plugins: [pageStores], define: { 'import.meta.env.VITE_API_BASE': '""', 'import.meta.env.DEV': 'false' },
+  });
   return import(pathToFileURL(out).href);
 };
 const { pristineChain } = await build('pristine');
 const { continuity } = await build('continuity');
 const { plainModelOf, sideModelOf } = await build('runtimes');
+const { upstreamFingerprint } = await build('context-builder', 'store');
 
 /** A mirrored turn: what the session recorded, and the canvas showing the same. */
 const mirror = (id, q = `q-${id}`, r = `r-${id}`, extra = {}) => ({
@@ -175,6 +185,53 @@ test('the fork counts turns of its own session only', () => {
   const nodes = [mirror('A'), mirror('B'), mirror('C'), ask('D')];
   const edges = [edge('A', 'B'), edge('B', 'C'), edge('B', 'D')];
   assert.equal(continuity('D', nodes, edges, 'pi', undefined, [{ runner: 'pi', sessionId: 's1', tailNodeId: 'C' }]).turn, 2);
+});
+
+// A session the canvas opened with its compiled text holds everything above
+// its first turn as that turn's prompt: what was changed up there before it
+// ran is in the session; what is changed after it ran is not.
+test('below a session the canvas opened, the line above it is its record while unchanged since', () => {
+  const A = mirror('A');
+  A.data.response = 'rewritten on the canvas';
+  const opened = (id, extra = {}) => mirror(id, `context…\n\nq-${id}`, undefined, { importSource: { runner: 'pi', sessionId: 's2', itemIds: [id] }, ...extra });
+  const H = opened('H', { sessionLink: { kind: 'new', reason: 'edited', about: 'A' } });
+  H.data.question = 'q-H';
+  const I = opened('I');
+  I.data.question = 'q-I';
+  const edges = [edge('A', 'H'), edge('H', 'I'), edge('I', 'D')];
+  const nodes = () => [A, H, I, ask('D')];
+  H.data.lastContextHash = upstreamFingerprint('H', nodes(), edges);
+  const s2 = [{ runner: 'pi', sessionId: 's2', tailNodeId: 'I' }];
+  const c = continuity('D', nodes(), edges, 'pi', undefined, s2);
+  assert.deepEqual([c.kind, c.sessionId, c.turn], ['continue', 's2', 3]);
+  // a material or a role over the line above went in with the opening prompt too
+  const note = { id: 'N', type: 'thought', position: { x: 0, y: 0 }, data: { question: 'repro steps', response: '', stepKind: 'note', attachments: [] } };
+  const withNote = [...nodes(), note];
+  const wired = [...edges, edge('N', 'A')];
+  H.data.lastContextHash = upstreamFingerprint('H', withNote, wired);
+  assert.equal(continuity('D', withNote, wired, 'pi', undefined, s2).kind, 'continue');
+  // changed after the session opened: the session never saw it
+  H.data.lastContextHash = upstreamFingerprint('H', nodes(), edges);
+  A.data.response = 'rewritten again';
+  const after = continuity('D', nodes(), edges, 'pi', undefined, s2);
+  assert.deepEqual([after.kind, after.reason, after.about], ['new', 'edited', 'A']);
+  // within the session the turns are still checked one by one
+  H.data.lastContextHash = upstreamFingerprint('H', nodes(), edges);
+  I.data.response = 'trimmed';
+  const inside = continuity('D', nodes(), edges, 'pi', undefined, s2);
+  assert.deepEqual([inside.reason, inside.about], ['edited', 'I']);
+});
+
+test('a forked session holds the turns it was cut from: those are checked as turns', () => {
+  const F = mirror('F', undefined, undefined, { importSource: { runner: 'pi', sessionId: 's3', itemIds: ['f'] }, sessionLink: { kind: 'fork', turn: 1 } });
+  const edges = [edge('A', 'B'), edge('B', 'F'), edge('F', 'D')];
+  const s3 = [{ runner: 'pi', sessionId: 's3', tailNodeId: 'F' }];
+  assert.equal(continuity('D', [mirror('A'), mirror('B'), F, ask('D')], edges, 'pi', undefined, s3).kind, 'continue');
+  const B = mirror('B');
+  B.data.response = 'rewritten on the canvas';
+  F.data.lastContextHash = upstreamFingerprint('F', [mirror('A'), B, F, ask('D')], edges);
+  const c = continuity('D', [mirror('A'), B, F, ask('D')], edges, 'pi', undefined, s3);
+  assert.deepEqual([c.reason, c.about], ['edited', 'B']);
 });
 
 test('a side call on a harness agent entry runs on its bare model; other ids pass through', () => {
