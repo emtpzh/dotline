@@ -45,6 +45,10 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
   const [query, setQuery] = useState('');
   const [showArchived, setShowArchived] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
+  // the row being renamed, for its menu: read when the menu closes
+  const renaming = useRef<string | null>(null);
+  const startRename = (p: ProjectMeta) => { renaming.current = p.id; setRenamingId(p.id); setRenameValue(p.name); };
+  const endRename = () => { renaming.current = null; setRenamingId(null); };
 
   const active = projects.find((p) => p.id === activeId);
   // a switcher first: the most recent canvas on top, the search narrows
@@ -117,11 +121,11 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
             e.stopPropagation();
             if (e.key === 'Enter' && !isImeComposing(e) && renameValue.trim()) {
               void renameProject(p.id, renameValue.trim());
-              setRenamingId(null);
+              endRename();
             }
-            if (e.key === 'Escape') setRenamingId(null);
+            if (e.key === 'Escape') endRename();
           }}
-          onBlur={() => setRenamingId(null)}
+          onBlur={endRename}
         />
       </div>
     );
@@ -153,8 +157,11 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
             render={<Button variant="ghost" size="icon-xs" className="absolute top-1/2 right-1.5 -translate-y-1/2 text-muted-foreground opacity-0 group-hover/row:opacity-100 group-has-data-selected/row:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100" aria-label={t('atlas.more')} />}>
             <MoreHorizontal />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => { setRenamingId(p.id); setRenameValue(p.name); }}><Pencil />{t('switcher.rename')}</DropdownMenuItem>
+          {/* the field replaces the row, menu and all: a menu closing hands
+              focus back to where it was before it opened (the search box),
+              which would take it from the field and end the rename at once */}
+          <DropdownMenuContent align="end" finalFocus={() => renaming.current !== p.id}>
+            <DropdownMenuItem onClick={() => startRename(p)}><Pencil />{t('switcher.rename')}</DropdownMenuItem>
             {p.archived
               ? <DropdownMenuItem onClick={() => void restore(p)}><ArchiveRestore />{t('switcher.restore')}</DropdownMenuItem>
               : <DropdownMenuItem title={t('switcher.archiveHint')} onClick={() => void archive(p)} data-archive-canvas><Archive />{t('switcher.archive')}</DropdownMenuItem>}
@@ -182,7 +189,7 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
     // the content palette); it is the cluster's one shrinkable part, so a
     // tight row truncates the canvas name before anything overlaps
     <div className="relative min-w-0">
-      <Popover open={open} onOpenChange={(next) => { setOpen(next); if (next) { setQuery(''); setShowArchived(false); } else setRenamingId(null); }}>
+      <Popover open={open} onOpenChange={(next) => { setOpen(next); if (next) { setQuery(''); setShowArchived(false); } else endRename(); }}>
         <div className="flex min-w-0 items-center gap-1.5">
           <PopoverTrigger
             disabled={switching}
