@@ -54,11 +54,18 @@ jobs:
       - run: npm run build
       - run: npm ci
         working-directory: desktop
-      - run: npm run ${{ matrix.script }}
+      - run: |
+          # an empty secret still sets its variable, and electron-builder
+          # reads CSC_LINK="" as a path (the working directory: "not a
+          # file"); a build without signing secrets drops them instead
+          for v in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!v}" ] || unset "$v"
+          done
+          npm run ${{ matrix.script }}
+        shell: bash
         working-directory: desktop
         env:
           # macOS signing + notarization: absent secrets = unsigned build
-          # (electron-builder skips signing when CSC_LINK is empty)
           CSC_LINK: ${{ runner.os == 'macOS' && secrets.MAC_CERT_P12_BASE64 || '' }}
           CSC_KEY_PASSWORD: ${{ runner.os == 'macOS' && secrets.MAC_CERT_PASSWORD || '' }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
