@@ -33,6 +33,16 @@ const DOCS = DOCS_URL;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.4.23',
+    date: '2026-10-15',
+    announce: false,
+    lead: {
+      zh: '两处修复。画布切换里的"重命名"恢复正常：之前点了之后输入框会立刻消失。撤销不再影响正在运行或已经结束的回答：一次撤销只退一步，提问后撤销只会撤掉这个问题；已经答完的节点不会被撤销拉回"生成中"；撤销掉的节点如果还在运行，运行会一并停止。在输入框里按 ⌘Z 只撤销输入的文字，不再撤销画布。',
+      en: 'Two fixes. Rename in the canvas switcher works again; the field used to vanish the moment it opened. Undo no longer reaches into answers that are running or done: one undo is one step, so undoing right after a question takes back just that question; a node that finished answering is never put back to generating; and a node an undo removes stops its run. Cmd+Z in a text field undoes the text, not the canvas.',
+    },
+    items: [],
+  },
+  {
     version: '0.4.22',
     date: '2026-10-15',
     announce: false,
