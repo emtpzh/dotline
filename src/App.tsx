@@ -745,7 +745,10 @@ function Canvas() {
       if (useUiStore.getState().confirmRequest) return;
       // Viewer: only Cmd+F search survives; every mutating shortcut is inert
       if (isViewerMode && !((e.metaKey || e.ctrlKey) && e.key === 'f')) return;
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+      // in a text field, undo is the field's own: the canvas's would take
+      // away what was asked or answered while the person only meant a word
+      const editing = e.target instanceof HTMLElement && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable);
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !editing) {
         if (e.shiftKey) { e.preventDefault(); redo(); }
         else { e.preventDefault(); undo(); }
       }

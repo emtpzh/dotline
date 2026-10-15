@@ -21,7 +21,7 @@ import { abortAgentRun } from '../../lib/agents/runs';
 // A node that goes while it is still generating takes its stream with it:
 // the Stop button goes with the card, so the only way to end the call is
 // here. The stream's own writes to a removed node are no-ops.
-const abortGenerations = (ids: Iterable<string>): void => {
+export const abortGenerations = (ids: Iterable<string>): void => {
   for (const id of ids) {
     abortAgentRun(id);
     const controller = activeAbortControllers.get(id);

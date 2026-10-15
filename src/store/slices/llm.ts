@@ -135,6 +135,9 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     // The new card is SEATED, not laid out: asking one follow-up must not
     // re-derive a canvas the user arranged. See placeNewNodes.
     const newNodes = placeNewNodes([...updatedNodes, newNode], newEdges, [newNode.id]);
+    // the canvas before the question, as every other ask keeps it: without
+    // it one undo would step back past the question to an older snapshot
+    get().pushHistory();
     set({ nodes: newNodes, edges: newEdges, selectedNodeId: id });
 
     // Build full context from ancestors + explicit role for the new node

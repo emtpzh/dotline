@@ -1,7 +1,10 @@
 import type { StateCreator } from 'zustand';
 import { HISTORY_LIMIT } from '../../lib/constants';
 import type { StoreState, HistorySlice } from '../types';
+import type { ThoughtNode } from '../../types';
 import { condenseGuard } from '../../lib/condense-guard';
+import { abortGenerations } from './nodes';
+import { restoreNodes } from '../../lib/undo-restore';
 
 // Undo snapshots are SHALLOW references, not deep copies. Every store
 // update is immutable (map + spread; React Flow's applyNodeChanges too),
@@ -12,6 +15,13 @@ import { condenseGuard } from '../../lib/condense-guard';
 // to 50× the store size in memory; shallow is microseconds and ~1×.
 // INVARIANT this relies on: never mutate a node/edge object that has
 // entered the store — always map to fresh objects.
+
+/** Put a snapshot back; the runs of nodes it takes away stop. */
+function restore(current: ThoughtNode[], snapshot: ThoughtNode[]): ThoughtNode[] {
+  const { nodes, stop } = restoreNodes(current, snapshot);
+  abortGenerations(stop);
+  return nodes;
+}
 
 export const createHistorySlice: StateCreator<StoreState, [], [], HistorySlice> = (set, get) => ({
   history: [{ nodes: [], edges: [] }],
@@ -30,7 +40,7 @@ export const createHistorySlice: StateCreator<StoreState, [], [], HistorySlice> 
     const { history, historyIndex } = get();
     if (historyIndex <= 0) return;
     const prev = history[historyIndex - 1];
-    set({ nodes: prev.nodes, edges: prev.edges, historyIndex: historyIndex - 1 });
+    set({ nodes: restore(get().nodes, prev.nodes), edges: prev.edges, historyIndex: historyIndex - 1 });
     get().logEvent('undo');
   },
 
@@ -39,7 +49,7 @@ export const createHistorySlice: StateCreator<StoreState, [], [], HistorySlice> 
     const { history, historyIndex } = get();
     if (historyIndex >= history.length - 1) return;
     const next = history[historyIndex + 1];
-    set({ nodes: next.nodes, edges: next.edges, historyIndex: historyIndex + 1 });
+    set({ nodes: restore(get().nodes, next.nodes), edges: next.edges, historyIndex: historyIndex + 1 });
     get().logEvent('redo');
   },
 });
