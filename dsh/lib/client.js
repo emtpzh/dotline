@@ -136,8 +136,11 @@ window.__ModuleLoader__.load({
         const box = canvasBox()
         const back = docked === null
         const meets = m.band > box.y
-        let left = meets ? Math.max(0, m.left - box.x) : 0
-        const right = meets ? Math.max(0, m.right - (window.innerWidth - (box.x + box.w))) : 0
+        // a corner the window has: the box is rounded edge by edge, so at a
+        // fractional zoom a docked box can end a pixel past the window's
+        // right edge, and a Mac (no right corner) then read as one
+        let left = meets && m.left > 0 ? Math.max(0, m.left - box.x) : 0
+        const right = meets && m.right > 0 ? Math.max(0, m.right - (window.innerWidth - (box.x + box.w))) : 0
         let center = m.center - box.y
         let band = m.band - box.y
         const seat = docked === null ? null : leadingSeat()
