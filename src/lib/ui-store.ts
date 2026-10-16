@@ -125,8 +125,6 @@ interface UiState {
       active search). Nodes NOT in the set dim out — the searchlight. */
   searchHitIds: Set<string> | null;
   setSearchHitIds: (ids: Set<string> | null) => void;
-  /** Node whose answer is open in the large reading overlay. */
-  responseViewerNodeId: string | null;
   /** Node the perspectives dialog adds roles under (opened from the
       right-click menu, which closes before the dialog does). */
   fanOutNodeId: string | null;
@@ -134,7 +132,6 @@ interface UiState {
   /** A relayout being previewed on the canvas before it lands (null = none). `resetPins` hands pinned cards back to layout too. */
   layoutPreview: { resetPins: boolean } | null;
   setLayoutPreview: (preview: { resetPins: boolean } | null) => void;
-  setResponseViewerNodeId: (id: string | null) => void;
   /** Auto-backup folder name (null = off) — display only, handle lives in idb. */
   autoBackupDir: string | null;
   setAutoBackupDir: (name: string | null) => void;
@@ -301,12 +298,10 @@ export const useUiStore = create<UiState>((set, get) => ({
   searchHitIds: null,
   setSearchHitIds: (ids) => set({ searchHitIds: ids }),
   pingModelPicker: () => set((s) => ({ modelPickerPing: s.modelPickerPing + 1 })),
-  responseViewerNodeId: null,
   fanOutNodeId: null,
   setFanOutNodeId: (id) => set({ fanOutNodeId: id }),
   layoutPreview: null,
   setLayoutPreview: (preview) => set({ layoutPreview: preview }),
-  setResponseViewerNodeId: (id) => set({ responseViewerNodeId: id }),
   autoBackupDir: null,
   setAutoBackupDir: (name) => set({ autoBackupDir: name }),
   lastAutoBackupAt: null,

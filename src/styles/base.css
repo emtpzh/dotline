@@ -114,6 +114,19 @@ textarea:focus-visible {
   mask-image: linear-gradient(to bottom, transparent, black 1.75rem);
 }
 
+/* A scroll box fades at the edge where it has more (lib/scroll-fade) —
+   the text dissolves into the card instead of meeting a rule. The two
+   depths are registered so the fade eases in rather than snapping. */
+@property --fade-top { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --fade-bottom { syntax: '<length>'; inherits: false; initial-value: 0px; }
+.tdag-scroll-fade {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black var(--fade-top), black calc(100% - var(--fade-bottom)), transparent);
+  mask-image: linear-gradient(to bottom, transparent, black var(--fade-top), black calc(100% - var(--fade-bottom)), transparent);
+  transition: --fade-top var(--dur-fast) var(--ease-standard), --fade-bottom var(--dur-fast) var(--ease-standard);
+}
+.tdag-scroll-fade[data-fade-top] { --fade-top: 1.5rem; }
+.tdag-scroll-fade[data-fade-bottom] { --fade-bottom: 1.5rem; }
+
 /* The details panel slides in from its edge and back out on the chrome's
    beat (App keeps it mounted while it leaves, lib/use-presence) */
 @keyframes tdag-panel-in { from { opacity: 0; transform: translateX(24px); } }

@@ -5,6 +5,7 @@ import type { ThoughtNode as ThoughtNodeType } from '../types';
 import { useStore } from '../store';
 import { useZoomTier } from '../lib/use-map-mode';
 import { useUiStore, toast } from '../lib/ui-store';
+import { scrollFade } from '../lib/scroll-fade';
 import { useEntranceFade } from '../lib/use-entrance-fade';
 import { flyTo } from '../lib/motion';
 import { triggerParadigmCascade } from '../store/streaming';
@@ -294,7 +295,7 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
 
       {/* Body: grows with content by default; when the card is resized the
           body becomes the scroll region (wheel scrolls text, not zoom) */}
-      <div className="px-4 pt-2 pb-3 nodrag flex-1 min-h-0 overflow-y-auto nowheel">
+      <div ref={scrollFade} className="tdag-scroll-fade px-4 pt-2 pb-3 nodrag flex-1 min-h-0 overflow-y-auto nowheel">
         {/* where a clip was cut from: one quiet line, the page one click away */}
         {clipSourceName && (
           <div className="mb-2 flex items-center gap-2 min-w-0 border-l-2 border-edge-explore pl-2.5 text-xs text-muted-foreground" title={t('content.clipSourceTitle')} data-clip-source>

@@ -396,9 +396,6 @@ export const en = {
   'import.modelsMissing': 'Imported pins not reachable here: {list}. Nodes keep the pin; generation falls back to the global model.',
   'node.pinnedModelRemapped': 'This node\'s model {m} runs as {r} here (same family)',
   'node.pinnedModelUnavailable': 'This node\'s model {m} is unavailable — using the global model this time',
-  'viewerqa.placeholder': 'Ask a follow-up about this answer — it streams right here',
-  'viewerqa.placeholderBranch': 'Ask about the selected passage…',
-  'viewerqa.askTitle': 'Follow up: a new node under this one, answer keeps streaming in this view',
   'node.generatingTitle': 'Generating',
   'hlov.entry': 'All highlights ({n})',
   'hlov.entryTitle': 'Every highlight you marked across this canvas',
@@ -414,7 +411,6 @@ export const en = {
   'hlov.export': 'Export .md',
   'hlov.exportTitle': 'Export all highlights as a Markdown list',
   'ctx.openPanel': 'Open panel',
-  'ctx.readingView': 'Reading view',
   'ctx.rerun': 'Regenerate (new version)',
   'ctx.regenBranch': 'Regenerate (new node)',
   'ctx.copyContent': 'Copy content',
@@ -640,7 +636,6 @@ export const en = {
   // Focus panel (shared)
   'panel.resizeTitle': 'Drag to resize · double-click to reset',
   'panel.question': 'Question',
-  'panel.expandResponse': 'Open this answer in a large view',
   'panel.response': 'Response',
   'panel.more': 'More actions',
   // Material reader (the reading overlay)

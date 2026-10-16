@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type RefObject } from 'react';
 
 // The reader's current text selection, as something a Popover can anchor to.
-// Shared by the node card, the focus panel and the reading viewer, which all
+// Shared by the node card and the focus panel, which both
 // answer a selection with the same two gestures (see SelectionActions).
 
 interface Selected {

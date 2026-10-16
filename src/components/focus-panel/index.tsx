@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRuns, withOverlay } from '../../lib/agents/runs';
 import { X } from 'lucide-react';
 import { useStore } from '../../store';
 import { useUiStore } from '../../lib/ui-store';
+import { scrollFade } from '../../lib/scroll-fade';
+import { pullReveal } from '../../lib/pull-reveal';
 import { partitionContext } from '../../lib/graph';
 import { resolveRoleSourceFor } from '../../store/context-builder';
 import { PANEL_WIDTH_KEY, PANEL_MIN_WIDTH, PANEL_DEFAULT_WIDTH, PANEL_INSET } from '../../lib/constants';
@@ -86,8 +88,26 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
   // A card's quiet line points at a section ("5 sources" → the list):
   // scroll there once the panel shows this node, then forget it
   const scrollRef = useRef<HTMLDivElement>(null);
-  // the title row draws its rule only once the transcript runs under it
-  const [scrolled, setScrolled] = useState(false);
+  const scrollBox = useCallback((el: HTMLDivElement | null) => {
+    scrollRef.current = el;
+    return scrollFade(el);
+  }, []);
+  // The turns before this one stay out of sight until asked for: pulling
+  // past the top of the transcript opens them (lib/pull-reveal). Each card
+  // starts closed again.
+  const [earlierShown, setEarlierShown] = useState(false);
+  const [earlierFor, setEarlierFor] = useState(selectedNodeId);
+  if (earlierFor !== selectedNodeId) {
+    setEarlierFor(selectedNodeId);
+    setEarlierShown(false);
+  }
+  const earlierSlot = useRef<HTMLDivElement>(null);
+  const hasNode = !!selectedNodeId && nodes.some((n) => n.id === selectedNodeId);
+  useEffect(() => {
+    const scroller = scrollRef.current, slot = earlierSlot.current;
+    if (earlierShown || !scroller || !slot) return;
+    return pullReveal(scroller, slot, () => setEarlierShown(true));
+  }, [earlierShown, hasNode]);
   // an agent run of this page shows through its overlay until its turn is in
   const runOverlay = useRuns((s) => (selectedNodeId ? s.runs[selectedNodeId] : undefined));
   const panelSection = useUiStore((s) => s.panelSection);
@@ -147,7 +167,7 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
         <div className={`w-[3px] h-9 rounded-full transition-colors ${resizing ? 'bg-primary' : 'bg-input'}`} />
       </div>
       {/* Title row: name · role, how the turn ran, the card's menu */}
-      <div className={`flex items-start gap-1 pl-5 pr-3 pt-2 pb-1 shrink-0 border-b transition-colors ${scrolled ? 'border-border' : 'border-transparent'}`}>
+      <div className="flex items-start gap-1 pl-5 pr-3 pt-2 pb-1 shrink-0">
         <RoleLine nodeId={selectedNodeId!} data={data} inheritedFrom={inheritedFrom}
           onJump={(id) => { useStore.getState().setSelectedNodeId(id); onFocusNode?.(id); }} />
         <div className="flex h-8 min-w-0 max-w-[62%] items-center gap-0.5">
@@ -164,10 +184,19 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
         </div>
       </div>
 
-      {/* Scrollable content: one conversation column */}
-      <div ref={scrollRef} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 2)}
-        className="flex-1 overflow-y-auto px-5 pt-1 pb-4 flex flex-col gap-4" data-panel-scroll>
-        <ContextHistory nodeId={selectedNodeId!} data={data} partition={partition} onJump={jump} />
+      {/* Scrollable content: one conversation column, fading under the
+          title row and into the ask box where it continues */}
+      <div ref={scrollBox}
+        className="tdag-scroll-fade flex-1 overflow-y-auto px-5 pt-1 pb-4 flex flex-col gap-4" data-panel-scroll>
+        {/* the negative margin takes back the column's gap while closed */}
+        <div ref={earlierSlot} inert={!earlierShown}
+          className="-mb-4 flex shrink-0 flex-col justify-end overflow-hidden"
+          style={earlierShown ? undefined : { height: 0, opacity: 0 }}
+          data-earlier-slot>
+          <div className="pb-4">
+            <ContextHistory nodeId={selectedNodeId!} data={data} partition={partition} onJump={jump} />
+          </div>
+        </div>
         {/* the question shows once it is asked — before that it is typed below, its files above the box */}
         {!awaiting ? (
           <QuestionSection

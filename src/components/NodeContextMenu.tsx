@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Archive, ArchiveRestore, BookOpen, Copy, Files, FlaskConical, GitFork, LayoutGrid, Maximize2, PinOff, RefreshCw, Split, StickyNote, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, BookOpen, Copy, Files, FlaskConical, GitFork, LayoutGrid, PinOff, RefreshCw, Split, StickyNote, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { useUiStore, confirmDialog, toast } from '../lib/ui-store';
 import { recapToNote } from '../lib/recap';
@@ -46,11 +46,6 @@ export default function NodeContextMenu({ x, y, nodeId, onClose }: {
             useUiStore.getState().setPanelOpen(true);
           }}>
             <BookOpen size={14} strokeWidth={1.75} className={icon} /> {t('ctx.openPanel')}
-          </DropdownMenuItem>
-        )}
-        {hasResponse && (
-          <DropdownMenuItem onClick={() => useUiStore.getState().setResponseViewerNodeId(nodeId)}>
-            <Maximize2 size={14} strokeWidth={1.75} className={icon} /> {t('ctx.readingView')}
           </DropdownMenuItem>
         )}
         {hasResponse && (

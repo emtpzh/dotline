@@ -4,6 +4,7 @@ import { useStore } from '../../store';
 import { contextChainMarkdown, downloadMarkdown, copyText } from '../../lib/export';
 import { toast, confirmDialog } from '../../lib/ui-store';
 import { useT, fmt } from '../../i18n';
+import { Button } from '../ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 
 // Everything that acts on the card as a whole, behind "…": archive among
@@ -47,16 +48,15 @@ export default function HeaderActions({ nodeId }: { nodeId: string }) {
 
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const iconBtn = 'text-muted-foreground hover:text-foreground hover:bg-border/50';
-
   return (
     <div className="relative flex items-center gap-1 shrink-0">
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        {/* the same button as the close beside it: one size, one hover */}
         <DropdownMenuTrigger
+          render={<Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground" aria-label={t('panel.more')} />}
           title={t('panel.more')}
-          className={`${iconBtn} ${menuOpen ? 'bg-border/50 text-foreground' : ''}`}
         >
-          <Ellipsis size={15} strokeWidth={1.75} />
+          <Ellipsis strokeWidth={1.75} />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[210px]">
             <DropdownMenuItem onClick={() => setArchived([nodeId], !isArchived)} title={isArchived ? t('archive.restoreTitle') : t('archive.title')} data-archive-toggle>

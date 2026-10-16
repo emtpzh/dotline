@@ -396,9 +396,6 @@ export const zh: Record<keyof typeof en, string> = {
   'import.modelsMissing': '导入画布钉的模型在你的环境不可用：{list}。相关节点保留原设定，生成时将回退到全局模型。',
   'node.pinnedModelRemapped': '节点的模型 {m} 在本环境走 {r}，已按同族模型生成',
   'node.pinnedModelUnavailable': '节点的模型 {m} 当前不可用，本次用全局模型生成',
-  'viewerqa.placeholder': '就这个回答继续追问……（新回答会直接在这里展开）',
-  'viewerqa.placeholderBranch': '就选中的这段内容提问……',
-  'viewerqa.askTitle': '追问：新节点挂在当前节点下，回答在此视图继续阅读',
   'node.generatingTitle': '正在生成中',
   'hlov.entry': '全部高光 ({n})',
   'hlov.entryTitle': '查看整张画布上你标过的所有高光',
@@ -414,7 +411,6 @@ export const zh: Record<keyof typeof en, string> = {
   'hlov.export': '导出 .md',
   'hlov.exportTitle': '把全部高光导出为 Markdown 清单',
   'ctx.openPanel': '打开面板',
-  'ctx.readingView': '阅读视图',
   'ctx.rerun': '重新生成（追加版本）',
   'ctx.regenBranch': '重新生成（新节点）',
   'ctx.copyContent': '复制内容',
@@ -640,7 +636,6 @@ export const zh: Record<keyof typeof en, string> = {
   // Focus panel (shared)
   'panel.resizeTitle': '拖动调整宽度 · 双击恢复默认',
   'panel.question': '问题',
-  'panel.expandResponse': '放大阅读这条回答',
   'panel.response': '回答',
   'panel.more': '更多操作',
   // Material reader (the reading overlay)

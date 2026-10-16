@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { AlertTriangle, ChevronLeft, ChevronRight, Copy, Maximize2, RefreshCw, Trash2, Pencil } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, Copy, RefreshCw, Trash2, Pencil } from 'lucide-react';
 import { useStore } from '../../store';
 import { isFactNode } from '../../lib/facts';
-import { useUiStore } from '../../lib/ui-store';
 import { generateId } from '../../utils';
 import { copyText } from '../../lib/export';
 import { Markdown, HighlightedMarkdown } from '../Markdown';
@@ -236,13 +235,6 @@ export default function ResponseSection({
               <Pencil strokeWidth={1.75} className={ACTION_ICON} />
             </Button>
           )}
-          <Button variant="ghost" size="icon-sm" className={ACTION}
-            onClick={() => useUiStore.getState().setResponseViewerNodeId(nodeId)}
-            title={t('panel.expandResponse')}
-            data-response-expand
-          >
-            <Maximize2 strokeWidth={1.75} className={ACTION_ICON} />
-          </Button>
           {hasMultipleVersions && (
             <div className="group/versions ml-2 flex items-center gap-0.5 text-xs">
               <Button variant="ghost" size="icon-sm" className={ACTION} onClick={() => navigateVersion(nodeId, 'prev')}><ChevronLeft strokeWidth={1.75} className={ACTION_ICON} /></Button>

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { describeModel } from '../lib/use-models';
 import { faceState, faceTone, farPriority, nodeConclusion, nodeName, roleLabel, type FaceShape } from '../lib/node-face';
 import { isAutoRerun, nodeRoute } from '../lib/edge-look';
@@ -14,6 +14,7 @@ import { copyText } from '../lib/export';
 import { isRunLocked } from '../lib/paradigm';
 import { collectExploreMarksKey, type ExploreMark } from '../lib/explore-marks';
 import { useUiStore, toast, type PanelSection } from '../lib/ui-store';
+import { scrollFade } from '../lib/scroll-fade';
 import { isFactNode } from '../lib/facts';
 import SearchToggles from './app/SearchToggles';
 import { RuntimeMenu, ModelMenu, AccessMenu } from './app/composer/RunControls';
@@ -87,6 +88,10 @@ export default function ThoughtNode({ id, data: stored }: NodeProps<ThoughtNodeT
   // an empty card's run settings: one quiet line until asked for
   const [askSettingsOpen, setAskSettingsOpen] = useState(false);
   const responseRef = useRef<HTMLDivElement>(null);
+  const responseBox = useCallback((el: HTMLDivElement | null) => {
+    responseRef.current = el;
+    return scrollFade(el);
+  }, []);
   const nodeRef = useRef<HTMLDivElement>(null);
   const questionTaRef = useRef<HTMLTextAreaElement>(null);
   const rf = useReactFlow();
@@ -613,8 +618,9 @@ export default function ThoughtNode({ id, data: stored }: NodeProps<ThoughtNodeT
             // as the answer block — cap the height, scroll inside (nowheel
             // keeps the wheel on the text, not the canvas zoom).
             <div
+              ref={scrollFade}
               onDoubleClick={handleDoubleClickQuestion}
-              className="text-sm text-foreground font-semibold mb-3 cursor-pointer hover:bg-accent rounded-xl px-2 py-1.5 -mx-1 transition-colors max-h-[180px] overflow-y-auto nowheel nopan"
+              className="tdag-scroll-fade text-sm text-foreground font-semibold mb-3 cursor-pointer hover:bg-accent rounded-xl px-2 py-1.5 -mx-1 transition-colors max-h-[180px] overflow-y-auto nowheel nopan"
             >
               {data.question}
             </div>
@@ -627,9 +633,11 @@ export default function ThoughtNode({ id, data: stored }: NodeProps<ThoughtNodeT
         </div>
 
         {/* Layer 4: the answer and the few things that act on it. Where it
-            came from (model, time, files, sources, session) is the panel's. */}
+            came from (model, time, files, sources, session) is the panel's.
+            No rule above it: a long answer fades at the edge it scrolls
+            past (lib/scroll-fade). */}
         {hasLower && (
-        <div className="px-4 pt-3 pb-2 border-t border-border">
+        <div className="px-4 pt-1 pb-2">
           {/* A waiting prompt step shows its pending state instead of an empty box */}
           {isWaitingUpstream ? (
             <div className="border-2 border-dashed border-border rounded-xl py-3 px-3 text-xs text-muted-foreground flex items-center gap-2">
@@ -666,9 +674,9 @@ export default function ThoughtNode({ id, data: stored }: NodeProps<ThoughtNodeT
           ) : data.response ? (
             // The answer sits on the card itself — no box inside the box
             <div
-              ref={responseRef}
+              ref={responseBox}
               onClick={handleResponseClick}
-              className="markdown-body text-sm text-foreground leading-relaxed max-h-[400px] overflow-y-auto cursor-text nopan nodrag nowheel"
+              className="tdag-scroll-fade markdown-body text-sm text-foreground leading-relaxed max-h-[400px] overflow-y-auto cursor-text nopan nodrag nowheel"
             >
               {highlightedTexts.size > 0 || exploreSpecs.length > 0 ? (
                 <HighlightedMarkdown content={data.response} highlights={highlightedTexts} exploreMarks={exploreSpecs} />

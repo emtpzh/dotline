@@ -70,7 +70,6 @@ import GlobalTooltip from './components/app/GlobalTooltip';
 import RoleManagerModal from './components/app/RoleManagerModal';
 import MemoryManagerModal from './components/app/MemoryManagerModal';
 import ApiKeyModal from './components/app/ApiKeyModal';
-import ResponseViewer from './components/app/ResponseViewer';
 import ShareDialog from './components/app/ShareDialog';
 import ThoughtMapDialog from './components/app/ThoughtMapDialog';
 import BackupDialog from './components/app/BackupDialog';
@@ -226,7 +225,6 @@ export default function App() {
       <RoleManagerModal />
       <MemoryManagerModal />
       <ApiKeyModal />
-      <ResponseViewer />
       <FanOutHost />
       <ShareDialog />
       <ThoughtMapDialog />

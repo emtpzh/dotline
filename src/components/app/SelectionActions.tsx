@@ -7,7 +7,7 @@ import { useT } from '../../i18n';
 
 // Select a passage, and the two divergence gestures come to it: explore
 // (branch from these words) and highlight. The same bar answers in the node
-// card, the focus panel and the reading viewer — one grammar, three places.
+// card and the focus panel — one grammar, both places.
 //
 // It rides a Popover anchored to the selection's own rectangle, so it is
 // portaled out of whatever box the text sits in: a dialog with its own
@@ -25,13 +25,9 @@ export default function SelectionActions({
   anchor,
   onExplore,
   onHighlight,
-  boundary,
 }: {
   text: string;
   anchor: Anchor | null;
-  /** The box the bar must stay inside — a reading pane with its own scroll.
-      Without one it only avoids the viewport's edges. */
-  boundary?: Element | null;
   onExplore: (text: string) => void;
   onHighlight: (text: string) => void;
 }) {
@@ -53,7 +49,6 @@ export default function SelectionActions({
     <Popover key={shown.key} open={open}>
       <PopoverContent
         anchor={shown.anchor}
-        collisionBoundary={boundary ?? undefined}
         side="top"
         sideOffset={6}
         // the selection must survive the click that acts on it
