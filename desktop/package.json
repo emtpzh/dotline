@@ -76,8 +76,8 @@
     "npmRebuild": false,
     "publish": {
       "provider": "github",
-      "owner": "chenxiachan",
-      "repo": "thoughtdag"
+      "owner": "emtpzh",
+      "repo": "dotline"
     }
   },
   "dependencies": {

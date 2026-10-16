@@ -25,29 +25,59 @@ let notified = false;
 const bootParams = new URLSearchParams(window.location.search);
 const desktopVersion = bootParams.get('dv');
 const shellSelfUpdates = bootParams.get('su') === '1';
-// This fork has no release channel of its own yet, and upstream's releases
-// say nothing about what runs here: the desktop nudge is off.
-const DESKTOP_NUDGE = false;
 const DESKTOP_THROTTLE_MS = 30 * 60_000;
 let notifiedDesktop = false;
 let lastDesktopCheck = 0;
 
+/** The newest release's version, or null when it cannot be read. */
+async function latestDesktop(): Promise<string | null> {
+  const res = await fetch(`https://api.github.com/repos/${REPO_URL.replace('https://github.com/', '')}/releases?per_page=1`);
+  if (!res.ok) return null;
+  const releases = await res.json() as { tag_name?: string }[];
+  return releases?.[0]?.tag_name?.replace(/^v/, '') ?? null;
+}
+
+/** a is a later version than b (numeric parts; a pre-release before its release). */
+export function laterVersion(a: string, b: string): boolean {
+  const [ca, pa = ''] = a.split('-', 2);
+  const [cb, pb = ''] = b.split('-', 2);
+  const na = ca.split('.').map(Number);
+  const nb = cb.split('.').map(Number);
+  for (let i = 0; i < Math.max(na.length, nb.length); i++) {
+    const d = (na[i] || 0) - (nb[i] || 0);
+    if (d) return d > 0;
+  }
+  if (pa === pb) return false;
+  return !pa || (!!pb && pa > pb);
+}
+
+const announceDesktop = (v: string) => toast('info', fmt(t('update.desktopAvailable'), { v }), 0, {
+  label: t('update.desktopDownload'),
+  run: () => window.open(`${SITE_URL}#download`, '_blank'),
+});
+
 async function checkDesktop(): Promise<void> {
-  if (!DESKTOP_NUDGE || !desktopVersion || shellSelfUpdates || notifiedDesktop) return;
+  if (!desktopVersion || shellSelfUpdates || notifiedDesktop) return;
   if (Date.now() - lastDesktopCheck < DESKTOP_THROTTLE_MS) return;
   lastDesktopCheck = Date.now();
   try {
-    const res = await fetch(`https://api.github.com/repos/${REPO_URL.replace('https://github.com/', '')}/releases?per_page=1`);
-    if (!res.ok) return;
-    const releases = await res.json() as { tag_name?: string }[];
-    const latest = releases?.[0]?.tag_name?.replace(/^v/, '');
-    if (!latest || latest === desktopVersion) return;
+    const latest = await latestDesktop();
+    if (!latest || !laterVersion(latest, desktopVersion)) return;
     notifiedDesktop = true;
-    toast('info', fmt(t('update.desktopAvailable'), { v: latest }), 0, {
-      label: t('update.desktopDownload'),
-      run: () => window.open(`${SITE_URL}#download`, '_blank'),
-    });
+    announceDesktop(latest);
   } catch { /* offline or rate-limited: try again later */ }
+}
+
+/** Checking by hand, in a shell that does not update itself: always answers
+ *  out loud — a newer version, already the latest, or could not check. */
+export async function lookUpDesktopUpdate(): Promise<void> {
+  try {
+    const latest = await latestDesktop();
+    if (!latest) { toast('error', t('update.checkFailed')); return; }
+    if (!desktopVersion || !laterVersion(latest, desktopVersion)) { toast('success', fmt(t('update.latest'), { v: desktopVersion ?? latest })); return; }
+    notifiedDesktop = true;
+    announceDesktop(latest);
+  } catch { toast('error', t('update.checkFailed')); }
 }
 
 function currentBundle(): string | null {
@@ -92,5 +122,5 @@ export function bootUpdateCheck(): void {
   });
   setInterval(() => { void check(); void checkDesktop(); }, CHECK_INTERVAL_MS);
   // desktop: one early look shortly after boot
-  if (DESKTOP_NUDGE && desktopVersion) setTimeout(() => void checkDesktop(), 5000);
+  if (desktopVersion) setTimeout(() => void checkDesktop(), 5000);
 }

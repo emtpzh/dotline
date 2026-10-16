@@ -3,7 +3,7 @@
 // Methods beyond checkForUpdates are optional: an older shell may pair with
 // a newer page during dev; the page degrades to the shell's own dialogs.
 interface DesktopUpdateEvent {
-  kind: 'available' | 'downloading' | 'ready' | 'latest' | 'check-failed' | 'download-failed' | 'dev';
+  kind: 'available' | 'downloading' | 'ready' | 'latest' | 'check-failed' | 'download-failed' | 'lookup' | 'dev';
   version?: string;
   percent?: number;
 }

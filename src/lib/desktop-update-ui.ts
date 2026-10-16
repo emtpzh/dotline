@@ -37,6 +37,9 @@ export function bootDesktopUpdateUI(): void {
       case 'download-failed':
         toast('error', t('update.downloadFailed'));
         break;
+      case 'lookup':
+        void import('./update-check').then((m) => m.lookUpDesktopUpdate());
+        break;
       case 'dev':
         toast('info', 'Dev build: no update channel.');
         break;

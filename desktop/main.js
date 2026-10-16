@@ -96,7 +96,7 @@ async function boot() {
     return;
   }
   // ?dv= identifies the desktop build to the web layer; &su=1 tells it the
-  // shell self-updates, so the in-page download nudge stays quiet.
+  // shell self-updates (SELF_UPDATE), so the in-page download nudge stays quiet.
   // --lang=en|zh seeds the UI language (a demo profile boots in the
   // requested language instead of the system's); absent, the web layer
   // detects as always.
@@ -104,7 +104,7 @@ async function boot() {
   const langQ = langArg ? `&lang=${langArg.slice('--lang='.length)}` : '';
   // TD_WHATS_NEW=1 forces the what's-new dialog for this version (development).
   const wnQ = process.env.TD_WHATS_NEW === '1' ? '&wn=1' : '';
-  win.loadURL(`http://127.0.0.1:${port}/?dv=${encodeURIComponent(app.getVersion())}&su=1${langQ}${wnQ}`);
+  win.loadURL(`http://127.0.0.1:${port}/?dv=${encodeURIComponent(app.getVersion())}${SELF_UPDATE ? '&su=1' : ''}${langQ}${wnQ}`);
 }
 
 // ─── Session atlas: read-only access to runner session stores ───────────
@@ -616,7 +616,19 @@ function setupSessionAtlas() {
 // downloads until the user clicks download; nothing installs until the user
 // clicks restart (or quits after opting in). Checking BY HAND always answers
 // out loud: found, already latest, or could not check.
-const SELF_UPDATE = false; // off in this fork until it has its own release feed
+// What it installs has to run: on macOS that takes a signed app (Squirrel.Mac
+// checks the new bundle against this one's signing team), so an unsigned or
+// ad-hoc build is left to the page, whose notice points at the download page.
+function canSelfUpdate() {
+  if (!app.isPackaged) return false;
+  if (process.platform !== 'darwin') return true;
+  try {
+    const bundle = path.resolve(path.dirname(app.getPath('exe')), '..', '..');
+    const r = require('child_process').spawnSync('codesign', ['-dv', bundle], { encoding: 'utf8', timeout: 5000 });
+    return /TeamIdentifier=(?!not set)\S+/.test(r.stderr || '');
+  } catch { return false; }
+}
+const SELF_UPDATE = canSelfUpdate();
 let updater = null;        // electron-updater instance once set up
 let announced = null;      // version already toasted this session (auto checks)
 let downloading = false;
@@ -905,13 +917,13 @@ if (!lock) {
     void boot();
     setupSessionAtlas();
     setupAgents();
-    // This fork has no release feed of its own yet: the build config still
-    // names upstream's GitHub releases, so self-update stays off everywhere.
-    if (app.isPackaged && SELF_UPDATE) {
+    if (SELF_UPDATE) {
       setupAutoUpdate();
     } else {
-      // no update channel: the menu entry exists (preload is loaded), so answer honestly
-      ipcMain.handle('update:check', () => { sendUpdate({ kind: 'dev' }); });
+      // the menu entry exists (preload is loaded): a packaged build that
+      // cannot install its own updates has the page look them up; a build
+      // run from source has no channel at all, and says so
+      ipcMain.handle('update:check', () => { sendUpdate({ kind: app.isPackaged ? 'lookup' : 'dev' }); });
     }
   });
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) boot(); });
