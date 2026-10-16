@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BaseEdge, EdgeLabelRenderer, type EdgeProps } from '@xyflow/react';
+import { BaseEdge, EdgeLabelRenderer, useInternalNode, type EdgeProps } from '@xyflow/react';
 import { X } from 'lucide-react';
 import { useStore } from '../store';
-import { routeEdge } from '../lib/edge-path';
+import { onCardBorder, routeEdge } from '../lib/edge-path';
 import { walkUpAncestors } from '../lib/graph';
 import { referenceBlockContent } from '../store/context-builder';
 import { countTokens } from '../utils';
@@ -53,9 +53,20 @@ export default function ThoughtEdgeView({
       .filter((n) => n.id !== source && !['note', 'file', 'link'].includes(n.data.stepKind ?? ''));
     return countTokens(referenceBlockContent({ source: src, edge: { id, source, target, data } as ThoughtEdge, chain }));
   }, [selected, convertible, isRef, source, target, id, nodes, edges, data, src]);
+  // Ends on the card borders (lib/edge-path onCardBorder): the line starts
+  // tucked a pixel under its source, so it reads as growing out of it, and
+  // the arrow stops just short of the target, so the card never covers its tip.
+  const srcBox = useInternalNode(source);
+  const tgtBox = useInternalNode(target);
+  const boxOf = (n: typeof srcBox) => n && n.measured.width && n.measured.height
+    ? { ...n.internals.positionAbsolute, width: n.measured.width, height: n.measured.height }
+    : null;
+  const sBox = boxOf(srcBox), tBox = boxOf(tgtBox);
+  const sp = sBox ? onCardBorder(sourceX, sourceY, sourcePosition, sBox, -1) : { x: sourceX, y: sourceY };
+  const tp = tBox ? onCardBorder(targetX, targetY, targetPosition, tBox, 2) : { x: targetX, y: targetY };
   const { path, labelX, labelY } = useMemo(
-    () => routeEdge(sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, source, target, nodes),
-    [sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, source, target, nodes],
+    () => routeEdge(sp.x, sp.y, sourcePosition, tp.x, tp.y, targetPosition, source, target, nodes),
+    [sp.x, sp.y, sourcePosition, tp.x, tp.y, targetPosition, source, target, nodes],
   );
 
   // When selected, force full visibility (overrides the ancestor-dim pass)
@@ -117,7 +128,7 @@ export default function ThoughtEdgeView({
             style={{
               position: 'absolute',
               pointerEvents: 'none',
-              transform: `translate(-50%, -50%) translate(${targetX}px, ${targetY - 22}px)`,
+              transform: `translate(-50%, -50%) translate(${tp.x}px, ${tp.y - 22}px)`,
             }}
             data-merge-order={mergeIndex + 1}
           >

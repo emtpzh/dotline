@@ -35,6 +35,40 @@ function cubicAt(p0: Pt, p1: Pt, p2: Pt, p3: Pt, t: number): Pt {
   };
 }
 
+export interface Box { x: number; y: number; width: number; height: number }
+
+/**
+ * Pin a wire's end to its card's border. React Flow anchors an edge at the
+ * handle's OUTER edge, from bounds measured once — so a line hung half a
+ * handle off the card, and a handle measured mid-transition (the bottom
+ * one grows into "+") left it a stale distance further. The card box is
+ * what the eye reads, so the end sits `out` px beyond the side it leaves
+ * from (negative = tucked under the card). A handle that sits INSIDE the
+ * card (the far tier's dot) is left where it is.
+ */
+export function onCardBorder(x: number, y: number, pos: Position | undefined, box: Box, out: number): Pt {
+  const reach = 40; // a handle's outer edge never lies further off its side
+  switch (pos) {
+    case 'top': {
+      const side = box.y;
+      return y <= side + 1 && y >= side - reach ? { x, y: side - out } : { x, y };
+    }
+    case 'bottom': {
+      const side = box.y + box.height;
+      return y >= side - 1 && y <= side + reach ? { x, y: side + out } : { x, y };
+    }
+    case 'left': {
+      const side = box.x;
+      return x <= side + 1 && x >= side - reach ? { x: side - out, y } : { x, y };
+    }
+    case 'right': {
+      const side = box.x + box.width;
+      return x >= side - 1 && x <= side + reach ? { x: side + out, y } : { x, y };
+    }
+    default: return { x, y };
+  }
+}
+
 export interface RoutedPath {
   path: string;
   labelX: number;
