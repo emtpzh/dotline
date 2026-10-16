@@ -177,7 +177,6 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
     return (
       <div
         className={`content-card map-node relative w-full h-full min-w-[340px] flex flex-col rounded-xl shadow-sm border border-border bg-card ${selectedNodeId === id ? 'tdag-selected ring-2 ring-primary selected-glow' : ''}`}
-        style={{ '--k': 1.75 } as React.CSSProperties}
         onClick={() => setSelectedNodeId(id)}
         onDoubleClick={openMaterial}
       >

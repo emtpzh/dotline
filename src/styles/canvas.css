@@ -119,12 +119,16 @@ body.tdag-connecting :is(.thought-node, .content-card) > .react-flow__handle.tda
 /* ── Card face: the layers every zoom shares ─────────────────────
    Name row → question → conclusion → body. Zooming out removes layers from
    the bottom and never swaps what a slot says. Everything here is sized in
-   em off the face's font size, so the map tier (--k: 1.75) is the same face
+   em off the face's font size, so the map tier (--k, up to 1.75) is the same face
    drawn larger — readable at map distance, identical in structure. */
 .tdag-face { font-size: calc(14px * var(--k, 1)); line-height: 1.5; }
-.thought-node.map-node {
-  --k: 1.75;
-  border-radius: calc(var(--radius-xl) * 1.75);
+/* The map face grows only as far as it must: it holds a steady ~11px on
+   screen (0.8 / zoom) and reaches 1.75× only where that is needed to stay
+   legible. A fixed 1.75× made the face jump to ~15px — larger than the
+   working card at 100% — the moment the map took over. */
+.map-node {
+  --k: clamp(1, calc(0.8 / var(--tdag-zoom, 1)), 1.75);
+  border-radius: calc(var(--radius-xl) * var(--k));
 }
 
 .tdag-l1 { display: flex; align-items: center; gap: 0.5em; min-width: 0; padding: 0.8em 1.1em 0 1.15em; }

@@ -26,7 +26,7 @@ export const LAYOUT_V_GAP = 72;
 // Collapsed node card height, used by layout estimation and collapse shifting.
 export const COLLAPSED_NODE_HEIGHT = 80;
 // Layout footprint of a collapsed node. NOT the folded card's own height:
-// at map zoom the same face renders 1.75× larger (≈ 190px world height),
+// at map zoom the same face renders up to 1.75× larger (≈ 190px world height),
 // and laying out by the working-size strip made every imported chain
 // overlap the moment the user zoomed to the map.
 export const COLLAPSED_LAYOUT_HEIGHT = 240;

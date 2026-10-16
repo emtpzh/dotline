@@ -1,4 +1,3 @@
-import { useRef } from 'react';
 import { useStore as useRfStore } from '@xyflow/react';
 
 /**
@@ -6,7 +5,8 @@ import { useStore as useRfStore } from '@xyflow/react';
  *
  *   work  (zoom > 0.62)  — the card as the user left it, expanded or folded
  *   map   (~0.32 – 0.72) — every card folded (name · question · conclusion),
- *                           the same face drawn 1.75× so it reads at distance
+ *                           the same face drawn larger so it reads at distance
+ *                           (canvas.css .map-node: never above reading size)
  *   glyph (zoom < 0.32)  — the name row only: a dot and the node's name
  *
  * One grammar across all three (lib/node-face): zooming out removes layers
@@ -27,22 +27,21 @@ const RESTORE_WORK = 0.72;
 const MAP_DROP = 0.32;
 const GLYPH_RESTORE = 0.4;
 
+// One tier for the whole canvas. With hysteresis the tier depends on the
+// zoom's history, not just its value — kept per component, a card mounted
+// inside the 0.62–0.72 band (scrolled into view, newly asked) started as a
+// full card while its neighbours stayed map faces. There is one canvas, so
+// the history lives here; every caller steps it with the same zoom.
+let shared: ZoomTier = 'work';
+
+function step(cur: ZoomTier, z: number): ZoomTier {
+  if (cur === 'work') return z <= WORK_KEEP ? (z <= MAP_DROP ? 'glyph' : 'map') : 'work';
+  if (cur === 'map') return z >= RESTORE_WORK ? 'work' : z <= MAP_DROP ? 'glyph' : 'map';
+  return z >= RESTORE_WORK ? 'work' : z >= GLYPH_RESTORE ? 'map' : 'glyph';
+}
+
 export function useZoomTier(): ZoomTier {
-  const ref = useRef<ZoomTier>('work');
-  return useRfStore((s) => {
-    const z = s.transform[2];
-    const cur = ref.current;
-    if (cur === 'work') {
-      if (z <= WORK_KEEP) ref.current = z <= MAP_DROP ? 'glyph' : 'map';
-    } else if (cur === 'map') {
-      if (z >= RESTORE_WORK) ref.current = 'work';
-      else if (z <= MAP_DROP) ref.current = 'glyph';
-    } else {
-      if (z >= RESTORE_WORK) ref.current = 'work';
-      else if (z >= GLYPH_RESTORE) ref.current = 'map';
-    }
-    return ref.current;
-  });
+  return useRfStore((s) => (shared = step(shared, s.transform[2])));
 }
 
 /** Legacy boolean view: true whenever cards are folded (map OR glyph). */
