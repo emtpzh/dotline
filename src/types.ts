@@ -51,6 +51,9 @@ export interface AgentStep {
   /** a step lifted from an attachment whose text the fields do not rebuild
       exactly: that attachment as it was, so its context never changes */
   legacy?: { name: string; size: number; content: string };
+  /** how long the answer was when the call came back: where the call sits
+      in the response (lib/transcript). Display only, never context. */
+  textAt?: number;
 }
 
 export interface Highlight {
@@ -158,6 +161,8 @@ export interface AgentTraceEntry {
   status: 'running' | 'ok' | 'error';
   startedAt: string;
   endedAt?: string;
+  /** how long the streamed answer was when the call started */
+  textAt?: number;
 }
 
 export type ApprovalOutcome = 'allowed-once' | 'allowed-session' | 'rejected' | 'cancelled' | 'unavailable' | 'answered';

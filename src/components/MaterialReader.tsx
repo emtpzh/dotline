@@ -853,7 +853,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                     <RefreshCw strokeWidth={1.75} /> {t('reader.redigest')}
                   </Button>
                   {digestNode && (
-                    <Button variant="ghost" onClick={() => { close(); onLocate(digestNode.id); }} className="hover:text-primary" title={t('reader.locate')}>
+                    <Button variant="ghost" onClick={() => { close(); onLocate(digestNode.id); }} className="hover:text-foreground" title={t('reader.locate')}>
                       <Crosshair strokeWidth={1.75} /> {t('reader.digestOnCanvas')}
                     </Button>
                   )}
@@ -940,7 +940,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
               <Button variant="ghost" size="icon-sm"
                 onClick={() => { close(); onLocate(thread[0].id); }}
                 title={t('reader.locate')}
-                className="text-muted-foreground hover:text-primary hover:bg-accent shrink-0"
+                className="text-muted-foreground hover:text-foreground shrink-0"
               >
                 <Crosshair strokeWidth={1.75} />
               </Button>
@@ -1028,7 +1028,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                   <Button variant="ghost"
                     onClick={() => { close(); onLocate(c.id); }}
                     title={t('reader.locate')}
-                    className="w-4.5 h-4.5 text-muted-foreground hover:text-primary shrink-0"
+                    className="w-4.5 h-4.5 text-muted-foreground hover:text-foreground shrink-0"
                   >
                     <Crosshair strokeWidth={1.75} />
                   </Button>

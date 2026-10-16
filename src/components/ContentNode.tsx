@@ -181,7 +181,7 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
         onDoubleClick={openMaterial}
       >
         <div className="tdag-face drag-handle cursor-grab active:cursor-grabbing shrink-0 animate-in fade-in-0 duration-150">
-          <FaceName shape="square" tone={tone} name={materialName} marks={[]} state={state} tags={tags} />
+          <FaceName shape="square" tone={tone} name={materialName} state={state} tags={tags} />
           <FaceBody question={materialLine} placeholder={placeholder} conclusion={null} />
         </div>
         {coverSrc && <img src={coverSrc} alt={cover!.name} className="flex-1 min-h-0 w-full object-cover object-top border-t border-border/60 rounded-b-xl" />}
@@ -287,7 +287,7 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
         </div>
       ) : (
         <FaceName className="tdag-face drag-handle cursor-grab active:cursor-grabbing shrink-0"
-          shape="square" tone={tone} name={materialName} marks={[]} state={state} tags={tags}
+          shape="square" tone={tone} name={materialName} state={state} tags={tags}
           stateMark={state ? <span className="tdag-state" data-state="unlinked" title={t('content.unlinkedTitle')}>{t('content.unlinked')}</span> : undefined}
           trailing={controls} />
       )}

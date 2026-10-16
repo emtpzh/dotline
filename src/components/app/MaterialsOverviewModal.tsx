@@ -135,7 +135,7 @@ export default function MaterialsOverviewModal({ onLocate }: { onLocate: (nodeId
                     <Button variant="ghost" size="icon-sm"
                       onClick={() => openReader(e.nodeId)}
                       title={t('attach.openReader')}
-                      className="text-muted-foreground hover:text-primary hover:bg-accent shrink-0"
+                      className="text-muted-foreground hover:text-foreground shrink-0"
                     >
                       <BookOpen strokeWidth={1.75} />
                     </Button>

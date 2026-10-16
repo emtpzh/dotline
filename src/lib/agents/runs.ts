@@ -180,7 +180,7 @@ export async function runAgentTurn(o: {
         const now = new Date().toISOString();
         patchOverlay(nodeId, (r) => {
           const trace = [...r.trace];
-          if (call.phase === 'start') trace.push({ id: call.id || `${trace.length}`, name: call.name, query: call.query, status: 'running', startedAt: now });
+          if (call.phase === 'start') trace.push({ id: call.id || `${trace.length}`, name: call.name, query: call.query, status: 'running', startedAt: now, textAt: (latest?.text ?? r.text).length });
           else { const i = trace.findIndex((e) => e.id === call.id && e.status === 'running'); if (i >= 0) trace[i] = { ...trace[i], status: call.isError ? 'error' : 'ok', endedAt: now }; }
           return { ...r, trace };
         });

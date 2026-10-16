@@ -227,6 +227,7 @@ export class PiSessionCollector {
         name: reg.name, call: reg.call, result: res.text, truncated: reg.truncated || res.truncated,
         op: reg.op, nativeCallId: id,
         ...(reg.paths.length ? { paths: reg.paths } : {}), ...(reg.locator ? { locator: reg.locator } : {}),
+        textAt: cur.response.length,
       });
       if (reg.name === 'subagent') {
         const runs = subagentRuns(reg.args, m.content, m.details, id);

@@ -23,6 +23,8 @@ export interface RunnerTool {
   url?: string;
   /** where inside the file the call looked, as the runner wrote it */
   locator?: { pages?: string; lines?: [number, number] };
+  /** how long the turn's response was when the call came back: where the call sits in the answer */
+  textAt?: number;
 }
 
 /** One run a turn delegated to a subagent: who ran, what it was asked, what came back — and its
@@ -102,21 +104,8 @@ export function cloneTurns<T extends RunnerTurn>(turns: T[]): T[] {
   }));
 }
 
-// Tool names → what they DID. Deterministic, runner-neutral: the same
-// table classifies a Claude Code `Edit` and a Codex `apply_patch`.
-const TOOL_OPS: [RegExp, ToolOp][] = [
-  [/^(Read|NotebookRead|read_file|view_image)$/i, 'read'],
-  [/^(Write|write_file)$/i, 'write'],
-  [/^(Edit|MultiEdit|NotebookEdit|apply_patch)$/i, 'edit'],
-  [/^(Bash|BashOutput|Shell|exec_command|local_shell|write_stdin)$/i, 'run'],
-  [/^(Grep|Glob|LS|Search|WebSearch|web_search)$/i, 'search'],
-  [/^(WebFetch|Fetch)$/i, 'fetch'],
-  [/^(Task|Agent)$/i, 'agent'],
-];
-
-export function toolOpOf(name: string): ToolOp {
-  return TOOL_OPS.find(([re]) => re.test(name))?.[1] ?? 'other';
-}
+import { toolOpOf } from '../agents/tool-ops';
+export { toolOpOf };
 
 /** Artifact-producing calls (a Write's whole file, an Edit's diff) keep
  *  their full text: that IS what the model saw and what the turn produced.
@@ -166,6 +155,7 @@ export function toolSteps(turn: RunnerTurn): AgentStep[] {
     ...(tool.truncated ? { truncated: true } : {}),
     ...(tool.paths?.length ? { paths: tool.paths } : {}),
     ...(tool.url ? { url: tool.url } : {}),
+    ...(tool.textAt !== undefined ? { textAt: tool.textAt } : {}),
   }));
 }
 
@@ -179,7 +169,8 @@ export function adoptSubagentSessions(turns: RunnerTurn[], subs: SubagentSession
   const settle = (run: SubagentRun, sub: SubagentSession) => {
     used.add(sub);
     settled.add(run);
-    const tools = sub.turns.flatMap((t) => t.tools);
+    // the child's own turns, not the run's report: where a call sat in them says nothing here
+    const tools = sub.turns.flatMap((t) => t.tools).map((x) => ({ ...x, textAt: undefined }));
     if (tools.length) run.tools = tools;
     if (!run.output.trim()) run.output = sub.turns.map((t) => t.response).filter((r) => r.trim()).at(-1) ?? '';
     if (!run.itemIds.includes(sub.sessionId)) run.itemIds.push(sub.sessionId);

@@ -34,7 +34,7 @@ const AUTO_PAUSE_KEY = 'thoughtdag.autoRefreshPaused';
 const HIDE_ANNOTATIONS_KEY = 'thoughtdag.hideAnnotations';
 
 /** Panel sections a card can point into. */
-export type PanelSection = 'refs' | 'highlights' | 'turn';
+export type PanelSection = 'refs' | 'highlights';
 
 interface UiState {
   toasts: ToastItem[];

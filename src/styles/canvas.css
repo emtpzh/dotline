@@ -144,10 +144,6 @@ body.tdag-connecting :is(.thought-node, .content-card) > .react-flow__handle.tda
 .tdag-tag[data-tag='warn'] { color: var(--warning); }
 .tdag-tag[data-tag='auto'] { font-variant-numeric: tabular-nums; }
 .tdag-tag[data-tag='role'] { padding: 0.05em 0.6em; border-radius: 9999px; font-weight: 600; color: var(--primary); background: color-mix(in oklch, var(--primary) 10%, transparent); }
-.tdag-acts { display: inline-flex; gap: 0.7em; flex: none; font-size: 0.76em; color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.tdag-act { display: inline-flex; align-items: center; gap: 0.25em; }
-.tdag-act svg { width: 1.15em; height: 1.15em; }
-.tdag-act[data-kind='edit'] { color: var(--foreground); font-weight: 600; }
 
 /* One state mark, one grammar: a dot plus its word. The far view keeps
    the dot's color as a ring (below). */

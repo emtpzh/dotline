@@ -1,24 +1,12 @@
 import type { ReactNode } from 'react';
-import { BookOpen, Bot, Globe, Pencil, Search, SquareTerminal, Wrench } from 'lucide-react';
-import type { ActionKind, ActionMark } from '../../lib/turn-insight';
 import type { FaceShape, FaceState, FaceTone } from '../../lib/node-face';
-import { useT, fmt } from '../../i18n';
+import { useT } from '../../i18n';
 import { Button } from '../ui/button';
 
 // The card face: the layers a node shows at every zoom that still shows
 // text. Sized in em off the face's own font size (14px × --k), so the map
 // tier renders the SAME face larger instead of a different plaque.
 // Styles live in styles/canvas.css (.tdag-face …).
-
-const ACT_ICON: Record<ActionKind, typeof Pencil> = {
-  edit: Pencil,
-  read: BookOpen,
-  search: Search,
-  run: SquareTerminal,
-  web: Globe,
-  agent: Bot,
-  other: Wrench,
-};
 
 const STATE_KEY = {
   failed: 'common.generationFailed',
@@ -39,32 +27,15 @@ export function StateMark({ state, onClick, title }: { state: FaceState; onClick
   );
 }
 
-export function ActionMarks({ marks }: { marks: ActionMark[] }) {
-  const t = useT();
-  if (marks.length === 0) return null;
-  return (
-    <span className="tdag-acts" data-action-marks>
-      {marks.map(({ kind, count }) => {
-        const Icon = ACT_ICON[kind];
-        return (
-          <span key={kind} className="tdag-act" data-kind={kind} title={fmt(t(`face.act.${kind}`), { n: count })}>
-            <Icon strokeWidth={1.75} />{count}
-          </span>
-        );
-      })}
-    </span>
-  );
-}
-
-/** Layer 1, the name row: shape · name · tags · actions · state, then
- *  whatever controls the working card needs (never shown on the map). */
-export function FaceName({ shape, tone, name, marks, state, stateMark, trailing, tags, onMarks, className = '' }: {
+/** Layer 1, the name row: shape · name · tags · state, then whatever
+ *  controls the working card needs (never shown on the map). What the turn
+ *  did with its tools is the panel's to say, not the card's. */
+export function FaceName({ shape, tone, name, state, stateMark, trailing, tags, className = '' }: {
   shape: FaceShape;
   tone: FaceTone;
   /** null until the node has a real name — the question right below
       already says what a fallback name would repeat */
   name: string | null;
-  marks: ActionMark[];
   state: FaceState | null;
   /** replaces the plain state mark (the working card makes "stale" clickable) */
   stateMark?: ReactNode;
@@ -72,23 +43,13 @@ export function FaceName({ shape, tone, name, marks, state, stateMark, trailing,
   /** marks that belong to this node alone, right after its name: the role
       it was set to, that it reruns itself, the session it left */
   tags?: ReactNode;
-  /** the working card's marks open where they are spelled out (the
-      panel's files); the map's are read only */
-  onMarks?: () => void;
   className?: string;
 }) {
-  const t = useT();
   return (
     <div className={`tdag-l1 ${className}`} data-tone={tone}>
       <span className="tdag-shape" data-shape={shape} />
       {name && <span className="tdag-name" title={name}>{name}</span>}
       {tags}
-      {onMarks && marks.length > 0 ? (
-        <Button variant="ghost" size="xs" className="nodrag h-auto px-1 -mx-1 font-normal" title={t('node.detailsTitle')}
-          onClick={(e) => { e.stopPropagation(); onMarks(); }} data-marks-open>
-          <ActionMarks marks={marks} />
-        </Button>
-      ) : <ActionMarks marks={marks} />}
       <span className="flex-1" />
       {stateMark ?? (state && <StateMark state={state} />)}
       {trailing}

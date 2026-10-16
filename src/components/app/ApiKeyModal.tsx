@@ -241,7 +241,7 @@ export default function ApiKeyModal() {
                     {p.models.some((m) => m.vision) && <span> · 📷 {p.models.filter((m) => m.vision).length}</span>}
                   </div>
                 </div>
-                <Button variant="ghost" size="icon-sm" onClick={() => void refresh(p)} disabled={busy} title={t('provider.refreshTitle')} className="text-muted-foreground hover:text-primary shrink-0" data-provider-refresh>
+                <Button variant="ghost" size="icon-sm" onClick={() => void refresh(p)} disabled={busy} title={t('provider.refreshTitle')} className="text-muted-foreground hover:text-foreground shrink-0" data-provider-refresh>
                   <Pencil strokeWidth={1.75} />
                 </Button>
                 <Button variant="ghost" size="icon-sm" onClick={() => void remove(p.baseURL)} disabled={busy} title={t('common.delete')} className="text-muted-foreground hover:text-destructive/90 shrink-0">

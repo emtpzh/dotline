@@ -25,19 +25,19 @@ export default function SearchToggles({ size = 16, model }: { size?: number; /**
   const selectedModel = useUiStore((s) => s.selectedModel);
   const noSearchLane = directWithoutSearch(model ?? selectedModel ?? undefined);
 
+  // the box's own icon buttons: quiet until on, then tinted in the primary
   const cls = (on: boolean) =>
     noSearchLane
-      ? 'transition-colors shrink-0 rounded-full w-8 h-8 flex items-center justify-center text-muted-foreground opacity-30 cursor-not-allowed'
-      : `transition-colors shrink-0 rounded-full w-8 h-8 flex items-center justify-center ${
-          on
-            ? 'text-primary bg-primary/15 ring-1 ring-primary/40 hover:bg-primary/25'
-            : 'text-muted-foreground opacity-50 hover:opacity-90 hover:bg-border'
-        }`;
+      ? 'rounded-md text-muted-foreground opacity-30 cursor-not-allowed'
+      : `rounded-md ${on
+        ? 'text-primary bg-primary/10 hover:bg-primary/15 hover:text-primary'
+        : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`;
+  const icon = size <= 14 ? 'size-3' : 'size-[13px]';
 
   return (
     <>
       {webAvailable && (
-        <Button variant="ghost"
+        <Button variant="ghost" size="icon-sm"
           type="button"
           onClick={() => { if (!noSearchLane) setWeb(!web); }}
           disabled={noSearchLane}
@@ -45,10 +45,10 @@ export default function SearchToggles({ size = 16, model }: { size?: number; /**
           className={cls(web)}
           data-web-toggle
         >
-          <Globe size={size} strokeWidth={1.75} />
+          <Globe strokeWidth={1.75} className={icon} />
         </Button>
       )}
-      <Button variant="ghost"
+      <Button variant="ghost" size="icon-sm"
         type="button"
         onClick={() => { if (!noSearchLane) setScholar(!scholar); }}
         disabled={noSearchLane}
@@ -56,7 +56,7 @@ export default function SearchToggles({ size = 16, model }: { size?: number; /**
         className={cls(scholar)}
         data-scholar-toggle
       >
-        <GraduationCap size={size} strokeWidth={1.75} />
+        <GraduationCap strokeWidth={1.75} className={icon} />
       </Button>
     </>
   );

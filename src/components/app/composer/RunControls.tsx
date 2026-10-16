@@ -5,7 +5,7 @@
 // it runs on (model and effort), then the send; under the box, one status
 // line saying whether the question goes on in the agent session above.
 
-import { ArrowUp, ChevronDown, Cloud, CornerDownRight, Eye, PencilLine, SquareTerminal } from 'lucide-react';
+import { ArrowRightLeft, ArrowUp, Cloud, Eye, PencilLine, Square, SquareTerminal } from 'lucide-react';
 import { useT, fmt } from '../../../i18n';
 import { useStore } from '../../../store';
 import { useUiStore } from '../../../lib/ui-store';
@@ -19,6 +19,9 @@ import type { RunIntent } from '../../../lib/run-intent';
 import { turnOf } from '../../../lib/sessions/turn';
 import type { IntentPatch } from './run-intent-hooks';
 import { Button } from '../../ui/button';
+import { Switch } from '../../ui/switch';
+import { Popover, PopoverContent, PopoverTrigger } from '../../ui/popover';
+import { ACTION, ACTION_ICON } from '../../focus-panel/line';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub,
@@ -56,8 +59,8 @@ function firstModel(engines: { engine: Engine; models: ModelInfo[] }[], engine: 
   return preferred && group.models.some((m) => m.id === preferred) ? preferred : group.models[0].id;
 }
 
-// a control in the box: borderless text with a caret, like the agent tools' own boxes
-const pill = 'gap-1.5 rounded-md px-2 text-xs font-normal text-foreground hover:bg-muted aria-expanded:bg-muted';
+// a control in the box: borderless quiet text, like the agent tools' own boxes
+const pill = 'gap-1.5 rounded-md px-1.5 text-xs font-normal text-muted-foreground hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground';
 const changedPill = 'text-primary [&_svg]:text-primary';
 
 function EngineIcon({ engine }: { engine: Engine }) {
@@ -75,7 +78,7 @@ export function RuntimeMenu({ intent, onIntent }: { intent: RunIntent; onIntent:
   return (
     <DropdownMenu onOpenChange={(open) => { if (open) ensureAgentsFresh(); }}>
       <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className={pill} data-composer-runtime={engine} />}>
-        <EngineIcon engine={engine} /> {label} <ChevronDown strokeWidth={1.75} className="opacity-60" />
+        <EngineIcon engine={engine} /> {label}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
         <DropdownMenuGroup>
@@ -116,8 +119,8 @@ export function RegenerateWith({ current, onPick }: { current: string | undefine
   const engines = enginesOf(data?.models ?? []);
   return (
     <DropdownMenu onOpenChange={(open) => { if (open) ensureAgentsFresh(); }}>
-      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="-ml-1 text-muted-foreground hover:text-foreground" title={t('regen.withModelTitle')} data-regen-with />}>
-        <ChevronDown strokeWidth={1.75} />
+      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" className={`${ACTION} aria-expanded:bg-muted aria-expanded:text-foreground`} title={t('regen.withModelTitle')} aria-label={t('regen.withModelTitle')} data-regen-with />}>
+        <ArrowRightLeft strokeWidth={1.75} className={ACTION_ICON} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-60 max-h-[60vh] overflow-y-auto">
         {engines.map(({ engine, models }, i) => (
@@ -169,10 +172,9 @@ export function ModelMenu({ intent, onIntent, changed, offerRuntimes, session }:
   return (
     <DropdownMenu onOpenChange={(open) => { if (open) ensureAgentsFresh(); }}>
       <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className={`${pill} max-w-[220px] ${changed ? changedPill : ''}`} data-composer-model />}>
-        <span className="truncate">{(agentTarget(intent.model ?? '')?.id === '' ? t('composer.sessionModel') : modelLabel(current, intent.model)) || t('composer.defaultModel')}</span>
-        {effortWord && <span className="text-muted-foreground shrink-0">{effortWord}</span>}
+        <span className={`truncate ${changed ? '' : 'text-foreground/80'}`}>{(agentTarget(intent.model ?? '')?.id === '' ? t('composer.sessionModel') : modelLabel(current, intent.model)) || t('composer.defaultModel')}</span>
+        {effortWord && <span className="shrink-0">{effortWord.charAt(0).toUpperCase() + effortWord.slice(1)}</span>}
         {preset && <span className="text-muted-foreground truncate max-w-[80px]" data-composer-preset-word>{preset.name}</span>}
-        <ChevronDown strokeWidth={1.75} className="opacity-60 shrink-0" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuSub>
@@ -255,7 +257,6 @@ export function AccessMenu({ value, onChange, changed }: { value: AgentAccess; o
       <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className={`${pill} ${changed ? changedPill : ''}`} data-composer-access={value} />}>
         {value === 'write' ? <PencilLine strokeWidth={1.75} /> : <Eye strokeWidth={1.75} />}
         {value === 'write' ? t('access.write') : t('access.read')}
-        <ChevronDown strokeWidth={1.75} className="opacity-60" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
         <DropdownMenuRadioGroup value={value} onValueChange={(v) => onChange(v as AgentAccess)}>
@@ -275,7 +276,7 @@ export function AccessMenu({ value, onChange, changed }: { value: AgentAccess; o
   );
 }
 
-/** The round send button; its colour says where the question goes. */
+/** The send button, a rounded square; its colour says where the question goes. */
 export function SendButton({ onClick, disabled, session, title }: { onClick: () => void; disabled?: boolean; session?: Continuity | null; title?: string }) {
   const t = useT();
   const tone = session?.kind === 'new' ? 'bg-warning hover:bg-warning/90' : session?.kind === 'fork' ? 'bg-edge-explore hover:bg-edge-explore/90' : 'bg-primary hover:bg-primary/90';
@@ -285,10 +286,10 @@ export function SendButton({ onClick, disabled, session, title }: { onClick: () 
       disabled={disabled}
       title={title ?? (session?.kind === 'new' ? t('session.sendNew') : t('composer.send'))}
       aria-label={t('composer.send')}
-      className={`shrink-0 rounded-full text-primary-foreground disabled:opacity-40 ${tone}`}
+      className={`shrink-0 rounded-lg text-primary-foreground disabled:opacity-40 ${tone}`}
       data-composer-send={session?.kind ?? 'plain'}
     >
-      <ArrowUp strokeWidth={2.25} />
+      <ArrowUp strokeWidth={2.25} className="size-[13px]" />
     </Button>
   );
 }
@@ -331,74 +332,133 @@ function SessionConfigNotes({ parentData, intent, base, onIntent, continues }: {
   return <p className="flex flex-col gap-0.5 px-1 text-2xs text-muted-foreground" role="note">{notes}</p>;
 }
 
-/** Under a box that asks off a node: whether the question goes on in the
- *  agent session above, opens a new one (and why — with the way back when
- *  the box itself caused it), or branches from an earlier turn. Nothing for
- *  a chat line with no session above. */
-export function RunStatus({ session, intent, base, onIntent, onLocate }: {
+/** Inside the box, beside what the turn may do: where the question goes,
+ *  in a word — goes on in the session above (quiet), opens a new one (amber),
+ *  branches from an earlier turn (orange), the colour the send button wears
+ *  too. Open, one sentence says it in full, with what the box can do about
+ *  it (take the model back, pick a directory, find the cause), and the
+ *  switch for the files handed down from upstream. Nothing for a chat line
+ *  with no session above and no files to hand down. */
+export function SessionChip({ session, intent, base, onIntent, onLocate, files }: {
   session: Continuity | null; intent: RunIntent; base?: RunIntent;
   onIntent?: (p: IntentPatch) => void; onLocate?: (nodeId: string) => void;
+  files?: { count: number; on: boolean; onChange: (on: boolean) => void };
 }) {
   const t = useT();
   const nodes = useStore((s) => s.nodes);
   const runtime = runtimeOf(intent.model);
+  const parent = session ? nodes.find((n) => n.id === session.parentId) : undefined;
+  let word = '';
+  let tone = '';
+  let say: React.ReactNode = null;
+  let extra: React.ReactNode = null;
   if (!session) {
-    return runtime ? <p className="px-1 text-2xs text-muted-foreground" data-composer-status="new-line">{t('composer.newSession')} · {AGENT_RUNTIMES[runtime].label}</p> : null;
-  }
-  if (session.kind === 'continue') {
-    const parent = nodes.find((n) => n.id === session.parentId);
+    if (runtime) { word = t('chip.new'); say = fmt(t('chip.newLineSay'), { runtime: AGENT_RUNTIMES[runtime].label }); }
+  } else if (session.kind === 'continue') {
     const cwd = turnOf(parent?.data)?.resumeCwd ?? '';
-    return (
-      <>
-        <p className="flex flex-wrap items-center gap-x-3 px-1 text-2xs text-muted-foreground" data-composer-status="continue">
-          <span className="inline-flex items-center gap-1"><CornerDownRight size={11} strokeWidth={1.75} /> {fmt(t('composer.continue'), { n: session.turn })}</span>
-          <span className="truncate">{AGENT_RUNTIMES[session.runtime].label}{cwd ? ` · ${cwd.split('/').filter(Boolean).pop()}` : ''}</span>
-        </p>
-        <SessionConfigNotes parentData={parent?.data} intent={intent} base={base} onIntent={onIntent} continues />
-      </>
-    );
+    const dir = cwd.split('/').filter(Boolean).pop();
+    word = t('chip.continue');
+    say = fmt(t('chip.continueSay'), { runtime: AGENT_RUNTIMES[session.runtime].label, n: session.turn, dir: dir ? fmt(t('chip.dir'), { dir }) : '' });
+    extra = <SessionConfigNotes parentData={parent?.data} intent={intent} base={base} onIntent={onIntent} continues />;
+  } else if (session.kind === 'fork') {
+    word = t('chip.fork');
+    tone = 'bg-edge-explore/10 text-edge-explore hover:bg-edge-explore/15 hover:text-edge-explore aria-expanded:bg-edge-explore/15 aria-expanded:text-edge-explore';
+    say = fmt(t('session.forkLine'), { n: session.turn });
+    extra = <SessionConfigNotes parentData={parent?.data} intent={intent} base={base} onIntent={onIntent} />;
+  } else {
+    word = t('chip.new');
+    tone = 'bg-warning/10 text-warning hover:bg-warning/15 hover:text-warning aria-expanded:bg-warning/15 aria-expanded:text-warning';
+    say = <><span className="block text-warning">{fmt(t('session.newTitle'), { why: sessionWhy(session, nodes, t) })}</span><span className="block text-muted-foreground">{t('composer.newCost')}</span></>;
+    const undoRuntime = session.reason === 'runtime' && base?.model && base.model !== intent.model && runtimeOf(base.model) && onIntent;
+    const about = session.about ? nodes.find((n) => n.id === session.about) : undefined;
+    const locatable = !!about && !!onLocate && (session.reason === 'material' || session.reason === 'reference' || session.reason === 'edited');
+    const gone = session.reason === 'gone' && window.desktopAgents?.pickCwd && window.desktopAgents.capabilities?.nativePicker !== false;
+    extra = (undoRuntime || locatable || gone) ? (
+      <div className="flex flex-wrap items-center gap-1.5">
+        {undoRuntime && (
+          <Button variant="outline" size="xs" onClick={(e) => { e.stopPropagation(); onIntent!({ model: base!.model, effort: base!.effort ?? '' }); }} data-composer-undo>
+            {fmt(t('composer.undoRuntime'), { x: AGENT_RUNTIMES[runtimeOf(base!.model)!].label })}
+          </Button>
+        )}
+        {gone && (
+          <Button variant="outline" size="xs" data-composer-pick-dir
+            onClick={(e) => {
+              e.stopPropagation();
+              // where new lines start: the question that leaves the gone directory starts there
+              void window.desktopAgents!.pickCwd().then(async (dir) => {
+                const { useProjects, setProjectAgentCwd } = await import('../../../store/projects');
+                const id = useProjects.getState().activeId;
+                if (dir && id) await setProjectAgentCwd(id, dir);
+              });
+            }}>
+            {t('session.pickDir')}
+          </Button>
+        )}
+        {locatable && (
+          <Button variant="link" size="xs" className="h-auto px-0" onClick={(e) => { e.stopPropagation(); onLocate!(about!.id); }}>
+            {fmt(t('session.locate'), { x: shortName(about!.data) })}
+          </Button>
+        )}
+      </div>
+    ) : null;
   }
-  if (session.kind === 'fork') {
-    const parent = nodes.find((n) => n.id === session.parentId);
-    return (
-      <>
-        <p className="rounded-md bg-edge-explore/10 px-2 py-1 text-2xs text-edge-explore" data-composer-status="fork">{fmt(t('session.forkLine'), { n: session.turn })}</p>
-        <SessionConfigNotes parentData={parent?.data} intent={intent} base={base} onIntent={onIntent} />
-      </>
-    );
-  }
-  // a new session: the model picked in this box is the one cause the box can take back
-  const undoRuntime = session.reason === 'runtime' && base?.model && base.model !== intent.model && runtimeOf(base.model) && onIntent;
-  const about = session.about ? nodes.find((n) => n.id === session.about) : undefined;
-  const locatable = !!about && !!onLocate && (session.reason === 'material' || session.reason === 'reference' || session.reason === 'edited');
+  const showFiles = !!files && files.count > 0;
+  if (!word && !showFiles) return null;
+  if (!word) word = fmt(t('chip.files'), { n: files!.count });
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-warning/10 px-2 py-1 text-2xs" role="status" data-composer-status="new">
-      <span className="font-medium text-warning">{fmt(t('session.newTitle'), { why: sessionWhy(session, nodes, t) })}</span>
-      <span className="text-muted-foreground">{t('composer.newCost')}</span>
-      {undoRuntime && (
-        <Button variant="outline" size="xs" className="h-5 px-1.5 text-2xs" onClick={(e) => { e.stopPropagation(); onIntent!({ model: base!.model, effort: base!.effort ?? '' }); }} data-composer-undo>
-          {fmt(t('composer.undoRuntime'), { x: AGENT_RUNTIMES[runtimeOf(base!.model)!].label })}
-        </Button>
-      )}
-      {session.reason === 'gone' && window.desktopAgents?.pickCwd && window.desktopAgents.capabilities?.nativePicker !== false && (
-        <Button variant="outline" size="xs" className="h-5 px-1.5 text-2xs" data-composer-pick-dir
-          onClick={(e) => {
-            e.stopPropagation();
-            // where new lines start: the question that leaves the gone directory starts there
-            void window.desktopAgents!.pickCwd().then(async (dir) => {
-              const { useProjects, setProjectAgentCwd } = await import('../../../store/projects');
-              const id = useProjects.getState().activeId;
-              if (dir && id) await setProjectAgentCwd(id, dir);
-            });
-          }}>
-          {t('session.pickDir')}
-        </Button>
-      )}
-      {locatable && (
-        <Button variant="link" size="xs" className="h-auto px-0 text-2xs" onClick={(e) => { e.stopPropagation(); onLocate!(about!.id); }}>
-          {fmt(t('session.locate'), { x: shortName(about!.data) })}
-        </Button>
-      )}
-    </div>
+    <Popover>
+      <PopoverTrigger
+        render={<Button variant="ghost" size="sm" className={`${pill} min-w-0 ${tone}`} title={t('chip.title')} data-composer-status={session?.kind ?? (runtime ? 'new-line' : 'files')} />}
+      >
+        <span className="truncate">{word}</span>
+      </PopoverTrigger>
+      <PopoverContent side="top" align="start" className="w-64 gap-2.5 p-3 text-xs" data-composer-status-popover>
+        {say && <p className="leading-relaxed text-foreground">{say}</p>}
+        {extra}
+        {showFiles && (
+          <label className="flex cursor-pointer items-center justify-between gap-3 text-muted-foreground">
+            {files!.count === 1 ? t('chip.inheritOne') : fmt(t('chip.inherit'), { n: files!.count })}
+            <Switch size="sm" checked={files!.on} onCheckedChange={(on) => files!.onChange(on)} data-composer-inherit />
+          </label>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** Above the box, only when the box itself broke the session: picking a
+ *  model of another runtime. The one surprise worth a line of its own —
+ *  with the way back. */
+export function SessionNote({ session, intent, base, onIntent }: {
+  session: Continuity | null; intent: RunIntent; base?: RunIntent; onIntent?: (p: IntentPatch) => void;
+}) {
+  const t = useT();
+  if (!session || session.kind !== 'new' || session.reason !== 'runtime') return null;
+  if (!base?.model || base.model === intent.model || !runtimeOf(base.model) || !onIntent) return null;
+  return (
+    <p className="mb-1.5 flex flex-wrap items-center gap-x-2 px-1 text-xs text-warning" role="status" data-composer-note="runtime">
+      {t('chip.modelNote')}
+      <Button variant="link" size="xs" className="h-auto px-0 text-xs" onClick={() => onIntent({ model: base.model, effort: base.effort ?? '' })}>
+        {fmt(t('composer.undoRuntime'), { x: AGENT_RUNTIMES[runtimeOf(base.model)!].label })}
+      </Button>
+    </p>
+  );
+}
+
+/** While the card the box asks off is still answering: the send button's
+ *  place, as the stop. It stays the stop while text is typed — ask on once
+ *  the turn is over. */
+export function StopButton({ onClick }: { onClick: () => void }) {
+  const t = useT();
+  return (
+    <Button size="icon-sm"
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      title={t('composer.stop')}
+      aria-label={t('composer.stop')}
+      className="shrink-0 rounded-lg bg-foreground text-background hover:bg-foreground/85"
+      data-composer-stop
+    >
+      <Square strokeWidth={0} fill="currentColor" className="size-2.5" />
+    </Button>
   );
 }

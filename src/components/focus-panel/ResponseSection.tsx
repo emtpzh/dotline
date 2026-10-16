@@ -11,7 +11,6 @@ import { isViewerMode } from '../../lib/viewer';
 import { collectExploreMarksKey, type ExploreMark } from '../../lib/explore-marks';
 import ReasoningDisclosure from '../app/ReasoningDisclosure';
 import { ApprovalCard, DecisionsDisclosure } from '../app/ApprovalCard';
-import { AgentTrace } from '../app/AgentTrace';
 import type { ThoughtData } from '../../types';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
@@ -21,6 +20,10 @@ import { nodeIntent } from '../../store/intent';
 import { isAgentModel, runtimeOf } from '../../lib/agents/runtimes';
 import { useTextSelection } from '../../lib/use-text-selection';
 import { turnOf } from '../../lib/sessions/turn';
+import { interleave, transcriptSteps } from '../../lib/transcript';
+import { LiveStepsLine, StepsLine } from './StepsLine';
+import { ACTION, ACTION_ICON } from './line';
+import { TurnStamp } from './TurnLines';
 
 export default function ResponseSection({
   nodeId,
@@ -94,14 +97,16 @@ export default function ResponseSection({
 
   // Follow the stream — but only while the reader is at the bottom. Scroll
   // up during generation and the view stays put (read from the top while
-  // the rest streams in); scroll back down to re-engage following.
+  // the rest streams in); scroll back down to re-engage following. The
+  // reasoning stream scrolls in its own box; the answer, in the panel's.
   useEffect(() => {
-    const el = streamRef.current;
+    const own = streamRef.current;
+    const el = own && own.scrollHeight > own.clientHeight + 1 ? own : own?.closest<HTMLElement>('[data-panel-scroll]');
     if (!data.isLoading || !el) return;
     if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [data.isLoading, data.response, data.reasoning]);
+  }, [data.isLoading, data.response, data.reasoning, data.agentTrace]);
 
   // Button-triggered (see ThoughtNode): double-click stays a text gesture.
   const startEditResponse = () => {
@@ -134,44 +139,44 @@ export default function ResponseSection({
     return null;
   }
 
-  return (
-    <div className="panel-card px-4 py-3">
-      <div className="flex items-center justify-between mb-1.5">
-        <label className="text-2xs font-semibold text-muted-foreground">{t('panel.response')}</label>
-        {(data.response || data.isLoading) && (
-          <Button variant="ghost" size="icon-sm"
-            onClick={() => useUiStore.getState().setResponseViewerNodeId(nodeId)}
-            title={t('panel.expandResponse')}
-            className="text-muted-foreground hover:text-primary hover:bg-accent"
-            data-response-expand
-          >
-            <Maximize2 strokeWidth={1.75} />
-          </Button>
-        )}
-      </div>
+  const base = turnOf(data)?.cwd ?? undefined;
+  const answerText = (text: string) => (highlightedTexts.size > 0 || exploreSpecs.length > 0
+    ? <HighlightedMarkdown content={text} highlights={highlightedTexts} exploreMarks={exploreSpecs} />
+    : <Markdown base={base}>{text}</Markdown>);
+  // the calls sit where they came back, while the answer is the one they were recorded against
+  const placed = !!data.source && data.response === data.source.response;
+  const liveText = data.restreaming ? '' : data.response;
+  const liveTrace = data.agentTrace ?? [];
 
-      {data.isLoading && data.pendingApprovals?.length ? (
-        <div className="py-1 flex flex-col gap-1.5">{data.pendingApprovals.map((req) => <ApprovalCard key={req.id} nodeId={nodeId} request={req} />)}</div>
-      ) : data.isLoading && data.agentTrace && data.agentTrace.length > 0 && (!data.response || data.restreaming) ? (
-        <div className="py-1"><AgentTrace entries={data.agentTrace} /></div>
-      ) : data.isLoading && (!data.response || data.restreaming) ? (
+  return (
+    <div className="flex flex-col gap-3" data-panel-response>
+      {data.isLoading && (liveText || liveTrace.length > 0) ? (
+        <div ref={streamRef} className="flex flex-col gap-3">
+          {interleave(liveText, liveTrace, true).map((part, i, parts) => (part.kind === 'steps'
+            ? <LiveStepsLine key={`s${i}`} entries={part.steps} />
+            : (
+              <div key={`t${i}`} className="markdown-body text-[13px] text-foreground">
+                <Markdown base={base}>{part.text}</Markdown>
+                {i === parts.length - 1 && <span className="tdag-caret ml-0.5 align-text-bottom" />}
+              </div>
+            )))}
+          {data.pendingApprovals?.map((req) => <ApprovalCard key={req.id} nodeId={nodeId} request={req} />)}
+        </div>
+      ) : data.isLoading && data.pendingApprovals?.length ? (
+        <div className="flex flex-col gap-1.5">{data.pendingApprovals.map((req) => <ApprovalCard key={req.id} nodeId={nodeId} request={req} />)}</div>
+      ) : data.isLoading ? (
         data.reasoning ? (
-          <div className="py-1">
-            <div className="text-2xs text-muted-foreground mb-1">{t('node.reasoningLive')}</div>
+          <div>
+            <div className="text-[13px] text-muted-foreground mb-1">{t('node.reasoningLive')}</div>
             <div ref={streamRef} className="text-xs text-muted-foreground italic leading-relaxed whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto">
               {data.reasoning.length > 4000 ? '…' + data.reasoning.slice(-4000) : data.reasoning}
             </div>
           </div>
         ) : (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="animate-pulse text-primary">●</span> {t('common.thinking')}
-        </div>
+          <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+            <span className="animate-pulse text-primary">●</span> {t('common.thinking')}
+          </div>
         )
-      ) : data.isLoading && data.response && !data.restreaming ? (
-        <div ref={streamRef} className="markdown-body text-sm text-foreground leading-relaxed max-h-[500px] overflow-y-auto py-1">
-          <Markdown base={turnOf(data)?.cwd ?? undefined}>{data.response}</Markdown>
-          <span className="tdag-caret ml-0.5 align-text-bottom" />
-        </div>
       ) : data.isEditingResponse ? (
         <div>
           <Textarea
@@ -189,18 +194,18 @@ export default function ResponseSection({
           </div>
         </div>
       ) : (
-        <div ref={responseRef} className="relative">
+        <div ref={responseRef} className="relative flex flex-col gap-3">
           {data.approvals && data.approvals.length > 0 && <DecisionsDisclosure records={data.approvals} />}
           {data.reasonings?.[data.responseIndex] && (
             <ReasoningDisclosure text={data.reasonings[data.responseIndex]!} />
           )}
-          <div className="markdown-body text-sm text-foreground leading-relaxed cursor-text py-1" onClick={handleExploreMarkClick}>
-            {highlightedTexts.size > 0 || exploreSpecs.length > 0 ? (
-              <HighlightedMarkdown content={data.response} highlights={highlightedTexts} exploreMarks={exploreSpecs} />
-            ) : (
-              <Markdown base={turnOf(data)?.cwd ?? undefined}>{data.response}</Markdown>
-            )}
-          </div>
+          {interleave(data.response, transcriptSteps(data.steps), placed).map((part, i) => (part.kind === 'steps'
+            ? <StepsLine key={`s${i}`} steps={part.steps} />
+            : (
+              <div key={`t${i}`} className="markdown-body text-[13px] text-foreground cursor-text" onClick={handleExploreMarkClick}>
+                {answerText(part.text)}
+              </div>
+            )))}
 
           {/* Select a passage → explore / highlight */}
           <SelectionActions
@@ -216,52 +221,51 @@ export default function ResponseSection({
           under it (LLM-chat convention); the sibling-branch variant is in
           the header's ⋯ menu */}
       {data.response && !data.isLoading && !data.isEditingResponse && !data.generationFailed && (
-        <div className="mt-2 flex items-center gap-0.5 text-muted-foreground">
-          {!isViewerMode && <Button variant="ghost" size="icon-sm"
-            onClick={() => void rerunNode(nodeId, {})}
-            className="hover:text-primary hover:bg-accent"
-            title={t('common.regenerate')}
-          >
-            <RefreshCw strokeWidth={1.75} />
-          </Button>}
-          {!isViewerMode && <RegenerateWith current={intentModel} onPick={regenerateWith} />}
-          <Button variant="ghost" size="icon-sm"
-            onClick={() => void copyText(data.response)}
-            className="hover:text-primary hover:bg-accent"
-            title={t('actions.copyResponse')}
-          >
-            <Copy strokeWidth={1.75} />
-          </Button>
+        <div className="-ml-1.5 -mt-1 flex items-center gap-0.5 text-muted-foreground" data-response-actions>
           {!isViewerMode && (
-            <Button variant="ghost" size="icon-sm"
-              onClick={startEditResponse}
-              className="hover:text-primary hover:bg-accent"
-              title={t('actions.editResponse')}
-              data-edit-response
-            >
-              <Pencil strokeWidth={1.75} />
+            <Button variant="ghost" size="icon-sm" className={ACTION} onClick={() => void rerunNode(nodeId, {})} title={t('common.regenerate')}>
+              <RefreshCw strokeWidth={1.75} className={ACTION_ICON} />
             </Button>
           )}
+          {!isViewerMode && <RegenerateWith current={intentModel} onPick={regenerateWith} />}
+          <Button variant="ghost" size="icon-sm" className={ACTION} onClick={() => void copyText(data.response)} title={t('actions.copyResponse')}>
+            <Copy strokeWidth={1.75} className={ACTION_ICON} />
+          </Button>
+          {!isViewerMode && (
+            <Button variant="ghost" size="icon-sm" className={ACTION} onClick={startEditResponse} title={t('actions.editResponse')} data-edit-response>
+              <Pencil strokeWidth={1.75} className={ACTION_ICON} />
+            </Button>
+          )}
+          <Button variant="ghost" size="icon-sm" className={ACTION}
+            onClick={() => useUiStore.getState().setResponseViewerNodeId(nodeId)}
+            title={t('panel.expandResponse')}
+            data-response-expand
+          >
+            <Maximize2 strokeWidth={1.75} className={ACTION_ICON} />
+          </Button>
           {hasMultipleVersions && (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground ml-1">
-              <Button variant="ghost" size="icon-sm" onClick={() => navigateVersion(nodeId, 'prev')} className="hover:text-primary hover:bg-accent"><ChevronLeft strokeWidth={1.75} /></Button>
-              <span className="text-primary font-medium">v{data.responseIndex + 1}/{data.responses.length}</span>
-              <Button variant="ghost" size="icon-sm" onClick={() => navigateVersion(nodeId, 'next')} className="hover:text-primary hover:bg-accent"><ChevronRight strokeWidth={1.75} /></Button>
-              {!isViewerMode && <Button variant="ghost" size="icon-sm"
-                onClick={() => deleteVersion(nodeId, data.responseIndex)}
-                className="text-muted-foreground hover:text-destructive/90 hover:bg-destructive/10"
-                title={t('common.deleteVersion')}
-              >
-                <Trash2 strokeWidth={1.75} />
-              </Button>}
+            <div className="group/versions ml-2 flex items-center gap-0.5 text-xs">
+              <Button variant="ghost" size="icon-sm" className={ACTION} onClick={() => navigateVersion(nodeId, 'prev')}><ChevronLeft strokeWidth={1.75} className={ACTION_ICON} /></Button>
+              <span className="px-0.5 tabular-nums">{data.responseIndex + 1} / {data.responses.length}</span>
+              <Button variant="ghost" size="icon-sm" className={ACTION} onClick={() => navigateVersion(nodeId, 'next')}><ChevronRight strokeWidth={1.75} className={ACTION_ICON} /></Button>
+              {!isViewerMode && (
+                <Button variant="ghost" size="icon-sm"
+                  onClick={() => deleteVersion(nodeId, data.responseIndex)}
+                  className={`${ACTION} opacity-0 group-hover/versions:opacity-100 focus-visible:opacity-100 hover:text-destructive hover:bg-destructive/10`}
+                  title={t('common.deleteVersion')}
+                >
+                  <Trash2 strokeWidth={1.75} className={ACTION_ICON} />
+                </Button>
+              )}
             </div>
           )}
+          <TurnStamp data={data} />
         </div>
       )}
 
       {/* Web references consulted for this response */}
       {data.references && data.references.length > 0 && !data.isLoading && (
-        <div className="mt-3 pt-2 border-t border-border/60" data-panel-section="refs">
+        <div className="pt-2 border-t border-border/60" data-panel-section="refs">
           <p className="text-2xs text-muted-foreground font-medium mb-1.5">{t('refs.title')}</p>
           <ol className="space-y-1">
             {data.references.map((r, i) => (
@@ -285,7 +289,7 @@ export default function ResponseSection({
 
       {/* Failed generation: retry in place */}
       {data.generationFailed && !data.isLoading && (
-        <div className="mt-2 flex items-center gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/15 rounded-lg px-3 py-2">
+        <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/15 rounded-lg px-3 py-2">
           <AlertTriangle size={14} strokeWidth={1.75} className="shrink-0" />
           {t('common.generationFailed')}
           {!isViewerMode && <Button variant="destructive" size="xs"

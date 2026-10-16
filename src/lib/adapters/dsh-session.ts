@@ -340,6 +340,7 @@ export class DshSessionCollector {
         name: reg.name, call: reg.call, result: res.text, truncated: reg.truncated || res.truncated,
         op: reg.op, nativeCallId: callId,
         ...(reg.paths.length ? { paths: reg.paths } : {}), ...(reg.url ? { url: reg.url } : {}), ...(reg.locator ? { locator: reg.locator } : {}),
+        textAt: t.response.length,
       });
       this.pendingTools.delete(callId);
       return;
@@ -356,7 +357,9 @@ export class DshSessionCollector {
       const op = toolOpOf(d.name);
       const call = clipText(renderArgCall(d.name, d.arguments), op === 'write' || op === 'edit' ? ARTIFACT_CALL_LIMIT : TOOL_CALL_LIMIT);
       const res = clipText(partsText(d.content), TOOL_RESULT_LIMIT);
-      this.ensure().tools.push({
+      const cur = this.ensure();
+      cur.tools.push({
+        textAt: cur.response.length,
         name: d.name, call: call.text, result: res.text, truncated: call.truncated || res.truncated,
         op, nativeCallId: d.subCallId, ...(paths.length ? { paths } : {}), ...(scope.url ? { url: scope.url } : {}), ...(scope.locator ? { locator: scope.locator } : {}),
       });

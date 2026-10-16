@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { describeModel } from '../lib/use-models';
-import { actionMarks } from '../lib/turn-insight';
 import { faceState, faceTone, farPriority, nodeConclusion, nodeName, roleLabel, type FaceShape } from '../lib/node-face';
 import { isAutoRerun, nodeRoute } from '../lib/edge-look';
 import { Handle, Position, useReactFlow, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
@@ -290,10 +289,6 @@ export default function ThoughtNode({ id, data: stored }: NodeProps<ThoughtNodeT
     setSelectedNodeId(childId);
     void flyTo(rf, child.position.x + 260, child.position.y + 110);
   };
-  // What the turn did, counted from its tool calls (name row); the files
-  // behind the counts are one click away, in the panel
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the exact fields read
-  const marks = useMemo(() => actionMarks(data), [data.steps]);
   // The judged takeaway of the ACTIVE version (display only — the model
   // always reads the full answer)
   const versionSummary = activeSummary(data);
@@ -491,14 +486,13 @@ export default function ThoughtNode({ id, data: stored }: NodeProps<ThoughtNodeT
             if (n) void flyTo(rf, n.position.x + 260, n.position.y + 120, 1);
           }}
         >
-          <FaceName shape={shape} tone={tone} name={rowName} marks={marks} state={state} tags={tags} />
+          <FaceName shape={shape} tone={tone} name={rowName} state={state} tags={tags} />
           <FaceBody question={data.question} placeholder={t('face.noQuestion')} conclusion={conclusion} />
         </div>
       ) : (
       <div key={formKey} className="animate-in fade-in-0 duration-(--dur-fast)">
       <FaceName className="tdag-face drag-handle cursor-grab active:cursor-grabbing"
-        shape={shape} tone={tone} name={rowName} marks={marks} state={state} stateMark={stateMark} trailing={controls} tags={tags}
-        onMarks={() => openPanelAt('turn')} />
+        shape={shape} tone={tone} name={rowName} state={state} stateMark={stateMark} trailing={controls} tags={tags} />
 
       {data.isCollapsed && (
         <div className="tdag-face">
@@ -757,9 +751,9 @@ export default function ThoughtNode({ id, data: stored }: NodeProps<ThoughtNodeT
               {t('common.generationFailed')}
               {hasMultipleVersions && (
                 <span className="flex items-center gap-1 text-muted-foreground shrink-0" title={t('node.backToVersionTitle')}>
-                  <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'prev'); }} className="hover:text-primary"><ChevronLeft strokeWidth={1.75} /></Button>
+                  <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'prev'); }} className="hover:text-foreground"><ChevronLeft strokeWidth={1.75} /></Button>
                   v{data.responseIndex + 1}/{data.responses.length}
-                  <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'next'); }} className="hover:text-primary"><ChevronRight strokeWidth={1.75} /></Button>
+                  <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); navigateVersion(id, 'next'); }} className="hover:text-foreground"><ChevronRight strokeWidth={1.75} /></Button>
                 </span>
               )}
               {!isViewerMode && (

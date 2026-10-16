@@ -1,19 +1,17 @@
 import { useState } from 'react';
-import { Archive, ArchiveRestore, ClipboardCopy, Copy, Ellipsis, FileDown, GitFork, Square, Trash2, Undo2 } from 'lucide-react';
+import { Archive, ArchiveRestore, ClipboardCopy, Copy, Ellipsis, FileDown, GitFork, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { contextChainMarkdown, downloadMarkdown, copyText } from '../../lib/export';
 import { toast, confirmDialog } from '../../lib/ui-store';
 import { useT, fmt } from '../../i18n';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
-import { Button } from '../ui/button';
 
-// Compact action strip: archive, and everything else behind "…". What acts
-// on the answer (regenerate, on another model too) sits under the answer;
-// asking on in several roles at once is the card's right-click menu; a
-// parallel answer as its own card too.
+// Everything that acts on the card as a whole, behind "…": archive among
+// them. What acts on the answer (regenerate, on another model too) sits
+// under the answer; stopping a run is the ask box's send button while it
+// runs; asking on in several roles at once is the card's right-click menu.
 
-export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; isLoading: boolean }) {
-  const stopGeneration = useStore((s) => s.stopGeneration);
+export default function HeaderActions({ nodeId }: { nodeId: string }) {
   const duplicateNode = useStore((s) => s.duplicateNode);
   const deleteNode = useStore((s) => s.deleteNode);
   const setSelectedNodeId = useStore((s) => s.setSelectedNodeId);
@@ -53,30 +51,18 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
 
   return (
     <div className="relative flex items-center gap-1 shrink-0">
-      {isLoading && (
-        <Button variant="ghost" size="icon"
-          onClick={() => stopGeneration(nodeId)}
-          title={t('actions.stop')}
-          className="text-white bg-destructive hover:bg-destructive/90"
-        >
-          <Square strokeWidth={1.75} fill="currentColor" />
-        </Button>
-      )}
-      <Button variant="ghost"
-        onClick={() => setArchived([nodeId], !isArchived)}
-        title={isArchived ? t('archive.restoreTitle') : t('archive.title')}
-        className={isArchived ? 'text-warning bg-warning/10' : iconBtn}
-      >
-        {isArchived ? <ArchiveRestore strokeWidth={1.75} /> : <Archive strokeWidth={1.75} />}
-      </Button>
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger
           title={t('panel.more')}
           className={`${iconBtn} ${menuOpen ? 'bg-border/50 text-foreground' : ''}`}
         >
-          <Ellipsis size={17} strokeWidth={1.75} />
+          <Ellipsis size={15} strokeWidth={1.75} />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[210px]">
+            <DropdownMenuItem onClick={() => setArchived([nodeId], !isArchived)} title={isArchived ? t('archive.restoreTitle') : t('archive.title')} data-archive-toggle>
+              {isArchived ? <ArchiveRestore size={15} strokeWidth={1.75} /> : <Archive size={15} strokeWidth={1.75} />}
+              {isArchived ? t('archive.restore') : t('archive.label')}
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => { duplicateNode(nodeId); }}>
               <Copy size={15} strokeWidth={1.75} /> {t('common.duplicate')}
             </DropdownMenuItem>

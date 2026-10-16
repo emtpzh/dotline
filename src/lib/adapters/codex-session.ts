@@ -230,6 +230,7 @@ export class CodexSessionCollector {
         t.tools.push({
           name: reg.name, call: reg.call, result: res.text, truncated: res.truncated,
           ...(reg.paths.length ? { paths: reg.paths } : {}), op: reg.op, nativeCallId: p.call_id,
+          textAt: t.response.length,
         });
         this.pendingCalls.delete(p.call_id);
       }
@@ -255,8 +256,10 @@ export class CodexSessionCollector {
       const prev = folded[folded.length - 1];
       if (!turn.question.trim() && prev) {
         if (turn.compactionBefore) carriedCompaction = carriedCompaction ?? turn.compactionBefore;
+        // the segment's calls sit where its text lands in the folded answer
+        const shift = turn.response && prev.response ? prev.response.length + 2 : prev.response.length;
         if (turn.response) prev.response = prev.response ? `${prev.response}\n\n${turn.response}` : turn.response;
-        prev.tools.push(...turn.tools);
+        prev.tools.push(...turn.tools.map((x) => (x.textAt !== undefined ? { ...x, textAt: x.textAt + shift } : x)));
         prev.itemIds.push(...turn.itemIds);
         // the segment is the same turn going on: it says whether the turn ended
         prev.complete = turn.complete;

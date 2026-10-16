@@ -29,6 +29,9 @@ import { turnSource, noteConfig, cloneTurns } from './shared';
 //     bottom and parses as a session in its own right, named by agentId —
 //     its sessionId field points at the parent, and taking that as identity
 //     would let the parent's canvas adopt the subagent's turns.
+//   - Meta user lines (isMeta: the CLI's own "[Image: source: …]" after a
+//     pasted image, a skill's body, a resume nudge) ride user lines too but
+//     nobody typed them: they never open a turn.
 //   - A task notification (the runner delivering a subagent's report) rides
 //     a user line but nobody typed it: it folds into the turn in progress as
 //     an arrival, never a question of its own.
@@ -69,6 +72,9 @@ interface SessionLine {
   compactMetadata?: { preTokens?: number; postTokens?: number };
   /** user lines: the permission mode the turn was sent under */
   permissionMode?: string;
+  /** user lines the CLI wrote itself (an image's source path, a skill's
+      body, a resume nudge): context for the turn, never a question */
+  isMeta?: boolean;
   /** assistant lines the CLI wrote itself to say a call failed */
   isApiErrorMessage?: boolean;
   /** assistant lines: the effort the model ran at */
@@ -217,6 +223,7 @@ export class ClaudeSessionCollector {
                 name: reg.name, call: reg.call, result: res.text, truncated: res.truncated,
                 ...(reg.paths.length ? { paths: reg.paths } : {}), op: reg.op, nativeCallId: p.tool_use_id,
                 ...(reg.url ? { url: reg.url } : {}), ...(reg.locator ? { locator: reg.locator } : {}),
+                textAt: this.current.response.length,
               });
               if (reg.spawn) {
                 const report = clip(resultText(p.content), ARTIFACT_CALL_LIMIT);
@@ -227,12 +234,13 @@ export class ClaudeSessionCollector {
           }
         }
       }
+      if (line.isMeta) return;
       const text = textParts(content);
       if (!text.trim()) return;
       if (/^\s*<task-notification>/.test(text)) {
         if (this.current) {
           const res = clip(text, NOTIFICATION_LIMIT);
-          this.current.tools.push({ name: 'Agent', call: '(task notification)', result: res.text, truncated: res.truncated, op: 'agent' });
+          this.current.tools.push({ name: 'Agent', call: '(task notification)', result: res.text, truncated: res.truncated, op: 'agent', textAt: this.current.response.length });
         }
         return;
       }

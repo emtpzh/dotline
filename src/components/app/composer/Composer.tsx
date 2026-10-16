@@ -10,6 +10,7 @@ import { useMentions } from '../../../lib/mentions';
 import { useContinuity } from '../../../lib/use-continuity';
 import { offersAccess, runtimeOf } from '../../../lib/agents/runtimes';
 import { describeModel } from '../../../lib/use-models';
+import { ACTION, ACTION_ICON } from '../../focus-panel/line';
 import { cn } from '../../../lib/utils';
 import type { Attachment } from '../../../types';
 import type { RunIntent } from '../../../lib/run-intent';
@@ -17,7 +18,7 @@ import SearchToggles from '../SearchToggles';
 import MentionSurface from '../NodeMention';
 import { Button } from '../../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../../ui/popover';
-import { ModelMenu, AccessMenu, SendButton, RunStatus } from './RunControls';
+import { ModelMenu, AccessMenu, SendButton, SessionChip, SessionNote, StopButton } from './RunControls';
 import { useAskThisIntent, useFollowUpIntent, useRootIntent, type IntentPatch } from './run-intent-hooks';
 
 // The one box a question is written in. Every surface that asks something
@@ -84,6 +85,9 @@ export default function Composer({
   onFocusNode,
   className = '',
   boxClassName = '',
+  contextPreview = true,
+  running = false,
+  onStop,
 }: {
   target: ComposerTarget;
   density?: 'full' | 'compact';
@@ -106,6 +110,11 @@ export default function Composer({
   onFocusNode?: (id: string) => void;
   className?: string;
   boxClassName?: string;
+  /** The "will send" line above the box; the focus panel says it in its transcript instead. */
+  contextPreview?: boolean;
+  /** The card asked off is still answering: the send button is the stop (Esc on an empty box too). */
+  running?: boolean;
+  onStop?: () => void;
 }) {
   const t = useT();
   const full = density === 'full';
@@ -162,6 +171,9 @@ export default function Composer({
 
   // Whether a child goes on in the agent session above — decided the way
   // the send will decide it, said while it can still be changed
+  const upstreamFiles = useStore((s) => (parentId
+    ? (s.nodes.find((n) => n.id === parentId)?.data.attachments?.length ?? 0) + s.getInheritedAttachments(parentId).length
+    : 0));
   const session = useContinuity(parentId, { model: run.intent.model, branchContext: passage || undefined, attachments: pending, mentions: mentionIds });
 
   // ── what the send will carry (full, off a node) ──
@@ -171,7 +183,7 @@ export default function Composer({
   const contextOf = askThisId ?? parentId;
   const [previewOpen, setPreviewOpen] = useState(false);
   const preview = useMemo(() => {
-    if (!full || !contextOf) return null;
+    if (!full || !contextOf || !contextPreview) return null;
     const { messages, images, layerTokens } = buildContext(contextOf, nodes, edges, shownPassage || undefined, undefined, undefined, staleIds);
     const items = messages.map((m) => ({ role: m.role, head: m.content.replace(/\s+/g, ' ').slice(0, 90), tokens: countTokens(m.content) }));
     const background = layerTokens.material + layerTokens.reference;
@@ -182,7 +194,7 @@ export default function Composer({
       totalTokens: items.reduce((s, m) => s + m.tokens, 0),
       fileCount: messages.filter((m) => /^\[(PDF|File): /.test(m.content)).length + images.length,
     };
-  }, [full, contextOf, nodes, edges, staleIds, shownPassage]);
+  }, [full, contextOf, contextPreview, nodes, edges, staleIds, shownPassage]);
 
   // ── focus ──
   const taRef = useRef<HTMLTextAreaElement | null>(null);
@@ -203,7 +215,8 @@ export default function Composer({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refocus on the key, not on every render
   }, [focusKey, autoFocus]);
 
-  const canSend = !blocked && !extracting && (!!text.trim() || emptyOk);
+  // a card still answering is stopped, not asked on (Enter included)
+  const canSend = !blocked && !extracting && !(running && onStop) && (!!text.trim() || emptyOk);
 
   const send = () => {
     if (!canSend) return;
@@ -245,6 +258,7 @@ export default function Composer({
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (canMention && mention.invokeKey(e)) return; // the @-picker owns the key
+    if (e.key === 'Escape' && running && onStop && !text.trim()) { e.preventDefault(); onStop(); return; }
     // Enter sends, Shift+Enter breaks the line; an IME-confirming Enter
     // (picking a pinyin candidate) never sends
     if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) {
@@ -274,7 +288,7 @@ export default function Composer({
   return (
     <div className={`relative ${className}`} data-composer-target={target.kind}>
       {/* Context summary line — opens what will actually be sent */}
-      {preview && runControls && (
+      {preview && runControls && contextPreview && (
         <Popover open={previewOpen} onOpenChange={setPreviewOpen}>
           <PopoverTrigger
             render={<Button variant="ghost" size="xs" className="text-2xs text-muted-foreground hover:text-muted-foreground mb-1" title={t('followup.previewTitle')} />}
@@ -333,9 +347,13 @@ export default function Composer({
         </div>
       )}
 
+      {full && target.kind === 'child' && (
+        <SessionNote session={session} intent={run.intent} base={follow.base} onIntent={run.onIntent} />
+      )}
+
       {canMention && <MentionSurface m={mention} text={text} setText={setText} />}
       <div
-        className={cn('rounded-xl border border-border bg-card px-3 pt-2.5 pb-1.5 transition-shadow focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-ring/30', boxClassName)}
+        className={cn('rounded-2xl border border-border bg-card px-3.5 pt-2.5 pb-2 shadow-sm transition-colors focus-within:border-ring/60', boxClassName)}
         onDrop={canAttach ? (e) => { e.preventDefault(); e.stopPropagation(); void addFiles(e.dataTransfer.files); } : undefined}
         onDragOver={canAttach ? (e) => e.preventDefault() : undefined}
         data-composer={target.kind === 'root' ? 'landing' : target.kind === 'ask-this' ? 'ask' : 'panel'}
@@ -358,24 +376,29 @@ export default function Composer({
             if (files.length > 0) { e.preventDefault(); void addFiles(files); }
           } : undefined}
           placeholder={placeholder ?? t('common.followUp')}
-          className={`w-full bg-transparent text-sm text-foreground placeholder-muted-foreground focus:outline-none resize-none leading-relaxed overflow-y-auto ${full ? 'max-h-[200px]' : 'max-h-[160px]'}`}
+          className={`w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none resize-none leading-relaxed overflow-y-auto ${full ? 'max-h-[200px]' : 'max-h-[160px]'}`}
           data-question-input={askThisId ? '' : undefined}
         />
         {canAttach && (
           <input ref={fileRef} type="file" accept={FILE_INPUT_ACCEPT} multiple className="hidden"
             onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ''; }} />
         )}
-        <div className="mt-1 flex items-center gap-0.5 min-w-0">
+        <div className="mt-1.5 -ml-1 flex items-center gap-0.5 min-w-0">
           {canAttach && (
             <Button variant="ghost" size="icon-sm"
               onClick={() => fileRef.current?.click()}
               title={t('followup.attach')}
-              className="rounded-full text-muted-foreground hover:text-primary shrink-0"
+              aria-label={t('followup.attach')}
+              className={ACTION}
             >
-              <Paperclip strokeWidth={1.75} />
+              <Paperclip strokeWidth={1.75} className={ACTION_ICON} />
             </Button>
           )}
           {runControls && full && accessOrSearch}
+          {runControls && full && target.kind === 'child' && (
+            <SessionChip session={session} intent={run.intent} base={follow.base} onIntent={run.onIntent} onLocate={onFocusNode}
+              files={{ count: upstreamFiles, on: inheritAttachments, onChange: setInheritAttachments }} />
+          )}
           {runControls && !full && (settingsOpen ? (
             <>
               {accessOrSearch}
@@ -395,21 +418,12 @@ export default function Composer({
           <span className="flex-1" />
           {!full && <span className="shrink-0 text-2xs text-muted-foreground mr-1.5">{t('ask.enterToSend')}</span>}
           {runControls && full && modelMenu}
-          <SendButton onClick={send} disabled={!canSend} session={target.kind === 'child' ? session : undefined}
-            title={extracting ? t('landing.extracting') : undefined} />
+          {running && onStop ? <StopButton onClick={onStop} /> : (
+            <SendButton onClick={send} disabled={!canSend} session={target.kind === 'child' ? session : undefined}
+              title={extracting ? t('landing.extracting') : undefined} />
+          )}
         </div>
       </div>
-      {full && target.kind === 'child' && (
-        <>
-          <div className="mt-1.5">
-            <RunStatus session={session} intent={run.intent} base={follow.base} onIntent={run.onIntent} onLocate={onFocusNode} />
-          </div>
-          <label className="mt-1.5 flex items-center gap-2 px-1 text-xs text-muted-foreground cursor-pointer select-none w-fit">
-            <input type="checkbox" checked={inheritAttachments} onChange={(e) => setInheritAttachments(e.target.checked)} className="rounded border-border text-primary focus:ring-ring w-3 h-3" />
-            {t('followup.inheritAttachments')}
-          </label>
-        </>
-      )}
     </div>
   );
 }

@@ -4,28 +4,32 @@ import { X } from 'lucide-react';
 import { useStore } from '../../store';
 import { useUiStore } from '../../lib/ui-store';
 import { partitionContext } from '../../lib/graph';
-import { buildContext, resolveRoleSourceFor } from '../../store/context-builder';
+import { resolveRoleSourceFor } from '../../store/context-builder';
 import { PANEL_WIDTH_KEY, PANEL_MIN_WIDTH, PANEL_DEFAULT_WIDTH, PANEL_INSET } from '../../lib/constants';
 import { awaitingInput } from '../../utils';
 import { useT } from '../../i18n';
 import { isViewerMode } from '../../lib/viewer';
 import RoleLine from './RoleLine';
-import AgentSessionLine from './AgentSessionLine';
-import AttachmentsSection from './AttachmentsSection';
+import RunTag from './RunTag';
 import QuestionSection from './QuestionSection';
 import ResponseSection from './ResponseSection';
-import TurnSection from './TurnSection';
+import ContextHistory from './ContextHistory';
+import QuestionAttachments from './QuestionAttachments';
+import { ChangedFiles, CondensedFrom } from './TurnLines';
 import HighlightsSection from './HighlightsSection';
 import HeaderActions from './HeaderActions';
-import ContextChainSection from './ContextChainSection';
 import ContextOrderSection from './ContextOrderSection';
 import Composer from '../app/composer/Composer';
 import { Button } from '../ui/button';
 
-// The panel does three jobs: READ (question/response), ASK (the one box,
-// pinned at the bottom: it types a waiting card's own question, then asks
-// on from it), INSPECT (attachments, highlights, context — one card of
-// folded rows). Everything else is one compact strip of actions.
+// The panel reads a turn as a conversation. The title row: the card's
+// name, how the turn ran (one tag, the rest behind it), the card's menu.
+// The transcript: everything the next question carries folded into one
+// line, the question as a bubble with its files, the answer with its tool
+// calls folded where they happened and its actions under it, then what it
+// changed and what was marked in it. The one box, pinned at the bottom,
+// types a waiting card's own question, then asks on from it — and while
+// the card answers, its send button is the stop.
 
 // `leaving`: the panel is playing its way out (App keeps it mounted for
 // that, lib/use-presence) — it keeps showing `nodeId`, the card it showed,
@@ -37,7 +41,7 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
 }) {
   const {
     nodes, edges, selectedNodeId: liveSelectedId, setSelectedNodeId,
-    addAttachment, removeAttachment, toggleExcludeAttachment, setAttachmentRenderMode, getInheritedAttachments,
+    stopGeneration,
   } = useStore();
   const t = useT();
   const selectedNodeId = leaving ? (nodeId ?? null) : liveSelectedId;
@@ -82,6 +86,8 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
   // A card's quiet line points at a section ("5 sources" → the list):
   // scroll there once the panel shows this node, then forget it
   const scrollRef = useRef<HTMLDivElement>(null);
+  // the title row draws its rule only once the transcript runs under it
+  const [scrolled, setScrolled] = useState(false);
   // an agent run of this page shows through its overlay until its turn is in
   const runOverlay = useRuns((s) => (selectedNodeId ? s.runs[selectedNodeId] : undefined));
   const panelSection = useUiStore((s) => s.panelSection);
@@ -118,18 +124,13 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
   // Layered context view — same partition the prompt builder uses, so the
   // tree the user reads and the prompt the model reads never drift apart.
   const partition = partitionContext(selectedNodeId!, nodes, edges);
-  const { layerTokens } = buildContext(selectedNodeId!, nodes, edges);
-  const totalContextTokens = layerTokens.material + layerTokens.reference + layerTokens.chain;
   const highlightedTexts = new Set(data.highlights.map((h) => h.text));
-  const hasAnswer = (!!data.response && !data.generationFailed) || data.highlights.length > 0;
-  const hasAttachments = (data.attachments?.length ?? 0) > 0 || getInheritedAttachments(selectedNodeId!).length > 0;
-  const hasUpstream = partition.mainline.length > 1 || partition.materials.length > 0 || partition.references.length > 0;
-  const showInspect = hasAnswer || hasAttachments || hasUpstream;
+  const jump = (id: string) => { setSelectedNodeId(id); onFocusNode?.(id); };
 
   return (
     <div
       data-focus-panel
-      className={`absolute right-3 top-[var(--chrome-panel-top)] bottom-3 z-20 tdag-panel-ground border border-border rounded-2xl shadow-xl overflow-hidden flex flex-col ${leaving ? 'tdag-panel-out' : 'tdag-panel-in'} ${resizing ? 'select-none' : ''}`}
+      className={`@container/panel absolute right-3 top-[var(--chrome-panel-top)] bottom-3 z-20 bg-card border border-border rounded-2xl shadow-xl overflow-hidden flex flex-col ${leaving ? 'tdag-panel-out' : 'tdag-panel-in'} ${resizing ? 'select-none' : ''}`}
       style={{ width: panelWidth, minWidth: PANEL_MIN_WIDTH, maxWidth: '70vw' }}
     >
       {/* Resize handle on the left edge */}
@@ -145,27 +146,30 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
         {/* a visible grip: the handle exists whether or not you hover it */}
         <div className={`w-[3px] h-9 rounded-full transition-colors ${resizing ? 'bg-primary' : 'bg-input'}`} />
       </div>
-      {/* Header: summary kicker (role · materials) + action strip */}
-      <div className="flex items-start gap-2 pl-4 pr-3 py-1.5 border-b border-border/70 shrink-0">
+      {/* Title row: name · role, how the turn ran, the card's menu */}
+      <div className={`flex items-start gap-1 pl-5 pr-3 pt-2 pb-1 shrink-0 border-b transition-colors ${scrolled ? 'border-border' : 'border-transparent'}`}>
         <RoleLine nodeId={selectedNodeId!} data={data} inheritedFrom={inheritedFrom}
           onJump={(id) => { useStore.getState().setSelectedNodeId(id); onFocusNode?.(id); }} />
-        <div className="flex items-center gap-1 shrink-0">
-          {!isViewerMode && <HeaderActions nodeId={selectedNodeId!} isLoading={data.isLoading} />}
-          <Button variant="ghost"
+        <div className="flex h-8 min-w-0 max-w-[62%] items-center gap-0.5">
+          <RunTag data={data} />
+          {!isViewerMode && <HeaderActions nodeId={selectedNodeId!} />}
+          <Button variant="ghost" size="icon-sm"
             onClick={() => { useUiStore.getState().setPanelOpen(false); setSelectedNodeId(null); }}
             title={t('panel.close')}
-            className="text-muted-foreground hover:text-foreground shrink-0 ml-1"
+            aria-label={t('panel.close')}
+            className="text-muted-foreground hover:text-foreground shrink-0"
           >
             <X strokeWidth={1.75} />
           </Button>
         </div>
       </div>
 
-      {/* Scrollable content: one card per section */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
-        <AgentSessionLine data={data} nodeId={selectedNodeId!} />
-        {/* the question shows once it is asked — before that it is typed below */}
-        {!awaiting && (
+      {/* Scrollable content: one conversation column */}
+      <div ref={scrollRef} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 2)}
+        className="flex-1 overflow-y-auto px-5 pt-1 pb-4 flex flex-col gap-4" data-panel-scroll>
+        <ContextHistory nodeId={selectedNodeId!} data={data} partition={partition} onJump={jump} />
+        {/* the question shows once it is asked — before that it is typed below, its files above the box */}
+        {!awaiting ? (
           <QuestionSection
             key={`q-${selectedNodeId}`}
             nodeId={selectedNodeId!}
@@ -173,7 +177,10 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
             isEditing={data.isEditing}
             isHuman={data.stepKind === 'human'}
             branchContext={data.branchContext}
+            attachments={data.attachments}
           />
+        ) : (data.attachments?.length ?? 0) > 0 && (
+          <div className="flex justify-end"><QuestionAttachments nodeId={selectedNodeId!} attachments={data.attachments} /></div>
         )}
 
         <ResponseSection
@@ -186,25 +193,14 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
           onFocusNode={onFocusNode}
         />
 
-        <TurnSection data={data} onFocusNode={onFocusNode} />
-
         <ContextOrderSection nodeId={node.id} />
 
-        {/* Inspect: one card of folded rows; empty ones stay out of the way */}
-        {showInspect ? (
-          <div className="panel-card overflow-hidden divide-y divide-border/70">
-            <AttachmentsSection
-              nodeId={selectedNodeId!}
-              attachments={data.attachments || []}
-              excludedAttachmentIds={data.excludedAttachmentIds || []}
-              includedAttachmentIds={data.includedAttachmentIds || []}
-              addAttachment={addAttachment}
-              removeAttachment={removeAttachment}
-              toggleExcludeAttachment={toggleExcludeAttachment}
-              setAttachmentRenderMode={setAttachmentRenderMode}
-              getInheritedAttachments={getInheritedAttachments}
-            />
-            {hasAnswer && (
+        {/* What the turn left: the files it changed, where it came from, what was marked; empty ones stay out */}
+        {!data.isLoading && (
+          <div className="flex flex-col gap-1.5 empty:hidden">
+            <ChangedFiles data={data} />
+            <CondensedFrom data={data} onFocusNode={onFocusNode} />
+            {data.highlights.length > 0 && (
               <HighlightsSection
                 key={`h-${selectedNodeId}`}
                 nodeId={selectedNodeId!}
@@ -213,15 +209,7 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
                 onExplore={setBranchContext}
               />
             )}
-            <ContextChainSection
-              key={`c-${selectedNodeId}`}
-              partition={partition}
-              totalContextTokens={totalContextTokens}
-              onFocusNode={onFocusNode}
-            />
           </div>
-        ) : (
-          <p className="px-2 text-xs text-muted-foreground" data-chain-none>{t('chain.none')}</p>
         )}
       </div>
 
@@ -229,10 +217,12 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
           typed here (it goes into the card); once answered, the same box
           asks on, and selected text or highlights stage into it. */}
       {!isViewerMode && (
-        <div className="relative shrink-0 px-3 pb-3 pt-1">
-          <div className="panel-card px-3.5 pt-2 pb-2.5">
+        <div className="relative shrink-0 px-4 pb-3 pt-2">
             <Composer
               key={selectedNodeId}
+              contextPreview={false}
+              running={!awaiting && data.isLoading}
+              onStop={() => stopGeneration(selectedNodeId!)}
               target={awaiting ? { kind: 'ask-this', nodeId: selectedNodeId! } : { kind: 'child', parentId: selectedNodeId! }}
               placeholder={awaiting ? (data.instruction || t(data.converge ? (data.converge.kind === 'merge' ? 'converge.mergePlaceholder' : 'converge.weavePlaceholder') : 'node.askPlaceholder')) : undefined}
               passage={awaiting ? undefined : branchContext}
@@ -240,7 +230,6 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
               focusKey={`${selectedNodeId}:${branchContext}`}
               onFocusNode={onFocusNode}
             />
-          </div>
         </div>
       )}
     </div>

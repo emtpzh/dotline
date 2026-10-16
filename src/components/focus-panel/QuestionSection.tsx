@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import { Check, X } from 'lucide-react';
+import { Check, Copy, Pencil, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { isFactNode } from '../../lib/facts';
 import { isImeComposing } from '../../utils';
 import { useT } from '../../i18n';
 import { isViewerMode } from '../../lib/viewer';
 import { toast } from '../../lib/ui-store';
+import { copyText } from '../../lib/export';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { PassageQuote } from '../app/composer/Composer';
+import QuestionAttachments from './QuestionAttachments';
+import type { Attachment } from '../../types';
 
 export default function QuestionSection({
   nodeId,
@@ -16,6 +19,7 @@ export default function QuestionSection({
   isEditing,
   isHuman,
   branchContext,
+  attachments = [],
 }: {
   nodeId: string;
   question: string;
@@ -23,6 +27,8 @@ export default function QuestionSection({
   /** Paradigm human turn: edits record the question without generating. */
   isHuman?: boolean;
   branchContext?: string;
+  /** the files the question was asked with: cards above the bubble */
+  attachments?: Attachment[];
 }) {
   const editQuestion = useStore((s) => s.editQuestion);
   const submitHumanTurn = useStore((s) => s.submitHumanTurn);
@@ -72,12 +78,14 @@ export default function QuestionSection({
     el.style.height = `${Math.min(480, el.scrollHeight)}px`;
   };
 
+  // The question is the person's turn: a bubble on the right, like a chat.
+  // Editing opens it to the panel's width; double-click or the pencil.
   return (
-    <div className="panel-card px-4 py-3">
-      <label className="text-2xs font-semibold text-muted-foreground mb-1 block">{t('panel.question')}</label>
-      {branchContext && <PassageQuote text={branchContext} className="mb-2" />}
+    <div className="group/question flex flex-col items-end gap-1" data-panel-question>
+      {branchContext && <PassageQuote text={branchContext} className="max-w-[86%]" />}
+      <QuestionAttachments nodeId={nodeId} attachments={attachments} />
       {isEditing && !isViewerMode ? (
-        <>
+        <div className="w-full">
           <Textarea
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
@@ -109,13 +117,29 @@ export default function QuestionSection({
               </Button>
             </div>
           )}
-        </>
+        </div>
       ) : (
-        <div
-          onDoubleClick={handleDoubleClickQuestion}
-          className="text-sm text-foreground font-semibold cursor-pointer hover:bg-accent rounded-xl px-2 py-1.5 -mx-1 transition-colors max-h-[240px] overflow-y-auto"
-        >
-          {question}
+        <div className="flex w-full items-end justify-end gap-1">
+          <div className="flex shrink-0 items-center gap-0.5 pb-1 text-muted-foreground opacity-0 transition-opacity group-hover/question:opacity-100 focus-within:opacity-100">
+            {!isViewerMode && (
+              <Button variant="ghost" size="icon-xs" onClick={handleDoubleClickQuestion}
+                title={t('transcript.editQuestion')} aria-label={t('transcript.editQuestion')}
+                className="hover:text-foreground" data-question-edit>
+                <Pencil strokeWidth={1.75} />
+              </Button>
+            )}
+            <Button variant="ghost" size="icon-xs" onClick={() => void copyText(question)}
+              title={t('transcript.copyQuestion')} aria-label={t('transcript.copyQuestion')}
+              className="hover:text-foreground">
+              <Copy strokeWidth={1.75} />
+            </Button>
+          </div>
+          <div
+            onDoubleClick={handleDoubleClickQuestion}
+            className="min-w-0 max-w-[86%] max-h-[240px] overflow-y-auto rounded-2xl bg-foreground/5 px-3.5 py-2 text-[13px] text-foreground leading-relaxed whitespace-pre-wrap break-words"
+          >
+            {question}
+          </div>
         </div>
       )}
     </div>

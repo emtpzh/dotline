@@ -40,8 +40,8 @@ export default function ContextOrderSection({ nodeId }: { nodeId: string }) {
   };
 
   return (
-    <div className="px-4 py-3 border-b border-border" data-context-order>
-      <div className="text-2xs uppercase tracking-wide text-muted-foreground mb-1.5">{t('panel.ctxOrder')}</div>
+    <div data-context-order>
+      <div className="text-xs text-muted-foreground mb-1">{t('panel.ctxOrder')}</div>
       <div className="flex flex-col gap-1">
         {incoming.map((e, i) => (
           <div key={e.id} className="flex items-center gap-1.5 text-xs text-foreground" data-context-order-item={e.source}>

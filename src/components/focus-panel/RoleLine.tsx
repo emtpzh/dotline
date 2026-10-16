@@ -1,16 +1,16 @@
 import { useState } from 'react';
-import { Paperclip, UserCog } from 'lucide-react';
+import { UserCog } from 'lucide-react';
 import { useStore } from '../../store';
 import { useT, fmt } from '../../i18n';
 import { isViewerMode } from '../../lib/viewer';
-import { roleLabel, shortName } from '../../lib/node-face';
+import { nodeName, roleLabel, shortName } from '../../lib/node-face';
 import RoleEditor from '../app/RoleEditor';
 import type { ThoughtData, ThoughtNode } from '../../types';
 import { Button } from '../ui/button';
 import { awaitingInput } from '../../utils';
 
-// The panel's summary kicker: role · materials, in one quiet line
-// at the top. One role model: a rolePrompt on a node is the system prompt
+// The panel's title row: the card's name, then its role (its own, or the
+// one it inherits and from where) in one quiet line beside it. One role model: a rolePrompt on a node is the system prompt
 // for it and everything downstream along solid wires, until the next node
 // that sets one. A node that has one can rename or clear it; an inherited
 // role says where it was set, and that node is one click away. Setting a
@@ -36,7 +36,7 @@ export default function RoleLine({
   const [prompt, setPrompt] = useState('');
 
   const own = !!data.rolePrompt;
-  const attachCount = (data.attachments || []).length;
+  const title = nodeName(data);
   const open = () => {
     if (isViewerMode) return;
     setName(data.roleName ?? '');
@@ -51,6 +51,9 @@ export default function RoleLine({
   return (
     <div className="flex-1 min-w-0">
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0 h-8">
+        {title && !editing && (
+          <span className="min-w-0 truncate text-[13px] font-medium text-foreground mr-1" title={data.question} data-panel-title>{title}</span>
+        )}
         {(own || inheritedFrom) && <UserCog size={13} strokeWidth={1.75} className="shrink-0" />}
         {!editing && (own || inheritedFrom) && (<>
         {own ? (
@@ -71,20 +74,12 @@ export default function RoleLine({
           </>
         ) : null}
         </>)}
-        {/* Nothing else to say up here: say what the card is doing */}
-        {!editing && !own && !inheritedFrom && attachCount === 0 && (awaitingInput(data) || data.isLoading) && (
-          <span className="flex items-center gap-1.5 px-1" data-panel-state>
-            <span className={`size-1.5 rounded-full ${data.isLoading ? 'bg-primary animate-pulse' : 'border border-primary'}`} aria-hidden />
-            {t(data.isLoading ? 'face.running' : 'face.awaiting')}
+        {/* A card waiting for its question says so; a running one says it in the transcript */}
+        {!editing && !own && !inheritedFrom && awaitingInput(data) && !data.isLoading && (
+          <span className="flex shrink-0 items-center gap-1.5 px-1" data-panel-state>
+            <span className="size-1.5 rounded-full border border-primary" aria-hidden />
+            {t('face.awaiting')}
           </span>
-        )}
-        {attachCount > 0 && (
-          <>
-            {(own || inheritedFrom) && <span className="shrink-0">·</span>}
-            <span className="shrink-0 text-muted-foreground flex items-center gap-0.5">
-              <Paperclip size={11} strokeWidth={1.75} /> {attachCount}
-            </span>
-          </>
         )}
       </div>
       {editing && (

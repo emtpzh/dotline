@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { ShieldAlert, MessageCircleQuestion, ChevronDown, ChevronRight } from 'lucide-react';
+import { ShieldAlert, MessageCircleQuestion, ChevronRight } from 'lucide-react';
 import { useT } from '../../i18n';
 import { answerApproval, type QuestionAnswer } from '../../lib/api';
 import { dropQuestion, markAnswered } from '../../lib/agents/runs';
 import type { ApprovalRequest, ApprovalRecord } from '../../types';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
+import { LINE_BODY_CLASS, LINE_CLASS } from '../focus-panel/line';
 import { isImeComposing } from '../../utils';
 
 // What an agent asks the person mid-turn, answered where the turn is shown:
@@ -134,19 +135,14 @@ export function ApprovalRecords({ records }: { records: ApprovalRecord[] }) {
  *  face is the answer; what was allowed, refused or replied is backstage. */
 export function DecisionsDisclosure({ records }: { records: ApprovalRecord[] }) {
   const t = useT();
-  const [open, setOpen] = useState(false);
   const good = records.filter((r) => r.outcome === 'allowed-once' || r.outcome === 'allowed-session' || r.outcome === 'answered').length;
   return (
-    <div className="mb-2 nopan">
-      <Button variant="ghost" size="xs"
-        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        className="text-2xs text-muted-foreground hover:text-muted-foreground"
-        data-decisions-toggle
-      >
-        {open ? <ChevronDown strokeWidth={1.75} /> : <ChevronRight strokeWidth={1.75} />}
-        <span>🛡 {t('approval.decisions')} · {good}/{records.length}</span>
-      </Button>
-      {open && <div className="mt-1 px-3 py-1.5 bg-muted/70 rounded-xl"><ApprovalRecords records={records} /></div>}
-    </div>
+    <details className="group/decisions nopan">
+      <summary className={LINE_CLASS} onClick={(e) => e.stopPropagation()} data-decisions-toggle>
+        <span>{t('approval.decisions')} · {good}/{records.length}</span>
+        <ChevronRight size={14} strokeWidth={1.75} className="shrink-0 transition-transform group-open/decisions:rotate-90" />
+      </summary>
+      <div className={LINE_BODY_CLASS}><ApprovalRecords records={records} /></div>
+    </details>
   );
 }

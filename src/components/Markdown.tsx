@@ -2,6 +2,7 @@ import { createContext, memo, useContext, useEffect, useMemo, useRef, useState }
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
+import remarkCjkFriendly from 'remark-cjk-friendly';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
@@ -14,7 +15,10 @@ import { useT } from '../i18n';
 import { localPathOf, openLocalPath, basenameOf } from '../lib/local-path';
 import { Button } from './ui/button';
 
-const REMARK_PLUGINS = [remarkGfm, remarkMath];
+// CommonMark closes `**` only where it is right-flanking, which a full-width
+// stop followed by a CJK letter is not: `**结论。**后文` would show its stars.
+// remark-cjk-friendly relaxes the flanking rules for CJK text.
+const REMARK_PLUGINS = [remarkGfm, remarkCjkFriendly, remarkMath];
 
 // Models freely emit \( \) and \[ \] math delimiters; remark-math only
 // parses $-style. Normalize outside code fences/spans so formulas render

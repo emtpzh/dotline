@@ -120,21 +120,6 @@ textarea:focus-visible {
 @keyframes tdag-panel-out { to { opacity: 0; transform: translateX(24px); } }
 .tdag-panel-in { animation: tdag-panel-in var(--dur-base) var(--ease-standard); }
 .tdag-panel-out { animation: tdag-panel-out var(--dur-base) var(--ease-standard) forwards; pointer-events: none; }
-/* The focus panel's wash ground: --muted laid over --background. In the
-   harness's dark palette --muted is a translucent overlay (the host's own
-   #ffffff14), so on its own the panel let the canvas and the cards beneath
-   show through its header and the gaps between its sections. Over a solid
-   --background it reads the same and hides what is under it; where
-   --muted is already solid, the layer under it never shows. */
-.tdag-panel-ground { background: linear-gradient(var(--muted), var(--muted)), var(--background); }
-
-/* Focus panel: sections are white cards floating on the wash ground —
-   depth does the grouping, not divider lines. */
-.panel-card {
-  background: var(--card);
-  border-radius: var(--radius-xl);
-  box-shadow: 0 1px 2px color-mix(in oklch, var(--foreground) 5%, transparent);
-}
 
 /* Line clamp utility */
 .line-clamp-3 {

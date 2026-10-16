@@ -69,7 +69,7 @@ export default function DiagnosticsPanel({ onLocate, openPing = 0, showTrigger =
           <Button variant="ghost" size="icon-sm"
             onClick={() => onLocate(f.nodeIds[0])}
             title={t('diag.locate')}
-            className="text-muted-foreground hover:text-primary hover:bg-accent"
+            className="text-muted-foreground hover:text-foreground"
           >
             <Crosshair strokeWidth={1.75} />
           </Button>
