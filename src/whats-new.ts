@@ -33,6 +33,16 @@ const DOCS = DOCS_URL;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.4.24',
+    date: '2026-10-16',
+    announce: false,
+    lead: {
+      zh: '连线更贴合卡片边缘；详情面板收起顶部的上下文历史，从内容顶部向下拉动即可展开。画布缩放时卡片字号更平稳，图片资料与对话链的显示也更一致。',
+      en: 'Edges meet card borders more cleanly. The details panel starts with earlier context tucked away; pull down from the top of the content to reveal it. Card text scales more steadily across canvas zoom levels, and image materials display more consistently alongside conversation turns.',
+    },
+    items: [],
+  },
+  {
     version: '0.4.23',
     date: '2026-10-15',
     announce: false,
