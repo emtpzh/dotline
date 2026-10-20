@@ -8,9 +8,17 @@ export interface OceanOptions {
   sharks?: SharkSpec[];
   /** Render rate cap; the simulation still steps at 60 Hz. */
   fps?: number;
-  /** Which pointer-downs splash (all inside the canvas when absent). */
+  /** Which clicks splash (all inside the canvas when absent). Judged on
+      pointer-down; the splash lands on release, and only if the pointer
+      stayed put — a drag that starts there is not a click. */
   canSplash?: (e: PointerEvent) => boolean;
+  /** Stop after this long without pointer, wheel or key input; any input resumes. */
+  idleMs?: number;
 }
+
+const CLICK_SLOP = 4;
+/** Input events that count as someone being at the screen. */
+const ACTIVITY = ["pointermove", "pointerdown", "wheel", "keydown"] as const;
 
 /**
  * Wires World + AsciiRenderer to a canvas: fixed-timestep loop, resize,
@@ -18,7 +26,8 @@ export interface OceanOptions {
  *
  * Dotline: the loop also runs only while the app window has focus (the
  * harness's own window when embedded in its iframe) and the tab is visible,
- * capped at `fps`; otherwise the last frame stays on screen.
+ * capped at `fps`, not idle for `idleMs`, and not held by the host
+ * (`setHeld`); otherwise the last frame stays on screen.
  */
 export class OceanEngine {
   private canvas: HTMLCanvasElement;
@@ -30,6 +39,11 @@ export class OceanEngine {
   private acc = 0;
   private frameMs: number;
   private canSplash?: (e: PointerEvent) => boolean;
+  private press: { x: number; y: number } | null = null;
+  private idleMs: number;
+  private lastInput = 0;
+  private idle = false;
+  private held = false;
   private visible = true;
   private focused = true;
   private focusTimer = 0;
@@ -44,6 +58,8 @@ export class OceanEngine {
     this.canvas = canvas;
     this.frameMs = 1000 / (options.fps ?? 60);
     this.canSplash = options.canSplash;
+    this.idleMs = options.idleMs ?? Infinity;
+    this.lastInput = performance.now();
     this.world = new World(options.sharks);
     this.renderer = new AsciiRenderer(canvas);
     this.renderer.setFontFamily(getComputedStyle(canvas).fontFamily);
@@ -64,11 +80,13 @@ export class OceanEngine {
     this.reducedMotion.addEventListener("change", this.onMotionPreference);
     window.addEventListener("pointermove", this.onPointerMove, { passive: true });
     window.addEventListener("pointerdown", this.onPointerDown, { passive: true });
+    window.addEventListener("pointerup", this.onPointerUp, { passive: true });
     document.documentElement.addEventListener("pointerleave", this.onPointerLeave);
     window.addEventListener("blur", this.onPointerLeave);
     for (const w of this.focusWindows) {
       w.addEventListener("focus", this.onFocusChange);
       w.addEventListener("blur", this.onFocusChange);
+      for (const type of ACTIVITY) w.addEventListener(type, this.onActivity, { passive: true, capture: true });
     }
     document.addEventListener("visibilitychange", this.onFocusChange);
 
@@ -89,13 +107,26 @@ export class OceanEngine {
     this.reducedMotion.removeEventListener("change", this.onMotionPreference);
     window.removeEventListener("pointermove", this.onPointerMove);
     window.removeEventListener("pointerdown", this.onPointerDown);
+    window.removeEventListener("pointerup", this.onPointerUp);
     document.documentElement.removeEventListener("pointerleave", this.onPointerLeave);
     window.removeEventListener("blur", this.onPointerLeave);
     for (const w of this.focusWindows) {
       w.removeEventListener("focus", this.onFocusChange);
       w.removeEventListener("blur", this.onFocusChange);
+      for (const type of ACTIVITY) w.removeEventListener(type, this.onActivity, { capture: true });
     }
     document.removeEventListener("visibilitychange", this.onFocusChange);
+  }
+
+  /** The host's own reasons to stand still (someone is reading). */
+  setHeld(held: boolean) {
+    if (held === this.held) return;
+    this.held = held;
+    this.schedule();
+  }
+
+  private get running() {
+    return !this.disposed && this.visible && this.focused && !this.idle && !this.held && !this.reducedMotion.matches;
   }
 
   private resize() {
@@ -105,18 +136,22 @@ export class OceanEngine {
     this.renderer.resize(rect.width, rect.height, dpr);
     this.world.resize(rect.width, rect.height, this.renderer.cellWidth, this.renderer.cellHeight);
     // A resize clears the canvas; a paused ocean still shows its last state.
-    if (this.reducedMotion.matches || !this.focused) this.drawStill();
+    if (!this.running) this.drawStill();
   }
 
   private schedule() {
     cancelAnimationFrame(this.raf);
-    if (this.disposed || !this.visible || !this.focused || this.reducedMotion.matches) return;
+    if (!this.running) return;
     this.last = performance.now();
     this.lastPaint = 0;
     this.raf = requestAnimationFrame(this.frame);
   }
 
   private frame = (now: number) => {
+    if (now - this.lastInput > this.idleMs) {
+      this.idle = true;
+      return;
+    }
     this.raf = requestAnimationFrame(this.frame);
     // a few ms of slack so a 60 Hz display lands on every other vsync
     if (now - this.lastPaint < this.frameMs - 4) return;
@@ -167,6 +202,13 @@ export class OceanEngine {
     }, 50);
   };
 
+  private onActivity = () => {
+    this.lastInput = performance.now();
+    if (!this.idle) return;
+    this.idle = false;
+    this.schedule();
+  };
+
   private onMotionPreference = () => {
     if (this.reducedMotion.matches) {
       cancelAnimationFrame(this.raf);
@@ -194,8 +236,15 @@ export class OceanEngine {
 
   private onPointerDown = (e: PointerEvent) => {
     const { x, y, inside } = this.toLocal(e);
-    if (!inside || this.reducedMotion.matches || !this.focused) return;
-    if (this.canSplash && !this.canSplash(e)) return;
+    this.press = inside && (!this.canSplash || this.canSplash(e)) ? { x, y } : null;
+  };
+
+  private onPointerUp = (e: PointerEvent) => {
+    const press = this.press;
+    this.press = null;
+    if (!press || !this.running) return;
+    const { x, y } = this.toLocal(e);
+    if (Math.hypot(x - press.x, y - press.y) > CLICK_SLOP) return;
     this.world.splash(x, y);
   };
 

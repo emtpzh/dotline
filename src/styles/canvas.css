@@ -9,13 +9,20 @@
 
 /* the harness plugin's ASCII ocean (OceanBackdrop): drawn light-on-clear
    for the dark board, inverted onto the light one; faint either way so the
-   cards stay the subject */
+   cards stay the subject. --ocean-level (set by the component) scales it:
+   0 hidden, below 1 while the board is worked or read, above 1 when empty.
+   It ducks fast and returns slowly. */
 .tdag-ocean {
-  opacity: 0.22;
+  --ocean-base: 0.22;
+  opacity: calc(var(--ocean-base) * var(--ocean-level, 0));
+  transition: opacity 0.6s ease;
+}
+.tdag-ocean[data-busy] {
+  transition-duration: 0.15s;
 }
 :root:not(.dark) .tdag-ocean {
+  --ocean-base: 0.18;
   filter: invert(1);
-  opacity: 0.18;
 }
 
 .react-flow__minimap {

@@ -1219,7 +1219,7 @@ function Canvas() {
         ) : (
           <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="var(--canvas-dot)" />
         )}
-        {oceanOn && <Suspense fallback={null}><OceanBackdrop /></Suspense>}
+        {OCEAN_AVAILABLE && <Suspense fallback={null}><OceanBackdrop enabled={oceanOn} /></Suspense>}
         <ZoomTierTag />
         <ThoughtMapPill panelShiftWidth={panelOpen ? livePanelWidth : 0} />
         <TimelineBar />
