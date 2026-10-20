@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -19,7 +19,8 @@ import { ArrowLeft, ArrowRight, ArrowUp, BookOpen, Bot, Brain, CircleHelp, Downl
 import './index.css';
 import ThoughtNode from './components/ThoughtNode';
 import ParadigmNode from './components/ParadigmNode';
-import { useAppearance, edgePalette } from './lib/appearance';
+import { useAppearance, edgePalette, OCEAN_AVAILABLE } from './lib/appearance';
+import { Switch } from './components/ui/switch';
 import { edgeLook, edgeMeaning, routesOf } from './lib/edge-look';
 import ContentNode from './components/ContentNode';
 import FrameNode from './components/FrameNode';
@@ -71,6 +72,8 @@ import RoleManagerModal from './components/app/RoleManagerModal';
 import MemoryManagerModal from './components/app/MemoryManagerModal';
 import ApiKeyModal from './components/app/ApiKeyModal';
 import ShareDialog from './components/app/ShareDialog';
+// harness-only, so the other builds never fetch the ocean's chunk
+const OceanBackdrop = lazy(() => import('./components/OceanBackdrop'));
 import ThoughtMapDialog from './components/app/ThoughtMapDialog';
 import BackupDialog from './components/app/BackupDialog';
 import CondenseDialog from './components/app/CondenseDialog';
@@ -273,6 +276,7 @@ function Canvas() {
   const paperTexture = useAppearance((s) => s.paper);
   const lightingChoice = useAppearance((s) => s.lighting);
   const resolvedTheme = useAppearance((s) => s.resolved);
+  const oceanOn = useAppearance((s) => s.ocean) && OCEAN_AVAILABLE;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const themePalette = useMemo(() => edgePalette(), [resolvedTheme]);
   const prevNodeCount = useRef(nodes.length);
@@ -1215,6 +1219,7 @@ function Canvas() {
         ) : (
           <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="var(--canvas-dot)" />
         )}
+        {oceanOn && <Suspense fallback={null}><OceanBackdrop /></Suspense>}
         <ZoomTierTag />
         <ThoughtMapPill panelShiftWidth={panelOpen ? livePanelWidth : 0} />
         <TimelineBar />
@@ -1885,6 +1890,12 @@ function Canvas() {
                   ))}
                 </ToggleGroup>
               </div>
+              {OCEAN_AVAILABLE && (
+                <label className="flex items-center justify-between px-3 pt-1 pb-2 text-2xs text-muted-foreground" title={t('appearance.oceanTitle')} data-appearance-ocean>
+                  {t('appearance.ocean')}
+                  <Switch size="sm" checked={oceanOn} onCheckedChange={(on) => useAppearance.getState().setOcean(on)} />
+                </label>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => { useUiStore.getState().setMemoryManagerOpen(true); }}

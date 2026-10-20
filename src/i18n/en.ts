@@ -502,6 +502,8 @@ export const en = {
   'appearance.paper': 'Paper',
   'appearance.plain': 'Plain',
   'appearance.grid': 'Grid',
+  'appearance.ocean': 'Ocean backdrop',
+  'appearance.oceanTitle': 'ASCII fish and sharks swimming behind the canvas; animates only while this window is focused',
   'toolbar.exportEvents': 'Export event log (.csv)',
   'toolbar.exportEventsTitle': 'Timestamped record of canvas operations (asks, generations, highlights, archiving) for R/Python analysis',
   'toolbar.menuShare': 'Share read-only link',

@@ -11,6 +11,7 @@ export type Paper = 'plain' | 'grid';
 
 const LS_LIGHTING = 'thoughtdag.lighting';
 const LS_PAPER = 'thoughtdag.paper';
+const LS_OCEAN = 'thoughtdag.ocean';
 
 const media = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
@@ -22,6 +23,8 @@ function resolve(lighting: Lighting): 'light' | 'dark' {
 // wears the harness's own colors: index.css keeps them as a fixed palette,
 // light and dark alike, so the canvas reads as part of the host app.
 const PALETTE = import.meta.env.VITE_DSH_BRIDGE ? 'harness' : 'thoughtdag';
+/** The harness palette also offers the ASCII ocean behind the canvas. */
+export const OCEAN_AVAILABLE = PALETTE === 'harness';
 
 function apply(lighting: Lighting, paper: Paper): 'light' | 'dark' {
   const resolved = resolve(lighting);
@@ -42,14 +45,18 @@ interface AppearanceState {
       Subscribe to this to re-derive anything computed from token values
       (edge palettes resolve through it). */
   resolved: 'light' | 'dark';
+  /** ASCII sharks swimming behind the canvas (harness palette only) */
+  ocean: boolean;
   setLighting: (l: Lighting) => void;
   setPaper: (p: Paper) => void;
+  setOcean: (on: boolean) => void;
 }
 
 export const useAppearance = create<AppearanceState>((set, get) => ({
   lighting: (localStorage.getItem(LS_LIGHTING) as Lighting) || 'light',
   paper: (localStorage.getItem(LS_PAPER) as Paper) || 'plain',
   resolved: 'light',
+  ocean: localStorage.getItem(LS_OCEAN) !== '0',
   setLighting: (lighting) => {
     localStorage.setItem(LS_LIGHTING, lighting);
     set({ lighting, resolved: apply(lighting, get().paper) });
@@ -58,6 +65,10 @@ export const useAppearance = create<AppearanceState>((set, get) => ({
     localStorage.setItem(LS_PAPER, paper);
     apply(get().lighting, paper);
     set({ paper });
+  },
+  setOcean: (ocean) => {
+    localStorage.setItem(LS_OCEAN, ocean ? '1' : '0');
+    set({ ocean });
   },
 }));
 

@@ -502,6 +502,8 @@ export const zh: Record<keyof typeof en, string> = {
   'appearance.paper': '纸质',
   'appearance.plain': '纸面',
   'appearance.grid': '图纸',
+  'appearance.ocean': '海洋背景',
+  'appearance.oceanTitle': '画布背后游动的 ASCII 鱼群和鲨鱼，仅在窗口聚焦时播放动画',
   'toolbar.exportEvents': '导出事件日志 (.csv)',
   'toolbar.exportEventsTitle': '画布操作的时间戳记录（提问、生成、高光、归档等），可进 R/Python 分析',
   'toolbar.menuShare': '分享只读链接',
