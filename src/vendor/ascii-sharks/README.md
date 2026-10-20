@@ -3,10 +3,6 @@
 Source: https://github.com/stackedlol/ascii-sharks @ `c521e24a787e6d4cc460d4cf2b9815f25e4fe453`
 (`src/engine.ts`, `math.ts`, `renderer.ts`, `species.ts`, `world.ts`).
 
-**License: pending.** The upstream repository carries no license file yet;
-permission from the author is being requested. Do not publish a release that
-ships this directory until that is settled.
-
 Used by `components/OceanBackdrop.tsx` as the canvas background inside the
 harness plugin only (`data-palette='harness'`).
 
