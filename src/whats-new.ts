@@ -33,6 +33,16 @@ const DOCS = DOCS_URL;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.4.25',
+    date: '2026-10-21',
+    announce: false,
+    lead: {
+      zh: 'DeepSeek Harness 插件：画布背后多了一片 ASCII 海洋，鱼群和鲨鱼在卡片之间游动，鼠标经过会惊散鱼群，单击空白处会溅起水花。它尽量不打扰：拖动、缩放、圈选和打字时几乎隐去，打开详情面板或阅读器时变淡并停下，卡片铺满屏幕时只在空隙里隐约可见，窗口失去焦点或一分钟没有操作就暂停。不想要的话，在「⋯」菜单的外观设置里关掉「海洋背景」。',
+      en: 'DeepSeek Harness plugin: an ASCII ocean now lives behind the canvas, with fish and sharks swimming between the cards; the cursor scatters the fish and a click on empty canvas makes a splash. It keeps out of the way: it nearly vanishes while you pan, zoom, select or type, dims and stops while the details panel or reader is open, shows only in the gaps when cards fill the screen, and pauses when the window loses focus or after a minute without input. Turn off "Ocean backdrop" under Appearance in the ⋯ menu if you would rather not have it.',
+    },
+    items: [],
+  },
+  {
     version: '0.4.24',
     date: '2026-10-16',
     announce: false,
