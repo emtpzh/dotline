@@ -80,9 +80,8 @@
    immediate. It is an outline laid over the card's own border (offset -1px
    covers it), because outline is in no transition here: the border and
    shadow transitions belong to hover, and selection must not inherit
-   them. The destination of "continue last thread" wears the same line
-   while it is previewed. Scales with the face (--k). */
-.thought-node:is(.tdag-selected, .beacon-node) {
+   them. Scales with the face (--k). */
+.thought-node.tdag-selected {
   outline: calc(1px + 1px * var(--k, 1)) solid var(--primary);
   outline-offset: -1px;
 }
@@ -264,17 +263,8 @@ body.tdag-connecting :is(.thought-node, .content-card) > .react-flow__handle.tda
 [data-searching] .react-flow__node.search-hit { opacity: 1; }
 [data-searching] .react-flow__edges { opacity: 0.18; transition: opacity 0.2s ease; }
 
-/* "Continue last thread", hovered: a preview of where the button goes.
-   The rest of the map steps back (the searchlight's language) and the
-   destination stands in the full light wearing the selection line —
-   still, nothing loops. Frames stay lit: they are the ground. Off screen,
-   the dimmed map plus the edge tag (App ThoughtMapPill) say "not here,
-   there". Far tier: the dot wears the glyph selection outline. */
+/* dimming steps in and out rather than snapping */
 .react-flow__node, .react-flow__edges { transition: opacity var(--dur-fast) var(--ease-standard); }
-[data-beacon] .react-flow__node:not(:has(.beacon-node, .tdag-frame)) { opacity: 0.3; }
-[data-beacon] .react-flow__node:has(.beacon-node) { opacity: 1; }
-[data-beacon] .react-flow__edges { opacity: 0.3; }
-.beacon-node .tdag-far-dot { outline: 8px solid var(--primary); outline-offset: 8px; }
 
 /* ── Context Focus ─────────────────────────────────────────────────────
    Single selection lights the node's REAL context (same partition the

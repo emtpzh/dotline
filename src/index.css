@@ -5,7 +5,6 @@
 @import "./styles/base.css";
 @import "./styles/canvas.css";
 @import "./styles/markdown.css";
-@import "./styles/tmap.css";
 
 /* the app owns its theme switch (lib/appearance.ts sets .dark on <html>),
    so the dark variant follows that class, not the system setting */

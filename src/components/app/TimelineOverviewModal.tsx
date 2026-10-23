@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { History, ImageDown, Sparkles } from 'lucide-react';
+import { History, Sparkles } from 'lucide-react';
 import { useStore } from '../../store';
 import { useUiStore } from '../../lib/ui-store';
 import { useDateLocale, useI18n, useT, fmt } from '../../i18n';
@@ -59,16 +59,6 @@ export default function TimelineOverviewModal({ onLocate }: { onLocate: (nodeId:
           <History size={15} strokeWidth={1.75} className="text-primary" />
           <DialogTitle>{t('tlov.title')}</DialogTitle>
           <span className="text-2xs text-muted-foreground">{fmt(t('tlov.count'), { n: entries.length })}</span>
-          <div className="flex-1" />
-          <Button variant="ghost" size="xs"
-            onClick={() => { close(); useUiStore.getState().setThoughtMapOpen(true); }}
-            disabled={entries.length === 0}
-            data-tmap-from-timeline
-            className="text-2xs text-muted-foreground hover:text-primary hover:bg-primary/10"
-          >
-            <ImageDown strokeWidth={1.75} />
-            {t('tmap.export')}
-          </Button>
         </div>
 
         <div className="px-5 pt-3 shrink-0" data-gedankengang>

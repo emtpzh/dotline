@@ -168,16 +168,9 @@ interface UiState {
       confirmation in the ApiKeyModal (consumed on pickup, never stored). */
   oauthMintedKey: string | null;
   setOauthMintedKey: (key: string | null) => void;
-  /** The destination previewed while "continue last thread" is hovered:
-   *  the map dims around it (canvas.css [data-beacon]). */
-  beaconNodeId: string | null;
-  setBeaconNodeId: (id: string | null) => void;
   /** Share dialog: the freshly built read-only link (null = closed). */
   shareDialogUrl: string | null;
   setShareDialogUrl: (url: string | null) => void;
-  /** Thought-map export console (structure-only share image). */
-  thoughtMapOpen: boolean;
-  setThoughtMapOpen: (v: boolean) => void;
   /** Viewer boot failed to decode the #view= hash (truncated link). */
   viewerLoadError: boolean;
   setViewerLoadError: (v: boolean) => void;
@@ -321,14 +314,10 @@ export const useUiStore = create<UiState>((set, get) => ({
   setApiKeyPresetHint: (id) => set({ apiKeyPresetHint: id }),
   oauthMintedKey: null,
   setOauthMintedKey: (key) => set({ oauthMintedKey: key }),
-  beaconNodeId: null,
-  setBeaconNodeId: (id) => set({ beaconNodeId: id }),
 
   setBackupDialogOpen: (v) => set({ backupDialogOpen: v }),
   shareDialogUrl: null,
   setShareDialogUrl: (url) => set({ shareDialogUrl: url }),
-  thoughtMapOpen: false,
-  setThoughtMapOpen: (v) => set({ thoughtMapOpen: v }),
   viewerLoadError: false,
   setViewerLoadError: (v) => set({ viewerLoadError: v }),
   readerNodeId: null,

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
  * One-shot entrance class for canvas cards.
  *
  * `.animate-fade-in` owns the `animation` property — and so does every state a
- * card can enter LATER: the selected glow, the loading border, the beacon.
+ * card can enter LATER: the selected glow, the loading border.
  * The last class to set the shorthand wins, so while a card was selected the
  * entrance animation was simply switched off; removing that state handed
  * `animation` back to `.animate-fade-in`, which REPLAYED the entrance: the

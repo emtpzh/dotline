@@ -15,34 +15,9 @@ The minimap and zoom controls provide another way to move through a large graph.
 
 As you zoom out, a node changes from a full card to a compact takeaway plaque and then to an icon-level marker. Its canvas position and connections stay the same. Semantic zoom changes presentation only; it does not change model context.
 
-At the map and glyph tiers, two actions appear at the bottom of the canvas: **Export thought map** and **Continue last thread**.
+## Summarize a node to a note
 
-<img src="../map-dock-en.png" alt="A real ThoughtDAG map tier showing Export thought map and Continue last thread at the bottom" width="100%" loading="lazy"/>
-
-## Generate a thought map from the canvas
-
-Choose **Export thought map** to recompose the current nodes, wires, materials, and key marks as a shareable image. It is not a screenshot of the current viewport.
-
-You can:
-
-- write a public title, note, and signature, or ask the current model to draft the words;
-- switch between **Tidy** and **As arranged**;
-- adjust rotation, paper, map language, type size, counts, time ink, and date;
-- check the feed thumbnail before downloading the PNG.
-
-<img src="../thought-map-dialog-en.png" alt="The real ThoughtDAG thought-map exporter with text, layout, paper, language, counts, and date controls" width="100%" loading="lazy"/>
-
-Exporting creates a separate image. It does not move canvas nodes or change model context.
-
-## Continue the last thread
-
-Hover **Continue last thread** to reveal the most recently active conversation node on the map. Click it to fly back, restore a readable zoom, and open that node's panel.
-
-<img src="../continue-last-thread-en.gif" alt="Clicking Continue last thread on a zoomed-out map, flying back to the most recently active node, and opening its panel" width="100%" loading="lazy"/>
-
-After arriving, continue the conversation directly or choose **Summarize to a note**. The recap lands as an unwired note: it is editable and deletable, but does not enter model context automatically.
-
-Use search and keyboard navigation below when you know the target. Use **Continue last thread** when you are returning after a break and want to resume where the work last changed.
+Right-click a conversation node and choose **Summarize to a note** to have the current model write what you were doing and what comes next. The recap lands as an unwired note: it is editable and deletable, but does not enter model context automatically.
 
 ## Find a node
 

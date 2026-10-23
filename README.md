@@ -95,9 +95,9 @@ Select a passage, ask right there. The answer lands on the canvas with its page 
 <td width="45%"><img src="docs/illus/map-en.svg" alt="Illustration: three takeaway plaques with ruled-out, decided and pivoted badges, linked by dashed lines"/></td>
 <td width="55%">
 
-### 💎 Condense, zoom out, and export the shape
+### 💎 Condense and zoom out
 
-Merge nodes into a higher conclusion; weave highlights into cited prose. Zoom through full cards, takeaway plaques and an icon skeleton. Then export the current structure as a light or dark Thought Map.
+Merge nodes into a higher conclusion; weave highlights into cited prose. Zoom through full cards, takeaway plaques and an icon skeleton.
 
 </td>
 </tr>
@@ -134,12 +134,6 @@ Many products use nodes and edges, but the graph does a different job in each ca
 | Harness context viewers | They show what a session carries now; ThoughtDAG lets you compose what the next turn receives, and sends it as a real turn. |
 
 ThoughtDAG is a user-authored context graph: incoming paths and explicit references form the next request, while excluded work stays visible on the canvas.
-
-## 🗺️ Export the shape of your thinking
-
-The export keeps the nodes, wires and high-level structural counts. Different questions and different ways of exploring them leave visibly different maps.
-
-<img src="docs/thought-map-four-en.png" alt="Four Thought Map exports showing a deep single thread, five explored branches, a three-week investigation and a literature review season" width="100%"/>
 
 ## More ways to run
 

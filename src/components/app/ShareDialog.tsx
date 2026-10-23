@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Copy, Eye, FileJson, ImageDown } from 'lucide-react';
+import { Check, Copy, Eye, FileJson } from 'lucide-react';
 import { useUiStore } from '../../lib/ui-store';
 import { exportActiveProjectJson } from '../../lib/export';
 import { useT } from '../../i18n';
@@ -7,12 +7,11 @@ import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Input } from '../ui/input';
 
-// Two jobs, two lanes. LANE 1: the read-only canvas link — it CARRIES the
-// whole graph (minted against the public viewer origin, so a link made on
-// the desktop app opens for anyone); long by design, so the right channels
-// are the ones tolerant of long URLs (chat, mail, docs) and the right
-// control is Copy. LANE 2: one door — the thought-map console owns the
-// whole feed story (picture, caption, platform buttons) so entries stay few.
+// The read-only canvas link — it CARRIES the whole graph (minted against
+// the public viewer origin, so a link made on the desktop app opens for
+// anyone); long by design, so the right channels are the ones tolerant of
+// long URLs (chat, mail, docs) and the right control is Copy. The full file
+// is the fallback when the link outgrows them.
 export default function ShareDialog() {
   const url = useUiStore((s) => s.shareDialogUrl);
   const t = useT();
@@ -60,7 +59,7 @@ export default function ShareDialog() {
             {t('share.linkTooLong')}
           </p>
         )}
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" onClick={() => void exportActiveProjectJson({ sharedReadonly: readonlyMark })} data-share-fullfile>
             <FileJson strokeWidth={1.75} />
             {t('share.fullFile')}
@@ -70,21 +69,6 @@ export default function ShareDialog() {
               className="accent-[color:var(--primary)]" />
             {t('share.readonlyMark')}
           </label>
-        </div>
-
-        {/* Lane 2: post to a feed — picture + permanent repo link */}
-        <div className="border-t border-border pt-3">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => { close(); useUiStore.getState().setThoughtMapOpen(true); }}
-              data-share-thought-map
-            >
-              <ImageDown strokeWidth={1.75} />
-              {t('tmap.export')}
-            </Button>
-          </div>
         </div>
       </DialogContent>
     </Dialog>

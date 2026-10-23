@@ -15,7 +15,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import 'highlight.js/styles/github.css';
-import { ArrowLeft, ArrowRight, ArrowUp, BookOpen, Bot, Brain, CircleHelp, Download, Eye, FileText, Frame, GitBranch, Highlighter, ImageDown, KeyRound, LayoutGrid, Link2, PinOff, Loader2, MessageCircleQuestion, MoreHorizontal, Paperclip, Redo2, Scissors, Search, Share2, SquareTerminal, Stethoscope, StickyNote, Trash2, Undo2, Workflow, ListRestart, FolderSync, Minimize2, Rewind, History as HistoryIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Bot, Brain, CircleHelp, Download, Eye, FileText, Frame, GitBranch, Highlighter, KeyRound, LayoutGrid, Link2, PinOff, Loader2, MessageCircleQuestion, MoreHorizontal, Paperclip, Redo2, Scissors, Search, Share2, SquareTerminal, Stethoscope, StickyNote, Trash2, Undo2, Workflow, ListRestart, FolderSync, Minimize2, History as HistoryIcon } from 'lucide-react';
 import './index.css';
 import ThoughtNode from './components/ThoughtNode';
 import ParadigmNode from './components/ParadigmNode';
@@ -44,14 +44,13 @@ import { isPinned } from './lib/layout';
 import { holdLayout, registerViewport } from './lib/layout-motion';
 import { MOTION, fitMotion, flyTo, ms, easeStandard } from './lib/motion';
 import { usePresence } from './lib/use-presence';
-import { nodeName } from './lib/node-face';
 import { useProjects, adoptImportedProject, markInstantiatedFrom } from './store/projects';
 import { projectStorageKey } from './store/projects';
 import { set as idbSet } from 'idb-keyval';
 import { instantiateParadigm } from './lib/paradigm';
 import { isContentKind, spawnContentNode, ingestFiles, fetchLinkIntoNode, clipboardTextToMarkdown } from './lib/content';
 import { generateId } from './utils';
-import { recapToNote, recapCamera } from './lib/recap';
+import { recapCamera } from './lib/recap';
 import type { ThoughtNode as ThoughtNodeType, ThoughtEdge } from './types';
 import { FILE_INPUT_ACCEPT } from './lib/attachments';
 import { walkUpAncestors, partitionContext } from './lib/graph';
@@ -74,7 +73,6 @@ import ApiKeyModal from './components/app/ApiKeyModal';
 import ShareDialog from './components/app/ShareDialog';
 // harness-only, so the other builds never fetch the ocean's chunk
 const OceanBackdrop = lazy(() => import('./components/OceanBackdrop'));
-import ThoughtMapDialog from './components/app/ThoughtMapDialog';
 import BackupDialog from './components/app/BackupDialog';
 import CondenseDialog from './components/app/CondenseDialog';
 import { backupSupported } from './lib/local-backup';
@@ -100,7 +98,7 @@ import { useZoomTier } from './lib/use-map-mode';
 import { scheduleBatchNaming } from './lib/batch-naming';
 import { TimelineBar } from './components/app/TimelineBar';
 import TimelineOverviewModal from './components/app/TimelineOverviewModal';
-import { useStore as useRfStore, useReactFlow } from '@xyflow/react';
+import { useStore as useRfStore } from '@xyflow/react';
 import { Button } from './components/ui/button';
 import { APP_NAME, REPO_URL } from './lib/brand';
 
@@ -230,7 +228,6 @@ export default function App() {
       <ApiKeyModal />
       <FanOutHost />
       <ShareDialog />
-      <ThoughtMapDialog />
       <BackupDialog />
       <ConfirmDialog />
       <Tutorial />
@@ -725,8 +722,6 @@ function Canvas() {
   // close the mode, not just hide the panel, or the next drag (which selects
   // the card it moves) brings it back.
   const panelMode = useUiStore((s) => s.panelOpen);
-  // "continue last thread" hovered: the map dims around its destination
-  const beaconActive = useUiStore((s) => s.beaconNodeId !== null);
   const viewerLoadError = useUiStore((s) => s.viewerLoadError);
   const staleCount = useStore((s) => s.staleIds.length);
   const livePanelWidth = useUiStore((s) => s.panelWidth);
@@ -1069,7 +1064,7 @@ function Canvas() {
   }, [panelOpen, selectedNodeId]);
 
   return (
-    <div className="relative w-full h-full" data-searching={searching || undefined} data-beacon={beaconActive || undefined}>
+    <div className="relative w-full h-full" data-searching={searching || undefined}>
       {/* Canvas — full width always; the focus panel floats on top of it */}
       <div
         className="relative h-full w-full"
@@ -1221,7 +1216,6 @@ function Canvas() {
         )}
         {OCEAN_AVAILABLE && <Suspense fallback={null}><OceanBackdrop enabled={oceanOn} /></Suspense>}
         <ZoomTierTag />
-        <ThoughtMapPill panelShiftWidth={panelOpen ? livePanelWidth : 0} />
         <TimelineBar />
         <CanvasControls />
         <LayoutPreview />
@@ -2043,134 +2037,6 @@ function Canvas() {
 // restyle global layers, and streams the live zoom into a CSS variable so
 // glyph seals and edges can counter-scale (POI style: world position,
 // fixed screen size — the icon map stays dense however far you zoom out).
-// The moment of looking at the shape IS the moment of wanting to share it:
-// the pill exists only in the map/glyph tiers, the working tier stays
-// silent. Must live inside <ReactFlow> to reach the flow store.
-// panelShiftWidth comes from the App's COMPOSITE panel-visible signal —
-// reading the raw ui-store panelOpen here desyncs the dock when the panel
-// closes via a pane click (which clears the selection, not the flag).
-function ThoughtMapPill({ panelShiftWidth }: { panelShiftWidth: number }) {
-  const tier = useZoomTier();
-  const t = useT();
-  const rf = useReactFlow();
-  const nodeCount = useStore((s) => s.nodes.length);
-  const nodes = useStore((s) => s.nodes);
-
-  // The flight destination: the thought node touched most recently.
-  // Content nodes (notes, files, links, frames) never count as "work".
-  const lastActive = useMemo(() => {
-    let best: (typeof nodes)[number] | null = null;
-    let bestAt = '';
-    for (const n of nodes) {
-      if (n.data.stepKind && n.data.stepKind !== 'human' && n.data.stepKind !== 'prompt') continue;
-      const at = [n.data.lastGeneratedAt, n.data.askedAt, n.data.createdAt,
-        ...(n.data.editedAts ?? [])].filter(Boolean).sort().pop() as string | undefined;
-      if (at && at > bestAt) { bestAt = at; best = n; }
-    }
-    return best ? { node: best, at: bestAt } : null;
-  }, [nodes]);
-
-  // Hovering "continue" lights the destination (the beacon) — but from the
-  // map the destination is often off screen, where a beacon says nothing.
-  // Then a tag sits on the screen's edge, pointing at it.
-  const [hint, setHint] = useState<{ x: number; y: number; angle: number; name: string } | null>(null);
-
-  if (isViewerMode || tier === 'work' || nodeCount < 2) return null;
-
-  const showHint = () => {
-    if (!lastActive) return;
-    const { node } = lastActive;
-    useUiStore.getState().setBeaconNodeId(node.id);
-    const pane = document.querySelector('.react-flow')?.getBoundingClientRect();
-    if (!pane) return;
-    const { x: vx, y: vy, zoom } = rf.getViewport();
-    const w = (node.measured?.width ?? 520) * zoom, h = (node.measured?.height ?? 200) * zoom;
-    const left = node.position.x * zoom + vx, top = node.position.y * zoom + vy;
-    const visibleW = pane.width - panelShiftWidth;
-    if (left < visibleW && left + w > 0 && top < pane.height && top + h > 0) { setHint(null); return; }
-    const cx = left + w / 2, cy = top + h / 2;
-    // kept clear of the corners, of the dock along the bottom and of the
-    // minimap in the bottom-right corner
-    // (the tag is centered on x and up to ~240px wide: max-w-48 plus its icon)
-    const x = Math.min(visibleW - 136, Math.max(136, cx));
-    const minimap = panelShiftWidth === 0 && x > visibleW - 300;
-    const y = Math.min(pane.height - (minimap ? 210 : 110), Math.max(40, cy));
-    setHint({
-      x, y,
-      angle: (Math.atan2(cy - y, cx - x) * 180) / Math.PI + 90,
-      name: nodeName(node.data) ?? node.data.question.replace(/\s+/g, ' ').slice(0, 24),
-    });
-  };
-  const hideHint = () => {
-    useUiStore.getState().setBeaconNodeId(null);
-    setHint(null);
-  };
-
-  // Three beats, each waiting for the one before: the flight, then the
-  // panel with the card selected, then the recap offer. The
-  // camera flies once, straight to where the card sits with the panel open
-  // (panel-shift's own sum, for the panel about to open), so nothing
-  // re-centers after landing. A flight the user interrupts by grabbing the
-  // canvas never resolves — and then nothing opens under their hand.
-  const flyBack = async () => {
-    if (!lastActive) return;
-    hideHint();
-    const { node } = lastActive;
-    const ui = useUiStore.getState();
-    const shift = ui.panelWidth + PANEL_INSET + 12;
-    await flyTo(rf, node.position.x + 260 + shift / 2, node.position.y + 110, 1);
-    useStore.getState().setSelectedNodeId(node.id);
-    useUiStore.getState().setPanelOpen(true);
-    window.setTimeout(() => {
-      toast('success', t('continue.arrived'), 12000,
-        { label: t('continue.summarize'), run: () => void recapToNote(node.id) });
-    }, ms(MOTION.base));
-  };
-
-  return (
-    <>
-    {hint && (
-      <div
-        className="pointer-events-none absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 rounded-full bg-primary py-1 pr-3 pl-2 text-xs font-medium text-primary-foreground shadow-md animate-in fade-in-0 zoom-in-95 duration-(--dur-fast)"
-        style={{ left: hint.x, top: hint.y }}
-        data-continue-hint
-      >
-        <ArrowUp className="size-3.5 shrink-0" strokeWidth={2} style={{ transform: `rotate(${hint.angle}deg)` }} />
-        <span className="max-w-48 truncate">{hint.name}</span>
-      </div>
-    )}
-    <div
-      className="absolute bottom-6 z-10 flex items-center gap-2 -translate-x-1/2 transition-[left] duration-(--dur-base) ease-(--ease-standard)"
-      style={{ left: `calc((100% - ${panelShiftWidth}px) / 2)` }}
-      data-map-dock
-    >
-      <Button variant="chrome"
-        onClick={() => useUiStore.getState().setThoughtMapOpen(true)}
-        data-tmap-pill
-        // the dock floats further off the board than the toolbar does
-        className="text-sm text-foreground shadow-lg hover:border-primary/40 hover:text-primary"
-      >
-        <ImageDown strokeWidth={1.75} /> {t('tmap.export')}
-      </Button>
-      {lastActive && (
-        <Button
-          onClick={() => void flyBack()}
-          onMouseEnter={showHint}
-          onMouseLeave={hideHint}
-          onFocus={showHint}
-          onBlur={hideHint}
-          title={t('continue.buttonTitle')}
-          data-continue-pill
-          className="shadow-lg"
-        >
-          <Rewind strokeWidth={1.75} /> {t('continue.button')}
-        </Button>
-      )}
-    </div>
-    </>
-  );
-}
-
 // Must live inside <ReactFlow> to reach the flow store.
 function ZoomTierTag() {
   const tier = useZoomTier();
