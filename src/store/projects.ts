@@ -357,6 +357,13 @@ export async function renameProject(id: string, name: string): Promise<void> {
   await saveMeta();
 }
 
+/** Replace the canvas list wholesale: the organizer's rebuild and its undo
+ *  (store/organize), which write the graphs themselves. */
+export async function replaceProjects(projects: ProjectMeta[]): Promise<void> {
+  useProjects.setState({ projects });
+  await saveMeta();
+}
+
 export async function deleteProject(id: string): Promise<void> {
   const { projects, activeId } = useProjects.getState();
   if (id === activeId) {

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
-import { Archive, ArchiveRestore, ChevronDown, Dna, FolderOpen, Loader2, Map as MapIcon, MoreHorizontal, Pencil, Plus, RefreshCw, SquareTerminal, Trash2, Upload } from 'lucide-react';
+import { Archive, ArchiveRestore, ChevronDown, Dna, FolderOpen, LayoutGrid, Loader2, Map as MapIcon, MoreHorizontal, Pencil, Plus, RefreshCw, SquareTerminal, Trash2, Upload } from 'lucide-react';
 import SessionAtlas from './SessionAtlas';
+import CanvasOrganizer from './CanvasOrganizer';
 import { knownSessionIds, runnerLabel } from '../lib/atlas/discover';
 import { useProjects, switchProject, createProject, renameProject, deleteProject, setProjectArchived, mainSubscription, type ProjectMeta } from '../store/projects';
 import { useI18n } from '../i18n';
@@ -40,6 +41,7 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
   const [chatImport, setChatImport] = useState<ImportableConversation[] | null>(null);
   const [atlasOpen, setAtlasOpen] = useState(false);
   const [atlasFocus, setAtlasFocus] = useState<string | undefined>(undefined);
+  const [organizerOpen, setOrganizerOpen] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [query, setQuery] = useState('');
@@ -246,6 +248,12 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
               <Plus />
               {t('switcher.newCanvas')}
             </Button>
+            {projects.some((p) => !p.archived && p.kind !== 'paradigm') && (
+              <Button variant="ghost" size="sm" className="text-muted-foreground" disabled={switching} title={t('organizer.openHint')} onClick={() => { setOpen(false); setOrganizerOpen(true); }} data-open-organizer>
+                <LayoutGrid />
+                {t('organizer.open')}
+              </Button>
+            )}
             {archivedTotal > 0 && (
               <Button variant="ghost" size="sm" className="text-muted-foreground" aria-pressed={showArchived} onClick={() => setShowArchived((v) => !v)} data-toggle-archived>
                 <Archive />
@@ -298,6 +306,7 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
           onDone={() => { setChatImport(null); onSwitched(); }}
         />
       )}
+      {organizerOpen && <CanvasOrganizer onClose={() => setOrganizerOpen(false)} onSwitched={onSwitched} />}
       {atlasOpen && <SessionAtlas onClose={() => { setAtlasOpen(false); setAtlasFocus(undefined); }} onSwitched={onSwitched} focusSessionId={atlasFocus} />}
     </div>
   );
