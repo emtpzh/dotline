@@ -33,6 +33,16 @@ const DOCS = DOCS_URL;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.4.26',
+    date: '2026-10-23',
+    announce: false,
+    lead: {
+      zh: '新增画布整理器：在左上角画布切换里点「整理」，可以把所有画布里的对话按话题、目标或时间重新归组，先看预览，确认后才重建画布。每段对话连同它的连线和画框整体搬走、保持原来的排布，清空的画布会被移除，整次重建可以在提示里一键撤销。另外移除了两个功能：思路地图导出（分享弹窗现在只有只读链接和完整文件），以及缩小画布时底部的「继续上次思路」按钮。想让模型概括某个节点，在节点上右键选「概括成便签」。',
+      en: 'New canvas organizer: choose Organize in the canvas switcher at the top left to regroup the conversations across all your canvases by topic, goal or time. You see a preview first, and nothing changes until you confirm. Each conversation moves whole, with its edges and frames, and keeps its layout; canvases left empty are removed, and one notice undoes the whole rebuild. Two features are gone: the thought-map export (the share dialog now offers the read-only link and the full file), and the Continue last thread button at the bottom of a zoomed-out canvas. To have the model recap a node, right-click it and choose Summarize to a note.',
+    },
+    items: [],
+  },
+  {
     version: '0.4.25',
     date: '2026-10-21',
     announce: false,
