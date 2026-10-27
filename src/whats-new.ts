@@ -33,6 +33,16 @@ const DOCS = DOCS_URL;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.4.27',
+    date: '2026-10-27',
+    announce: false,
+    lead: {
+      zh: '会话地图改版：左侧是项目目录，右侧是会话列表，来源和状态筛选排成一排。单击一行只是勾选，已在画布上的会话点右侧的画布名打开；支持方向键、空格、回车和 / 搜索。打开时先显示上次的结果，之后只重新读取有变化的会话文件，会话多时也快很多；后台会话在更新时列表不再自动重排，选好的目录也不会再被拉回去，目录、排序和来源筛选下次打开时保留。画布整理器的预览可以直接修改：在列头勾选或改名，把对话拖到别的组，右侧会列出重建后要移动的对话和要删除的画布。另外，连线换成更细的带缺口箭头；记忆功能和网格纸背景已移除，首页和菜单也做了简化。',
+      en: 'The session map is redesigned: project folders on the left, sessions on the right, and source and status filters in one row. A click on a row only picks it; a session already on a canvas opens from the canvas name beside it; arrow keys, Space, Enter and / for search all work. It opens on the last scan and then re-reads only the session files that changed, so large stores load much faster. The list no longer reorders itself while background sessions update, a chosen folder no longer jumps back, and folder, order and source filters are kept for next time. In the canvas organizer the preview is now editable: tick or rename a group in its column header, drag conversations between groups, and the side panel lists what moves and which canvases would be removed. Also: wires end in a slimmer notched arrowhead, memory and the grid-paper background are gone, and the landing page and menus are simpler.',
+    },
+    items: [],
+  },
+  {
     version: '0.4.26',
     date: '2026-10-23',
     announce: false,
