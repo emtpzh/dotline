@@ -1,5 +1,4 @@
 import type { CSSProperties } from 'react';
-import type { EdgeMarker } from '@xyflow/react';
 import type { ThoughtData, ThoughtEdge, ThoughtNode } from '../types';
 
 // How a wire looks is DERIVED from what it means, at render time. An edge
@@ -95,18 +94,28 @@ export function edgeMeaning(
 
 export interface EdgePalette { accent: string; warm: string; material: string }
 
+/** The arrowheads' marker ids, one per wire color (components/EdgeMarkers).
+    React Flow takes a string markerEnd as the id of a marker already in the
+    page, so the edges name these and draw no markers of their own. */
+export const ARROW_IDS = {
+  continue: 'tdag-arrow-continue',
+  fork: 'tdag-arrow-fork',
+  material: 'tdag-arrow-material',
+  trace: 'tdag-arrow-trace',
+} as const;
+
 /** One dash for every reference (there used to be three). */
 export const REFERENCE_DASH = '8 4';
 
 export function edgeLook(m: EdgeMeaning, palette: EdgePalette): {
   style: CSSProperties;
-  markerEnd: EdgeMarker;
+  markerEnd: string;
   className?: string;
 } {
   const stroke = m.route === 'material' ? palette.material : m.route === 'fork' ? palette.warm : palette.accent;
   return {
-    style: { stroke, strokeWidth: 2, ...(m.reference ? { strokeDasharray: REFERENCE_DASH } : {}) },
-    markerEnd: { type: 'arrowclosed' as const, color: stroke, width: 18, height: 18 },
+    style: { stroke, strokeWidth: 1.75, ...(m.reference ? { strokeDasharray: REFERENCE_DASH } : {}) },
+    markerEnd: ARROW_IDS[m.route],
     className: [m.reference ? 'tdag-ref' : '', m.live ? 'tdag-live' : ''].filter(Boolean).join(' ') || undefined,
   };
 }

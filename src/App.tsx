@@ -21,7 +21,8 @@ import ThoughtNode from './components/ThoughtNode';
 import ParadigmNode from './components/ParadigmNode';
 import { useAppearance, edgePalette, OCEAN_AVAILABLE } from './lib/appearance';
 import { Switch } from './components/ui/switch';
-import { edgeLook, edgeMeaning, routesOf } from './lib/edge-look';
+import { ARROW_IDS, edgeLook, edgeMeaning, routesOf } from './lib/edge-look';
+import EdgeMarkers from './components/EdgeMarkers';
 import ContentNode from './components/ContentNode';
 import FrameNode from './components/FrameNode';
 import ThoughtEdgeView from './components/ThoughtEdgeView';
@@ -992,7 +993,6 @@ function Canvas() {
             ...e,
             className: [e.className, 'focus-e-down'].filter(Boolean).join(' '),
             style: { ...e.style, strokeWidth: 2.5, opacity: 0.85 },
-            markerEnd: { type: 'arrowclosed' as const, ...((e.markerEnd && typeof e.markerEnd === 'object') ? e.markerEnd : {}) },
             zIndex: 5,
             data: { ...e.data, focusRole: 'down' as const },
           };
@@ -1011,7 +1011,7 @@ function Canvas() {
         return {
           ...e,
           style: { ...e.style, stroke: themePalette.trace, strokeWidth: 3.5, opacity: 1 },
-          markerEnd: { type: 'arrowclosed' as const, ...((e.markerEnd && typeof e.markerEnd === 'object') ? e.markerEnd : {}), color: themePalette.trace },
+          markerEnd: ARROW_IDS.trace,
           zIndex: 10,
         };
       }
@@ -1179,8 +1179,8 @@ function Canvas() {
         defaultEdgeOptions={{
           type: 'smoothstep',
           animated: false,
-          style: { stroke: themePalette.accent, strokeWidth: 2 },
-          markerEnd: { type: 'arrowclosed' as const, color: themePalette.accent, width: 18, height: 18 },
+          style: { stroke: themePalette.accent, strokeWidth: 1.75 },
+          markerEnd: ARROW_IDS.continue,
         }}
         proOptions={{ hideAttribution: true }}
         nodeDragThreshold={5}
@@ -1195,11 +1195,12 @@ function Canvas() {
         panOnScroll
         panOnScrollSpeed={1}
         zoomOnDoubleClick={false}
-        connectionLineStyle={{ stroke: themePalette.accent, strokeDasharray: '8 4', strokeWidth: 2 }}
+        connectionLineStyle={{ stroke: themePalette.accent, strokeDasharray: '8 4', strokeWidth: 1.75 }}
         onSelectionChange={onSelectionChange}
         onPaneClick={() => { setSelectedNodeId(null); setSelectedNodeIds([]); setNodeMenu(null); useUiStore.getState().setPanelOpen(false); }}
       >
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="var(--canvas-dot)" />
+        <EdgeMarkers palette={themePalette} />
         {OCEAN_AVAILABLE && <Suspense fallback={null}><OceanBackdrop enabled={oceanOn} landing={!hasNodes && !isParadigm && !isViewerMode} /></Suspense>}
         <ZoomTierTag />
         <TimelineBar />

@@ -55,7 +55,8 @@ export default function ThoughtEdgeView({
   }, [selected, convertible, isRef, source, target, id, nodes, edges, data, src]);
   // Ends on the card borders (lib/edge-path onCardBorder): the line starts
   // tucked a pixel under its source, so it reads as growing out of it, and
-  // the arrow stops just short of the target, so the card never covers its tip.
+  // the path stops short of the target by enough that the arrowhead, which
+  // reaches a little past the path's end (EdgeMarkers), still clears the card.
   const srcBox = useInternalNode(source);
   const tgtBox = useInternalNode(target);
   const boxOf = (n: typeof srcBox) => n && n.measured.width && n.measured.height
@@ -63,7 +64,7 @@ export default function ThoughtEdgeView({
     : null;
   const sBox = boxOf(srcBox), tBox = boxOf(tgtBox);
   const sp = sBox ? onCardBorder(sourceX, sourceY, sourcePosition, sBox, -1) : { x: sourceX, y: sourceY };
-  const tp = tBox ? onCardBorder(targetX, targetY, targetPosition, tBox, 2) : { x: targetX, y: targetY };
+  const tp = tBox ? onCardBorder(targetX, targetY, targetPosition, tBox, 3.5) : { x: targetX, y: targetY };
   const { path, labelX, labelY } = useMemo(
     () => routeEdge(sp.x, sp.y, sourcePosition, tp.x, tp.y, targetPosition, source, target, nodes),
     [sp.x, sp.y, sourcePosition, tp.x, tp.y, targetPosition, source, target, nodes],
@@ -71,7 +72,7 @@ export default function ThoughtEdgeView({
 
   // When selected, force full visibility (overrides the ancestor-dim pass)
   // and thicken the stroke as selection feedback.
-  const edgeStyle = selected ? { ...style, strokeWidth: 3, opacity: 1 } : style;
+  const edgeStyle = selected ? { ...style, strokeWidth: 2.5, opacity: 1 } : style;
 
   // A wire into a card born a moment ago draws itself out of the parent
   // (lib/spawn-motion): a solid overlay grows along the path while the real
@@ -119,7 +120,7 @@ export default function ThoughtEdgeView({
       />
       {drawing && (
         <path d={path} pathLength={1} className="tdag-draw"
-          style={{ stroke: edgeStyle?.stroke ?? 'var(--edge-continue)', strokeWidth: edgeStyle?.strokeWidth ?? 2, animationDelay: `${drawDelay}ms` }} />
+          style={{ stroke: edgeStyle?.stroke ?? 'var(--edge-continue)', strokeWidth: edgeStyle?.strokeWidth ?? 1.75, animationDelay: `${drawDelay}ms` }} />
       )}
       {mergeIndex >= 0 && (
         <EdgeLabelRenderer>
