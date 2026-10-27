@@ -11,6 +11,8 @@
 //     skipped silently, never guessed at.
 //   - read-only by contract, inherited from the shell primitives.
 
+import { get as idbGet, set as idbSet } from 'idb-keyval';
+
 export interface SessionCard {
   runner: 'claude-code' | 'codex' | 'dsh' | 'pi';
   rootKey: string;
@@ -168,38 +170,88 @@ export function setRootDisabled(key: string, disabled: boolean): void {
  *  never a false alarm). */
 export const knownSessionIds = new Set<string>();
 
-export async function scanSessions(): Promise<SessionCard[]> {
+// What a file read into last time, keyed by root + path and valid while its
+// mtime and size hold: a rescan re-reads only the files that changed. A file
+// no runner claims is remembered too (card null), so it is not re-read on
+// every scan either. The last scan is also kept in IndexedDB, so the atlas
+// opens on it at once and the cache starts warm after a restart.
+interface CacheEntry { mtime: number; size: number; card: SessionCard | null }
+const cardCache = new Map<string, CacheEntry>();
+const cacheKey = (rootKey: string, rel: string) => `${rootKey}|${rel}`;
+const LAST_SCAN_KEY = 'thoughtdag.atlas.lastScan';
+type StoredEntry = [key: string, mtime: number, size: number, card: SessionCard | null];
+
+/** The previous scan's cards, for an instant first paint; null when none is kept. */
+export async function loadLastScan(): Promise<SessionCard[] | null> {
+  try {
+    const raw = await idbGet<StoredEntry[]>(LAST_SCAN_KEY);
+    if (!Array.isArray(raw)) return null;
+    for (const [key, mtime, size, card] of raw) if (!cardCache.has(key)) cardCache.set(key, { mtime, size, card });
+    const off = disabledRoots();
+    return raw.map((e) => e[3]).filter((c): c is SessionCard => !!c && !off.has(c.rootKey)).sort((a, b) => b.mtime - a.mtime);
+  } catch { return null; }
+}
+
+export interface ScanResult {
+  cards: SessionCard[];
+  /** the roots whose listing succeeded: only their files can be said to be gone */
+  listed: Set<string>;
+}
+
+export async function scanSessions(): Promise<ScanResult> {
   const bridge = window.desktopSessions;
-  if (!bridge) return [];
+  if (!bridge) return { cards: [], listed: new Set() };
   const off = disabledRoots();
   const roots = (await bridge.roots().catch(() => [])).filter((r) => r.exists && !off.has(r.key)).map((r) => r.key);
-  const cards: SessionCard[] = [];
-  for (const rootKey of roots) {
-    const files = await bridge.list(rootKey).catch(() => []);
-    // newest first, and head-read concurrently in small batches — a store
-    // can hold hundreds of files, but each head is one bounded read
-    const sorted = [...files].sort((a, b) => b.mtime - a.mtime);
-    const BATCH = 12;
-    for (let i = 0; i < sorted.length; i += BATCH) {
-      const batch = await Promise.all(sorted.slice(i, i + BATCH).map(async (f) => {
-        // DSH titles ride session/title AFTER the first user message, which
-        // can be a giant pasted conversation — read those heads generously.
-        const bytes = f.rel.endsWith('.zstd') ? HEAD_RETRY_BYTES : HEAD_BYTES;
-        const head = await bridge.head(rootKey, f.rel, bytes).catch(() => '');
-        if (!head) return null;
-        const card = cardFromHead(rootKey, f.rel, head, f.mtime, f.size);
-        if (card) return card;
-        // a codex session_meta first line can be 48KB+ of instructions —
-        // one generous retry before giving a file up as unrecognized
-        const bigHead = await bridge.head(rootKey, f.rel, HEAD_RETRY_BYTES).catch(() => '');
-        return bigHead.length > head.length ? cardFromHead(rootKey, f.rel, bigHead, f.mtime, f.size) : null;
-      }));
-      for (const c of batch) if (c) cards.push(c);
-    }
+  const listed = new Set<string>();
+  const listings = await Promise.all(roots.map(async (rootKey) => {
+    try {
+      const files = await bridge.list(rootKey);
+      listed.add(rootKey);
+      return files.map((f) => ({ rootKey, ...f }));
+    } catch { return []; }
+  }));
+  // newest first, and only what changed since the last read is read again —
+  // concurrently in small batches; each head is one bounded read
+  const files = listings.flat().sort((a, b) => b.mtime - a.mtime);
+  const stale = files.filter((f) => {
+    const hit = cardCache.get(cacheKey(f.rootKey, f.rel));
+    return !hit || hit.mtime !== f.mtime || hit.size !== f.size;
+  });
+  const BATCH = 12;
+  for (let i = 0; i < stale.length; i += BATCH) {
+    await Promise.all(stale.slice(i, i + BATCH).map(async (f) => {
+      const card = await readCard(f.rootKey, f.rel, f.mtime, f.size);
+      cardCache.set(cacheKey(f.rootKey, f.rel), { mtime: f.mtime, size: f.size, card });
+    }));
   }
+  const live = new Set(files.map((f) => cacheKey(f.rootKey, f.rel)));
+  for (const k of cardCache.keys()) {
+    if (!live.has(k) && listed.has(k.slice(0, k.indexOf('|')))) cardCache.delete(k);
+  }
+  const cards = files.map((f) => cardCache.get(cacheKey(f.rootKey, f.rel))?.card).filter((c): c is SessionCard => !!c);
   knownSessionIds.clear();
   for (const c of cards) knownSessionIds.add(c.sessionId);
-  return cards.sort((a, b) => b.mtime - a.mtime);
+  if (stale.length || live.size !== cardCache.size) {
+    void idbSet(LAST_SCAN_KEY, [...cardCache].map(([k, e]): StoredEntry => [k, e.mtime, e.size, e.card])).catch(() => { });
+  }
+  return { cards, listed };
+}
+
+async function readCard(rootKey: string, rel: string, mtime: number, size: number): Promise<SessionCard | null> {
+  const bridge = window.desktopSessions!;
+  // DSH titles ride session/title AFTER the first user message, which
+  // can be a giant pasted conversation — read those heads generously.
+  const bytes = rel.endsWith('.zstd') ? HEAD_RETRY_BYTES : HEAD_BYTES;
+  const head = await bridge.head(rootKey, rel, bytes).catch(() => '');
+  if (!head) return null;
+  const card = cardFromHead(rootKey, rel, head, mtime, size);
+  if (card) return card;
+  // a codex session_meta first line can be 48KB+ of instructions —
+  // one generous retry before giving a file up as unrecognized
+  if (head.length < bytes) return null;
+  const bigHead = await bridge.head(rootKey, rel, HEAD_RETRY_BYTES).catch(() => '');
+  return bigHead.length > head.length ? cardFromHead(rootKey, rel, bigHead, mtime, size) : null;
 }
 
 export function groupByCwd(cards: SessionCard[]): AtlasGroup[] {

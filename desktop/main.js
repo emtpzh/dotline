@@ -207,6 +207,22 @@ function decompressZstdAll(raw) {
   }
   return Buffer.concat(parts);
 }
+/** Decode frames only until `want` bytes of text exist — a card needs the
+ *  head, and a long session can hold hundreds of frames. */
+function decompressZstdHead(raw, want) {
+  const { frames } = scanZstdFrames(raw);
+  const parts = [];
+  let have = 0;
+  for (const { start, end } of frames) {
+    const dec = zstdDecompressSync(raw.subarray(start, end));
+    parts.push(dec);
+    have += dec.length;
+    if (have >= want) break;
+  }
+  return Buffer.concat(parts);
+}
+// least recently used first: a hit moves to the end, overflow drops the front
+const ZSTD_CACHE_MAX = 32;
 const zstdCache = new Map(); // "rootKey:rel" -> { mtimeMs, size, buf }
 async function sessionText(rootKey, rel) {
   if (typeof rel !== 'string' || !rel.endsWith('.zstd')) return '';
@@ -215,16 +231,37 @@ async function sessionText(rootKey, rel) {
   const st = await fsp.stat(abs).catch(() => null);
   if (!st) return '';
   const hit = zstdCache.get(key);
-  if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) return hit.buf;
+  if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) {
+    zstdCache.delete(key);
+    zstdCache.set(key, hit);
+    return hit.buf;
+  }
   if (st.size > ZSTD_MAX) return '';
   const raw = await fsp.readFile(abs).catch(() => null);
   if (!raw) return '';
   let buf;
   try { buf = decompressZstdAll(raw); } catch { return ''; }
   if (!buf || buf.length === 0) return '';
-  if (zstdCache.size > 32) zstdCache.clear();
+  zstdCache.delete(key);
   zstdCache.set(key, { mtimeMs: st.mtimeMs, size: st.size, buf });
+  while (zstdCache.size > ZSTD_CACHE_MAX) zstdCache.delete(zstdCache.keys().next().value);
   return buf;
+}
+
+/** The first `want` decoded bytes of a zstd session: the full cache when it
+ *  holds the file, else only the leading frames — never the whole file. */
+async function sessionHead(rootKey, rel, want) {
+  const abs = resolveInRoot(rootKey, rel);
+  const st = await fsp.stat(abs).catch(() => null);
+  if (!st || st.size > ZSTD_MAX) return '';
+  const hit = zstdCache.get(rootKey + ':' + rel);
+  if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) return hit.buf.subarray(0, Math.min(want, hit.buf.length)).toString('utf8');
+  const raw = await fsp.readFile(abs).catch(() => null);
+  if (!raw) return '';
+  try {
+    const dec = decompressZstdHead(raw, want);
+    return dec.subarray(0, Math.min(want, dec.length)).toString('utf8');
+  } catch { return ''; }
 }
 
 // ─── Terminal registry ─────────────────────────────────────────────────
@@ -481,9 +518,7 @@ function setupSessionAtlas() {
 
   ipcMain.handle('sessions:head', async (_e, rootKey, rel, bytes) => {
     if (typeof rel === 'string' && rel.endsWith('.zstd')) {
-      const dec = await sessionText(rootKey, rel);
-      const n = Math.min(Math.max(1024, bytes | 0), 524288);
-      return dec ? dec.subarray(0, Math.min(n, dec.length)).toString('utf8') : '';
+      return sessionHead(rootKey, rel, Math.min(Math.max(1024, bytes | 0), 524288));
     }
     const fh = await fsp.open(resolveInRoot(rootKey, rel), 'r');
     try {

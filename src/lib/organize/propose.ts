@@ -1,5 +1,5 @@
 import { llmCall } from '../api';
-import { useI18n, t, fmt } from '../../i18n';
+import { useI18n, t } from '../../i18n';
 import type { Group, Thread } from './threads';
 
 // How the organizer proposes groups. Time needs no model: it is read off the
@@ -30,8 +30,11 @@ const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s
 
 async function byModel(dim: Exclude<Dimension, 'time'>, threads: Thread[], canvases: { id: string; name: string }[]): Promise<Group[]> {
   const nameOf = new Map(canvases.map((c) => [c.id, c.name]));
+  // the prompt stays bounded however many conversations there are: past a
+  // hundred or so, each line carries fewer of its later turns, then none
+  const later = threads.length > 300 ? 0 : threads.length > 120 ? 2 : 4;
   const lines = threads.map((th, i) => {
-    const turns = th.turns.slice(1, 5).map((s) => clip(s, 40)).join(' / ');
+    const turns = th.turns.slice(1, 1 + later).map((s) => clip(s, 40)).join(' / ');
     return `[${i + 1}] (canvas: ${nameOf.get(th.canvasId)}) ${clip(th.title, 60)}${turns ? ` — ${turns}` : ''}`;
   });
   const lang = useI18n.getState().lang === 'zh' ? 'Chinese' : 'English';
@@ -83,14 +86,20 @@ export function parseGroups(raw: string, threads: Thread[]): Group[] {
   return out;
 }
 
-export async function proposeGroups(dim: Dimension, threads: Thread[], canvases: { id: string; name: string }[]): Promise<Group[]> {
+// A model's grouping is kept for the rest of the app session, keyed by what
+// it was asked about: reopening the organizer on unchanged canvases costs no
+// second call. "Regroup" asks again on purpose.
+const asked = new Map<string, Group[]>();
+const askKey = (dim: Dimension, threads: Thread[], canvases: { id: string; name: string }[]) =>
+  [dim, useI18n.getState().lang, canvases.map((c) => `${c.id}=${c.name}`).join(','), threads.map((th) => `${th.id}:${th.canvasId}:${th.turns.length}`).join(',')].join('|');
+
+export async function proposeGroups(dim: Dimension, threads: Thread[], canvases: { id: string; name: string }[], opts: { fresh?: boolean } = {}): Promise<Group[]> {
   const movable = threads.filter((th) => !th.fixed);
   if (dim === 'time') return byTime(movable);
-  return byModel(dim, movable, canvases);
-}
-
-/** "3 conversations, from A and B" — the line under a group in the list. */
-export function groupSources(g: Group, threads: Map<string, Thread>, nameOf: Map<string, string>): string {
-  const from = [...new Set(g.threadIds.map((id) => nameOf.get(threads.get(id)!.canvasId) ?? ''))];
-  return fmt(t('organizer.groupFrom'), { n: g.threadIds.length, from: from.join(t('organizer.listSep')) });
+  const key = askKey(dim, movable, canvases);
+  const kept = !opts.fresh && asked.get(key);
+  if (kept) return kept.map((g) => ({ ...g, threadIds: [...g.threadIds] }));
+  const groups = await byModel(dim, movable, canvases);
+  asked.set(key, groups.map((g) => ({ ...g, threadIds: [...g.threadIds] })));
+  return groups;
 }

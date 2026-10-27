@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
-import { ArrowUpRight, ChevronDown, FolderOpen, GitBranch, ListFilter, Loader2, MoreHorizontal, Plug, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
-import { scanSessions, groupByCwd, disabledRoots, setRootDisabled, runnerLabel, type SessionCard } from '../lib/atlas/discover';
+import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ArrowDownUp, ArrowUpRight, ChevronDown, FolderOpen, GitBranch, Layers, Loader2, MoreHorizontal, Plug, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { scanSessions, loadLastScan, disabledRoots, setRootDisabled, runnerLabel, type SessionCard } from '../lib/atlas/discover';
 import { diffAgainstWatermark, markSeen, markAllSeen, changeKeyOf, type CardChange } from '../lib/atlas/watermark';
 import type { CanonicalResult } from '../lib/atlas/canonical';
 import { useProjects, subscribedSessionIds, mainSubscription } from '../store/projects';
-import { useT, t as ti, fmt } from '../i18n';
+import { useT, useI18n, t as ti, fmt } from '../i18n';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuSeparator } from './ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from './ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from './ui/command';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
@@ -15,26 +15,46 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from './ui/input-group';
 import { ButtonGroup, ButtonGroupSeparator } from './ui/button-group';
 import { readSession } from '../lib/sessions/read';
 import { toast } from '../lib/ui-store';
-import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
+import { Kbd, KbdGroup } from './ui/kbd';
 
 // Session discovery is a list of sources. Canvas management lives in ProjectSwitcher.
 
 const dateLabel = (ms: number) => new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+/** "3 minutes ago" within a week, the date after that; `now` 0 = not known yet. */
+function whenLabel(ms: number, now: number, lang: string): string {
+  const age = now - ms;
+  if (!now || age > 7 * 864e5) return dateLabel(ms);
+  const rtf = new Intl.RelativeTimeFormat(lang === 'zh' ? 'zh-CN' : 'en', { numeric: 'auto', style: 'short' });
+  if (age < 60e3) return rtf.format(0, 'second');
+  if (age < 3600e3) return rtf.format(-Math.floor(age / 60e3), 'minute');
+  if (age < 864e5) return rtf.format(-Math.floor(age / 3600e3), 'hour');
+  return rtf.format(-Math.floor(age / 864e5), 'day');
+}
 const sizeLabel = (b: number) => (b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 const folderName = (cwd: string) => cwd.split('/').filter(Boolean).pop() ?? cwd;
 
 type SortKey = 'time' | 'name' | 'size' | 'runner';
 const SORT_LABEL = { time: 'atlas.sortTime', name: 'atlas.sortName', size: 'atlas.sortSize', runner: 'atlas.sortRunner' } as const;
-const SORTERS: Record<SortKey, (a: SessionCard, b: SessionCard) => number> = {
-  time: (a, b) => b.mtime - a.mtime,
-  name: (a, b) => a.title.localeCompare(b.title),
-  size: (a, b) => b.size - a.size,
-  runner: (a, b) => a.runner.localeCompare(b.runner) || b.mtime - a.mtime,
-};
 
 const ALL = '__all__';
+const PAGE = 150;
+
+// The view the atlas reopens on: folder, order and source filters are the
+// user's standing choice, kept in this browser only. The text query and
+// the one-off toggles start clean each time.
+const PREFS_KEY = 'thoughtdag.atlas.view';
+interface ViewPrefs { folder: string; sortKey: SortKey; runnerOff: string[]; showSubagents: boolean }
+function loadPrefs(): Partial<ViewPrefs> {
+  try { return JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') as Partial<ViewPrefs>; } catch { return {}; }
+}
+function savePrefs(p: ViewPrefs): void {
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* storage off: the view just won't be remembered */ }
+}
+
+type Snap = Map<string, { mtime: number; size: number }>;
+const snapOf = (cards: SessionCard[]): Snap => new Map(cards.map((c) => [changeKeyOf(c), { mtime: c.mtime, size: c.size }]));
 
 // The intake dialog: built-in sources probe their standard paths; runners
 // whose parser isn't ready yet stand as honest placeholders; custom
@@ -180,16 +200,124 @@ function reportCanonical(result: NonNullable<CanonicalResult>) {
   else toast('success', fmt(ti('toast.importedChats'), { n: 1, m: result.nodeCount }), 9000);
 }
 
+type RowAct = 'pick' | 'open' | 'app' | 'terminal' | 'recast';
+
+interface RowProps {
+  card: SessionCard;
+  title: string;
+  when: string;
+  fork?: string;
+  home: { name: string; current: boolean } | null;
+  change?: CardChange;
+  isPicked: boolean;
+  canPick: boolean;
+  disabled: boolean;
+  loading: boolean;
+  focused: boolean;
+  appName?: string;
+  canRecast: boolean;
+  onAct: (act: RowAct, card: SessionCard) => void;
+}
+
+// One session. A click on the row only picks it; a session already on a
+// canvas opens through its canvas chip (or Enter), so no stray click ever
+// moves the user to another canvas.
+const AtlasRow = memo(function AtlasRow({ card, title, when, fork, home, change, isPicked, canPick, disabled, loading, focused, appName, canRecast, onAct }: RowProps) {
+  const t = useT();
+  return (
+    <div
+      role="listitem"
+      tabIndex={-1}
+      className={`group/row flex items-center gap-3 border-b border-border px-3 py-2 outline-none last:border-b-0 focus-visible:bg-muted [content-visibility:auto] [contain-intrinsic-size:auto_52px] ${canPick ? 'cursor-pointer hover:bg-muted/60' : ''} ${isPicked ? 'bg-primary/5' : ''} ${focused ? 'bg-accent' : ''}`}
+      onClick={() => { if (!disabled && canPick) onAct('pick', card); }}
+      onDoubleClick={() => { if (!disabled && home) onAct('open', card); }}
+      data-atlas-row={changeKeyOf(card)}
+      data-atlas-session={card.sessionId}
+      data-atlas-pick={isPicked ? 'on' : 'off'}>
+      <span className="flex" onClick={e => e.stopPropagation()}>
+        <Checkbox
+          aria-label={fmt(t('atlas.selectSession'), { name: title })}
+          disabled={disabled || !canPick}
+          checked={isPicked}
+          onCheckedChange={() => onAct('pick', card)} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-1.5">
+          {change && <span
+            className={`size-1.5 shrink-0 rounded-full ${change.kind === 'new' ? 'bg-primary' : 'bg-primary/50'}`}
+            title={change.kind === 'new' ? t('atlas.badgeNew') : `+${sizeLabel(change.deltaSize)}`}
+            data-atlas-badge={change.kind === 'new' ? 'new' : 'updated'} />}
+          <span className={`truncate text-sm ${change ? 'font-medium text-foreground' : 'text-foreground'}`}>{title}</span>
+          {fork && <GitBranch className="size-3.5 shrink-0 text-muted-foreground" aria-label={fmt(t('atlas.forkedFrom'), { id: fork })} data-atlas-fork />}
+        </div>
+        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden text-xs whitespace-nowrap text-muted-foreground" title={card.cwd ?? undefined}>
+          <span className="shrink-0">{runnerLabel(card.runner)}</span>
+          <span aria-hidden>·</span>
+          <span className="shrink-0">{sizeLabel(card.size)}</span>
+          {change?.kind === 'updated' && <span className="shrink-0 text-primary">+{sizeLabel(change.deltaSize)}</span>}
+          {change?.kind === 'new' && <span className="shrink-0 text-primary">{t('atlas.badgeNew')}</span>}
+        </div>
+      </div>
+      {home && (
+        <Button
+          variant="secondary"
+          size="xs"
+          className="max-w-44 min-w-0"
+          disabled={disabled}
+          title={fmt(t('atlas.openOn'), { name: home.name })}
+          onClick={e => { e.stopPropagation(); onAct('open', card); }}
+          data-atlas-open
+          data-atlas-badge="canvas">
+          {loading ? <Loader2 className="animate-spin" /> : <ArrowUpRight />}
+          <span className="truncate">{home.current ? t('atlas.onCurrent') : home.name}</span>
+        </Button>
+      )}
+      <span className="hidden w-20 shrink-0 text-right text-xs text-muted-foreground tabular-nums sm:inline" title={dateLabel(card.mtime)}>{when}</span>
+      <span className="flex" onClick={e => e.stopPropagation()}>
+        <DropdownMenu>
+          <DropdownMenuTrigger disabled={disabled} render={<Button variant="ghost" size="icon-sm" className="text-muted-foreground opacity-60 group-hover/row:opacity-100 data-popup-open:opacity-100" aria-label={t('atlas.more')} />}>
+            <MoreHorizontal />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {appName && <DropdownMenuItem onClick={() => onAct('app', card)}>{fmt(t('atlas.openApp'), { name: appName })}</DropdownMenuItem>}
+            <DropdownMenuItem onClick={() => onAct('terminal', card)}>{t('atlas.openTerminal')}</DropdownMenuItem>
+            {canRecast && <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={() => onAct('recast', card)}>{t('atlas.recast')}</DropdownMenuItem>
+            </>}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </span>
+    </div>
+  );
+});
+
+/** Asks for the next page of rows once the end of the list scrolls near. */
+function MoreRows({ onMore }: { onMore: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting)) onMore(); }, { rootMargin: '400px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [onMore]);
+  return <div ref={ref} className="h-px" aria-hidden />;
+}
+
 export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { onClose: () => void; onSwitched: () => void; focusSessionId?: string }) {
   const t = useT();
+  const lang = useI18n((s) => s.lang);
   const projects = useProjects((s) => s.projects);
   const activeId = useProjects(s => s.activeId);
   const isDesktop = !!window.desktopSessions;
+  const [prefs] = useState(loadPrefs);
   const [cards, setCards] = useState<SessionCard[] | null>(null);
   const [roots, setRoots] = useState<SessionRoot[]>([]);
   const [scanning, setScanning] = useState(false);
+  const [now, setNow] = useState(0);
   // All directories are visible until the user narrows the list.
-  const [folder, setFolder] = useState<string>(ALL);
+  const [folder, setFolder] = useState<string>(prefs.folder ?? ALL);
   const [busy, setBusy] = useState<string | null>(null);
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [targetOpen, setTargetOpen] = useState(false);
@@ -198,38 +326,50 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
   // card keeps its Tier 1 identity (first user prompt).
   const [threadNames, setThreadNames] = useState<Map<string, string>>(new Map());
   const [threadForks, setThreadForks] = useState<Map<string, string>>(new Map());
-  // the picks: sessions on their way onto a canvas. A row click picks;
-  // only the footer's button writes — nothing lands on a canvas by a
-  // single stray click.
-  const [picked, setPicked] = useState<Map<string, SessionCard>>(new Map());
-  const pickKey = (card: SessionCard) => `${card.rootKey}|${card.rel}`;
-  const togglePick = (card: SessionCard) => setPicked((prev) => {
-    const next = new Map(prev);
-    const k = pickKey(card);
-    if (next.has(k)) next.delete(k); else next.set(k, card);
-    return next;
-  });
-  // which canvas (if any) subscribes to a session — main, chapter or branch alike
-  const canvasOf = (sessionId: string) => projects.find((p) => subscribedSessionIds(p).includes(sessionId));
+  // the picks: sessions on their way onto a canvas, by file key — the card
+  // itself is looked up at use, so a rescan in between never hands the
+  // import (or the watermark) a stale size. Only the footer's button
+  // writes — nothing lands on a canvas by a single stray click.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
-  const [runnerOff, setRunnerOff] = useState<Set<string>>(new Set());
-  const [sortKey, setSortKey] = useState<SortKey>('time');
+  const deferredQuery = useDeferredValue(query);
+  const [runnerOff, setRunnerOff] = useState<Set<string>>(() => new Set(prefs.runnerOff ?? []));
+  const [sortKey, setSortKey] = useState<SortKey>(prefs.sortKey && prefs.sortKey in SORT_LABEL ? prefs.sortKey : 'time');
   const [only, setOnly] = useState<string[]>([]);
   const onlyUnlinked = only.includes('unlinked');
   const onlyChanged = only.includes('changed');
-  const [showSubagents, setShowSubagents] = useState(false);
+  const [showSubagents, setShowSubagents] = useState(!!prefs.showSubagents);
   const [changes, setChanges] = useState<Map<string, CardChange>>(new Map());
+  // The order the list was last sorted in. A live rescan updates every
+  // card's numbers but sorts by these, so rows never move under the
+  // pointer; the user re-sorts when they choose.
+  const [snap, setSnap] = useState<Snap>(new Map());
   const [targets, setTargets] = useState<Awaited<ReturnType<NonNullable<Window['desktopSessions']>['openTargets']>> | null>(null);
   useEffect(() => { void window.desktopSessions?.openTargets().then(setTargets).catch(() => { }); }, []);
   const appHosts = useMemo(() => new Map((targets?.apps ?? []).map((a) => [a.runner, a.name])), [targets]);
+  useEffect(() => savePrefs({ folder, sortKey, runnerOff: [...runnerOff], showSubagents }), [folder, sortKey, runnerOff, showSubagents]);
 
-  const refresh = async () => {
+  // one scan at a time; a request that arrives mid-scan runs once after it
+  const scanningRef = useRef(false);
+  const pendingRef = useRef<'user' | 'live' | null>(null);
+  const focusedRef = useRef(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const refresh = async (mode: 'initial' | 'user' | 'live') => {
+    if (scanningRef.current) {
+      if (pendingRef.current !== 'user') pendingRef.current = mode === 'live' ? 'live' : 'user';
+      return;
+    }
+    scanningRef.current = true;
     setScanning(true);
     try {
       setRoots(await window.desktopSessions?.roots().catch(() => []) ?? []);
-      const scanned = await scanSessions();
+      const { cards: scanned, listed } = await scanSessions();
       setCards(scanned);
-      setChanges(diffAgainstWatermark(scanned));
+      setNow(Date.now());
+      setChanges(diffAgainstWatermark(scanned, listed));
+      if (mode !== 'live') setSnap(snapOf(scanned));
       // Tier 2 enrichment, fire-and-forget: real thread names + fork
       // lineage from the codex app-server; silence on any failure
       void window.desktopSessions?.codexThreads?.().then((threads) => {
@@ -237,39 +377,67 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
         setThreadNames(new Map(threads.filter((t) => t.name && t.sessionId).map((t) => [t.sessionId, t.name!])));
         setThreadForks(new Map(threads.filter((t) => t.forkedFromId && t.sessionId).map((t) => [t.sessionId, t.forkedFromId!])));
       }).catch(() => { });
-      // arrival from a mirror canvas: land on the folder that holds the session
-      // this canvas mirrors
-      if (focusSessionId) {
-        const hit = scanned.find((c) => c.sessionId === focusSessionId);
-        if (hit) setFolder(hit.cwd ?? '');
-      }
+      // arrival from a mirror canvas: land ONCE on the folder that holds the
+      // session this canvas mirrors — later rescans leave the user's choice be
+      const hit = !focusedRef.current && focusSessionId ? scanned.find((c) => c.sessionId === focusSessionId) : undefined;
+      if (hit) { focusedRef.current = true; setFolder(hit.cwd ?? ''); }
+      // a remembered folder with no session left in it is gone, not filtered
+      else setFolder((f) => (f === ALL || scanned.some((c) => (c.cwd ?? '') === f) ? f : ALL));
+      setPicked((prev) => {
+        const keys = new Set(scanned.map(changeKeyOf));
+        return [...prev].every((k) => keys.has(k)) ? prev : new Set([...prev].filter((k) => keys.has(k)));
+      });
     } catch (err) {
       toast('error', fmt(ti('atlas.parseFailed'), { msg: err instanceof Error ? err.message : String(err) }));
-    } finally { setScanning(false); }
+    } finally {
+      scanningRef.current = false;
+      setScanning(false);
+      const next = pendingRef.current;
+      pendingRef.current = null;
+      if (next) void refresh(next);
+    }
   };
-  // one scan on mount; refresh is recreated per render and must not re-run the scan
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { void refresh(); }, []);
+  // the last scan paints at once; one fresh scan on mount replaces it.
+  // refresh is recreated per render and must not re-run the scan
+  useEffect(() => {
+    let live = true;
+    if (isDesktop) void loadLastScan().then((last) => {
+      if (!live || !last?.length) return;
+      setCards((c) => c ?? last);
+      setNow((n) => n || Date.now());
+      setSnap((s) => (s.size ? s : snapOf(last)));
+    });
+    void refresh('initial');
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // ...and the twin badge's session scrolls into view once the scan lands
-  const landed = cards !== null;
+  const landed = cards !== null && !scanning;
   useEffect(() => {
     if (landed && focusSessionId) document.querySelector(`[data-atlas-session="${CSS.escape(focusSessionId)}"]`)?.scrollIntoView({ block: 'center' });
   }, [landed, focusSessionId]);
 
   // live freshness: the watcher (live-mirror) broadcasts store changes;
-  // an open atlas rescans, throttled — badges and counts stay current
+  // an open atlas rescans (only changed files are re-read), throttled
   useEffect(() => {
-    let cooling = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const onChanged = () => {
-      if (cooling || scanning) return;
-      cooling = true;
-      timer = setTimeout(() => { cooling = false; void refresh(); }, 2000);
+      if (timer) return;
+      timer = setTimeout(() => { timer = undefined; void refresh('live'); }, 1500);
     };
     window.addEventListener('td:sessions-changed', onChanged);
     return () => { clearTimeout(timer); window.removeEventListener('td:sessions-changed', onChanged); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scanning]);
+  }, []);
+
+  // which canvas (if any) subscribes to a session — main, chapter or branch alike
+  const homeOf = useMemo(() => {
+    const m = new Map<string, (typeof projects)[number]>();
+    for (const p of projects) for (const id of subscribedSessionIds(p)) if (!m.has(id)) m.set(id, p);
+    return m;
+  }, [projects]);
+  const mirrored = useMemo(() => new Set(projects.map((p) => mainSubscription(p)?.sessionId).filter(Boolean)), [projects]);
+  const cardByKey = useMemo(() => new Map((cards ?? []).map((c) => [changeKeyOf(c), c])), [cards]);
 
   // ONE identity per card — display, search and sort must agree: the
   // REAL thread name when the store lends one, the parsed title
@@ -278,34 +446,84 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
   const displayTitle = useCallback((c: SessionCard): string => threadNames.get(c.sessionId) ?? c.title, [threadNames]);
 
   // filters shape the whole atlas: folder counts follow them too
-  const visible = useMemo(() => (cards ?? []).filter((c) =>
-    !runnerOff.has(c.runner)
-    && (showSubagents || !c.subagent)
-    && (!onlyChanged || changes.has(changeKeyOf(c)))
-    && (!query.trim() || `${displayTitle(c)} ${c.cwd ?? ''}`.toLowerCase().includes(query.trim().toLowerCase()))), [cards, runnerOff, query, onlyChanged, changes, showSubagents, displayTitle]);
-  const folders = useMemo(() => groupByCwd(visible), [visible]);
-  const runners = useMemo(() => [...new Set((cards ?? []).map((c) => c.runner))].sort(), [cards]);
+  const visible = useMemo(() => {
+    const q = deferredQuery.trim().toLowerCase();
+    return (cards ?? []).filter((c) =>
+      !runnerOff.has(c.runner)
+      && (showSubagents || !c.subagent)
+      && (!onlyChanged || changes.has(changeKeyOf(c)))
+      && (!onlyUnlinked || !homeOf.has(c.sessionId))
+      && (!q || `${displayTitle(c)} ${c.cwd ?? ''}`.toLowerCase().includes(q)));
+  }, [cards, runnerOff, deferredQuery, onlyChanged, onlyUnlinked, homeOf, changes, showSubagents, displayTitle]);
+
+  const sorter = useMemo(() => {
+    const at = (c: SessionCard) => snap.get(changeKeyOf(c)) ?? c;
+    const by: Record<SortKey, (a: SessionCard, b: SessionCard) => number> = {
+      time: (a, b) => at(b).mtime - at(a).mtime,
+      name: (a, b) => displayTitle(a).localeCompare(displayTitle(b)),
+      size: (a, b) => at(b).size - at(a).size,
+      runner: (a, b) => a.runner.localeCompare(b.runner) || at(b).mtime - at(a).mtime,
+    };
+    return by[sortKey];
+  }, [snap, sortKey, displayTitle]);
+
+  // the folder rail, in sorted-order time (it holds still with the list);
+  // the chosen folder stays listed even when the filters empty it
+  const folders = useMemo(() => {
+    const m = new Map<string, { key: string; name: string; path: string | null; count: number; latest: number }>();
+    for (const c of visible) {
+      const key = c.cwd ?? '';
+      const at = snap.get(changeKeyOf(c))?.mtime ?? c.mtime;
+      const g = m.get(key);
+      if (g) { g.count++; g.latest = Math.max(g.latest, at); } else m.set(key, { key, name: c.cwd ? folderName(c.cwd) : '', path: c.cwd, count: 1, latest: at });
+    }
+    if (folder !== ALL && !m.has(folder)) m.set(folder, { key: folder, name: folder ? folderName(folder) : '', path: folder || null, count: 0, latest: 0 });
+    return [...m.values()].sort((a, b) => (!a.path !== !b.path ? (a.path ? -1 : 1) : b.latest - a.latest));
+  }, [visible, snap, folder]);
+
+  const shown = useMemo(() => visible.filter((c) => folder === ALL || (c.cwd ?? '') === folder).sort(sorter), [visible, folder, sorter]);
+  // across every folder the list reads by project: one heading per
+  // folder, so a row never has to repeat its path
+  const sections = useMemo(() => {
+    if (folder !== ALL) return [{ key: folder, name: null as string | null, path: null as string | null, cards: shown }];
+    const by = new Map<string, SessionCard[]>();
+    for (const c of shown) { const k = c.cwd ?? ''; by.set(k, [...(by.get(k) ?? []), c]); }
+    return folders.filter((f) => by.has(f.key)).map((f) => ({ key: f.key, name: f.name || t('atlas.unfiled'), path: f.path, cards: by.get(f.key)! }));
+  }, [folder, shown, folders, t]);
+
+  const runners = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of cards ?? []) m.set(c.runner, (m.get(c.runner) ?? 0) + 1);
+    return [...m].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [cards]);
   const rootCounts = useMemo(() => {
     const m = new Map<string, number>();
     for (const c of cards ?? []) m.set(c.rootKey, (m.get(c.rootKey) ?? 0) + 1);
     return m;
   }, [cards]);
-  const sorter = sortKey === 'name' ? (a: SessionCard, b: SessionCard) => displayTitle(a).localeCompare(displayTitle(b)) : SORTERS[sortKey];
-  const shown = visible
-    .filter(c => (folder === ALL || (c.cwd ?? '') === folder) && (!onlyUnlinked || !canvasOf(c.sessionId)))
-    .sort(sorter);
-  // across every folder the list reads by project: one heading per
-  // folder, so a row never has to repeat its path
-  const sections = folder === ALL
-    ? groupByCwd(shown).map((g) => ({ key: g.cwd ?? '', name: g.name || t('atlas.unfiled'), path: g.cwd, cards: [...g.cards].sort(sorter) }))
-    : [{ key: folder, name: null, path: null, cards: shown }];
-  const pickable = shown.filter(c => !!c.sessionId && !canvasOf(c.sessionId));
-  const allPicked = pickable.length > 0 && pickable.every(c => picked.has(pickKey(c)));
-  const somePicked = pickable.some(c => picked.has(pickKey(c)));
-  const hiddenFilters = runnerOff.size + (showSubagents ? 1 : 0);
+  // cards whose numbers moved since the list was sorted: the re-sort offer
+  const drift = useMemo(() => (sortKey === 'name' ? 0 : (cards ?? []).filter((c) => {
+    const s = snap.get(changeKeyOf(c));
+    return !s || s.mtime !== c.mtime || s.size !== c.size;
+  }).length), [cards, snap, sortKey]);
+
+  const pickable = shown.filter(c => !!c.sessionId && !homeOf.has(c.sessionId));
+  const allPicked = pickable.length > 0 && pickable.every(c => picked.has(changeKeyOf(c)));
+  const somePicked = pickable.some(c => picked.has(changeKeyOf(c)));
+  const shownKeys = useMemo(() => new Set(shown.map(changeKeyOf)), [shown]);
+  const pickedHidden = [...picked].filter((k) => !shownKeys.has(k)).length;
+  const filtered = !!query.trim() || only.length > 0 || runnerOff.size > 0 || folder !== ALL;
   const destinations = projects
     .filter(p => !p.archived && p.kind !== 'paradigm')
     .sort((a, b) => (a.id === activeId ? -1 : b.id === activeId ? 1 : b.updatedAt - a.updatedAt));
+
+  // rows render a page at a time; any change of view starts from the top page
+  const viewKey = `${folder}|${deferredQuery}|${only.join()}|${[...runnerOff].join()}|${showSubagents}|${sortKey}`;
+  const [more, setMore] = useState({ key: '', n: PAGE });
+  const limit = more.key === viewKey ? more.n : PAGE;
+  const onMore = useCallback(() => setMore((m) => ({ key: viewKey, n: (m.key === viewKey ? m.n : PAGE) + PAGE })), [viewKey]);
+
+  const clearFilters = () => { setQuery(''); setOnly([]); setRunnerOff(new Set()); setFolder(ALL); };
 
   const seen = (card: SessionCard) => {
     markSeen(card);
@@ -341,7 +559,9 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
     setBusy('__add__');
     try {
       const { importOrAppendConversation, mergeSessionsIntoProject } = await import('../lib/atlas/canonical');
-      const list = [...picked.values()];
+      // the cards as the latest scan has them, never as they were when picked
+      const list = [...picked].map((k) => cardByKey.get(k)).filter((c): c is SessionCard => !!c && !homeOf.has(c.sessionId));
+      if (!list.length) throw new Error(ti('handoff.notASession'));
       const reads = [];
       for (const card of list) {
         const read = await readSession(card, { cards });
@@ -362,7 +582,7 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
         if (result.skipped > 0) toast('info', fmt(ti('atlas.mergeSkippedInfo'), { n: result.skipped }), 8000);
       }
       for (const card of list) seen(card);
-      setPicked(new Map());
+      setPicked(new Set());
       onClose();
       onSwitched();
     } catch (err) { fail(err); } finally { setBusy(null); }
@@ -412,197 +632,242 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
     }
   };
 
-  const sessionRow = (card: SessionCard) => {
-    const home = canvasOf(card.sessionId);
-    const change = changes.get(changeKeyOf(card));
-    const canPick = !home && !!card.sessionId;
-    const isPicked = picked.has(pickKey(card));
-    const fork = threadForks.get(card.sessionId);
-    return (
-      // the row picks (or, on a canvas already, opens it); its controls
-      // keep their clicks to themselves — a menu item must not also pick
-      <div
-        key={pickKey(card)}
-        className={`flex items-center gap-3 border-b border-border px-3 py-2.5 last:border-b-0 ${canPick || home ? 'cursor-pointer hover:bg-muted/60' : ''} ${isPicked ? 'bg-primary/5' : ''} ${card.sessionId === focusSessionId ? 'bg-accent' : ''}`}
-        onClick={() => { if (busy) return; if (canPick) togglePick(card); else if (home) void openLinked(card); }}
-        data-atlas-session={card.sessionId}
-        data-atlas-pick={isPicked ? 'on' : 'off'}>
-        <span className="flex" onClick={e => e.stopPropagation()}>
-          <Checkbox
-            aria-label={fmt(t('atlas.selectSession'), { name: displayTitle(card) })}
-            disabled={!!busy || !canPick}
-            checked={isPicked}
-            onCheckedChange={() => togglePick(card)} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate text-sm text-foreground">{displayTitle(card)}</span>
-            {fork && <GitBranch className="size-3.5 shrink-0 text-muted-foreground" aria-label={fmt(t('atlas.forkedFrom'), { id: fork })} data-atlas-fork />}
-          </div>
-          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden text-xs whitespace-nowrap text-muted-foreground" title={card.cwd ?? undefined}>
-            <span className="shrink-0">{runnerLabel(card.runner)}</span>
-            <span aria-hidden>·</span>
-            <span className="shrink-0">{dateLabel(card.mtime)}</span>
-            <span aria-hidden>·</span>
-            <span className="truncate">{sizeLabel(card.size)}</span>
-          </div>
-        </div>
-        {change && (change.kind === 'new'
-          ? <Badge data-atlas-badge="new">{t('atlas.badgeNew')}</Badge>
-          : <Badge variant="outline" className="border-primary/40 text-primary" data-atlas-badge="updated">+{sizeLabel(change.deltaSize)}</Badge>)}
-        {home && (
-          <Badge variant="secondary" className="hidden max-w-44 sm:inline-flex" title={home.name} data-atlas-badge="canvas">
-            <span className="truncate">{home.id === activeId ? t('atlas.onCurrent') : fmt(t('atlas.linkedCanvas'), { name: home.name })}</span>
-          </Badge>
-        )}
-        <span className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-          {home && (
-            <Button variant="outline" size="sm" disabled={!!busy} onClick={() => void openLinked(card)} data-atlas-open>
-              {busy === card.rel ? <Loader2 className="animate-spin" /> : <ArrowUpRight />}
-              {t('atlas.openCanvas')}
-            </Button>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger disabled={!!busy} render={<Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label={t('atlas.more')} />}>
-              <MoreHorizontal />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {appHosts.has(card.runner) && <DropdownMenuItem onClick={() => void openInCli(card, 'app')}>{fmt(t('atlas.openApp'), { name: appHosts.get(card.runner)! })}</DropdownMenuItem>}
-              <DropdownMenuItem onClick={() => void openInCli(card, 'terminal')}>{t('atlas.openTerminal')}</DropdownMenuItem>
-              {projects.some(p => mainSubscription(p)?.sessionId === card.sessionId) && <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onClick={() => void recast(card)}>{t('atlas.recast')}</DropdownMenuItem>
-              </>}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </span>
-      </div>
-    );
+  // rows are memoized; they reach the latest handlers through one stable door
+  const actRef = useRef<(act: RowAct, card: SessionCard) => void>(() => { });
+  useLayoutEffect(() => {
+    actRef.current = (act, card) => {
+      if (act === 'pick') setPicked((prev) => { const next = new Set(prev); const k = changeKeyOf(card); if (next.has(k)) next.delete(k); else next.add(k); return next; });
+      else if (act === 'open') void openLinked(card);
+      else if (act === 'recast') void recast(card);
+      else void openInCli(card, act);
+    };
+  });
+  const onAct = useCallback((act: RowAct, card: SessionCard) => actRef.current(act, card), []);
+
+  // ↑↓ walk the rows, Space picks, Enter opens a linked session (or picks)
+  const onListKey = (e: React.KeyboardEvent) => {
+    const rows = [...(listRef.current?.querySelectorAll<HTMLElement>('[data-atlas-row]') ?? [])];
+    const at = rows.findIndex((r) => r === document.activeElement);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const next = rows[at < 0 ? 0 : Math.max(0, Math.min(rows.length - 1, at + (e.key === 'ArrowDown' ? 1 : -1)))];
+      next?.focus();
+      next?.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    const card = at >= 0 ? cardByKey.get(rows[at].dataset.atlasRow ?? '') : undefined;
+    if (!card || busy) return;
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      if (e.key === 'Enter' && homeOf.has(card.sessionId)) void openLinked(card);
+      else if (!homeOf.has(card.sessionId)) onAct('pick', card);
+    }
   };
+
+  let budget = limit;
+  const sectionsShown = sections.map((s) => {
+    const take = s.cards.slice(0, Math.max(0, budget));
+    budget -= take.length;
+    return { ...s, rows: take };
+  }).filter((s) => s.rows.length);
+
+  const folderButton = (key: string, name: string, count: number, path?: string | null) => (
+    <Button
+      key={key}
+      variant="ghost"
+      size="sm"
+      className={`w-full justify-start gap-2 font-normal ${folder === key ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'}`}
+      aria-current={folder === key ? 'true' : undefined}
+      title={path ?? undefined}
+      onClick={() => setFolder(key)}
+      data-atlas-folder-nav={key === ALL ? 'all' : name}>
+      {key === ALL ? <Layers /> : <FolderOpen />}
+      <span className="min-w-0 flex-1 truncate text-left">{name}</span>
+      <span className="text-xs tabular-nums">{count}</span>
+    </Button>
+  );
 
   return <>
     <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }}>
-      <DialogContent size="lg" className="flex max-h-[90dvh] flex-col overflow-hidden" data-session-atlas showCloseButton={!busy}>
-        <DialogHeader>
-          <DialogTitle>{t('atlas.title')}</DialogTitle>
-          <DialogDescription>{t('atlas.subtitle')}</DialogDescription>
+      <DialogContent
+        size="xl"
+        className="flex h-[min(88dvh,720px)] flex-col gap-0 overflow-hidden p-0"
+        data-session-atlas
+        showCloseButton={!busy}
+        onKeyDown={e => {
+          const el = e.target as HTMLElement;
+          if (e.key === '/' && !el.closest('input, textarea, [role="menu"], [role="listbox"]')) { e.preventDefault(); searchRef.current?.focus(); }
+        }}>
+        <DialogHeader className="flex-row items-start gap-3 border-b border-border py-3 pr-12 pl-4">
+          <div className="min-w-0 flex-1">
+            <DialogTitle>{t('atlas.title')}</DialogTitle>
+            <DialogDescription className="mt-0.5 text-xs">{t('atlas.subtitle')}</DialogDescription>
+          </div>
+          {isDesktop && <div className="flex shrink-0 items-center gap-1">
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setSourcesOpen(true)} data-atlas-sources>
+              <Plug />
+              <span className="hidden sm:inline">{t('atlas.sourcesTitle')}</span>
+            </Button>
+            <Button variant="ghost" size="icon-sm" className="text-muted-foreground" disabled={scanning || !!busy} aria-label={t('atlas.refresh')} title={t('atlas.refresh')} onClick={() => void refresh('user')}>
+              <RefreshCw className={scanning ? 'animate-spin' : ''} />
+            </Button>
+          </div>}
         </DialogHeader>
-        <div className="flex flex-wrap items-center gap-2">
-          <InputGroup className="min-w-40 flex-1">
-            <InputGroupInput
-              aria-label={t('atlas.filterTitle')}
-              placeholder={t('atlas.filterTitle')}
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              data-atlas-filter />
-            <InputGroupAddon><Search /></InputGroupAddon>
-          </InputGroup>
-          <Select value={folder} onValueChange={v => v !== null && setFolder(v)}>
-            <SelectTrigger aria-label={t('atlas.folders')} className="max-w-48">
-              <FolderOpen className="text-muted-foreground" />
-              <SelectValue>{folder === ALL ? t('atlas.allFolders') : folder ? folderName(folder) : t('atlas.unfiled')}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>{t('atlas.allFolders')}</SelectItem>
-              {folders.map(g => <SelectItem key={g.cwd ?? ''} value={g.cwd ?? ''}>
-                <span className="flex-1 truncate">{g.name || t('atlas.unfiled')}</span>
-                <span className="text-xs text-muted-foreground tabular-nums">{g.cards.length}</span>
-              </SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={sortKey} onValueChange={v => v && setSortKey(v as SortKey)}>
-            <SelectTrigger aria-label={t('atlas.sortLabel')}>
-              <SelectValue>{fmt(t('atlas.sortBy'), { key: t(SORT_LABEL[sortKey]) })}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {(Object.keys(SORT_LABEL) as SortKey[]).map(k => <SelectItem key={k} value={k}>{t(SORT_LABEL[k])}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          {isDesktop && <Button variant="outline" size="icon" disabled={scanning || !!busy} aria-label={t('atlas.refresh')} title={t('atlas.refresh')} onClick={() => void refresh()}>
-            <RefreshCw className={scanning ? 'animate-spin' : ''} />
-          </Button>}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ToggleGroup multiple variant="outline" size="sm" value={only} onValueChange={setOnly}>
-            <ToggleGroupItem value="unlinked">{t('atlas.unlinked')}</ToggleGroupItem>
-            <ToggleGroupItem value="changed" data-atlas-only-changed>
-              {t('atlas.onlyChanged')}
-              {changes.size > 0 && <span className="text-primary tabular-nums">{changes.size}</span>}
-            </ToggleGroupItem>
-          </ToggleGroup>
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="ghost" size="sm" />}>
-              <ListFilter />
-              {t('atlas.filters')}
-              {hiddenFilters > 0 && <Badge variant="secondary" className="h-4 px-1.5">{hiddenFilters}</Badge>}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>{t('atlas.filterSources')}</DropdownMenuLabel>
-                {runners.map(r => <DropdownMenuCheckboxItem
-                  key={r}
-                  checked={!runnerOff.has(r)}
-                  onCheckedChange={on => setRunnerOff(prev => { const next = new Set(prev); if (on) next.delete(r); else next.add(r); return next; })}>
-                  {runnerLabel(r)}
-                </DropdownMenuCheckboxItem>)}
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem checked={showSubagents} onCheckedChange={setShowSubagents} data-atlas-show-sub>{t('atlas.showSub')}</DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        {/* fixed height: the dialog never jumps when the scan lands or a
-            filter empties the list */}
-        <div className="flex h-[min(56dvh,480px)] min-h-0 flex-col overflow-hidden rounded-xl border border-border">
-          <div className="flex items-center gap-3 border-b border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-            <Checkbox
-              aria-label={t('atlas.selectAll')}
-              title={t('atlas.selectAll')}
-              disabled={!!busy || !pickable.length}
-              checked={allPicked}
-              indeterminate={somePicked && !allPicked}
-              onCheckedChange={checked => setPicked(prev => { const next = new Map(prev); for (const c of pickable) { if (checked) next.set(pickKey(c), c); else next.delete(pickKey(c)); } return next; })} />
-            <span className="flex-1 tabular-nums">{cards ? fmt(t('atlas.sessions'), { n: shown.length }) : ''}</span>
-            {changes.size > 0 && <Button variant="ghost" size="xs" onClick={() => { markAllSeen(cards ?? []); setChanges(new Map()); }} data-atlas-mark-all>
-              {t('atlas.markAllSeen')}
-            </Button>}
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {cards === null && scanning
-              ? Array.from({ length: 6 }, (_, i) => (
-                <div key={i} className="flex items-center gap-3 border-b border-border px-3 py-3.5 last:border-b-0">
-                  <div className="size-4 rounded-[4px] bg-muted" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-3 w-2/3 animate-pulse rounded-md bg-muted" />
-                    <div className="h-2.5 w-1/3 animate-pulse rounded-md bg-muted" />
-                  </div>
-                </div>
-              ))
-              : shown.length === 0
-                ? <p className="p-8 text-center text-sm text-muted-foreground">
-                  {!isDesktop ? t('atlas.webNoScan') : cards?.length ? t('atlas.filteredOut') : t('atlas.empty')}
-                </p>
-                : sections.map(s => <section key={s.key} data-atlas-folder={s.name ?? undefined}>
-                  {s.name && <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground" title={s.path ?? undefined}>
-                    <FolderOpen className="size-3.5" />
-                    <span className="truncate">{s.name}</span>
-                    <span className="tabular-nums">{s.cards.length}</span>
-                  </div>}
-                  {s.cards.map(sessionRow)}
-                </section>)}
-          </div>
-        </div>
-        <DialogFooter className="items-center sm:justify-between">
-          {picked.size > 0
-            ? <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="tabular-nums">{fmt(t('atlas.mergeSelected'), { n: picked.size })}</span>
-              <Button variant="ghost" size="sm" disabled={!!busy} onClick={() => setPicked(new Map())}>{t('atlas.clearPick')}</Button>
+
+        <div className="grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-[220px_minmax(0,1fr)]">
+          <nav aria-label={t('atlas.folders')} className="hidden min-h-0 flex-col gap-0.5 overflow-y-auto border-r border-border bg-muted/30 p-2 sm:flex">
+            {folderButton(ALL, t('atlas.foldersAll'), visible.length)}
+            <div className="px-2 pt-3 pb-1 text-xs font-medium text-muted-foreground">{t('atlas.folders')}</div>
+            {folders.map((g) => folderButton(g.key, g.name || t('atlas.unfiled'), g.count, g.path))}
+          </nav>
+
+          <div className="flex min-h-0 flex-col">
+            <div className="flex flex-col gap-2 border-b border-border p-3">
+              <div className="flex items-center gap-2">
+                <InputGroup className="min-w-0 flex-1">
+                  <InputGroupInput
+                    ref={searchRef}
+                    aria-label={t('atlas.filterTitle')}
+                    placeholder={t('atlas.filterTitle')}
+                    value={query}
+                    onChange={e => setQuery(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'ArrowDown') { e.preventDefault(); listRef.current?.querySelector<HTMLElement>('[data-atlas-row]')?.focus(); } }}
+                    data-atlas-filter />
+                  <InputGroupAddon><Search /></InputGroupAddon>
+                </InputGroup>
+                <Select value={folder} onValueChange={v => v !== null && setFolder(v)}>
+                  <SelectTrigger aria-label={t('atlas.folders')} className="max-w-36 sm:hidden">
+                    <FolderOpen className="text-muted-foreground" />
+                    <SelectValue>{folder === ALL ? t('atlas.foldersAll') : folder ? folderName(folder) : t('atlas.unfiled')}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>{t('atlas.foldersAll')}</SelectItem>
+                    {folders.map(g => <SelectItem key={g.key} value={g.key}>
+                      <span className="flex-1 truncate">{g.name || t('atlas.unfiled')}</span>
+                      <span className="text-xs text-muted-foreground tabular-nums">{g.count}</span>
+                    </SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={sortKey} onValueChange={v => { if (!v) return; setSortKey(v as SortKey); if (cards) setSnap(snapOf(cards)); }}>
+                  <SelectTrigger aria-label={t('atlas.sortLabel')}>
+                    <ArrowDownUp className="text-muted-foreground" />
+                    <SelectValue>{t(SORT_LABEL[sortKey])}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(SORT_LABEL) as SortKey[]).map(k => <SelectItem key={k} value={k}>{fmt(t('atlas.sortBy'), { key: t(SORT_LABEL[k]) })}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <ToggleGroup
+                  multiple
+                  variant="outline"
+                  size="sm"
+                  value={[...only, ...(showSubagents ? ['sub'] : [])]}
+                  onValueChange={v => { setOnly(v.filter((x) => x !== 'sub')); setShowSubagents(v.includes('sub')); }}>
+                  <ToggleGroupItem value="unlinked">{t('atlas.unlinked')}</ToggleGroupItem>
+                  <ToggleGroupItem value="changed" data-atlas-only-changed>
+                    {t('atlas.onlyChanged')}
+                    {changes.size > 0 && <span className="text-primary tabular-nums">{changes.size}</span>}
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="sub" data-atlas-show-sub>{t('atlas.showSub')}</ToggleGroupItem>
+                </ToggleGroup>
+                {runners.length > 1 && <>
+                  <span className="mx-1 h-4 w-px bg-border" aria-hidden />
+                  <ToggleGroup
+                    multiple
+                    variant="outline"
+                    size="sm"
+                    aria-label={t('atlas.filterSources')}
+                    value={runners.map(([r]) => r).filter((r) => !runnerOff.has(r))}
+                    onValueChange={v => setRunnerOff(new Set(runners.map(([r]) => r).filter((r) => !v.includes(r))))}>
+                    {runners.map(([r, n]) => <ToggleGroupItem key={r} value={r} data-atlas-runner={r}>
+                      {runnerLabel(r)}
+                      <span className="text-muted-foreground tabular-nums">{n}</span>
+                    </ToggleGroupItem>)}
+                  </ToggleGroup>
+                </>}
+              </div>
             </div>
-            : <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {isDesktop
-                ? <Button variant="ghost" size="sm" onClick={() => setSourcesOpen(true)} data-atlas-sources><Plug />{t('atlas.sourcesTitle')}</Button>
-                : null}
-              <span className="hidden sm:inline">{t('atlas.pickHint')}</span>
+
+            <div className="flex items-center gap-3 border-b border-border bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground">
+              <Checkbox
+                aria-label={t('atlas.selectAll')}
+                title={t('atlas.selectAll')}
+                disabled={!!busy || !pickable.length}
+                checked={allPicked}
+                indeterminate={somePicked && !allPicked}
+                onCheckedChange={checked => setPicked(prev => { const next = new Set(prev); for (const c of pickable) { if (checked) next.add(changeKeyOf(c)); else next.delete(changeKeyOf(c)); } return next; })} />
+              <span className="flex-1 tabular-nums">{cards ? fmt(t('atlas.sessions'), { n: shown.length }) : ''}</span>
+              {drift > 0 && <Button variant="outline" size="xs" onClick={() => cards && setSnap(snapOf(cards))} data-atlas-resort>
+                <ArrowDownUp />
+                {fmt(t('atlas.resort'), { n: drift })}
+              </Button>}
+              {changes.size > 0 && <Button variant="ghost" size="xs" onClick={() => { markAllSeen(cards ?? []); setChanges(new Map()); }} data-atlas-mark-all>
+                {t('atlas.markAllSeen')}
+              </Button>}
+            </div>
+            <div ref={listRef} role="list" aria-label={t('atlas.title')} className="min-h-0 flex-1 overflow-y-auto" onKeyDown={onListKey}>
+              {cards === null && (scanning || isDesktop)
+                ? Array.from({ length: 7 }, (_, i) => (
+                  <div key={i} className="flex items-center gap-3 border-b border-border px-3 py-3 last:border-b-0">
+                    <div className="size-4 rounded-[4px] bg-muted" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 w-2/3 animate-pulse rounded-md bg-muted" />
+                      <div className="h-2.5 w-1/3 animate-pulse rounded-md bg-muted" />
+                    </div>
+                  </div>
+                ))
+                : shown.length === 0
+                  ? <div className="flex flex-col items-center gap-3 p-10 text-center text-sm text-muted-foreground">
+                    <p>{!isDesktop ? t('atlas.webNoScan') : cards?.length ? t('atlas.filteredOut') : t('atlas.empty')}</p>
+                    {isDesktop && !!cards?.length && filtered && <Button variant="outline" size="sm" onClick={clearFilters} data-atlas-clear-filters>{t('atlas.clearFilters')}</Button>}
+                  </div>
+                  : <>
+                    {sectionsShown.map(s => <section key={s.key} data-atlas-folder={s.name ?? undefined}>
+                      {s.name && <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-background/95 px-3 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur-sm" title={s.path ?? undefined}>
+                        <FolderOpen className="size-3.5" />
+                        <span className="truncate">{s.name}</span>
+                        <span className="tabular-nums">{s.cards.length}</span>
+                      </div>}
+                      {s.rows.map((card) => {
+                        const home = homeOf.get(card.sessionId);
+                        return <AtlasRow
+                          key={changeKeyOf(card)}
+                          card={card}
+                          title={displayTitle(card)}
+                          when={whenLabel(card.mtime, now, lang)}
+                          fork={threadForks.get(card.sessionId)}
+                          home={home ? (home.id === activeId ? { name: home.name, current: true } : { name: home.name, current: false }) : null}
+                          change={changes.get(changeKeyOf(card))}
+                          isPicked={picked.has(changeKeyOf(card))}
+                          canPick={!home && !!card.sessionId}
+                          disabled={!!busy}
+                          loading={busy === card.rel}
+                          focused={card.sessionId === focusSessionId}
+                          appName={appHosts.get(card.runner)}
+                          canRecast={mirrored.has(card.sessionId)}
+                          onAct={onAct} />;
+                      })}
+                    </section>)}
+                    {shown.length > limit && <MoreRows onMore={onMore} />}
+                  </>}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="m-0 items-center gap-2 rounded-b-xl border-t border-border p-3 sm:justify-between">
+          {picked.size > 0
+            ? <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground tabular-nums">{fmt(t('atlas.mergeSelected'), { n: picked.size })}</span>
+              {pickedHidden > 0 && <span className="truncate text-xs">{fmt(t('atlas.pickedHidden'), { n: pickedHidden })}</span>}
+              <Button variant="ghost" size="sm" disabled={!!busy} onClick={() => setPicked(new Set())}>{t('atlas.clearPick')}</Button>
+            </div>
+            : <div className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+              <KbdGroup><Kbd>↑</Kbd><Kbd>↓</Kbd></KbdGroup>{t('atlas.keyMove')}
+              <Kbd className="ml-2">Space</Kbd>{t('atlas.keyPick')}
+              <Kbd className="ml-2">Enter</Kbd>{t('atlas.keyOpen')}
+              <Kbd className="ml-2">/</Kbd>{t('atlas.keySearch')}
             </div>}
           <ButtonGroup>
             <Button disabled={!!busy || picked.size === 0} onClick={() => void addPicked()} data-atlas-add-new>
@@ -651,7 +916,7 @@ export default function SessionAtlas({ onClose, onSwitched, focusSessionId }: { 
       </Select>}
       roots={roots}
       counts={rootCounts}
-      onChanged={() => void refresh()}
+      onChanged={() => void refresh('user')}
       onClose={() => setSourcesOpen(false)} />}
   </>;
 }

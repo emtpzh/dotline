@@ -40,7 +40,8 @@ export function splitThreads(canvasId: string, graph: Pick<StoredGraph, 'nodes' 
   const find = (id: string): string => {
     let r = id;
     while (parent.get(r) !== r) r = parent.get(r)!;
-    parent.set(id, r);
+    // compress the whole path, so long chains stay flat
+    for (let c = id; c !== r;) { const up = parent.get(c)!; parent.set(c, r); c = up; }
     return r;
   };
   const join = (a: string, b: string) => {
@@ -53,13 +54,14 @@ export function splitThreads(canvasId: string, graph: Pick<StoredGraph, 'nodes' 
   const groups = new Map<string, ThoughtNode[]>();
   for (const n of nodes) {
     const r = find(n.id);
-    groups.set(r, [...(groups.get(r) ?? []), n]);
+    const g = groups.get(r);
+    if (g) g.push(n); else groups.set(r, [n]);
   }
   return [...groups.values()].map((members) => {
     const ordered = [...members].sort(byAge);
     const content = ordered.filter((n) => !isFrameNode(n));
     const names = (content.length ? content : ordered).map((n) => shortName(n.data)).filter(Boolean);
-    const lastAt = Math.max(...members.map(stamp));
+    const lastAt = members.reduce((m, n) => Math.max(m, stamp(n)), 0);
     return {
       id: `${canvasId}:${ordered[0].id}`,
       canvasId,

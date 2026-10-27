@@ -30,18 +30,20 @@ function save(w: Watermark): void {
 
 /** Diff the scan against the watermark. First run (empty watermark)
  *  baselines silently — flagging everything NEW would be noise. Entries
- *  whose files vanished (upstream cleanup) are dropped on the way. */
-export function diffAgainstWatermark(cards: SessionCard[]): Map<string, CardChange> {
+ *  whose files vanished (upstream cleanup) are dropped on the way — but
+ *  only for roots this scan actually listed: a root switched off, or one
+ *  whose listing failed, keeps its marks for when it is back. */
+export function diffAgainstWatermark(cards: SessionCard[], listed: Set<string>): Map<string, CardChange> {
   const w = load();
   const changes = new Map<string, CardChange>();
   if (Object.keys(w).length === 0) {
-    save(Object.fromEntries(cards.map((c) => [cardKey(c), { mtime: c.mtime, size: c.size }])));
+    if (cards.length) save(Object.fromEntries(cards.map((c) => [cardKey(c), { mtime: c.mtime, size: c.size }])));
     return changes;
   }
   const live = new Set(cards.map(cardKey));
   let pruned = false;
   for (const k of Object.keys(w)) {
-    if (!live.has(k)) { delete w[k]; pruned = true; }
+    if (!live.has(k) && listed.has(k.slice(0, k.indexOf(':')))) { delete w[k]; pruned = true; }
   }
   for (const c of cards) {
     const prev = w[cardKey(c)];

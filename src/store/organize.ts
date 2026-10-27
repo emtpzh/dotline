@@ -35,10 +35,11 @@ async function readGraph(id: string): Promise<StoredGraph> {
 export async function loadThreads(): Promise<{ canvases: ProjectMeta[]; threads: Thread[] }> {
   await flushPendingWrites();
   const metas = useProjects.getState().projects.filter(organizable);
-  const threads: Thread[] = [];
-  for (const p of metas) {
-    try { threads.push(...splitThreads(p.id, await readGraph(p.id), p.updatedAt)); } catch { /* unreadable: left out */ }
-  }
+  // every canvas is read at once; each one is split as soon as it arrives
+  const per = await Promise.all(metas.map(async (p) => {
+    try { return splitThreads(p.id, await readGraph(p.id), p.updatedAt); } catch { return []; /* unreadable: left out */ }
+  }));
+  const threads = per.flat();
   return { canvases: metas.filter((p) => threads.some((th) => th.canvasId === p.id)), threads };
 }
 
