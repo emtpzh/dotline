@@ -22,7 +22,7 @@ const buttonVariants = cva(
         // in dark the two differ and `outline` would sink into the
         // canvas) and it frosts what scrolls under it.
         chrome:
-          "border-border bg-card/90 text-muted-foreground shadow-sm backdrop-blur hover:bg-accent hover:text-foreground aria-expanded:border-primary/40 aria-expanded:text-primary",
+          "border-border bg-card/90 text-muted-foreground shadow-sm backdrop-blur hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground",
       },
       size: {
         default:

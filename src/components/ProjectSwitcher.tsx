@@ -7,7 +7,7 @@ import { useProjects, switchProject, createProject, renameProject, deleteProject
 import { useI18n } from '../i18n';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut } from './ui/dropdown-menu';
-import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command';
+import { Command, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from './ui/command';
 import { parseImportFile } from '../lib/export';
 import ImportChatModal from './ImportChatModal';
 import type { ImportableConversation } from '../lib/import-chat';
@@ -137,13 +137,15 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
       // button would swallow the item's own click target
       // one line per canvas: a long list still fits a glance. What kind of
       // canvas it is rides the icon (a session's mirror wears a terminal),
-      // and the row menu shows on the row under the pointer or the keys
+      // the open one is set in the heavier weight, and the row menu takes
+      // the time's place on the row under the pointer or the keys — no
+      // gutter held empty for it, no tick beside it
       <div key={p.id} className="group/row relative">
         <CommandItem
           value={p.id}
           onSelect={() => void (p.archived ? restore(p) : doSwitch(p.id))}
           data-checked={p.id === activeId}
-          className="pr-9"
+          className={p.id === activeId ? 'font-medium text-foreground' : undefined}
           data-canvas-row={p.id}
         >
           {p.kind === 'paradigm'
@@ -152,7 +154,7 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
               ? <SquareTerminal className="text-muted-foreground" aria-label={runnerLabel(main.runner)} data-mirror-mark />
               : <FolderOpen className="text-muted-foreground" />}
           <span className="min-w-0 flex-1 truncate" title={main ? `${p.name} · ${runnerLabel(main.runner)}` : p.name}>{p.name}</span>
-          <span className="shrink-0 text-xs text-muted-foreground">{relativeTime(p.updatedAt)}</span>
+          <CommandShortcut className="shrink-0 font-normal tracking-normal tabular-nums group-hover/row:invisible group-has-data-selected/row:invisible">{relativeTime(p.updatedAt)}</CommandShortcut>
         </CommandItem>
         <DropdownMenu>
           <DropdownMenuTrigger

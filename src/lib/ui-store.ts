@@ -96,12 +96,6 @@ interface UiState {
       is REQUIRED for the engine on the hosted app. Stateless like model keys. */
   anysearchKey: string;
   setAnysearchKey: (key: string) => void;
-  /** Ambient long-term memory: ON by default, one switch, visible writes. */
-  memoryEnabled: boolean;
-  setMemoryEnabled: (on: boolean) => void;
-  memories: import('./memory').MemoryEntry[];
-  setMemories: (entries: import('./memory').MemoryEntry[]) => void;
-  memoryManagerOpen: boolean;
   releaseNotesOpen: boolean;
   setReleaseNotesOpen: (open: boolean) => void;
   /** inside the harness: a newer plugin on the registry than the one running */
@@ -113,7 +107,6 @@ interface UiState {
   setMaterialsOverviewOpen: (open: boolean) => void;
   timelineOverviewOpen: boolean;
   setTimelineOverviewOpen: (open: boolean) => void;
-  setMemoryManagerOpen: (open: boolean) => void;
   /** Browser-side API key dialog (the .env-free path in). */
   apiKeyModalOpen: boolean;
   setApiKeyModalOpen: (open: boolean) => void;
@@ -256,31 +249,12 @@ export const useUiStore = create<UiState>((set, get) => ({
     else localStorage.removeItem('thoughtdag.anysearchKey');
     set({ anysearchKey: key });
   },
-  memoryEnabled: localStorage.getItem('thoughtdag.memoryEnabled') !== 'off',
-  setMemoryEnabled: (on) => {
-    localStorage.setItem('thoughtdag.memoryEnabled', on ? 'on' : 'off');
-    set({ memoryEnabled: on });
-  },
-  memories: (() => {
-    try {
-      const raw = localStorage.getItem('thoughtdag.memory');
-      const parsed = raw ? JSON.parse(raw) : null;
-      if (Array.isArray(parsed)) return parsed;
-    } catch { /* fresh start */ }
-    return [];
-  })(),
-  setMemories: (entries) => {
-    localStorage.setItem('thoughtdag.memory', JSON.stringify(entries));
-    set({ memories: entries });
-  },
-  memoryManagerOpen: false,
   highlightsOverviewOpen: false,
   setHighlightsOverviewOpen: (open) => set({ highlightsOverviewOpen: open }),
   materialsOverviewOpen: false,
   setMaterialsOverviewOpen: (open) => set({ materialsOverviewOpen: open }),
   timelineOverviewOpen: false,
   setTimelineOverviewOpen: (open) => set({ timelineOverviewOpen: open }),
-  setMemoryManagerOpen: (open) => set({ memoryManagerOpen: open }),
   releaseNotesOpen: false,
   setReleaseNotesOpen: (open) => set({ releaseNotesOpen: open }),
   pluginUpdate: null,

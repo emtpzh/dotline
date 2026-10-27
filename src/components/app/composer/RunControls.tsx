@@ -286,7 +286,7 @@ export function SendButton({ onClick, disabled, session, title }: { onClick: () 
       disabled={disabled}
       title={title ?? (session?.kind === 'new' ? t('session.sendNew') : t('composer.send'))}
       aria-label={t('composer.send')}
-      className={`shrink-0 rounded-lg text-primary-foreground disabled:opacity-40 ${tone}`}
+      className={`shrink-0 rounded-lg text-primary-foreground disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 ${tone}`}
       data-composer-send={session?.kind ?? 'plain'}
     >
       <ArrowUp strokeWidth={2.25} className="size-[13px]" />

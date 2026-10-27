@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { useStore } from '../../store';
-import { useUiStore } from '../../lib/ui-store';
 import { buildContext, referenceBlockContent } from '../../store/context-builder';
 import type { ContextPartition } from '../../lib/graph';
 import { conclusionOf } from '../../lib/turn-insight';
@@ -61,8 +60,6 @@ export default function ContextHistory({ nodeId, data, partition, onJump }: {
   const getInheritedAttachments = useStore((s) => s.getInheritedAttachments);
   const toggleExcludeAttachment = useStore((s) => s.toggleExcludeAttachment);
   const setEdgeStructural = useStore((s) => s.setEdgeStructural);
-  const memoryOn = useUiStore((s) => s.memoryEnabled);
-  const memories = useUiStore((s) => s.memories);
 
   const ctx = useMemo(() => {
     const { messages, layerTokens } = buildContext(nodeId, nodes, edges, undefined, undefined, undefined, staleIds);
@@ -73,8 +70,7 @@ export default function ContextHistory({ nodeId, data, partition, onJump }: {
 
   const inherited = getInheritedAttachments(nodeId);
   const ancestors = partition.mainline.slice(0, -1);
-  const memoryShown = memoryOn && memories.length > 0;
-  if (ancestors.length === 0 && partition.materials.length === 0 && partition.references.length === 0 && inherited.length === 0 && !memoryShown) return null;
+  if (ancestors.length === 0 && partition.materials.length === 0 && partition.references.length === 0 && inherited.length === 0) return null;
 
   const excludeSet = new Set(data.excludedAttachmentIds || []);
   const includeSet = new Set(data.includedAttachmentIds || []);
@@ -92,17 +88,6 @@ export default function ContextHistory({ nodeId, data, partition, onJump }: {
         </summary>
         <div className={`${LINE_BODY_CLASS} flex flex-col gap-3`}>
           {ctx.heavy && <p className="text-xs leading-relaxed text-warning" data-context-heavy>{t('transcript.heavy')}</p>}
-
-          {memoryShown && (
-            <div className={ROW}>
-              <span className={TAG}>{t('memory.rowLabel')}</span>
-              <Button variant="ghost" className={NAME} onClick={() => useUiStore.getState().setMemoryManagerOpen(true)} title={t('memory.rowTitle')}>
-                <span className="truncate">{memories.map((m) => m.text).join(' · ')}</span>
-              </Button>
-              <span className={TOK}>{countTokens(memories.map((m) => m.text).join('\n'))}</span>
-              <span />
-            </div>
-          )}
 
           {inherited.length > 0 && (
             <Group title={t('transcript.groupFiles')}>

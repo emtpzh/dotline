@@ -270,10 +270,6 @@ function GlobalCapabilities() {
       try { setModelsCache(await pushProviders(storedProviders())); } catch { /* best-effort */ }
     }
   };
-  const memoryEnabled = useUiStore((s) => s.memoryEnabled);
-  const setMemoryEnabled = useUiStore((s) => s.setMemoryEnabled);
-  const memoryCount = useUiStore((s) => s.memories.length);
-  const setMemoryManagerOpen = useUiStore((s) => s.setMemoryManagerOpen);
   const caps = data?.capabilities;
   const visionModels = (data?.models ?? []).filter((m) => m.vision);
   // an old proxy / offline fetch reports nothing — say nothing, not "missing"
@@ -341,28 +337,6 @@ function GlobalCapabilities() {
         <p className="text-2xs text-muted-foreground leading-relaxed flex-1">
           <span className="text-muted-foreground font-medium">{t('caps.scholar')}</span>{' · '}{t('caps.scholarDesc')}
         </p>
-      </div>
-      <div className="px-3 py-1 flex items-start gap-2">
-        {dot(memoryEnabled)}
-        <div className="flex-1 min-w-0 flex items-center gap-2">
-          <p className="text-2xs text-muted-foreground font-medium flex-1">
-            {t('caps.memory')}
-            <span className="text-muted-foreground font-normal"> · {memoryCount}</span>
-          </p>
-          <Button variant="ghost" size="xs"
-            onClick={(e) => { e.stopPropagation(); setMemoryManagerOpen(true); }}
-            className="text-2xs text-muted-foreground hover:text-primary underline decoration-dotted shrink-0"
-          >
-            {t('memory.manage')}
-          </Button>
-          <Button variant="ghost"
-            onClick={(e) => { e.stopPropagation(); setMemoryEnabled(!memoryEnabled); }}
-            title={t('caps.memoryTitle')}
-            className={`text-2xs px-2 py-0.5 rounded-full transition-colors shrink-0 ${memoryEnabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}
-          >
-            {memoryEnabled ? t('caps.on') : t('caps.off')}
-          </Button>
-        </div>
       </div>
       <div className="px-3 py-1 flex items-start gap-2">
         {dot(hasVision)}

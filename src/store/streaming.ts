@@ -13,7 +13,6 @@ import { countTokens, activeSummary } from '../utils';
 import { toast, useUiStore } from '../lib/ui-store';
 import { modelsWith, reconcileModelId } from '../lib/use-models';
 import { contextLengthFor } from '../lib/runtime-providers';
-import { memoryContextBlock, judgeMemory } from '../lib/memory';
 import { t, fmt } from '../i18n';
 import { isViewerMode } from '../lib/viewer';
 import type { AgentRuntime, Reference } from '../types';
@@ -132,7 +131,7 @@ export async function runNodeGeneration(
   // hidden UI (a missed button must still be inert).
   if (isViewerMode) return;
   const { question, images, onSuccess, versionMode = 'replace' } = opts;
-  let { messages } = opts;
+  const { messages } = opts;
   if (!opts.autoChain) autoRunCounts.clear(); // a fresh user action starts a new wave
   // Supersede: abort any generation already running on this node; its late
   // callbacks are dropped via the sequence check below.
@@ -247,32 +246,12 @@ export async function runNodeGeneration(
     get().settleFrom([nodeId]);
   };
 
-  // Ambient memory rides the system layer of ordinary generations only —
-  // paradigm machine steps stay memory-free (experimental control), digests
-  // must stay faithful to the material (no personalization), and
-  // fingerprints never see this block (memory edits must not mark answers
-  // stale; the block is assembled at generation time, after buildContext).
-  const selfData = get().nodes.find((n) => n.id === nodeId)?.data;
-  const memBlock = !selfData?.stepKind && !selfData?.digestOf ? memoryContextBlock() : null;
-  if (memBlock) {
-    // Insert AFTER the last assistant turn: the material+chain prefix stays
-    // byte-stable across turns, so provider prompt caches keep hitting.
-    // Memory entries change often — at the front they would invalidate the
-    // cached prefix on every write.
-    let insertAt = messages.length - 1; // no upstream yet → before the question
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === 'assistant') { insertAt = i + 1; break; }
-    }
-    messages = [...messages.slice(0, insertAt), memBlock, ...messages.slice(insertAt)];
-  }
-
-  // what a finished answer sets going: its plaque, memory, the reruns and
-  // paradigm steps waiting on it
+  // what a finished answer sets going: its plaque, the reruns and paradigm
+  // steps waiting on it
   const afterAnswer = (response: string) => {
     onSuccess?.(response);
     get().pushHistory();
     generateSummary(nodeId, question, response, get().setSummary, collectMapLines(nodeId, get().nodes, get().edges));
-    if (!selfData?.stepKind && !selfData?.digestOf) judgeMemory(question, response);
     triggerAutoReruns(set, get, nodeId);
     triggerParadigmCascade(get, nodeId);
   };

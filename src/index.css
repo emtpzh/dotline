@@ -66,8 +66,6 @@
   /* canvas: the ground the cards float on, one step off the card color */
   --canvas: oklch(0.97 0 0);
   --canvas-dot: oklch(0.922 0 0);
-  --canvas-grid-fine: oklch(0.145 0 0 / 8%);
-  --canvas-grid-major: oklch(0.145 0 0 / 16%);
 
   /* edges: goes on / forks off / ancestor path (a material's wire is --muted-foreground; red means an error only) */
   --edge-continue: var(--primary);
@@ -117,8 +115,6 @@
 
   --canvas: oklch(0.145 0 0);
   --canvas-dot: oklch(1 0 0 / 12%);
-  --canvas-grid-fine: oklch(1 0 0 / 5%);
-  --canvas-grid-major: oklch(1 0 0 / 11%);
 
   --edge-explore: oklch(0.765 0.115 67.5);
   --edge-trace: oklch(0.758 0.133 83.2);
@@ -147,8 +143,6 @@
   --input: #00000029;
   --canvas: #f5f6f7;
   --canvas-dot: #e1e5ee;
-  --canvas-grid-fine: #26314810;
-  --canvas-grid-major: #26314824;
   --edge-trace: #22c55e;
 }
 

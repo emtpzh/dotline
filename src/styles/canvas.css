@@ -10,15 +10,16 @@
 /* the harness plugin's ASCII ocean (OceanBackdrop): drawn light-on-clear
    for the dark board, inverted onto the light one; faint either way so the
    cards stay the subject. --ocean-level (set by the component) scales it:
-   0 hidden, below 1 while the board is worked or read, above 1 when empty.
-   It ducks fast and returns slowly. */
+   0 hidden, below 1 while reading or when cards fill the screen, above 1
+   when empty. */
 .tdag-ocean {
   --ocean-base: 0.22;
   opacity: calc(var(--ocean-base) * var(--ocean-level, 0));
   transition: opacity 0.6s ease;
 }
-.tdag-ocean[data-busy] {
-  transition-duration: 0.15s;
+/* the landing's column of text (560px wide) stays clear of fish */
+.tdag-ocean[data-landing] {
+  mask-image: linear-gradient(to right, black calc(50% - 420px), transparent calc(50% - 310px), transparent calc(50% + 310px), black calc(50% + 420px));
 }
 :root:not(.dark) .tdag-ocean {
   --ocean-base: 0.18;

@@ -15,7 +15,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import 'highlight.js/styles/github.css';
-import { ArrowLeft, ArrowRight, BookOpen, Bot, Brain, CircleHelp, Download, Eye, FileText, Frame, GitBranch, Highlighter, KeyRound, LayoutGrid, Link2, PinOff, Loader2, MessageCircleQuestion, MoreHorizontal, Paperclip, Redo2, Scissors, Search, Share2, SquareTerminal, Stethoscope, StickyNote, Trash2, Undo2, Workflow, ListRestart, FolderSync, Minimize2, History as HistoryIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Bot, CircleHelp, Monitor, Moon, Sun, Download, Eye, FileText, Frame, Highlighter, KeyRound, LayoutGrid, Link2, PinOff, Loader2, MessageCircleQuestion, MoreHorizontal, Paperclip, Redo2, Search, Share2, SquareTerminal, Stethoscope, StickyNote, Trash2, Undo2, Workflow, ListRestart, FolderSync, Minimize2, History as HistoryIcon } from 'lucide-react';
 import './index.css';
 import ThoughtNode from './components/ThoughtNode';
 import ParadigmNode from './components/ParadigmNode';
@@ -68,7 +68,6 @@ import ConfirmDialog from './components/app/ConfirmDialog';
 import Toaster from './components/app/Toaster';
 import GlobalTooltip from './components/app/GlobalTooltip';
 import RoleManagerModal from './components/app/RoleManagerModal';
-import MemoryManagerModal from './components/app/MemoryManagerModal';
 import ApiKeyModal from './components/app/ApiKeyModal';
 import ShareDialog from './components/app/ShareDialog';
 // harness-only, so the other builds never fetch the ocean's chunk
@@ -224,7 +223,6 @@ export default function App() {
       <Toaster />
       <GlobalTooltip />
       <RoleManagerModal />
-      <MemoryManagerModal />
       <ApiKeyModal />
       <FanOutHost />
       <ShareDialog />
@@ -268,9 +266,7 @@ function Canvas() {
       if (rfInstance.current) void flyTo(rfInstance.current, n.position.x + 260, n.position.y + 140, 0.9);
     }, 150);
   }, [arrivalFocus]);
-  // Appearance: lighting swaps the token set, paper swaps the canvas texture
-  // (and turns the grid's snapping on). Edge colors resolve per theme.
-  const paperTexture = useAppearance((s) => s.paper);
+  // Appearance: lighting swaps the token set. Edge colors resolve per theme.
   const lightingChoice = useAppearance((s) => s.lighting);
   const resolvedTheme = useAppearance((s) => s.resolved);
   const oceanOn = useAppearance((s) => s.ocean) && OCEAN_AVAILABLE;
@@ -1186,8 +1182,6 @@ function Canvas() {
           style: { stroke: themePalette.accent, strokeWidth: 2 },
           markerEnd: { type: 'arrowclosed' as const, color: themePalette.accent, width: 18, height: 18 },
         }}
-        snapToGrid={paperTexture === 'grid'}
-        snapGrid={[22, 22]}
         proOptions={{ hideAttribution: true }}
         nodeDragThreshold={5}
         connectionRadius={40}
@@ -1205,16 +1199,8 @@ function Canvas() {
         onSelectionChange={onSelectionChange}
         onPaneClick={() => { setSelectedNodeId(null); setSelectedNodeIds([]); setNodeMenu(null); useUiStore.getState().setPanelOpen(false); }}
       >
-        {paperTexture === 'grid' ? (
-          <>
-            {/* the drafting board: fine grid + a major line every 5 cells */}
-            <Background id="grid-fine" variant={BackgroundVariant.Lines} gap={22} color="var(--canvas-grid-fine)" />
-            <Background id="grid-major" variant={BackgroundVariant.Lines} gap={110} color="var(--canvas-grid-major)" />
-          </>
-        ) : (
-          <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="var(--canvas-dot)" />
-        )}
-        {OCEAN_AVAILABLE && <Suspense fallback={null}><OceanBackdrop enabled={oceanOn} /></Suspense>}
+        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="var(--canvas-dot)" />
+        {OCEAN_AVAILABLE && <Suspense fallback={null}><OceanBackdrop enabled={oceanOn} landing={!hasNodes && !isParadigm && !isViewerMode} /></Suspense>}
         <ZoomTierTag />
         <TimelineBar />
         <CanvasControls />
@@ -1315,7 +1301,7 @@ function Canvas() {
               </svg>
               <h1 className="text-4xl font-semibold tracking-tight text-foreground mb-2.5">{APP_NAME}</h1>
               <p className="text-sm text-muted-foreground">{t('landing.tagline')}</p>
-              <p className="text-xs text-muted-foreground mt-1.5 font-medium">{t('landing.mechanism')}</p>
+              <p className="text-xs text-muted-foreground mt-1.5">{t('landing.mechanism')}</p>
             </div>
             {/* where the line runs, above the box — as the agent tools' own boxes ask it */}
             <div className="mb-1.5 flex flex-wrap items-center gap-0.5 px-1" data-composer-above>
@@ -1329,40 +1315,41 @@ function Canvas() {
               boxClassName="rounded-2xl px-4 pt-3.5 pb-2.5 shadow-lg focus-within:shadow-xl"
             />
 
-            {/* Second entrance: start from a document (material-first). The
-                whole landing is the drop target; this card names the gesture. */}
-            <div
-              onClick={() => docFileRef.current?.click()}
-              className={`mt-3 border-2 border-dashed rounded-xl px-5 py-3.5 cursor-pointer transition-all text-center bg-card/60 backdrop-blur ${
-                isDraggingLanding ? 'border-primary bg-primary/5 ring-2 ring-primary/20' : 'border-border hover:border-primary/40 hover:bg-primary/5'
-              }`}
-            >
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground font-medium">
-                <BookOpen size={15} strokeWidth={1.75} className="text-primary" /> {t('landing.docStart')}
-              </div>
-              <p className="text-2xs text-muted-foreground mt-1.5">{t('landing.docFormats')}</p>
-              <p className="text-2xs text-muted-foreground mt-0.5">{t('landing.docPrivacy')}</p>
-            </div>
-            {/* Agent conversations, desktop only — one click turns them
-                into graphs, and LOOKING needs no model key: the one
-                zero-config start. Dressed in the SAME uniform as the
-                document card (shared ground, centered two-line layout);
-                the one distinction left is the border — dashed means
-                "drop here", solid means "click me". */}
-            {!!window.desktopSessions && (
-              <Button variant="outline"
-                onClick={() => setLandingAtlas(true)}
-                className="w-full mt-3 backdrop-blur hover:border-primary/40 text-center"
-                data-landing-atlas
+            {/* The other two entrances, side by side as equals: start from a
+                document (material-first; the whole landing is the drop
+                target, this card names the gesture), and — desktop only —
+                the local agent conversations, the one start that needs no
+                model key. Same ground, same centered layout; the one
+                distinction is the border — dashed means "drop here", solid
+                means "click me". */}
+            <div className={`mt-3 grid gap-3 ${window.desktopSessions ? 'grid-cols-2' : ''}`}>
+              <div
+                onClick={() => docFileRef.current?.click()}
+                className={`flex flex-col justify-center border-2 border-dashed rounded-xl px-4 py-3 cursor-pointer transition-all text-center bg-card/60 backdrop-blur ${
+                  isDraggingLanding ? 'border-primary bg-primary/5 ring-2 ring-primary/20' : 'border-border hover:border-primary/40 hover:bg-primary/5'
+                }`}
               >
                 <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground font-medium">
-                  <Bot strokeWidth={1.75} className="text-primary shrink-0" />
-                  <span>{t('landing.atlasStart')}</span>
-                  <ArrowRight strokeWidth={1.75} className="text-primary shrink-0" />
+                  <BookOpen size={15} strokeWidth={1.75} className="text-primary shrink-0" /> {t('landing.docStart')}
                 </div>
-                <p className="text-2xs text-muted-foreground mt-1.5">{t('landing.atlasDesc')}</p>
-              </Button>
-            )}
+                <p className="text-2xs text-muted-foreground mt-1.5">{t('landing.docFormats')}</p>
+                <p className="text-2xs text-muted-foreground mt-0.5">{t('landing.docPrivacy')}</p>
+              </div>
+              {!!window.desktopSessions && (
+                <Button variant="outline"
+                  onClick={() => setLandingAtlas(true)}
+                  className="h-auto flex-col gap-0 whitespace-normal rounded-xl border-2 border-border px-4 py-3 bg-card/60 backdrop-blur font-normal hover:border-primary/40 hover:bg-primary/5"
+                  data-landing-atlas
+                >
+                  <span className="flex items-center justify-center gap-2 text-sm text-muted-foreground font-medium">
+                    <Bot strokeWidth={1.75} className="text-primary" />
+                    {t('landing.atlasStart')}
+                    <ArrowRight strokeWidth={1.75} className="text-primary" />
+                  </span>
+                  <span className="text-2xs text-muted-foreground mt-1.5">{t('landing.atlasDesc')}</span>
+                </Button>
+              )}
+            </div>
             <input
               ref={docFileRef}
               type="file"
@@ -1420,25 +1407,11 @@ function Canvas() {
               </div>
             )}
 
-            {/* What makes this different — three quiet cards */}
-            <div className="grid grid-cols-3 gap-3 mt-6">
-              {([
-                { icon: GitBranch, title: 'landing.feature1.title', desc: 'landing.feature1.desc' },
-                { icon: Workflow, title: 'landing.feature2.title', desc: 'landing.feature2.desc' },
-                { icon: Scissors, title: 'landing.feature3.title', desc: 'landing.feature3.desc' },
-              ] as const).map(({ icon: Icon, title, desc }) => (
-                <div key={title} className="bg-card/60 backdrop-blur border border-border rounded-xl px-4 py-3.5">
-                  <Icon size={16} strokeWidth={1.75} className="text-primary mb-2" />
-                  <h3 className="text-xs font-semibold text-foreground mb-1">{t(title)}</h3>
-                  <p className="text-2xs text-muted-foreground leading-relaxed">{t(desc)}</p>
-                </div>
-              ))}
-            </div>
-
+            {/* the two ways to see it before asking anything, as equals */}
             <div className="text-center mt-6 flex items-center justify-center gap-5">
               <Button variant="ghost" size="sm"
                 onClick={loadExample}
-                className="text-xs text-primary hover:text-primary/90"
+                className="text-xs text-muted-foreground hover:text-primary"
               >
                 <Workflow strokeWidth={1.75} /> {t('landing.loadExample')}
               </Button>
@@ -1455,16 +1428,18 @@ function Canvas() {
 
       {/* Content palette — canvas material, both modes. Click drops at the
           viewport center; DRAG drops at the pointer. Paste works anywhere:
-          text → note, a URL → link snapshot, image/files → file node. */}
+          text → note, a URL → link snapshot, image/files → file node.
+          Dressed like the zoom rail below it (CanvasControls): same width,
+          same left edge, same quiet icons. */}
       {(hasNodes || isParadigm) && !isViewerMode && (
-        <div className="absolute top-[38%] -translate-y-1/2 left-4 z-10 flex flex-col gap-1.5 bg-card/90 backdrop-blur border border-border rounded-xl p-1.5 shadow-sm">
+        <div className="absolute top-[38%] -translate-y-1/2 left-4 z-10 flex flex-col gap-0.5 bg-card/90 backdrop-blur border border-border rounded-lg p-0.5 shadow-sm">
           {!isParadigm && (
             <Button variant="ghost" size="icon"
               onClick={() => spawnAskNode(flowPosAt(null))}
               draggable
               onDragStart={(e) => { e.dataTransfer.setData('application/thoughtdag-content', 'ask'); e.dataTransfer.effectAllowed = 'copy'; }}
               title={t('palette.askTitle')}
-              className="text-primary hover:bg-primary/10 cursor-grab"
+              className="text-muted-foreground cursor-grab"
             >
               <MessageCircleQuestion strokeWidth={1.75} />
             </Button>
@@ -1472,7 +1447,7 @@ function Canvas() {
           <Button variant="ghost" size="icon"
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnContentNode('note', flowPosAt(screen)))}
             title={t('palette.noteTitle')}
-            className="text-warning hover:bg-warning/10"
+            className="text-muted-foreground"
           >
             <StickyNote strokeWidth={1.75} />
           </Button>
@@ -1480,7 +1455,7 @@ function Canvas() {
           <Button variant="ghost" size="icon"
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnContentNode('link', flowPosAt(screen)))}
             title={t('palette.linkTitle')}
-            className="text-primary hover:bg-primary/10"
+            className="text-muted-foreground"
             data-palette-link
           >
             <Link2 strokeWidth={1.75} />
@@ -1488,14 +1463,14 @@ function Canvas() {
           <Button variant="ghost" size="icon"
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnContentNode('file', flowPosAt(screen)))}
             title={t('palette.fileTitle')}
-            className="text-muted-foreground hover:bg-accent"
+            className="text-muted-foreground"
           >
             <Paperclip strokeWidth={1.75} />
           </Button>
           <Button variant="ghost" size="icon"
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnFrame(flowPosAt(screen)))}
             title={t('palette.frameTitle')}
-            className="text-muted-foreground hover:bg-accent"
+            className="text-muted-foreground"
           >
             <Frame strokeWidth={1.75} />
           </Button>
@@ -1692,7 +1667,7 @@ function Canvas() {
             <FolderSync strokeWidth={1.75} />
           </Button>
         )}
-        {/* ⋯ overflow: share, memory, annotations, relayout, tutorial —
+        {/* ⋯ overflow: share, annotations, relayout, tutorial —
             one slot regardless of language or panel width. Tools the top
             bar folded for room come first, in the order they left. */}
         <DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
@@ -1829,74 +1804,48 @@ function Canvas() {
                 </DropdownMenuItem>
               )}
               {hasNodes && <DropdownMenuSeparator />}
+              {/* settings: one row each, the name left and its control right */}
               {foldLang && (
-                <div className="px-3 pt-2 pb-1" data-menu-language>
-                  <div className="text-2xs text-muted-foreground mb-1.5">{t('toolbar.menuLanguage')}</div>
+                <div className="flex items-center justify-between gap-3 px-3 py-1.5" data-menu-language>
+                  <span className="text-2xs text-muted-foreground">{t('toolbar.menuLanguage')}</span>
                   <ToggleGroup
                     variant="outline"
                     size="sm"
                     spacing={0}
-                    className="w-full"
                     value={[lang]}
                     onValueChange={(v) => { const next = v[0]; if (next === 'en' || next === 'zh') useI18n.getState().setLang(next); }}
                   >
                     {(['en', 'zh'] as const).map((l) => (
-                      <ToggleGroupItem key={l} value={l} className="flex-1 text-2xs">
+                      <ToggleGroupItem key={l} value={l} className="text-2xs">
                         {l === 'en' ? 'EN' : '中'}
                       </ToggleGroupItem>
                     ))}
                   </ToggleGroup>
                 </div>
               )}
-              {/* appearance: two independent axes — lighting remaps the
-                  tokens, paper retextures the canvas (and arms snapping) */}
-              <div className="px-3 pt-2 pb-1" data-appearance-lighting>
-                <div className="text-2xs text-muted-foreground mb-1.5">{t('appearance.lighting')}</div>
+              <div className="flex items-center justify-between gap-3 px-3 py-1.5" data-appearance-lighting>
+                <span className="text-2xs text-muted-foreground">{t('appearance.lighting')}</span>
                 <ToggleGroup
                   variant="outline"
                   size="sm"
                   spacing={0}
-                  className="w-full"
                   value={[lightingChoice]}
                   onValueChange={(v) => { const next = v[0]; if (next) useAppearance.getState().setLighting(next as 'light' | 'dark' | 'system'); }}
                 >
-                  {([['light', t('appearance.light')], ['dark', t('appearance.dark')], ['system', t('appearance.system')]] as const).map(([v, label]) => (
-                    <ToggleGroupItem key={v} value={v} className="flex-1 text-2xs">
-                      {label}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
-              </div>
-              <div className="px-3 pt-1 pb-2" data-appearance-paper>
-                <div className="text-2xs text-muted-foreground mb-1.5">{t('appearance.paper')}</div>
-                <ToggleGroup
-                  variant="outline"
-                  size="sm"
-                  spacing={0}
-                  className="w-full"
-                  value={[paperTexture]}
-                  onValueChange={(v) => { const next = v[0]; if (next) useAppearance.getState().setPaper(next as 'plain' | 'grid'); }}
-                >
-                  {([['plain', t('appearance.plain')], ['grid', t('appearance.grid')]] as const).map(([v, label]) => (
-                    <ToggleGroupItem key={v} value={v} className="flex-1 text-2xs">
-                      {label}
+                  {([['light', Sun, t('appearance.light')], ['dark', Moon, t('appearance.dark')], ['system', Monitor, t('appearance.system')]] as const).map(([v, Icon, label]) => (
+                    <ToggleGroupItem key={v} value={v} aria-label={label} title={label}>
+                      <Icon strokeWidth={1.75} />
                     </ToggleGroupItem>
                   ))}
                 </ToggleGroup>
               </div>
               {OCEAN_AVAILABLE && (
-                <label className="flex items-center justify-between px-3 pt-1 pb-2 text-2xs text-muted-foreground" title={t('appearance.oceanTitle')} data-appearance-ocean>
+                <label className="flex items-center justify-between gap-3 px-3 py-1.5 text-2xs text-muted-foreground" title={t('appearance.oceanTitle')} data-appearance-ocean>
                   {t('appearance.ocean')}
                   <Switch size="sm" checked={oceanOn} onCheckedChange={(on) => useAppearance.getState().setOcean(on)} />
                 </label>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => { useUiStore.getState().setMemoryManagerOpen(true); }}
-                title={t('memory.entryTitle')}
-              >
-                <Brain size={14} strokeWidth={1.75} className="text-muted-foreground shrink-0" /> {t('memory.managerTitle')}
-              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => { setTutorialOpen(true); }}
               >
