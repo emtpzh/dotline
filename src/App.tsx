@@ -21,7 +21,7 @@ import ThoughtNode from './components/ThoughtNode';
 import ParadigmNode from './components/ParadigmNode';
 import { useAppearance, edgePalette, OCEAN_AVAILABLE } from './lib/appearance';
 import { Switch } from './components/ui/switch';
-import { ARROW_IDS, edgeLook, edgeMeaning, routesOf } from './lib/edge-look';
+import { ARROW_IDS, drawnEdge, drawnList, edgeMeaning, emphasized, routesOf } from './lib/edge-look';
 import EdgeMarkers from './components/EdgeMarkers';
 import ContentNode from './components/ContentNode';
 import FrameNode from './components/FrameNode';
@@ -963,65 +963,64 @@ function Canvas() {
     // reference, color = its route (goes on / forks / material), flow =
     // it runs on its own. Whatever style an old canvas stored is ignored,
     // so no canvas needs migrating and the theme resolves at render time.
+    // Each wire keeps its object while what it is drawn from holds
+    // (drawnEdge / emphasized / drawnList), so a write that changes no wire
+    // — a streaming chunk, a measurement — re-renders none.
     const routes = routesOf(nodes, edges);
     const byId = new Map(nodes.map((n) => [n.id, n]));
-    const base = edges.map((e): ThoughtEdge => {
-      const meaning = edgeMeaning(e, routes, byId);
-      const look = edgeLook(meaning, themePalette);
-      return { ...e, animated: false, style: look.style, markerEnd: look.markerEnd, className: look.className, data: { ...e.data, view: meaning } };
-    });
+    const base = edges.map((e) => drawnEdge(e, edgeMeaning(e, routes, byId), themePalette));
     if (focusSets) {
-      return base.map((e) => {
+      return drawnList(edges, base.map((e) => {
         if (focusSets.pathEdgeIds.has(e.id)) {
           // the feed line only gets heavier: its own color and dash stay,
           // and it never flows — flow means a wire that runs on its own
-          return {
+          return emphasized(e, 'focus-path', (e) => ({
             ...e,
             className: [e.className, 'focus-e-path'].filter(Boolean).join(' '),
             style: { ...e.style, strokeWidth: 3.5, opacity: 1 },
             zIndex: 10,
             data: { ...e.data, focusRole: 'path' as const },
-          };
+          }));
         }
         if (focusSets.refEdgeIds.has(e.id)) {
           // reference INTO the context: it feeds the model (as a fenced
           // block), so it stays visible — dashed identity untouched
-          return { ...e, style: { ...e.style, opacity: 0.9 }, zIndex: 5, data: { ...e.data, focusRole: 'ref' as const } };
+          return emphasized(e, 'focus-ref', (e) => ({ ...e, style: { ...e.style, opacity: 0.9 }, zIndex: 5, data: { ...e.data, focusRole: 'ref' as const } }));
         }
         if (focusSets.downEdgeIds.has(e.id)) {
-          return {
+          return emphasized(e, 'focus-down', (e) => ({
             ...e,
             className: [e.className, 'focus-e-down'].filter(Boolean).join(' '),
             style: { ...e.style, strokeWidth: 2.5, opacity: 0.85 },
             zIndex: 5,
             data: { ...e.data, focusRole: 'down' as const },
-          };
+          }));
         }
-        return { ...e, style: { ...e.style, strokeWidth: 1.5, opacity: 0.2 }, zIndex: 0 };
-      });
+        return emphasized(e, 'dim', (e) => ({ ...e, style: { ...e.style, strokeWidth: 1.5, opacity: 0.2 }, zIndex: 0 }));
+      }));
     }
     const activeIds = selectedNodeIds.length > 1 ? selectedNodeIds : [];
-    if (activeIds.length === 0) return base;
+    if (activeIds.length === 0) return drawnList(edges, base);
 
     // Walk up from each selected node, collect all ancestor edge ids
     const { visitedEdgeIds: ancestorEdgeIds } = walkUpAncestors(activeIds, nodes, edges);
 
-    return base.map((e) => {
+    return drawnList(edges, base.map((e) => {
       if (ancestorEdgeIds.has(e.id)) {
-        return {
+        return emphasized(e, `trace ${themePalette.trace}`, (e) => ({
           ...e,
           style: { ...e.style, stroke: themePalette.trace, strokeWidth: 3.5, opacity: 1 },
           markerEnd: ARROW_IDS.trace,
           zIndex: 10,
-        };
+        }));
       }
       // Dim non-ancestor edges
-      return {
+      return emphasized(e, 'dim', (e) => ({
         ...e,
         style: { ...e.style, strokeWidth: 1.5, opacity: 0.2 },
         zIndex: 0,
-      };
-    });
+      }));
+    }));
   }, [nodes, edges, selectedNodeIds, themePalette, focusSets]);
 
   // The panel is an overlay — the canvas never resizes. When it opens (or

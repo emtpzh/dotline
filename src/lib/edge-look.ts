@@ -119,3 +119,43 @@ export function edgeLook(m: EdgeMeaning, palette: EdgePalette): {
     className: [m.reference ? 'tdag-ref' : '', m.live ? 'tdag-live' : ''].filter(Boolean).join(' ') || undefined,
   };
 }
+
+// The wires as the canvas hands them to React Flow, kept by identity. React
+// Flow re-renders a wire whenever the object it is handed changes, and the
+// canvas derives its wires afresh on every store write — so every wire on
+// screen used to re-render for each streaming chunk, each measurement.
+const drawn = new WeakMap<ThoughtEdge, { meaning: EdgeMeaning; palette: EdgePalette; edge: ThoughtEdge }>();
+const emphases = new WeakMap<ThoughtEdge, Map<string, ThoughtEdge>>();
+const drawnLists = new WeakMap<ThoughtEdge[], ThoughtEdge[]>();
+
+/** A wire wearing the look of what it means: the same object for as long
+ *  as the stored edge, its meaning and the palette stay as they were. */
+export function drawnEdge(e: ThoughtEdge, meaning: EdgeMeaning, palette: EdgePalette): ThoughtEdge {
+  const hit = drawn.get(e);
+  if (hit && hit.palette === palette && hit.meaning.route === meaning.route
+    && hit.meaning.reference === meaning.reference && hit.meaning.live === meaning.live) return hit.edge;
+  const look = edgeLook(meaning, palette);
+  const edge: ThoughtEdge = { ...e, animated: false, style: look.style, markerEnd: look.markerEnd, className: look.className, data: { ...e.data, view: meaning } };
+  drawn.set(e, { meaning, palette, edge });
+  return edge;
+}
+
+/** One emphasis of a drawn wire (on the focus path, dimmed, ...), made once
+ *  per wire and kind. `make` may read only the wire: whatever else the
+ *  emphasis depends on belongs in `kind`. */
+export function emphasized(e: ThoughtEdge, kind: string, make: (e: ThoughtEdge) => ThoughtEdge): ThoughtEdge {
+  let kinds = emphases.get(e);
+  if (!kinds) emphases.set(e, (kinds = new Map()));
+  let out = kinds.get(kind);
+  if (!out) kinds.set(kind, (out = make(e)));
+  return out;
+}
+
+/** The drawn list for a stored edges array: the list handed out last when
+ *  it holds the very same wires, so React Flow is handed no change at all. */
+export function drawnList(edges: ThoughtEdge[], next: ThoughtEdge[]): ThoughtEdge[] {
+  const last = drawnLists.get(edges);
+  if (last && last.length === next.length && last.every((e, i) => e === next[i])) return last;
+  drawnLists.set(edges, next);
+  return next;
+}
