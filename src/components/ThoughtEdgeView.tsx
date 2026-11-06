@@ -2,16 +2,52 @@ import { useEffect, useMemo, useState } from 'react';
 import { BaseEdge, EdgeLabelRenderer, useInternalNode, type EdgeProps } from '@xyflow/react';
 import { X } from 'lucide-react';
 import { useStore } from '../store';
-import { onCardBorder, routeEdge } from '../lib/edge-path';
+import { obstacleField, onCardBorder, routeEdge } from '../lib/edge-path';
 import { walkUpAncestors } from '../lib/graph';
 import { referenceBlockContent } from '../store/context-builder';
 import { countTokens } from '../utils';
 import { useT, fmt } from '../i18n';
-import type { ThoughtEdge } from '../types';
+import type { ThoughtEdge, ThoughtNode } from '../types';
 import { Button } from './ui/button';
 import { sessionWhy } from '../lib/session-why';
 import { reducedMotion } from '../lib/motion';
 import { spawnOf, WIRE_MS } from '../lib/spawn-motion';
+
+// Lookups every wire shares, built once per store snapshot: each wire used to
+// scan the whole nodes and edges arrays itself on every store write.
+const nodeIndexes = new WeakMap<ThoughtNode[], Map<string, ThoughtNode>>();
+function nodeIn(nodes: ThoughtNode[], id: string): ThoughtNode | undefined {
+  let index = nodeIndexes.get(nodes);
+  if (!index) {
+    index = new Map();
+    for (const n of nodes) if (!index.has(n.id)) index.set(n.id, n);
+    nodeIndexes.set(nodes, index);
+  }
+  return index.get(id);
+}
+
+const mergeOrders = new WeakMap<ThoughtEdge[], Map<string, number>>();
+/** Each merge input's place in its join's stated order. A card fed by a
+ *  single solid wire is no merge: its wire has no place. */
+function mergeOrder(edges: ThoughtEdge[]): Map<string, number> {
+  const known = mergeOrders.get(edges);
+  if (known) return known;
+  const into = new Map<string, ThoughtEdge[]>();
+  for (const e of edges) {
+    if (e.data?.isCrossLink) continue;
+    const siblings = into.get(e.target);
+    if (siblings) siblings.push(e);
+    else into.set(e.target, [e]);
+  }
+  const order = new Map<string, number>();
+  for (const siblings of into.values()) {
+    if (siblings.length < 2) continue;
+    siblings.sort((a, b) => (a.data?.contextOrder ?? Number.MAX_SAFE_INTEGER) - (b.data?.contextOrder ?? Number.MAX_SAFE_INTEGER));
+    siblings.forEach((e, i) => { if (!order.has(e.id)) order.set(e.id, i); });
+  }
+  mergeOrders.set(edges, order);
+  return order;
+}
 
 /**
  * Custom edge registered under the 'smoothstep' type name (overrides the
@@ -29,8 +65,6 @@ export default function ThoughtEdgeView({
 }: EdgeProps<ThoughtEdge>) {
   const deleteEdges = useStore((s) => s.deleteEdges);
   const setEdgeStructural = useStore((s) => s.setEdgeStructural);
-  const nodes = useStore((s) => s.nodes);
-  const edges = useStore((s) => s.edges);
   const t = useT();
 
   // The line kind IS the context weight: dashed = a reference block, solid
@@ -43,16 +77,21 @@ export default function ThoughtEdgeView({
   const convertible = isRef
     ? !data?.followsTip && !data?.isWatch
     : !!view && view.route !== 'material' && !data?.isBranchFromSelection;
-  const src = nodes.find((n) => n.id === source);
+  // The price reads the whole graph, so only the selected wire follows it:
+  // the others don't re-render on every store write for a chip they lack.
+  const priced = !!selected && convertible;
+  const pricedNodes = useStore((s) => (priced ? s.nodes : null));
+  const pricedEdges = useStore((s) => (priced ? s.edges : null));
   const refTok = useMemo(() => {
-    if (!selected || !convertible || !src) return 0;
+    const src = pricedNodes ? nodeIn(pricedNodes, source) : undefined;
+    if (!pricedNodes || !pricedEdges || !src) return 0;
     // a reference block's price, as the source stands (solid: what the
     // summary would be after demotion — the edge itself leaves the chain)
-    const structural = edges.filter((e) => !e.data?.isCrossLink && (isRef || e.id !== id));
-    const chain = walkUpAncestors(source, nodes, structural).ordered
+    const structural = pricedEdges.filter((e) => !e.data?.isCrossLink && (isRef || e.id !== id));
+    const chain = walkUpAncestors(source, pricedNodes, structural).ordered
       .filter((n) => n.id !== source && !['note', 'file', 'link'].includes(n.data.stepKind ?? ''));
     return countTokens(referenceBlockContent({ source: src, edge: { id, source, target, data } as ThoughtEdge, chain }));
-  }, [selected, convertible, isRef, source, target, id, nodes, edges, data, src]);
+  }, [pricedNodes, pricedEdges, isRef, source, target, id, data]);
   // Ends on the card borders (lib/edge-path onCardBorder): the line starts
   // tucked a pixel under its source, so it reads as growing out of it, and
   // the path stops short of the target by enough that the arrowhead, which
@@ -65,9 +104,14 @@ export default function ThoughtEdgeView({
   const sBox = boxOf(srcBox), tBox = boxOf(tgtBox);
   const sp = sBox ? onCardBorder(sourceX, sourceY, sourcePosition, sBox, -1) : { x: sourceX, y: sourceY };
   const tp = tBox ? onCardBorder(targetX, targetY, targetPosition, tBox, 3.5) : { x: targetX, y: targetY };
+  // Routing sees the cards as boxes only (lib/edge-path ObstacleField). The
+  // field keeps its identity through writes that leave every box where it
+  // was — streaming text into a card that has stopped growing, a selection —
+  // so those writes re-route no wire.
+  const field = useStore((s) => obstacleField(s.nodes));
   const { path, labelX, labelY } = useMemo(
-    () => routeEdge(sp.x, sp.y, sourcePosition, tp.x, tp.y, targetPosition, source, target, nodes),
-    [sp.x, sp.y, sourcePosition, tp.x, tp.y, targetPosition, source, target, nodes],
+    () => routeEdge(sp.x, sp.y, sourcePosition, tp.x, tp.y, targetPosition, source, target, field),
+    [sp.x, sp.y, sourcePosition, tp.x, tp.y, targetPosition, source, target, field],
   );
 
   // When selected, force full visibility (overrides the ancestor-dim pass)
@@ -91,22 +135,17 @@ export default function ThoughtEdgeView({
   // A merge's incoming blocks have a stated order — show it AT the join,
   // where the question "which reads first?" is asked. Only merges wear
   // numbers; a single-parent edge needs none.
-  const mergeIndex = useMemo(() => {
-    if (isRef) return -1;
-    const siblings = edges.filter((e) => e.target === target && !e.data?.isCrossLink);
-    if (siblings.length < 2) return -1;
-    siblings.sort((a, b) => (a.data?.contextOrder ?? Number.MAX_SAFE_INTEGER) - (b.data?.contextOrder ?? Number.MAX_SAFE_INTEGER));
-    return siblings.findIndex((e) => e.id === id);
-  }, [edges, target, id, isRef]);
+  const mergeIndex = useStore((s) => (isRef ? -1 : mergeOrder(s.edges).get(id) ?? -1));
 
   // The wire into a turn that left its agent session says why, where the
   // line leaves the column — when the wire is long enough to carry words;
   // the card's name row always says it too
-  const tgt = nodes.find((n) => n.id === target);
   const roomy = Math.hypot(targetX - sourceX, targetY - sourceY) > 200;
-  const link = roomy && !isRef && view?.route !== 'material' ? tgt?.data.sessionLink : undefined;
+  const labelled = roomy && !isRef && view?.route !== 'material';
+  const link = useStore((s) => (labelled ? nodeIn(s.nodes, target)?.data.sessionLink : undefined));
+  const why = useStore((s) => (link?.kind === 'new' ? sessionWhy(link, s.nodes, t) : ''));
   const linkText = link?.kind === 'new'
-    ? fmt(t('session.newBadge'), { why: sessionWhy(link, nodes, t) })
+    ? fmt(t('session.newBadge'), { why })
     : link?.kind === 'fork' ? fmt(t('session.forkBadge'), { n: link.turn }) : null;
 
   return (
