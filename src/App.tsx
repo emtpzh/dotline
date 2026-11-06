@@ -1,4 +1,4 @@
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -45,6 +45,7 @@ import { useStore } from './store';
 import { frameMembers } from './lib/frames';
 import { isPinned, placeByHand, seatDroppedCard } from './lib/layout';
 import { holdLayout, registerViewport } from './lib/layout-motion';
+import { cardMounted, cardUnmounted, withStoredBounds } from './lib/stored-bounds';
 import { MOTION, fitMotion, flyTo, ms, easeStandard } from './lib/motion';
 import { usePresence } from './lib/use-presence';
 import { useProjects, adoptImportedProject, markInstantiatedFrom, onCanvasArrival, claimArrival, noteView } from './store/projects';
@@ -129,6 +130,13 @@ function freshAskNode(id: string, pos: { x: number; y: number }): ThoughtNodeTyp
 // on each React Flow store tick is the difference between smooth and stuck
 const NodeDispatch = memo(function NodeDispatch(props: Parameters<typeof ThoughtNode>[0]) {
   const isParadigm = useProjects((s) => s.projects.find((p) => p.id === s.activeId)?.kind === 'paradigm');
+  // drawn: from here on React Flow's measurement of this card is the truth
+  // (lib/stored-bounds)
+  const { id } = props;
+  useLayoutEffect(() => {
+    cardMounted(id);
+    return () => cardUnmounted(id);
+  }, [id]);
   if (props.data?.stepKind === 'frame') return <FrameNode {...props} />;
   if (isContentKind(props.data?.stepKind)) return <ContentNode {...props} />;
   // the first turn of a folded run draws the run's pleat (lib/pleats)
@@ -622,7 +630,17 @@ function Canvas() {
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => {
       const current = useStore.getState().nodes;
-      setNodes(applyNodeChanges(changes, current) as typeof current);
+      // A card first drawn at the size the graph already holds changes
+      // nothing: React Flow reports it only because it was handed the
+      // card's layout height until then (lib/stored-bounds)
+      const byId = changes.some((c) => c.type === 'dimensions') ? new Map(current.map((n) => [n.id, n])) : null;
+      const real = byId ? changes.filter((c) => {
+        if (c.type !== 'dimensions' || !c.dimensions || c.resizing !== undefined || c.setAttributes) return true;
+        const m = byId.get(c.id)?.measured;
+        return m?.width !== c.dimensions.width || m?.height !== c.dimensions.height;
+      }) : changes;
+      if (real.length === 0) return;
+      setNodes(applyNodeChanges(real, current) as typeof current);
     },
     [setNodes]
   );
@@ -976,10 +994,13 @@ function Canvas() {
   }, [selectedNodeId, selectedNodeIds, nodes, edges]);
 
   const displayNodes = useMemo((): typeof nodes => {
+    // Cards not drawn since the graph loaded go with their stored box, so
+    // React Flow can leave the off-screen ones unmounted (lib/stored-bounds)
+    const base = withStoredBounds(nodes);
     // Smaller frames represent more specific regions, so render them above
     // larger frames while keeping every frame below ordinary canvas nodes.
     // Equal-sized overlaps keep their existing array order.
-    const stackedFrames = nodes
+    const stackedFrames = base
       .filter((n) => n.data.stepKind === 'frame')
       .map((n, order) => ({
         id: n.id,
@@ -988,7 +1009,7 @@ function Canvas() {
       }))
       .sort((a, b) => b.area - a.area || a.order - b.order);
     const frameZ = new Map(stackedFrames.map((frame, index) => [frame.id, index - stackedFrames.length]));
-    let out = nodes.map((n) => (
+    let out = base.map((n) => (
       n.data.stepKind === 'frame' ? { ...n, zIndex: frameZ.get(n.id) ?? -1 } : n
     ));
     // Pleats (lib/pleats): a run of folded turns is drawn by its first turn
