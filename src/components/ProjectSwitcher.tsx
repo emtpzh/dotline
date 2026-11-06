@@ -1,9 +1,12 @@
 import { useRef, useState } from 'react';
-import { Archive, ArchiveRestore, ChevronDown, Dna, FolderOpen, LayoutGrid, Loader2, Map as MapIcon, MoreHorizontal, Pencil, Plus, RefreshCw, SquareTerminal, Trash2, Upload } from 'lucide-react';
+import { Archive, ArchiveRestore, ChevronDown, Layers, LayoutGrid, Map as MapIcon, MoreHorizontal, Pencil, Plus, RefreshCw, Trash2, Upload, X } from 'lucide-react';
 import SessionAtlas from './SessionAtlas';
 import CanvasOrganizer from './CanvasOrganizer';
-import { knownSessionIds, runnerLabel } from '../lib/atlas/discover';
-import { useProjects, switchProject, createProject, renameProject, deleteProject, setProjectArchived, mainSubscription, type ProjectMeta } from '../store/projects';
+import CanvasTabs from './CanvasTabs';
+import CanvasIcon from './CanvasIcon';
+import { runnerLabel } from '../lib/atlas/discover';
+import { useProjects, createProject, renameProject, deleteProject, setProjectArchived, stashProject, mainSubscription, type ProjectMeta } from '../store/projects';
+import { openCanvas } from '../lib/open-canvas';
 import { useI18n } from '../i18n';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut } from './ui/dropdown-menu';
@@ -30,13 +33,18 @@ function relativeTime(ts: number): string {
   return new Date(ts).toLocaleDateString(useI18n.getState().lang === 'zh' ? 'zh-CN' : 'en-US');
 }
 
-/** iconOnly: the top bar's last resort for room — the canvas name moves to the tooltip */
-export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSwitched: () => void; iconOnly?: boolean }) {
+/**
+ * The canvas chrome on the left of the top bar: the library (every canvas,
+ * grouped as open, stashed and archived), the open canvases as tabs, a new
+ * canvas, and the session map. compact: the top bar's last resort for room —
+ * only the tab in view stays, the others fold into a menu beside it.
+ */
+export default function ProjectSwitcher({ onSwitched, compact = false }: { onSwitched: () => void; compact?: boolean }) {
   const t = useT();
   const projects = useProjects((s) => s.projects);
   const activeId = useProjects((s) => s.activeId);
+  const openIds = useProjects((s) => s.openIds);
   const switching = useProjects((s) => s.switching);
-  const activeIsParadigm = projects.find((p) => p.id === activeId)?.kind === 'paradigm';
   const [open, setOpen] = useState(false);
   const [chatImport, setChatImport] = useState<ImportableConversation[] | null>(null);
   const [atlasOpen, setAtlasOpen] = useState(false);
@@ -53,16 +61,27 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
   const endRename = () => { renaming.current = null; setRenamingId(null); };
 
   const active = projects.find((p) => p.id === activeId);
-  // a switcher first: the most recent canvas on top, the search narrows
-  // by name, and archived canvases stay out of the way until asked for
-  // (a search reaches them too — "where did that canvas go" has an answer)
+  // a library first: the open canvases in their tab order on top, then the
+  // stashed ones, most recent first; the search narrows by name, and
+  // archived canvases stay out of the way until asked for (a search reaches
+  // them too — "where did that canvas go" has an answer)
   const q = query.trim().toLowerCase();
   const byRecent = (a: ProjectMeta, b: ProjectMeta) => b.updatedAt - a.updatedAt;
   const matches = (p: ProjectMeta) => !q || p.name.toLowerCase().includes(q);
-  const live = projects.filter((p) => !p.archived && matches(p)).sort(byRecent);
+  const isOpen = new Set(openIds);
+  const opened = openIds.map((id) => projects.find((p) => p.id === id)).filter((p): p is ProjectMeta => !!p && matches(p));
+  const stashed = projects.filter((p) => !p.archived && !isOpen.has(p.id) && matches(p)).sort(byRecent);
   const archived = projects.filter((p) => p.archived && matches(p)).sort(byRecent);
   const archivedTotal = projects.filter((p) => p.archived).length;
   const archivedShown = (showArchived || !!q) && archived.length > 0;
+
+  // a row's action brings another canvas into view only when it acted on
+  // the canvas in view; the camera of a canvas that stays is left alone
+  const keepingView = async (action: () => Promise<unknown>) => {
+    const before = useProjects.getState().activeId;
+    await action();
+    if (useProjects.getState().activeId !== before) onSwitched();
+  };
 
   // tidy vs destroy are different verbs — and the delete confirm is a
   // uniqueness detector: it says exactly what would be lost
@@ -77,29 +96,26 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
       confirmLabel: ti('common.delete'),
       danger: u !== 'pristine-mirror',
     });
-    if (ok) void deleteProject(p.id).then(onSwitched);
+    if (ok) void keepingView(() => deleteProject(p.id));
   };
 
   // archiving loses nothing, so it asks nothing — the toast carries the way back
   const archive = async (p: ProjectMeta) => {
-    await setProjectArchived(p.id, true);
-    onSwitched();
+    await keepingView(() => setProjectArchived(p.id, true));
     toast('success', fmt(ti('switcher.archived'), { name: p.name }), 6000, {
       label: ti('common.undo'),
       run: () => void setProjectArchived(p.id, false),
     });
   };
 
+  // neither does stashing: the canvas waits here, as it was left
+  const stash = (p: ProjectMeta) => keepingView(() => stashProject(p.id));
+
+  // opening a canvas makes it a tab (beside the one in view), as it was left
+  // (its arrival frames the camera)
   const doSwitch = async (id: string) => {
     setOpen(false);
-    if (id === activeId) return;
-    await switchProject(id);
-    onSwitched();
-    // arrival reconciliation: heal the subscriptions, then close the mirror gap
-    // (the live watcher only follows the ACTIVE canvas — this one may
-    // have missed its sessions' growth while another was open)
-    void import('../lib/atlas/canonical').then((m) => m.unsubscribeOrphanedSessions());
-    void import('../lib/atlas/live-mirror').then((m) => m.sweepRecentSessions());
+    await openCanvas(id);
   };
 
   // an archived canvas comes back where it was asked for: restored and opened
@@ -132,14 +148,15 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
       </div>
     );
     const main = mainSubscription(p);
+    const tabbed = isOpen.has(p.id);
     return (
       // the row menu rides beside the item, not inside it — a nested
       // button would swallow the item's own click target
       // one line per canvas: a long list still fits a glance. What kind of
-      // canvas it is rides the icon (a session's mirror wears a terminal),
-      // the open one is set in the heavier weight, and the row menu takes
-      // the time's place on the row under the pointer or the keys — no
-      // gutter held empty for it, no tick beside it
+      // canvas it is, and what goes on there, rides the icon (CanvasIcon);
+      // the one in view is set in the heavier weight, and the row menu
+      // takes the time's place on the row under the pointer or the keys —
+      // no gutter held empty for it, no tick beside it
       <div key={p.id} className="group/row relative">
         <CommandItem
           value={p.id}
@@ -147,12 +164,9 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
           data-checked={p.id === activeId}
           className={p.id === activeId ? 'font-medium text-foreground' : undefined}
           data-canvas-row={p.id}
+          data-canvas-open={tabbed || undefined}
         >
-          {p.kind === 'paradigm'
-            ? <Dna className="text-primary" />
-            : main
-              ? <SquareTerminal className="text-muted-foreground" aria-label={runnerLabel(main.runner)} data-mirror-mark />
-              : <FolderOpen className="text-muted-foreground" />}
+          <CanvasIcon canvas={p} />
           <span className="min-w-0 flex-1 truncate" title={main ? `${p.name} · ${runnerLabel(main.runner)}` : p.name}>{p.name}</span>
           <CommandShortcut className="shrink-0 font-normal tracking-normal tabular-nums group-hover/row:invisible group-has-data-selected/row:invisible">{relativeTime(p.updatedAt)}</CommandShortcut>
         </CommandItem>
@@ -166,6 +180,9 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
               which would take it from the field and end the rename at once */}
           <DropdownMenuContent align="end" finalFocus={() => renaming.current !== p.id}>
             <DropdownMenuItem onClick={() => startRename(p)}><Pencil />{t('switcher.rename')}</DropdownMenuItem>
+            {tabbed && openIds.length > 1 && (
+              <DropdownMenuItem title={t('tabs.stashHint')} onClick={() => void stash(p)} data-stash-canvas><X />{t('tabs.stash')}</DropdownMenuItem>
+            )}
             {p.archived
               ? <DropdownMenuItem onClick={() => void restore(p)}><ArchiveRestore />{t('switcher.restore')}</DropdownMenuItem>
               : <DropdownMenuItem title={t('switcher.archiveHint')} onClick={() => void archive(p)} data-archive-canvas><Archive />{t('switcher.archive')}</DropdownMenuItem>}
@@ -177,130 +194,133 @@ export default function ProjectSwitcher({ onSwitched, iconOnly = false }: { onSw
     );
   };
 
-  // a canvas that mirrors a session says so on its own name — the icon its
-  // row wears in the list, and a hint with the source. Three states, honest
-  // about the source: reachable (live), unreachable on this machine (faded —
-  // a subscription holds only UUIDs, so the moment the source appears in a
-  // scanned root, listening resumes on its own), or no scan yet (assume
-  // live: never a false alarm)
+  // on a mirror canvas the map opens on the session it mirrors — the other
+  // face of this canvas, one click away
   const mirror = mainSubscription(active);
-  const unreachable = !!mirror && knownSessionIds.size > 0 && !knownSessionIds.has(mirror.sessionId);
-  const mirrorHint = mirror && (unreachable ? ti('switcher.mirrorBadgeGone') : fmt(ti('switcher.mirrorBadge'), { runner: runnerLabel(mirror.runner) }));
-  const triggerTitle = [iconOnly ? active?.name : null, mirrorHint].filter(Boolean).join('\n') || undefined;
+  const newCanvas = () => { setOpen(false); void createProject().then(onSwitched); };
 
   return (
     // in flow: the top bar's left cluster places it (and gives it z-20 over
-    // the content palette); it is the cluster's one shrinkable part, so a
-    // tight row truncates the canvas name before anything overlaps
-    <div className="relative min-w-0">
-      <Popover open={open} onOpenChange={(next) => { setOpen(next); if (next) { setQuery(''); setShowArchived(false); } else endRename(); }}>
-        <div className="flex min-w-0 items-center gap-1.5">
+    // the content palette); the tabs are its one shrinkable part, so a tight
+    // row narrows them first, down to a name's worth each. Past that they
+    // clip, which the top bar's squeeze reads (CanvasTabs marks the row) to
+    // fold its tools, and last the tabs themselves
+    <div className="relative flex min-w-0 items-center gap-1.5">
+      <div className="flex h-8 min-w-0 items-center gap-0.5 rounded-lg border border-border bg-card/90 p-0.5 shadow-sm backdrop-blur" data-canvas-desktops>
+        <Popover open={open} onOpenChange={(next) => { setOpen(next); if (next) { setQuery(''); setShowArchived(false); } else endRename(); }}>
           <PopoverTrigger
-            disabled={switching}
-            render={<Button variant="chrome" className={iconOnly ? 'gap-1 px-2 text-xs text-foreground' : 'gap-2 px-3 text-xs text-foreground min-w-36 max-w-[220px] shrink'} />}
-            title={triggerTitle}
-            data-mirror={mirror ? (unreachable ? 'unreachable' : 'live') : undefined}
+            render={<Button variant="ghost" size="xs" className="shrink-0 gap-0.5 px-1.5 text-muted-foreground" aria-label={t('switcher.library')} title={t('switcher.library')} data-canvas-library />}
           >
-            {switching
-              ? <Loader2 strokeWidth={1.75} className="animate-spin text-primary" />
-              : activeIsParadigm
-                ? <Dna strokeWidth={1.75} className="text-primary" />
-                : mirror
-                  ? <SquareTerminal strokeWidth={1.75} className={unreachable ? 'text-muted-foreground/40' : 'text-muted-foreground'} />
-                  : <FolderOpen strokeWidth={1.75} className="text-muted-foreground" />}
-            {!iconOnly && <span className="truncate font-medium">{active?.name ?? '…'}</span>}
-            <ChevronDown strokeWidth={1.75} className="text-muted-foreground" />
+            <Layers strokeWidth={1.75} />
+            <ChevronDown strokeWidth={1.75} />
           </PopoverTrigger>
-          {/* on a mirror canvas the map opens on the session it mirrors —
-              the other face of this canvas, one click away */}
-          <Button
-            variant="chrome"
-            size={iconOnly ? 'icon' : 'default'}
-            className={iconOnly ? undefined : 'px-3 text-xs'}
-            aria-label={t('switcher.sessionAtlas')}
-            title={t('switcher.sessionAtlas')}
-            onClick={() => { setAtlasFocus(mirror?.sessionId); setAtlasOpen(true); }}>
-            <MapIcon strokeWidth={1.75} />
-            {!iconOnly && t('switcher.sessionAtlas')}
-          </Button>
-        </div>
-
-        <PopoverContent align="start" sideOffset={6} className="w-[320px] gap-0 p-0" data-canvas-manager>
-          {/* a menu, not a hand-built list: cmdk owns the row metrics,
-              hover/keyboard highlight and the tick on the open canvas */}
-          <Command shouldFilter={false} className="bg-transparent">
-            <CommandInput autoFocus placeholder={t('switcher.search')} value={query} onValueChange={setQuery} />
-            <CommandList className="max-h-[min(420px,60dvh)]">
-              <CommandGroup>
-                {live.map(row)}
-                {!live.length && !archivedShown && <p className="px-2 py-4 text-center text-xs text-muted-foreground">{t('switcher.noResults')}</p>}
-              </CommandGroup>
-              {archivedShown && (
-                <CommandGroup heading={fmt(t('atlas.archivedGroup'), { n: archived.length })} data-archived-group>
-                  {archived.map(row)}
-                </CommandGroup>
-              )}
-            </CommandList>
-          </Command>
-          {/* pinned under the list: however many canvases there are, the
-              way to make a new one never scrolls away. The session map has
-              its own button in the top bar, so it is not repeated here */}
-          <div className="flex items-center gap-1 border-t border-border p-1">
-            <Button variant="ghost" size="sm" className="flex-1 justify-start" disabled={switching} onClick={() => { setOpen(false); void createProject().then(onSwitched); }}>
-              <Plus />
-              {t('switcher.newCanvas')}
-            </Button>
-            {projects.some((p) => !p.archived && p.kind !== 'paradigm') && (
-              <Button variant="ghost" size="sm" className="text-muted-foreground" disabled={switching} title={t('organizer.openHint')} onClick={() => { setOpen(false); setOrganizerOpen(true); }} data-open-organizer>
-                <LayoutGrid />
-                {t('organizer.open')}
-              </Button>
-            )}
-            {archivedTotal > 0 && (
-              <Button variant="ghost" size="sm" className="text-muted-foreground" aria-pressed={showArchived} onClick={() => setShowArchived((v) => !v)} data-toggle-archived>
-                <Archive />
-                {showArchived ? t('switcher.hideArchived') : fmt(t('switcher.showArchived'), { n: archivedTotal })}
-              </Button>
-            )}
-            <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label={t('atlas.more')} />}>
-                <MoreHorizontal />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => importFileRef.current?.click()}><Upload />{t('switcher.importBackup')}</DropdownMenuItem>
-                {window.desktop && (
-                  <DropdownMenuItem onClick={() => { setOpen(false); void window.desktop!.checkForUpdates(); }} data-check-updates>
-                    <RefreshCw />
-                    {t('update.checkMenu')}
-                    {/* the one place that answers "which version am I on" at a glance */}
-                    <DropdownMenuShortcut>v{new URLSearchParams(window.location.search).get('dv')}</DropdownMenuShortcut>
-                  </DropdownMenuItem>
+          <PopoverContent align="start" sideOffset={8} className="w-[320px] gap-0 p-0" data-canvas-manager>
+            {/* a menu, not a hand-built list: cmdk owns the row metrics,
+                hover/keyboard highlight and the tick on the open canvas */}
+            <Command shouldFilter={false} className="bg-transparent">
+              <CommandInput autoFocus placeholder={t('switcher.search')} value={query} onValueChange={setQuery} />
+              <CommandList className="max-h-[min(420px,60dvh)]">
+                {opened.length > 0 && (
+                  <CommandGroup heading={t('switcher.openGroup')} data-open-group>
+                    {opened.map(row)}
+                  </CommandGroup>
                 )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <input
-            ref={importFileRef}
-            type="file"
-            accept=".json,.jsonl,application/json"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) {
-                // Every failure path must surface — a silently swallowed
-                // rejection here reads as "the import does nothing".
-                void parseImportFile(f).then((r) => {
-                  if (r.kind === 'own' && r.ok) { setOpen(false); onSwitched(); }
-                  else if (r.kind === 'chat') { setOpen(false); setChatImport(r.conversations); }
-                }).catch((err) => {
-                  toast('error', fmt(ti('toast.importFailedGeneric'), { msg: err instanceof Error ? err.message : String(err) }));
-                });
-              }
-              e.target.value = '';
-            }}
-          />
-        </PopoverContent>
-      </Popover>
+                {stashed.length > 0 && (
+                  <CommandGroup heading={t('switcher.stashedGroup')} data-stashed-group>
+                    {stashed.map(row)}
+                  </CommandGroup>
+                )}
+                {!opened.length && !stashed.length && !archivedShown && <p className="px-2 py-4 text-center text-xs text-muted-foreground">{t('switcher.noResults')}</p>}
+                {archivedShown && (
+                  <CommandGroup heading={fmt(t('atlas.archivedGroup'), { n: archived.length })} data-archived-group>
+                    {archived.map(row)}
+                  </CommandGroup>
+                )}
+              </CommandList>
+            </Command>
+            {/* pinned under the list: however many canvases there are, the
+                way to make a new one never scrolls away. The session map has
+                its own button in the top bar, so it is not repeated here */}
+            <div className="flex items-center gap-1 border-t border-border p-1">
+              <Button variant="ghost" size="sm" className="flex-1 justify-start" disabled={switching} onClick={newCanvas}>
+                <Plus />
+                {t('switcher.newCanvas')}
+              </Button>
+              {projects.some((p) => !p.archived && p.kind !== 'paradigm') && (
+                <Button variant="ghost" size="sm" className="text-muted-foreground" disabled={switching} title={t('organizer.openHint')} onClick={() => { setOpen(false); setOrganizerOpen(true); }} data-open-organizer>
+                  <LayoutGrid />
+                  {t('organizer.open')}
+                </Button>
+              )}
+              {archivedTotal > 0 && (
+                <Button variant="ghost" size="sm" className="text-muted-foreground" aria-pressed={showArchived} onClick={() => setShowArchived((v) => !v)} data-toggle-archived>
+                  <Archive />
+                  {showArchived ? t('switcher.hideArchived') : fmt(t('switcher.showArchived'), { n: archivedTotal })}
+                </Button>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label={t('atlas.more')} />}>
+                  <MoreHorizontal />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => importFileRef.current?.click()}><Upload />{t('switcher.importBackup')}</DropdownMenuItem>
+                  {window.desktop && (
+                    <DropdownMenuItem onClick={() => { setOpen(false); void window.desktop!.checkForUpdates(); }} data-check-updates>
+                      <RefreshCw />
+                      {t('update.checkMenu')}
+                      {/* the one place that answers "which version am I on" at a glance */}
+                      <DropdownMenuShortcut>v{new URLSearchParams(window.location.search).get('dv')}</DropdownMenuShortcut>
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <input
+              ref={importFileRef}
+              type="file"
+              accept=".json,.jsonl,application/json"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) {
+                  // Every failure path must surface — a silently swallowed
+                  // rejection here reads as "the import does nothing".
+                  void parseImportFile(f).then((r) => {
+                    if (r.kind === 'own' && r.ok) { setOpen(false); onSwitched(); }
+                    else if (r.kind === 'chat') { setOpen(false); setChatImport(r.conversations); }
+                  }).catch((err) => {
+                    toast('error', fmt(ti('toast.importFailedGeneric'), { msg: err instanceof Error ? err.message : String(err) }));
+                  });
+                }
+                e.target.value = '';
+              }}
+            />
+          </PopoverContent>
+        </Popover>
+        <CanvasTabs onSwitched={onSwitched} compact={compact} />
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="shrink-0 text-muted-foreground"
+          disabled={switching}
+          aria-label={t('switcher.newCanvas')}
+          title={t('tabs.newHint')}
+          onClick={newCanvas}
+          data-new-canvas
+        >
+          <Plus strokeWidth={1.75} />
+        </Button>
+      </div>
+      <Button
+        variant="chrome"
+        size={compact ? 'icon' : 'default'}
+        className={compact ? 'shrink-0' : 'shrink-0 px-3 text-xs'}
+        aria-label={t('switcher.sessionAtlas')}
+        title={t('switcher.sessionAtlas')}
+        onClick={() => { setAtlasFocus(mirror?.sessionId); setAtlasOpen(true); }}>
+        <MapIcon strokeWidth={1.75} />
+        {!compact && t('switcher.sessionAtlas')}
+      </Button>
       {chatImport && (
         <ImportChatModal
           conversations={chatImport}

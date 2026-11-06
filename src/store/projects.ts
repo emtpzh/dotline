@@ -4,15 +4,21 @@ import { useStore } from './index';
 import { activeAbortControllers, releaseGenerations } from './streaming';
 import { flushPendingWrites } from '../lib/persistence';
 import { buildRuleOutRuleIn } from '../lib/paradigms/rule-out-rule-in';
-import { toast } from '../lib/ui-store';
+import { toast, useUiStore } from '../lib/ui-store';
 import { t, fmt } from '../i18n';
 import { setLedgerSource } from '../lib/agents/continuity';
 import { normDir } from '../lib/local-path';
+import { cameraNow } from '../lib/layout-motion';
+import { neighbourOf, reconcileOpen, withClosed, withMoved, withOpened } from '../lib/workspace';
 
 // Project layer: each canvas persists under its own IndexedDB key; this
 // module owns the metadata list and the switching choreography.
 // Metadata writes use bare idbSet — the debounced idbStorage has a single
 // pending slot reserved for the main store and must not be shared.
+//
+// Canvases work like desktops (lib/workspace): the open ones are tabs, a
+// stashed one is out of the tabs but kept as it was left, and every canvas
+// remembers where the person was on it — switching back lands there.
 
 const META_KEY = 'thoughtdag:projects';
 const LEGACY_KEY = 'thoughtdag';
@@ -51,19 +57,47 @@ export interface ProjectMeta {
       Lets provenance adoption skip canvases without parsing their
       stored graphs. Absent on legacy metas → slow path fills it in. */
   provenanceSessions?: string[];
+  /** Where the person was when they last left this canvas (or closed the
+      app on it): coming back puts the camera, the selection and the
+      details panel back. Absent = never left yet, so arrival fits. */
+  view?: CanvasView;
+}
+
+/** Where the person is on a canvas. */
+export interface CanvasView {
+  x: number;
+  y: number;
+  zoom: number;
+  selectedNodeId?: string;
+  /** the details panel was open on the selected card */
+  panel?: boolean;
+}
+
+const byRecent = (a: ProjectMeta, b: ProjectMeta) => b.updatedAt - a.updatedAt;
+
+/** Where the canvas in view goes when it has to give way: the tab beside
+ *  it, else the most recent canvas in the lists, else any other one. */
+function successorOf(id: string): string | null {
+  const { projects, openIds } = useProjects.getState();
+  return neighbourOf(openIds.filter((x) => x === id || projects.some((p) => p.id === x)), id)
+    ?? projects.filter((p) => p.id !== id && !p.archived).sort(byRecent)[0]?.id
+    ?? projects.find((p) => p.id !== id)?.id
+    ?? null;
 }
 
 /** Archive/restore a canvas. Archiving the ACTIVE canvas switches away
- *  first — to the newest unarchived one, or a fresh canvas. */
+ *  first — to the tab beside it, or the newest unarchived canvas, or a
+ *  fresh one. An archived canvas leaves the tabs. */
 export async function setProjectArchived(id: string, archived: boolean): Promise<void> {
-  const { projects, activeId } = useProjects.getState();
+  const { activeId } = useProjects.getState();
   if (archived && id === activeId) {
-    const rest = projects.filter((p) => p.id !== id && !p.archived).sort((a, b) => b.updatedAt - a.updatedAt);
-    if (rest.length > 0) await switchProject(rest[0].id);
+    const next = successorOf(id);
+    if (next) await switchProject(next);
     else await createProject('My Canvas');
   }
   useProjects.setState((s) => ({
     projects: s.projects.map((p) => (p.id === id ? { ...p, archived } : p)),
+    openIds: archived ? withClosed(s.openIds, id) : s.openIds,
   }));
   await saveMeta();
 }
@@ -214,13 +248,25 @@ export async function markInstantiatedFrom(projectId: string, paradigmName: stri
 interface ProjectsState {
   projects: ProjectMeta[];
   activeId: string | null;
+  /** The open canvases — the top bar's tabs — in the order the person
+      keeps them. The canvas in view is always among them. */
+  openIds: string[];
+  /** Canvases out of view that something happened on since they were
+      left (a session they follow grew): their tabs say so until opened.
+      This page's knowledge only, never stored. */
+  fresh: string[];
   switching: boolean;
+  /** the canvas a switch in progress is bringing into view */
+  switchingTo: string | null;
 }
 
 export const useProjects = create<ProjectsState>(() => ({
   projects: [],
   activeId: null,
+  openIds: [],
+  fresh: [],
   switching: false,
+  switchingTo: null,
 }));
 
 // The sessions the active canvas mirrors, with their tails: what decides
@@ -233,8 +279,85 @@ setLedgerSource(() => {
 });
 
 async function saveMeta(): Promise<void> {
-  const { projects, activeId } = useProjects.getState();
-  await idbSet(META_KEY, { projects, activeId });
+  const { projects, activeId, openIds } = useProjects.getState();
+  await idbSet(META_KEY, { projects, activeId, openIds });
+}
+
+// ─── Where the person is on a canvas ────────────────────────────
+
+/** The canvas in view as the person sees it now; undefined before the
+ *  canvas has a camera (booting, the viewer). */
+function viewNow(): CanvasView | undefined {
+  const cam = cameraNow();
+  if (!cam) return undefined;
+  const { selectedNodeId } = useStore.getState();
+  return {
+    x: Math.round(cam.x),
+    y: Math.round(cam.y),
+    zoom: Math.round(cam.zoom * 1000) / 1000,
+    ...(selectedNodeId ? { selectedNodeId } : {}),
+    ...(selectedNodeId && useUiStore.getState().panelOpen ? { panel: true } : {}),
+  };
+}
+
+const sameView = (a: CanvasView | undefined, b: CanvasView): boolean =>
+  !!a && a.x === b.x && a.y === b.y && a.zoom === b.zoom && a.selectedNodeId === b.selectedNodeId && !!a.panel === !!b.panel;
+
+function keepView(id: string, view: CanvasView | undefined): boolean {
+  if (!view || sameView(useProjects.getState().projects.find((p) => p.id === id)?.view, view)) return false;
+  useProjects.setState((s) => ({ projects: s.projects.map((p) => (p.id === id ? { ...p, view } : p)) }));
+  return true;
+}
+
+/** The selection and the details panel as the canvas was left (a card
+ *  gone since is simply not selected). */
+function restoreSelection(view: CanvasView | undefined): void {
+  const id = view?.selectedNodeId;
+  const sel = id && useStore.getState().nodes.some((n) => n.id === id) ? id : null;
+  useStore.setState({ selectedNodeId: sel, selectedNodeIds: sel ? [sel] : [] });
+  useUiStore.getState().setPanelOpen(!!sel && !!view?.panel);
+}
+
+let viewTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** The canvas in view moved, or what is selected on it changed: keep it,
+ *  so a reload or a return lands where the person was. */
+export function noteView(): void {
+  if (viewTimer) clearTimeout(viewTimer);
+  viewTimer = setTimeout(() => {
+    viewTimer = null;
+    const { activeId, switching } = useProjects.getState();
+    if (!activeId || switching) return;
+    if (keepView(activeId, viewNow())) void saveMeta();
+  }, 800);
+}
+
+/** How the canvas puts its camera back when a canvas comes into view: on
+ *  the view it was left with, or framing it whole the first time. The
+ *  canvas registers it once it has a camera. */
+type FrameArrival = (view: CanvasView | undefined) => void;
+let frameArrival: FrameArrival | null = null;
+export function onCanvasArrival(fn: FrameArrival | null): void { frameArrival = fn; }
+
+// Every arrival frames the camera itself. Whoever brought the canvas there
+// claims the arrival afterwards, so it does not frame it a second time; an
+// action that changed the canvas in view without switching (the organizer
+// rearranging it) finds nothing to claim and frames what it did. Counted,
+// not timed: a large canvas can take seconds to arrive.
+let arrivals = 0;
+let claimed = 0;
+/** True once per arrival not yet claimed: a canvas came into view since. */
+export function claimArrival(): boolean {
+  if (claimed === arrivals) return false;
+  claimed = arrivals;
+  return true;
+}
+
+/** Something happened on a canvas out of view: its tab says so until it is opened. */
+export function markCanvasFresh(id: string): void {
+  const { activeId, fresh, projects } = useProjects.getState();
+  if (id === activeId || fresh.includes(id) || !projects.some((p) => p.id === id)) return;
+  useProjects.setState({ fresh: [...fresh, id] });
 }
 
 // ─── Boot & migration ───────────────────────────────────────────
@@ -244,7 +367,7 @@ let bootPromise: Promise<void> | null = null;
 
 export function bootProjects(): Promise<void> {
   bootPromise ??= (async () => {
-    let meta = await idbGet<{ projects: ProjectMeta[]; activeId: string }>(META_KEY);
+    let meta = await idbGet<{ projects: ProjectMeta[]; activeId: string; openIds?: string[] }>(META_KEY);
     if (!meta || meta.projects.length === 0) {
       const legacy = await idbGet<string>(LEGACY_KEY); // raw persist envelope string
       const id = crypto.randomUUID();
@@ -269,9 +392,13 @@ export function bootProjects(): Promise<void> {
       }) };
       await idbSet(META_KEY, meta);
     }
-    useProjects.setState({ projects: meta.projects, activeId: meta.activeId });
+    // the tabs as they were left; a list from before tabs opens the canvas in view
+    const openIds = reconcileOpen(meta.openIds, meta.projects, meta.activeId);
+    useProjects.setState({ projects: meta.projects, activeId: meta.activeId, openIds });
     useStore.persist.setOptions({ name: projectStorageKey(meta.activeId) });
     await useStore.persist.rehydrate(); // fires onFinishHydration → App gate opens
+    // the canvas reopens as it was left (its camera: the canvas's first view)
+    restoreSelection(meta.projects.find((p) => p.id === meta!.activeId)?.view);
   })().catch(async (e) => {
     console.error('[thoughtdag] project boot failed:', e);
     toast('error', t('toast.projectsLoadFailed'));
@@ -304,31 +431,71 @@ async function drainGenerations(): Promise<number> {
 export async function switchProject(id: string): Promise<void> {
   const { activeId, switching, projects } = useProjects.getState();
   if (switching || id === activeId || !projects.some((p) => p.id === id)) return;
-  useProjects.setState({ switching: true });
+  useProjects.setState({ switching: true, switchingTo: id });
   let kept = 0;
   try {
+    // where the person was on the canvas being left: coming back lands there
+    if (activeId) keepView(activeId, viewNow());
     kept = await drainGenerations();
     await flushPendingWrites();
     suppressTouch = true;
     useStore.persist.setOptions({ name: projectStorageKey(id) });
     await useStore.persist.rehydrate();
-    useStore.setState({ selectedNodeId: null, selectedNodeIds: [] });
+    const view = useProjects.getState().projects.find((p) => p.id === id)?.view;
+    restoreSelection(view);
     // opening IS unarchiving: archived means "hidden from the lists", and
     // a canvas the user just switched to is back in the working set —
-    // whatever road led here (atlas card, archived group, canonical open)
+    // whatever road led here (atlas card, archived group, canonical open).
+    // It is a tab now, beside the one it was opened from.
     useProjects.setState((s) => ({
       activeId: id,
+      openIds: withOpened(s.openIds, id, activeId),
+      fresh: s.fresh.filter((x) => x !== id),
       projects: s.projects.map((p) => (p.id === id && p.archived ? { ...p, archived: false } : p)),
     }));
+    arrivals += 1;
+    frameArrival?.(view);
     await saveMeta();
   } finally {
     suppressTouch = false;
-    useProjects.setState({ switching: false });
+    useProjects.setState({ switching: false, switchingTo: null });
   }
   if (kept > 0) toast('info', fmt(t('agent.runsOn'), { n: kept }), 8000);
   // agent turns left running when this canvas was last in view (here, or
   // in a page since closed) are read back from their session files
   void import('../lib/sessions/sync').then((m) => m.syncWaitingRuns()).catch(() => {});
+}
+
+// ─── Tabs ───────────────────────────────────────────────────────
+
+/** Stash a canvas: it leaves the tabs and waits in the library as it was
+ *  left. The canvas in view gives way to the tab beside it; the last tab
+ *  stays (there is always a canvas in view). */
+export async function stashProject(id: string): Promise<void> {
+  const { openIds, activeId, switching } = useProjects.getState();
+  if (switching || !openIds.includes(id) || openIds.length < 2) return;
+  if (id === activeId) {
+    const next = neighbourOf(openIds, id);
+    if (!next) return;
+    await switchProject(next);
+    if (useProjects.getState().activeId === id) return; // the switch did not happen
+  }
+  useProjects.setState((s) => ({ openIds: withClosed(s.openIds, id) }));
+  await saveMeta();
+}
+
+/** Keep one tab, stash the rest. */
+export async function stashOthers(id: string): Promise<void> {
+  if (useProjects.getState().activeId !== id) await switchProject(id);
+  if (useProjects.getState().activeId !== id) return;
+  useProjects.setState({ openIds: [id] });
+  await saveMeta();
+}
+
+/** Drag a tab to another place among the tabs. */
+export async function moveTab(id: string, to: number): Promise<void> {
+  useProjects.setState((s) => ({ openIds: withMoved(s.openIds, id, to) }));
+  await saveMeta();
 }
 
 // ─── CRUD ───────────────────────────────────────────────────────
@@ -358,21 +525,26 @@ export async function renameProject(id: string, name: string): Promise<void> {
 }
 
 /** Replace the canvas list wholesale: the organizer's rebuild and its undo
- *  (store/organize), which write the graphs themselves. */
+ *  (store/organize), which write the graphs themselves. A canvas that is
+ *  gone leaves the tabs. */
 export async function replaceProjects(projects: ProjectMeta[]): Promise<void> {
-  useProjects.setState({ projects });
+  useProjects.setState((s) => ({ projects, openIds: reconcileOpen(s.openIds, projects, s.activeId) }));
   await saveMeta();
 }
 
 export async function deleteProject(id: string): Promise<void> {
-  const { projects, activeId } = useProjects.getState();
+  const { activeId } = useProjects.getState();
   if (id === activeId) {
-    const rest = projects.filter((p) => p.id !== id);
-    if (rest.length > 0) await switchProject(rest[0].id);
+    const next = successorOf(id);
+    if (next) await switchProject(next);
     else await createProject('My Canvas');
   }
   await idbDel(projectStorageKey(id));
-  useProjects.setState((s) => ({ projects: s.projects.filter((p) => p.id !== id) }));
+  useProjects.setState((s) => ({
+    projects: s.projects.filter((p) => p.id !== id),
+    openIds: withClosed(s.openIds, id),
+    fresh: s.fresh.filter((x) => x !== id),
+  }));
   await saveMeta();
 }
 

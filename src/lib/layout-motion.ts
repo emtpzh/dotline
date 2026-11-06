@@ -19,6 +19,8 @@ export type ViewportBridge = {
 };
 let viewport: ViewportBridge | null = null;
 export function registerViewport(bridge: ViewportBridge | null): void { viewport = bridge; }
+/** Where the camera is now; null before the canvas has one. */
+export function cameraNow(): { x: number; y: number; zoom: number } | null { return viewport?.getViewport() ?? null; }
 
 // While the user is dragging, layout that runs on its own waits: a card
 // sliding away under the pointer is a card the user is fighting.

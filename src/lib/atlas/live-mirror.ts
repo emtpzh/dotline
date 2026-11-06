@@ -53,8 +53,14 @@ export function startLiveMirror(): void {
         // the ACTIVE canvas mounts eagerly; other targets get a hint
         // (opening that canvas or clicking the card mounts it then,
         // through the same anchor-first canonical path).
-        const anyRegistered = projects.some((p) => subscribedSessionIds(p).includes(sid));
-        if (anyRegistered) return; // another canvas's session; not ours to touch
+        const owner = projects.find((p) => subscribedSessionIds(p).includes(sid));
+        if (owner) {
+          // another canvas's session; not ours to touch — but its tab says
+          // the session grew, and the canvas catches up when it is opened
+          const { markCanvasFresh } = await import('../../store/projects');
+          markCanvasFresh(owner.id);
+          return;
+        }
         // the ACTIVE canvas may hold this session's mirror nodes without
         // a subscription (a healed-away one): let the canonical
         // router adopt it at the break point instead of ignoring it

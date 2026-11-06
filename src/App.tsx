@@ -12,6 +12,7 @@ import {
   applyNodeChanges,
   applyEdgeChanges,
   BackgroundVariant,
+  getViewportForBounds,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import 'highlight.js/styles/github.css';
@@ -46,7 +47,7 @@ import { isPinned, placeByHand, seatDroppedCard } from './lib/layout';
 import { holdLayout, registerViewport } from './lib/layout-motion';
 import { MOTION, fitMotion, flyTo, ms, easeStandard } from './lib/motion';
 import { usePresence } from './lib/use-presence';
-import { useProjects, adoptImportedProject, markInstantiatedFrom } from './store/projects';
+import { useProjects, adoptImportedProject, markInstantiatedFrom, onCanvasArrival, claimArrival, noteView } from './store/projects';
 import { projectStorageKey } from './store/projects';
 import { set as idbSet } from 'idb-keyval';
 import { instantiateParadigm } from './lib/paradigm';
@@ -140,6 +141,11 @@ const nodeTypes = { thought: NodeDispatch };
 const EMBEDDED = !!import.meta.env.VITE_DSH_BRIDGE && window.parent !== window;
 // Overrides the built-in smoothstep so persisted edges need no migration
 const edgeTypes = { smoothstep: memo(ThoughtEdgeView) };
+// 0.04, not 0.1: a canvas with a condensed copy beside the original
+// doubles in width — the overview must still fit in one screen for
+// whole-branch selection and cleanup.
+const MIN_ZOOM = 0.04;
+const MAX_ZOOM = 2;
 
 // Gate on rehydration: the store loads asynchronously from IndexedDB, and
 // mounting the canvas only after hydration lets ReactFlow's fitView see the
@@ -381,11 +387,51 @@ function Canvas() {
   }, []);
 
   // After a project switch (from the switcher or the landing shortcuts):
-  // reset the recenter baseline and refit the viewport.
+  // reset the recenter baseline. A canvas that came into view was framed
+  // by its arrival (below), which is claimed here; what changed the canvas
+  // in view in place (the organizer, an import onto it) gets a fit.
   const afterProjectSwitch = useCallback(() => {
     prevNodeCount.current = useStore.getState().nodes.length;
+    if (claimArrival()) return;
     setTimeout(() => rfInstance.current?.fitView({ ...fitMotion(300), padding: 0.2 }), 50);
   }, []);
+  // A canvas comes into view the way it was left: the camera where it was,
+  // in one step, like a desktop switching. One seen for the first time is
+  // framed whole once its cards are on the page (framing first would have
+  // them measured at the far view's size, and settle again), from the sizes
+  // they were last measured at. Set, not queued as fitView queues it until
+  // React Flow has measured: a queued fit could land on the next canvas if
+  // the person moved on first.
+  useEffect(() => {
+    onCanvasArrival((view) => {
+      prevNodeCount.current = useStore.getState().nodes.length;
+      const rf = rfInstance.current;
+      if (!rf) return;
+      if (view) { void rf.setViewport({ x: view.x, y: view.y, zoom: view.zoom }); return; }
+      const arrived = useProjects.getState().activeId;
+      setTimeout(() => {
+        if (useProjects.getState().activeId !== arrived) return;
+        const shown = useStore.getState().nodes.filter((n) => !n.hidden);
+        const pane = document.querySelector('.react-flow')?.getBoundingClientRect();
+        if (!shown.length || !pane) return;
+        void rf.setViewport(getViewportForBounds(rf.getNodesBounds(shown), pane.width, pane.height, MIN_ZOOM, MAX_ZOOM, 0.2), fitMotion(300));
+      }, 50);
+    });
+    return () => onCanvasArrival(null);
+  }, []);
+  // ...and is kept that way: where the camera rests, what is selected and
+  // whether the panel is open, so a reload or a return lands there too.
+  useEffect(() => {
+    if (isViewerMode) return;
+    const offSel = useStore.subscribe((s, p) => { if (s.selectedNodeId !== p.selectedNodeId) noteView(); });
+    const offPanel = useUiStore.subscribe((s, p) => { if (s.panelOpen !== p.panelOpen) noteView(); });
+    return () => { offSel(); offPanel(); };
+  }, []);
+  // the view the canvas in view was left with when the app last closed
+  const [bootView] = useState(() => {
+    const { projects, activeId } = useProjects.getState();
+    return isViewerMode ? undefined : projects.find((p) => p.id === activeId)?.view;
+  });
 
   // ── Content palette + canvas paste/drop: material lands where you point ──
   const lastMouse = useRef<{ x: number; y: number } | null>(null);
@@ -557,6 +603,9 @@ function Canvas() {
   }, []);
 
   useEffect(() => {
+    // a canvas coming into view is not a canvas growing: its arrival
+    // decides the camera, not its newest card
+    if (useProjects.getState().switching) { prevNodeCount.current = nodes.length; return; }
     if (nodes.length > prevNodeCount.current && rfInstance.current) {
       const newest = nodes[nodes.length - 1];
       if (newest) {
@@ -873,8 +922,10 @@ function Canvas() {
   const [frameNavOpen, setFrameNavOpen] = useState(false);
   // Top-bar folds, lowest priority first: each level moves one more group
   // of tools into the ⋯ menu, then labels give way to icons — the pickers',
-  // the way back to the chat's, and last the canvas name's.
-  const [topbarRef, squeeze] = useSqueeze(8);
+  // the way back to the chat's — and last the open canvases fold into one
+  // tab and a menu. Opening or stashing a canvas starts the ladder over.
+  const openTabCount = useProjects((s) => s.openIds.length);
+  const [topbarRef, squeeze] = useSqueeze(8, openTabCount);
   const foldLang = squeeze >= 1;
   const foldBackup = squeeze >= 2;
   const foldFrames = squeeze >= 3;
@@ -882,7 +933,7 @@ function Canvas() {
   const foldHistory = squeeze >= 5;
   const foldLabels = squeeze >= 6;
   const foldBackLabel = squeeze >= 7;
-  const foldProjectName = squeeze >= 8;
+  const foldTabs = squeeze >= 8;
   // a panel beside the harness's sidebar needs no way back of its own
   const hostBack = useHostBack();
   // embedded: the window drags from the top bar's gap, which these move or
@@ -1212,16 +1263,16 @@ function Canvas() {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         deleteKeyCode={null}
-        fitView
+        // the canvas opens where it was left; one never left is framed whole
+        fitView={!bootView}
+        defaultViewport={bootView ? { x: bootView.x, y: bootView.y, zoom: bootView.zoom } : undefined}
+        onMoveEnd={isViewerMode ? undefined : noteView}
         // Cull off-viewport nodes: a content-heavy canvas keeps dozens of
         // full markdown/KaTeX card DOMs mounted otherwise, and zoom/pan
         // transforms all of them every frame.
         onlyRenderVisibleElements
-        // 0.04, not 0.1: a canvas with a condensed copy beside the original
-        // doubles in width — the overview must still fit in one screen for
-        // whole-branch selection and cleanup.
-        minZoom={0.04}
-        maxZoom={2}
+        minZoom={MIN_ZOOM}
+        maxZoom={MAX_ZOOM}
         defaultEdgeOptions={{
           type: 'smoothstep',
           animated: false,
@@ -1591,7 +1642,7 @@ function Canvas() {
             <ArrowLeft strokeWidth={1.75} /> {!foldBackLabel && t('embed.backToChat')}
           </Button>
         )}
-        <ProjectSwitcher onSwitched={afterProjectSwitch} iconOnly={foldProjectName} />
+        <ProjectSwitcher onSwitched={afterProjectSwitch} compact={foldTabs} />
         <WaitingQuestions />
       </div>
       <div className="min-w-0 flex-1 self-stretch" data-topbar-gap />
