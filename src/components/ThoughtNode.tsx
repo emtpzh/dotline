@@ -8,6 +8,7 @@ import 'katex/dist/katex.min.css';
 import type { ThoughtNode as ThoughtNodeType } from '../types';
 import { useStore } from '../store';
 import { useZoomTier } from '../lib/use-map-mode';
+import { remeasure } from '../lib/remeasure';
 import { generateId, isImeComposing , activeSummary, activeTopic, awaitingInput } from '../utils';
 import { processFile } from '../lib/attachments';
 import { copyText } from '../lib/export';
@@ -135,7 +136,7 @@ export default function ThoughtNode({ id, data: stored }: NodeProps<ThoughtNodeT
   const glyphTier = zoomTier === 'glyph';
   // Handles move to the dot at the far tier — tell React Flow to re-measure
   const updateNodeInternals = useUpdateNodeInternals();
-  useEffect(() => { updateNodeInternals(id); }, [glyphTier, id, updateNodeInternals]);
+  useEffect(() => { remeasure(id, updateNodeInternals); }, [glyphTier, id, updateNodeInternals]);
   // Upstream changed since this answer was written (see recomputeStaleness)
   const isStale = useStore((s) => s.staleIds.includes(id));
   // Lit while its condense-dialog segment row is hovered — the list points,

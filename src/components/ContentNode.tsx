@@ -4,6 +4,7 @@ import { BookOpen, ExternalLink, FileText, Loader2, MoveDiagonal2, Plus, Refresh
 import type { ThoughtNode as ThoughtNodeType } from '../types';
 import { useStore } from '../store';
 import { useZoomTier } from '../lib/use-map-mode';
+import { remeasure } from '../lib/remeasure';
 import { useUiStore, toast } from '../lib/ui-store';
 import { scrollFade } from '../lib/scroll-fade';
 import { useEntranceFade } from '../lib/use-entrance-fade';
@@ -41,7 +42,7 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
   const nodePos = useStore((s) => { const n = s.nodes.find((x) => x.id === id); return n ? n.position : null; });
   const glyphTier = zoomTier === 'glyph';
   const updateNodeInternals = useUpdateNodeInternals();
-  useEffect(() => { updateNodeInternals(id); }, [glyphTier, id, updateNodeInternals]);
+  useEffect(() => { remeasure(id, updateNodeInternals); }, [glyphTier, id, updateNodeInternals]);
   // entrance, played once — the selected glow shares the `animation`
   // property, and handing it back and forth replayed the fade
   const entrance = useEntranceFade();

@@ -5,6 +5,7 @@ import type { ThoughtNode as ThoughtNodeType } from '../types';
 import { useStore } from '../store';
 import { useZoomTier } from '../lib/use-map-mode';
 import { pleatTurnsKey, type PleatTurn } from '../lib/pleats';
+import { remeasure } from '../lib/remeasure';
 import { useT, fmt } from '../i18n';
 import { Button } from './ui/button';
 import { FaceName, FarMark } from './app/NodeFace';
@@ -84,7 +85,7 @@ export default function PleatNode({ id, data }: NodeProps<ThoughtNodeType>) {
   const glyph = tier === 'glyph';
   // the anchors move to the dot at the far tier — React Flow re-measures them
   const updateNodeInternals = useUpdateNodeInternals();
-  useEffect(() => { updateNodeInternals(id); }, [glyph, id, updateNodeInternals]);
+  useEffect(() => { remeasure(id, updateNodeInternals); }, [glyph, id, updateNodeInternals]);
 
   const label = fmt(t('pleat.folded'), { n: turns.length });
   const unfold = () => setFolded(ids, false);
