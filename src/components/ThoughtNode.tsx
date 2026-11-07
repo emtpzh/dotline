@@ -815,8 +815,8 @@ export default function ThoughtNode({ id, data: stored }: NodeProps<ThoughtNodeT
         style={glyphTier ? { top: '50%', left: '50%', right: 'auto' } : { top: '50%' }}
       />
 
-      {/* Under a long chain's head: fold it (working distance only) */}
-      {!mapMode && <ChainPill nodeId={id} />}
+      {/* Under a long chain's head: fold it (working distance and map) */}
+      {!glyphTier && <ChainPill nodeId={id} />}
 
       {/* Select a passage → explore / highlight */}
       <SelectionActions
