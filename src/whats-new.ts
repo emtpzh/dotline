@@ -33,6 +33,16 @@ const DOCS = DOCS_URL;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.4.29',
+    date: '2026-11-07',
+    announce: false,
+    lead: {
+      zh: '长对话可以折叠了。一条对话链达到 8 轮时，第一张卡下方会出现「地标收拢」和「只留头尾」：前者保留起点、决策、转向、待解的问题、有分叉或连线的轮次、你的高亮和最近两轮，把其余常规往返折成折页；后者把头尾之间整段折起。折页上每一轮是一个小圆点，悬停可以预览，单击把这一轮取出来，双击折页或点「展开」恢复。卡片右键菜单里有同样的操作，圈选连续几轮后也可以点「折叠」。折叠只改变显示，连线和发给模型的上下文都不变，可以撤销。另外，双击空白画布新建的卡片会留在你放下的位置，之后的布局调整不会再把它移走，压到其他卡片时会让到最近的空位；从卡片拖出连线、在空白处松手新建的卡片，落点离它在链上的位置较近时会自动对齐过去，较远就留在落点。画布整理器按话题或目标归组时会显示进度，并记住上次的分组：再次打开只重新判断新增或有改动的对话，快很多，分组也更稳定；你在预览里改过的组名和归类，重建之后下次也会沿用。点「重新分组」仍会全部重新判断。',
+      en: 'Long conversations can fold. When a chain reaches 8 turns, Gather and Keep the ends appear under its first card. Gather keeps the start, decisions, pivots, open questions, turns that branch or are wired elsewhere, your highlights and the last two turns, and folds the routine back-and-forth between them into a strip; Keep the ends folds everything between the first and the last turn. Each folded turn is a dot on the strip: hover to read it, click to take it out, and double-click the strip or choose Unfold to open it again. The right-click menu on a card has the same actions, and Fold in the selection toolbar folds a run of selected turns. Folding changes only what you see: edges and the context sent to the model stay the same, and it can be undone. Also: a card made by double-clicking empty canvas stays where you put it, and later layout changes leave it there; if it would land on another card, it steps aside to the nearest free spot. A card made by dragging an edge out of a card onto empty canvas snaps into its place in the chain when dropped close to it, and otherwise stays where it was dropped. The canvas organizer shows its progress while grouping by topic or goal, and remembers its groups: reopening it looks again only at new or changed conversations, so it is much faster and the groups stay stable, and the names and moves you made in the preview before a rebuild carry over. Regroup still looks at everything again.',
+    },
+    items: [],
+  },
+  {
     version: '0.4.28',
     date: '2026-11-07',
     announce: false,
