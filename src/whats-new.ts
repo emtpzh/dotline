@@ -33,6 +33,16 @@ const DOCS = DOCS_URL;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.4.28',
+    date: '2026-11-07',
+    announce: false,
+    lead: {
+      zh: '大画布更流畅。连线只在卡片真的移动或改变大小时才重新计算走向，而且只检查附近的卡片；选中、测量和生成回答时，屏幕上的连线也不再全部重画。在几百张卡片的画布上缩放到全图生成回答，每一段文字更新的开销减少一半以上；第一次打开这样的大画布也快了不少。连线的样子和以前完全一样。',
+      en: 'Large canvases run smoother. An edge now works out its route again only when a card actually moves or resizes, and checks only the cards near it; selecting, measuring and streaming an answer no longer redraw every edge on screen. With a canvas of several hundred cards zoomed out to fit, each streamed update of an answer costs less than half what it did, and opening such a canvas for the first time is noticeably faster. Edges look exactly as before.',
+    },
+    items: [],
+  },
+  {
     version: '0.4.27',
     date: '2026-10-27',
     announce: false,
