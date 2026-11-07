@@ -1,6 +1,26 @@
 import type { StateCreator } from 'zustand';
-import type { Highlight } from '../../types';
+import type { Highlight, ThoughtNode } from '../../types';
 import type { StoreState, HighlightSlice } from '../types';
+
+/** A node's plaque for the version it was judged on (a canvas out of view
+ *  takes it through this too). A version edited or deleted meanwhile keeps
+ *  what it has. */
+export function withSummary(nodeId: string, summary: string, forResponse: string, type?: string, topic?: string) {
+  return (state: { nodes: ThoughtNode[] }): { nodes: ThoughtNode[] } => ({
+    nodes: state.nodes.map((n) => {
+      if (n.id !== nodeId) return n;
+      const idx = n.data.responses.indexOf(forResponse);
+      if (idx === -1) return n; // the version was edited/deleted meanwhile
+      const summaries = [...(n.data.summaries ?? [])];
+      summaries[idx] = summary;
+      const summaryTypes = [...(n.data.summaryTypes ?? [])];
+      summaryTypes[idx] = type ?? 'insight';
+      const summaryTopics = [...(n.data.summaryTopics ?? [])];
+      summaryTopics[idx] = topic;
+      return { ...n, data: { ...n.data, summaries, summaryTypes, summaryTopics } };
+    }),
+  });
+}
 
 export const createHighlightSlice: StateCreator<StoreState, [], [], HighlightSlice> = (set, get) => ({
   addHighlight: (nodeId: string, highlight: Highlight) => {
@@ -52,20 +72,7 @@ export const createHighlightSlice: StateCreator<StoreState, [], [], HighlightSli
   },
 
   setSummary: (nodeId: string, summary: string, forResponse: string, type?: string, topic?: string) => {
-    set((state) => ({
-      nodes: state.nodes.map((n) => {
-        if (n.id !== nodeId) return n;
-        const idx = n.data.responses.indexOf(forResponse);
-        if (idx === -1) return n; // the version was edited/deleted meanwhile
-        const summaries = [...(n.data.summaries ?? [])];
-        summaries[idx] = summary;
-        const summaryTypes = [...(n.data.summaryTypes ?? [])];
-        summaryTypes[idx] = type ?? 'insight';
-        const summaryTopics = [...(n.data.summaryTopics ?? [])];
-        summaryTopics[idx] = topic;
-        return { ...n, data: { ...n.data, summaries, summaryTypes, summaryTopics } };
-      }),
-    }));
+    set(withSummary(nodeId, summary, forResponse, type, topic));
   },
 
   setTopics: (entries) => {

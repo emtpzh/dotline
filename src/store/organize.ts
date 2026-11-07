@@ -2,6 +2,7 @@ import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
 import { useStore, stripTransient } from './index';
 import { useProjects, projectStorageKey, replaceProjects, switchProject, subscriptionsOf, type ProjectMeta, type Subscription } from './projects';
 import { activeAbortControllers } from './streaming';
+import { backgroundBusy, dropIdleShadows } from './background';
 import { liftCanvas } from './lift';
 import { flushPendingWrites } from '../lib/persistence';
 import { composeGraph, splitThreads, type Outcome, type StoredGraph, type Thread } from '../lib/organize/threads';
@@ -69,7 +70,11 @@ export type Undo = () => Promise<void>;
 
 export async function rebuildCanvases(outcome: Outcome, shown: Thread[]): Promise<Undo> {
   const { projects, activeId, switching } = useProjects.getState();
-  if (switching || activeAbortControllers.size > 0) throw new Error(t('organizer.busy'));
+  // answers still going (in view or not) would land on canvases rewritten
+  // under them; a canvas out of view held in memory is let go first, so no
+  // older copy of it comes back when it is opened
+  if (switching || activeAbortControllers.size > 0 || backgroundBusy()) throw new Error(t('organizer.busy'));
+  dropIdleShadows();
   await flushPendingWrites();
 
   // read again: the threads the preview showed may have grown since
@@ -156,7 +161,8 @@ export async function rebuildCanvases(outcome: Outcome, shown: Thread[]): Promis
 
   return async () => {
     const now = useProjects.getState();
-    if (now.switching || activeAbortControllers.size > 0) throw new Error(t('organizer.busy'));
+    if (now.switching || activeAbortControllers.size > 0 || backgroundBusy()) throw new Error(t('organizer.busy'));
+    dropIdleShadows();
     await flushPendingWrites();
     const restore = (id: string) => {
       const v = before.get(id);

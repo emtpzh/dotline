@@ -7,6 +7,7 @@ import { t, fmt } from '../../i18n';
 import type { StoreState, EvaluatorSlice } from '../types';
 import { condenseGuard } from '../../lib/condense-guard';
 import { isFactNode } from '../../lib/facts';
+import { canvasInView, whenInView } from '../background';
 
 // Batch-replay cancellation flag — one replay at a time, module-scoped.
 let replayAborted = false;
@@ -124,6 +125,10 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
     get().recomputeStaleness();
     const snapshot = [...get().staleIds];
     if (snapshot.length === 0) return;
+    // the replay belongs to this canvas: a wave going when the person
+    // switches away finishes out of view; the next one starts when the
+    // canvas is back (a deleted canvas ends the replay)
+    const canvas = canvasInView();
     autoRunCounts.clear(); // one user action = one auto-rerun wave
     const structural = () => get().edges.filter((e) => !e.data?.isCrossLink);
     const remaining = new Set(snapshot);
@@ -134,6 +139,7 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
     });
     try {
       while (remaining.size > 0 && !replayAborted) {
+        if (!(await whenInView(canvas)) || replayAborted) break;
         const ready = [...remaining].filter((id) =>
           !structural().some((e) => e.target === id && remaining.has(e.source)));
         if (ready.length === 0) break; // safety: no cycle exists on solid edges

@@ -6,6 +6,7 @@ import { getDescendantIds, selectionSinks, walkUpAncestors } from '../../lib/gra
 import type { ContextMessage, ImageAttachment } from '../../lib/api';
 import { buildContext, resolveExplicitRole, applyRoleOverride, type MessageSource } from '../context-builder';
 import { activeAbortControllers, autoRunCounts, runNodeGeneration, triggerParadigmCascade } from '../streaming';
+import { canvasInView, whenInView } from '../background';
 import { abortAgentRun } from '../../lib/agents/runs';
 import { useUiStore, toast } from '../../lib/ui-store';
 import { t, fmt } from '../../i18n';
@@ -280,8 +281,12 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     let cursor = 0;
     // Shared ancestor context for one-shot branches (identical per sibling)
     const ctx = follow ? null : buildContext(parentId, get().nodes, get().edges, undefined, undefined, undefined, get().staleIds);
+    // the perspectives belong to this canvas: those answering when the person
+    // switches away go on out of view, and the rest start once it is back
+    const canvas = canvasInView();
     const worker = async () => {
       while (cursor < created.length) {
+        if (!(await whenInView(canvas)) || cursor >= created.length) return;
         const { id, question: branchQuestion, role } = created[cursor++];
         if (follow) {
           await get().rerunNode(id); // standard context walk through the watch edge

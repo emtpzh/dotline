@@ -99,6 +99,11 @@ export async function patchNodeOn(canvasId: string, nodeId: string, fn: (data: T
     useStore.setState((st) => ({ nodes: st.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...fn(n.data) } } : n)) }));
     return;
   }
+  // a canvas out of view with answers still going on it is held in memory
+  // (store/background): the change goes there, or the next write of that
+  // copy would put the stored one back as it was
+  const { patchShadowNode } = await import('../../store/background');
+  if (patchShadowNode(canvasId, nodeId, fn)) return;
   const { flushPendingWrites } = await import('../persistence');
   await flushPendingWrites();
   const key = projectStorageKey(canvasId);

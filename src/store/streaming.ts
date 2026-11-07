@@ -21,6 +21,7 @@ import { isAutoRerun } from '../lib/edge-look';
 import { continuity, linkOf } from '../lib/agents/continuity';
 import { runtimeOf } from '../lib/agents/runtimes';
 import type { StoreState } from './types';
+import { bindCanvas, noteFinished, trackStream, type CanvasHandle } from './background';
 
 // Background summary generation — fire and forget. Display channel ONLY:
 // the human reads it on the card, the model always reads the full text.
@@ -31,13 +32,13 @@ import type { StoreState } from './types';
 // the ancestor path (with their tags). That keeps terminology aligned
 // across plaques and classifications aware of what the thinking already
 // ruled out or decided — the lines read as one progression, not islands.
-export function generateSummary(nodeId: string, question: string, response: string, setSummary: (id: string, summary: string, forResponse: string, type?: string, topic?: string) => void, mapLines?: string[]) {
-  if (!response.trim()) return;
+export function generateSummary(nodeId: string, question: string, response: string, setSummary: (id: string, summary: string, forResponse: string, type?: string, topic?: string) => void, mapLines?: string[]): Promise<void> {
+  if (!response.trim()) return Promise.resolve();
   markNaming(nodeId);
   const mapBlock = mapLines && mapLines.length > 0
     ? `Takeaway lines already on the map, along this node's ancestor path (oldest first):\n${mapLines.join('\n')}\n\nUse those lines ONLY to align terminology and avoid repeating them. Classify this exchange's epistemic move on its own merits, independent of the lines above.\n\n`
     : '';
-  llmCall([
+  return llmCall([
     { role: 'user', content: question },
     { role: 'assistant', content: response },
     { role: 'user', content: `${mapBlock}Compress the above exchange for a map plaque. Output exactly ONE line in the format: TAG | topic | takeaway\n\nTAG classifies the epistemic move: INSIGHT (learned or confirmed something), RULEOUT (killed a hypothesis or option), DECISION (chose among options), PIVOT (reframed the question or direction), OPEN (raised a new unresolved question). Most exchanges are INSIGHT.\n\ntopic: the subject as a bare noun phrase. Hard limit: 6 characters for CJK languages, 14 characters otherwise.\n\ntakeaway: the conclusion, stated first and plainly, as one clause. Hard limit: 18 characters for CJK languages, 40 characters otherwise — it must fit whole on a small plaque, never truncated. A reader scanning many such lines should see how the thinking progressed.\n\nBoth in the same language as the question. Never use dash characters (—, –, -) inside topic or takeaway; use commas or colons instead. Output only that one line.` },
@@ -85,16 +86,6 @@ export const activeAbortControllers = new Map<string, AbortController>();
 // same node — alternating reasoning, clobbered answers.
 const generationSeq = new Map<string, number>();
 
-/**
- * Before the canvas is swapped out, its streams stop. Agent runs are not
- * among them: a run belongs to the page (lib/agents/runs) and goes on, and
- * its turn lands on its node from the session file when its canvas is in
- * view again.
- */
-export function releaseGenerations(): void {
-  for (const controller of activeAbortControllers.values()) controller.abort();
-}
-
 // Auto-chain budget: how many times each autoRerun node has fired since the
 // last MANUAL action. A fresh user action resets all counters, so budgets
 // mean "auto rounds per user action" — and loops (writer->critic->writer)
@@ -110,10 +101,15 @@ type Get = StoreApi<StoreState>['getState'];
  * `data.response` → on completion write response/versions/tokenCount and
  * collapse → pushHistory → kick off the background summary.
  * On abort or error, whatever streamed so far is kept.
+ *
+ * The answer belongs to the canvas it was asked on (store/background): a
+ * switch to another canvas does not stop it, and everything it writes lands
+ * on that canvas, in view or not. What only the canvas in view can do waits
+ * for its return (followUpFinished).
  */
 export async function runNodeGeneration(
-  set: Set,
-  get: Get,
+  inViewSet: Set,
+  inViewGet: Get,
   nodeId: string,
   opts: {
     question: string;
@@ -130,6 +126,34 @@ export async function runNodeGeneration(
   // Read-only viewer: no generation whatsoever — belt-and-braces behind the
   // hidden UI (a missed button must still be inert).
   if (isViewerMode) return;
+  // the canvas this answer is for; from here every write goes through it
+  const canvas = bindCanvas(inViewSet, inViewGet);
+  if (!canvas || !inViewGet().nodes.some((n) => n.id === nodeId)) {
+    // asked in the instant one canvas was swapped for another: nothing to
+    // answer on, and no card left waiting for an answer that never comes
+    inViewSet((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId && n.data.isLoading ? { ...n, data: { ...n.data, isLoading: false } } : n)) }));
+    return;
+  }
+  const { set, get } = canvas;
+  const release = canvas.hold();
+  try {
+    await generateOn(canvas, set, get, inViewSet, inViewGet, nodeId, opts, release);
+  } finally {
+    release();
+  }
+}
+
+async function generateOn(
+  canvas: CanvasHandle,
+  set: Set,
+  get: Get,
+  inViewSet: Set,
+  inViewGet: Get,
+  nodeId: string,
+  opts: Parameters<typeof runNodeGeneration>[3],
+  /** lets go of the canvas: an agent turn finds its node by itself */
+  release: () => void,
+): Promise<void> {
   const { question, images, onSuccess, versionMode = 'replace' } = opts;
   const { messages } = opts;
   if (!opts.autoChain) autoRunCounts.clear(); // a fresh user action starts a new wave
@@ -243,27 +267,37 @@ export async function runNodeGeneration(
       }),
     }));
     // the answer has its final length: what hangs below re-hangs from it
-    get().settleFrom([nodeId]);
+    // (out of view: when its canvas is back, with the rest it waits for)
+    if (canvas.live()) get().settleFrom([nodeId]);
+    else noteFinished(canvas.canvasId, nodeId, !failed);
   };
 
   // what a finished answer sets going: its plaque, the reruns and paradigm
-  // steps waiting on it
+  // steps waiting on it. The plaque lands on the answer's canvas wherever it
+  // is by then; reruns and steps run where the canvas is in view, so out of
+  // view they wait for its return (followUpFinished).
   const afterAnswer = (response: string) => {
     onSuccess?.(response);
     get().pushHistory();
-    generateSummary(nodeId, question, response, get().setSummary, collectMapLines(nodeId, get().nodes, get().edges));
+    const plaque = canvas.hold();
+    void generateSummary(nodeId, question, response, canvas.setSummary, collectMapLines(nodeId, get().nodes, get().edges)).finally(plaque);
+    if (!canvas.live()) return;
     triggerAutoReruns(set, get, nodeId);
     triggerParadigmCascade(get, nodeId);
   };
 
   if (agentRoute && agentRuntime && requestedModel) {
     // an agent turn is the run manager's to run and the session sync's to
-    // write: nothing here streams into the node
+    // write: nothing here streams into the node. A run belongs to the page
+    // and finds its node itself, in view or in its stored copy.
     finished();
-    await runAgentGeneration(set, get, nodeId, { question, messages, images, model: requestedModel, route: agentRoute, runtime: agentRuntime, isCurrent, writeFinal, afterAnswer });
+    release();
+    await runAgentGeneration(inViewSet, inViewGet, nodeId, { question, messages, images, model: requestedModel, route: agentRoute, runtime: agentRuntime, isCurrent, writeFinal, afterAnswer });
     return;
   }
 
+  // a direct answer streams on when its canvas goes out of view: its tab says so
+  const untrack = trackStream(nodeId, canvas.canvasId, () => abortController.abort());
   try {
     // Context budget: browser-configured models carry their probed window.
     // When the wired context alone clearly exceeds it, fail fast with the
@@ -395,6 +429,23 @@ export async function runNodeGeneration(
       writeFinal(partial || t('node.failedPlaceholder'), true);
     }
     get().pushHistory();
+  } finally {
+    untrack();
+  }
+}
+
+/**
+ * Answers that finished while their canvas was out of view, now that it is
+ * back in view: what hangs below them re-settles around their final length,
+ * and the reruns and paradigm steps waiting on them go.
+ */
+export function followUpFinished(set: Set, get: Get, nodeIds: string[]): void {
+  const here = nodeIds.filter((id) => get().nodes.some((n) => n.id === id));
+  if (!here.length) return;
+  get().settleFrom(here);
+  for (const id of here) {
+    triggerAutoReruns(set, get, id);
+    triggerParadigmCascade(get, id);
   }
 }
 

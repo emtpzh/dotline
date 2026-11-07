@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand';
-import type { CanvasOp } from '../../types';
+import type { CanvasEvent, CanvasOp } from '../../types';
 import type { StoreState, EventSlice } from '../types';
 
 // The canvas event log: an append-only record of semantic operations
@@ -15,12 +15,16 @@ import type { StoreState, EventSlice } from '../types';
 
 const EVENT_CAP = 10_000; // runaway backstop, far above real sessions
 
+/** The log with one more event (a canvas out of view logs through this too). */
+export function appendEvent(events: CanvasEvent[], op: CanvasOp, id?: string, d?: Record<string, string | number | boolean>): CanvasEvent[] {
+  const next = [...events, { t: new Date().toISOString(), op, ...(id ? { id } : {}), ...(d ? { d } : {}) }];
+  return next.length > EVENT_CAP ? next.slice(next.length - EVENT_CAP + 1000) : next;
+}
+
 export const createEventSlice: StateCreator<StoreState, [], [], EventSlice> = (set, get) => ({
   events: [],
 
   logEvent: (op: CanvasOp, id?: string, d?: Record<string, string | number | boolean>) => {
-    const { events } = get();
-    const next = [...events, { t: new Date().toISOString(), op, ...(id ? { id } : {}), ...(d ? { d } : {}) }];
-    set({ events: next.length > EVENT_CAP ? next.slice(next.length - EVENT_CAP + 1000) : next });
+    set({ events: appendEvent(get().events, op, id, d) });
   },
 });

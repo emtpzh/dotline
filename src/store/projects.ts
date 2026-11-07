@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
-import { useStore } from './index';
-import { activeAbortControllers, releaseGenerations } from './streaming';
+import { useStore, stripTransient } from './index';
+import { followUpFinished } from './streaming';
+import { canvasInView, configureBackground, dropCanvas, enterView, leaveView, takeFinished, takeShadow, useBackground } from './background';
 import { flushPendingWrites } from '../lib/persistence';
 import { buildRuleOutRuleIn } from '../lib/paradigms/rule-out-rule-in';
 import { toast, useUiStore } from '../lib/ui-store';
@@ -397,6 +398,7 @@ export function bootProjects(): Promise<void> {
     useProjects.setState({ projects: meta.projects, activeId: meta.activeId, openIds });
     useStore.persist.setOptions({ name: projectStorageKey(meta.activeId) });
     await useStore.persist.rehydrate(); // fires onFinishHydration → App gate opens
+    enterView(meta.activeId);
     // the canvas reopens as it was left (its camera: the canvas's first view)
     restoreSelection(meta.projects.find((p) => p.id === meta!.activeId)?.view);
   })().catch(async (e) => {
@@ -404,28 +406,58 @@ export function bootProjects(): Promise<void> {
     toast('error', t('toast.projectsLoadFailed'));
     useStore.persist.setOptions({ name: projectStorageKey('recovery') });
     await useStore.persist.rehydrate();
+    enterView('recovery');
   });
   return bootPromise;
 }
 
 // ─── Switching ──────────────────────────────────────────────────
 // Danger window: between setOptions and rehydrate completion, any setState
-// would write the OLD graph under the NEW key. Defenses: every stream stops
-// first (agent runs are the page's and go on: lib/agents/runs), and the
-// `switching` flag disables the switcher UI.
+// would write the OLD graph under the NEW key. Defenses: nothing bound to a
+// canvas writes the store while no canvas is in view (store/background —
+// answers still going write the shadow of the canvas they belong to, and
+// agent runs are the page's: lib/agents/runs), and the `switching` flag
+// disables the switcher UI.
 let suppressTouch = false;
 
-/** Returns how many agent turns of the canvas left behind run on. */
-async function drainGenerations(): Promise<number> {
+// The shadow of a canvas with work going on out of view is written the way
+// the store writes the canvas in view. An answer finishing there is news on
+// its tab, and one notice per canvas says so.
+const doneNotices = new Map<string, { count: number; nodeId: string; timer: ReturnType<typeof setTimeout> }>();
+configureBackground({
+  persist: (canvasId, g) => idbSet(projectStorageKey(canvasId), {
+    state: { nodes: stripTransient(g.nodes), edges: g.edges.map((e) => (e.selected ? { ...e, selected: false } : e)), events: g.events },
+    version: 1,
+  }),
+  finished: (canvasId, nodeId, ok) => {
+    markCanvasFresh(canvasId);
+    if (!ok) return; // a failure said so itself
+    const prev = doneNotices.get(canvasId);
+    if (prev) clearTimeout(prev.timer);
+    const count = (prev?.count ?? 0) + 1;
+    // answers finishing together (a fan-out) make one notice
+    const timer = setTimeout(() => {
+      doneNotices.delete(canvasId);
+      const { activeId, projects } = useProjects.getState();
+      const canvas = projects.find((p) => p.id === canvasId);
+      if (!canvas || activeId === canvasId) return; // gone, or back in view: the cards say it
+      toast('success', fmt(t(count > 1 ? 'tabs.doneMany' : 'tabs.doneOne'), { name: canvas.name, n: count }), 8000, {
+        label: t('tabs.goThere'),
+        run: () => void import('../lib/open-canvas').then(async (m) => {
+          await m.openCanvas(canvasId);
+          if (useProjects.getState().activeId === canvasId) useUiStore.getState().setArrivalFocusNodeId(nodeId);
+        }),
+      });
+    }, 700);
+    doneNotices.set(canvasId, { count, nodeId, timer });
+  },
+});
+
+/** How many agent turns of the canvas left behind go on (its direct answers
+ *  say so on its tab). */
+async function runsGoingOn(canvasId: string | null): Promise<number> {
   const { liveRunsOn } = await import('../lib/agents/runs');
-  const kept = liveRunsOn(useProjects.getState().activeId);
-  releaseGenerations();
-  const deadline = Date.now() + 1000;
-  while (activeAbortControllers.size > 0 && Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 30));
-  }
-  await new Promise((r) => setTimeout(r, 0)); // let the final abort writes reach the debounce queue
-  return kept;
+  return liveRunsOn(canvasId);
 }
 
 export async function switchProject(id: string): Promise<void> {
@@ -436,11 +468,25 @@ export async function switchProject(id: string): Promise<void> {
   try {
     // where the person was on the canvas being left: coming back lands there
     if (activeId) keepView(activeId, viewNow());
-    kept = await drainGenerations();
+    // from here nothing writes the store for the canvas being left: answers
+    // still going on it write its shadow, kept with its graph as it stands
+    const leaving = useStore.getState();
+    leaveView(activeId, { nodes: leaving.nodes, edges: leaving.edges, events: leaving.events });
+    kept = await runsGoingOn(activeId);
     await flushPendingWrites();
     suppressTouch = true;
     useStore.persist.setOptions({ name: projectStorageKey(id) });
     await useStore.persist.rehydrate();
+    // work went on here while it was out of view: its shadow is the newest
+    // graph (storage may be a moment behind), and its cards still answering
+    // keep answering — they keep what the stored copy drops as transient
+    const shadow = takeShadow(id);
+    if (shadow) {
+      const streaming = new Set(Object.entries(useBackground.getState().streams).filter(([, c]) => c === id).map(([n]) => n));
+      const nodes = stripTransient(shadow.nodes).map((n, i) => (streaming.has(n.id) ? shadow.nodes[i] : n));
+      useStore.setState({ nodes, edges: shadow.edges, events: shadow.events, history: [{ nodes, edges: shadow.edges }], historyIndex: 0 });
+    }
+    enterView(id);
     const view = useProjects.getState().projects.find((p) => p.id === id)?.view;
     restoreSelection(view);
     // opening IS unarchiving: archived means "hidden from the lists", and
@@ -458,9 +504,20 @@ export async function switchProject(id: string): Promise<void> {
     await saveMeta();
   } finally {
     suppressTouch = false;
+    // a switch that broke off midway still leaves a canvas in view, or no
+    // answer could start again
+    const now = useProjects.getState().activeId;
+    if (!canvasInView() && now) enterView(now);
     useProjects.setState({ switching: false, switchingTo: null });
   }
   if (kept > 0) toast('info', fmt(t('agent.runsOn'), { n: kept }), 8000);
+  // answers that finished here while it was out of view: what hangs below
+  // them settles around their final length, and the reruns and paradigm
+  // steps waiting on them go now, on the canvas in view
+  if (useProjects.getState().activeId === id) {
+    const done = takeFinished(id);
+    if (done.length) followUpFinished(useStore.setState, useStore.getState, done);
+  }
   // agent turns left running when this canvas was last in view (here, or
   // in a page since closed) are read back from their session files
   void import('../lib/sessions/sync').then((m) => m.syncWaitingRuns()).catch(() => {});
@@ -539,6 +596,8 @@ export async function deleteProject(id: string): Promise<void> {
     if (next) await switchProject(next);
     else await createProject('My Canvas');
   }
+  // its answers still going stop, and nothing of it is written after this
+  await dropCanvas(id);
   await idbDel(projectStorageKey(id));
   useProjects.setState((s) => ({
     projects: s.projects.filter((p) => p.id !== id),
