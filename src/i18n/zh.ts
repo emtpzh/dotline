@@ -1202,6 +1202,8 @@ export const zh: Record<keyof typeof en, string> = {
   'organizer.nowTitle': '{canvases} 张画布，{threads} 段对话',
   'organizer.nowHint': '每张卡片是一段对话。选上面的一种整理方式，看看画布重建后的样子。',
   'organizer.proposing': '正在归组…',
+  'organizer.defining': '正在确定分组…',
+  'organizer.assigning': '正在归类 {done} / {total} 段对话…',
   'organizer.groupsTitle': '分成 {n} 组',
   'organizer.listSep': '、',
   'organizer.from': '来自 {name}',

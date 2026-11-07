@@ -1203,6 +1203,8 @@ export const en = {
   'organizer.nowTitle': '{canvases} canvases, {threads} conversations',
   'organizer.nowHint': 'Each card is one conversation. Pick a way to regroup above to see what the canvases would become.',
   'organizer.proposing': 'Grouping…',
+  'organizer.defining': 'Settling the groups…',
+  'organizer.assigning': 'Sorting conversations: {done} of {total}…',
   'organizer.groupsTitle': '{n} groups',
   'organizer.listSep': ', ',
   'organizer.from': 'from {name}',

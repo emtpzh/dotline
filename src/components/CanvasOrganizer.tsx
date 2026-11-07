@@ -13,7 +13,7 @@ import { toast } from '../lib/ui-store';
 import { ms } from '../lib/motion';
 import { FRAME_COLORS } from '../lib/constants';
 import { outcomeOf, type Group, type Thread } from '../lib/organize/threads';
-import { proposeGroups, type Dimension } from '../lib/organize/propose';
+import { proposeGroups, rememberRebuild, type Dimension, type Progress } from '../lib/organize/propose';
 import { loadThreads, rebuildCanvases } from '../store/organize';
 import type { ProjectMeta } from '../store/projects';
 
@@ -54,6 +54,8 @@ export default function CanvasOrganizer({ onClose, onSwitched }: { onClose: () =
   const [data, setData] = useState<{ canvases: ProjectMeta[]; threads: Thread[] } | null>(null);
   const [view, setView] = useState<View>('now');
   const [proposals, setProposals] = useState<Partial<Record<Dimension, Proposal>>>({});
+  // how far a running proposal has got, per grouping
+  const [progress, setProgress] = useState<Partial<Record<Dimension, Progress>>>({});
   // which groups are ticked, per grouping: switching away and back keeps the choice
   const [acceptedBy, setAcceptedBy] = useState<Partial<Record<Dimension, Set<string>>>>({});
   // which grouping colors the cards; the first one seen, until the user picks
@@ -95,7 +97,10 @@ export default function CanvasOrganizer({ onClose, onSwitched }: { onClose: () =
     asking.current.add(dim);
     setProposals((p) => { const rest = { ...p }; delete rest[dim]; return rest; });
     try {
-      const gs = await proposeGroups(dim, data.threads, data.canvases, { fresh });
+      const gs = await proposeGroups(dim, data.threads, data.canvases, {
+        fresh,
+        onProgress: (p) => setProgress((all) => ({ ...all, [dim]: p })),
+      });
       setProposals((p) => ({ ...p, [dim]: { groups: gs } }));
       setAcceptedBy((a) => ({ ...a, [dim]: new Set(gs.map((g) => g.key)) }));
       if (viewRef.current === dim) setColorBy((c) => (fresh || !c ? dim : c));
@@ -103,6 +108,7 @@ export default function CanvasOrganizer({ onClose, onSwitched }: { onClose: () =
       setProposals((p) => ({ ...p, [dim]: { error: e instanceof Error ? e.message : String(e) } }));
     } finally {
       asking.current.delete(dim);
+      setProgress((all) => { const rest = { ...all }; delete rest[dim]; return rest; });
     }
   };
 
@@ -200,6 +206,7 @@ export default function CanvasOrganizer({ onClose, onSwitched }: { onClose: () =
     setApplying(true);
     try {
       const undo = await rebuildCanvases(outcome, data.threads);
+      if (view !== 'now') void rememberRebuild(view, live, data.threads);
       onSwitched();
       onClose();
       toast('success', fmt(ti('organizer.done'), { n: outcome.canvases.length }), 10000, {
@@ -211,6 +218,12 @@ export default function CanvasOrganizer({ onClose, onSwitched }: { onClose: () =
       toast('error', fmt(ti('organizer.failed'), { msg: e instanceof Error ? e.message : String(e) }));
     }
   };
+
+  const progressText = (p: Progress | undefined) => (
+    !p ? t('organizer.proposing')
+      : p.stage === 'define' ? t('organizer.defining')
+        : fmt(t('organizer.assigning'), { done: p.done, total: p.total })
+  );
 
   const ready = DIMS.filter((d) => { const p = proposals[d]; return !!p && 'groups' in p; });
   const editable = !!groups && !applying;
@@ -387,7 +400,7 @@ export default function CanvasOrganizer({ onClose, onSwitched }: { onClose: () =
                   )}
                 </>
               ) : !proposal ? (
-                <p className="flex items-center gap-2 text-muted-foreground"><Loader2 className="size-4 animate-spin" />{t('organizer.proposing')}</p>
+                <p className="flex items-center gap-2 text-muted-foreground"><Loader2 className="size-4 animate-spin" />{progressText(progress[view])}</p>
               ) : 'error' in proposal ? (
                 <>
                   <p className="text-destructive">{proposal.error}</p>
