@@ -1,7 +1,8 @@
-import { AlignVerticalJustifyStart, Archive, ClipboardList, Copy, FileDown, GitBranch, Highlighter, Trash2 } from 'lucide-react';
+import { AlignVerticalJustifyStart, Archive, ChevronsDownUp, ClipboardList, Copy, FileDown, GitBranch, Highlighter, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { confirmDialog, useUiStore } from '../lib/ui-store';
 import { selectionMarkdown, downloadMarkdown } from '../lib/export';
+import { contiguousStretch } from '../lib/pleats';
 import { useT, t as ti, fmt } from '../i18n';
 import { Button } from './ui/button';
 
@@ -11,7 +12,7 @@ import { Button } from './ui/button';
 // picked first. Nothing runs from the toolbar itself.
 
 export default function SelectionToolbar() {
-  const { selectedNodeIds, nodes, batchDelete, convergeFrom, alignSelection, setArchived, duplicateSelection } = useStore();
+  const { selectedNodeIds, nodes, edges, batchDelete, convergeFrom, alignSelection, setArchived, duplicateSelection, setFolded } = useStore();
   const t = useT();
 
   if (selectedNodeIds.length < 2) return null;
@@ -21,6 +22,8 @@ export default function SelectionToolbar() {
     .filter(Boolean);
 
   const totalTokens = selectedNodes.reduce((sum, n) => sum + (n?.data.tokenCount || 0), 0);
+  // a stretch of one chain folds into a pleat (lib/pleats)
+  const stretch = contiguousStretch(nodes, edges, selectedNodeIds);
 
   // Collect all highlights from selected nodes
   const allHighlights = selectedNodes.flatMap((n) => n?.data.highlights || []);
@@ -90,6 +93,17 @@ export default function SelectionToolbar() {
           >
             <Copy strokeWidth={1.75} />
           </Button>
+
+          {stretch && (
+            <Button variant="ghost" size="icon"
+              onClick={() => setFolded(stretch, true)}
+              className="bg-muted hover:bg-border text-muted-foreground"
+              title={`${t('pleat.foldSelection')} — ${fmt(t('pleat.foldSelectionTitle'), { n: stretch.length })}`}
+              data-fold-selection
+            >
+              <ChevronsDownUp strokeWidth={1.75} />
+            </Button>
+          )}
 
           <Button variant="ghost" size="icon"
             onClick={() => {

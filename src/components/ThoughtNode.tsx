@@ -3,7 +3,7 @@ import { describeModel } from '../lib/use-models';
 import { faceState, faceTone, farPriority, nodeConclusion, nodeName, roleLabel, type FaceShape } from '../lib/node-face';
 import { isAutoRerun, nodeRoute } from '../lib/edge-look';
 import { Handle, Position, useReactFlow, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
-import { AlertTriangle, Check, ChevronLeft, ChevronRight, Copy, FoldVertical, Hourglass, Pin, Plus, RefreshCw, Send, Split, Square, UnfoldVertical, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, ChevronsDownUp, Copy, FoldVertical, Hourglass, Pin, Plus, RefreshCw, Send, Split, Square, UnfoldVertical, X } from 'lucide-react';
 import 'katex/dist/katex.min.css';
 import type { ThoughtNode as ThoughtNodeType } from '../types';
 import { useStore } from '../store';
@@ -38,6 +38,8 @@ import { sessionWhy } from '../lib/session-why';
 import { useTextSelection } from '../lib/use-text-selection';
 import { turnOf } from '../lib/sessions/turn';
 import { useNodeView } from '../lib/agents/runs';
+import { besidePleat } from '../lib/pleats';
+import ChainPill from './ChainPill';
 
 // The live tail of a streaming text: about the last `keep` characters, cut
 // at a line start so the lines on screen wrap exactly as they will in the
@@ -71,6 +73,9 @@ export default function ThoughtNode({ id, data: stored }: NodeProps<ThoughtNodeT
   const selectedNodeId = useStore((s) => s.selectedNodeId);
   const addAttachment = useStore((s) => s.addAttachment);
   const rerunNode = useStore((s) => s.rerunNode);
+  const setFolded = useStore((s) => s.setFolded);
+  // next to a pleat on its column: this card can fold into the strip
+  const canFoldInto = useStore((s) => besidePleat(s.nodes, s.edges, id));
   const t = useT();
   const [isDropTarget, setIsDropTarget] = useState(false);
   const [fanoutOpen, setFanoutOpen] = useState(false);
@@ -356,6 +361,16 @@ export default function ThoughtNode({ id, data: stored }: NodeProps<ThoughtNodeT
         </Button>
       )}
       <span className="tdag-hover flex items-center gap-0.5">
+        {canFoldInto && (
+          <Button variant="ghost" size="icon-sm"
+            onClick={(e) => { e.stopPropagation(); setFolded([id], true); }}
+            title={t('pleat.foldIntoTitle')}
+            className="text-muted-foreground hover:text-foreground"
+            data-fold-into
+          >
+            <ChevronsDownUp strokeWidth={1.75} />
+          </Button>
+        )}
         <Button variant="ghost" size="icon-sm"
           onClick={(e) => { e.stopPropagation(); toggleCollapse(id); }}
           title={data.isCollapsed ? t('face.expand') : t('face.collapse')}
@@ -798,6 +813,9 @@ export default function ThoughtNode({ id, data: stored }: NodeProps<ThoughtNodeT
         className="!bg-transparent !w-0 !h-0 !border-0 !pointer-events-none"
         style={glyphTier ? { top: '50%', left: '50%', right: 'auto' } : { top: '50%' }}
       />
+
+      {/* Under a long chain's head: fold it (working distance only) */}
+      {!mapMode && <ChainPill nodeId={id} />}
 
       {/* Select a passage → explore / highlight */}
       <SelectionActions

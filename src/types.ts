@@ -312,6 +312,10 @@ export interface ThoughtData extends Record<string, unknown> {
   /** Card placed by hand: dragging sets it, and every layout pass keeps the
       card where it was left (lib/layout isPinned). Absent = layout places it. */
   layoutPinned?: boolean;
+  /** Folded into a pleat (lib/pleats): view state, like isCollapsed. Runs of
+      consecutive folded turns on one column show as one strip; the turn, its
+      wires and every context it is part of are untouched. */
+  inPleat?: boolean;
   instruction?: string; // paradigm body: the prompt (prompt node) or operator guidance (human node)
   fanoutRoles?: { name: string; prompt: string }[]; // role list carried by fanout steps/placeholders
   autoRerunRounds?: number; // max auto-triggered runs per user action (default 1); >1 enables loops
@@ -396,6 +400,11 @@ export interface ThoughtData extends Record<string, unknown> {
       never persisted. target = the focused node, ctx = feeds its context,
       down = one structural step downstream (not in context). */
   focusRole?: 'target' | 'ctx' | 'down';
+  /** The pleat this turn draws as its run's first turn, set ONLY by the
+      render pipeline (displayNodes) — never persisted: the run's turns in
+      chain order, how many of them feed the selected card's context, and
+      whether a search hit is inside. */
+  pleat?: { ids: string[]; ctx: number; hit: boolean };
 }
 
 export type ThoughtNode = Node<ThoughtData, 'thought'>;

@@ -14,6 +14,7 @@ import { toast } from '../../lib/ui-store';
 import { t, fmt } from '../../i18n';
 import type { StoreState, NodeSlice } from '../types';
 import { condenseGuard } from '../../lib/condense-guard';
+import { applyFoldPlan, chainPlan } from '../../lib/pleats';
 import { isFactNode, factless } from '../../lib/facts';
 import { activeAbortControllers } from '../streaming';
 import { abortAgentRun } from '../../lib/agents/runs';
@@ -53,6 +54,33 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
     const next = settleLayout(nodes, edges, ids);
     if (next !== nodes) glideNodes(nodes, next, glideSetter, undefined, { anchorId: selectedNodeId });
   };
+  /** Fold flags change (lib/pleats): the turns that sink into a pleat or
+   *  come out of one start at the pleat's spot, and what grows out of the top
+   *  of each changed stretch glides to where it now hangs. Undoable, like a
+   *  relayout. False when the plan changes nothing. */
+  const refold = (plan: Map<string, boolean>): boolean => {
+    const { nodes, edges, selectedNodeId, selectedNodeIds } = get();
+    const step = applyFoldPlan(nodes, edges, plan);
+    if (!step) return false;
+    get().pushHistory();
+    // a card folded away is no longer selected, and its panel goes with it
+    const gone = new Set(step.nodes.filter((n) => n.data.inPleat).map((n) => n.id));
+    const flagged = step.nodes.map((n) => (n.selected && gone.has(n.id) ? { ...n, selected: false } : n));
+    const lostSelection = selectedNodeIds.some((id) => gone.has(id)) || (!!selectedNodeId && gone.has(selectedNodeId));
+    if (lostSelection) {
+      set({ selectedNodeId: null, selectedNodeIds: [] });
+      useUiStore.getState().setPanelOpen(false);
+    }
+    const settled = settleLayout(flagged, edges, step.sources);
+    glideNodes(flagged, settled, glideSetter, () => {
+      get().pushHistory();
+      // once the strips and the cards out of them are measured, settle by
+      // what is actually on screen
+      get().settleFrom(step.sources);
+    }, { anchorId: lostSelection ? null : selectedNodeId });
+    return true;
+  };
+
   /** A session turn keeps its answer: the rewritten answer becomes a
    *  revision beside it — same parent, same question, the canvas's own node
    *  (no session identity, so what follows it compiles the canvas's context). */
@@ -115,7 +143,12 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
 
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
-  setSelectedNodeId: (id) => set({ selectedNodeId: id, selectedNodeIds: id ? [id] : [] }),
+  setSelectedNodeId: (id) => {
+    set({ selectedNodeId: id, selectedNodeIds: id ? [id] : [] });
+    // a turn reached inside a pleat (search, the timeline, the panel's
+    // context list, the arrow keys) comes out of it: what is selected is seen
+    if (id && get().nodes.some((n) => n.id === id && n.data.inPleat)) get().setFolded([id], false);
+  },
   setSelectedNodeIds: (ids) => set({ selectedNodeIds: ids, selectedNodeId: ids.length === 1 ? ids[0] : null }),
 
   deleteNode: (nodeId: string) => {
@@ -197,6 +230,21 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
     // what hangs below re-hangs from the card's new height once it is
     // measured — after the morph, or the measure would catch it midway
     setTimeout(() => get().settleFrom([nodeId]), ms(MOTION.base));
+  },
+
+  foldChain: (nodeId, kind) => {
+    const { nodes, edges } = get();
+    const plan = chainPlan(nodes, edges, nodeId, kind);
+    // a plan that folds nothing at all says why; one already in place is quiet
+    if (kind !== 'open' && ![...plan.values()].some(Boolean)) {
+      toast('info', t(kind === 'gather' ? 'pleat.nothingToGather' : 'pleat.nothingToFold'));
+      return;
+    }
+    refold(plan);
+  },
+
+  setFolded: (nodeIds, folded) => {
+    refold(new Map(nodeIds.map((id) => [id, folded])));
   },
 
   settleFrom: (nodeIds: string[]) => {

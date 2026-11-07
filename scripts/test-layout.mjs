@@ -30,6 +30,18 @@ execFileSync(join(ROOT, 'node_modules/.bin/esbuild'), [
   join(ROOT, 'src/lib/frames.ts'), '--bundle', '--format=esm', '--platform=node', `--outfile=${framesBundle}`,
 ], { stdio: ['ignore', 'ignore', 'pipe'] });
 const { frameMembers } = await import(pathToFileURL(framesBundle).href);
+const pleatsBundle = join(tmp, 'pleats.mjs');
+execFileSync(join(ROOT, 'node_modules/.bin/esbuild'), [
+  join(ROOT, 'src/lib/pleats.ts'), '--bundle', '--format=esm', '--platform=node', `--outfile=${pleatsBundle}`,
+  '--define:import.meta.env.VITE_API_BASE=""', '--define:import.meta.env.DEV=false',
+], { stdio: ['ignore', 'ignore', 'pipe'] });
+const { pleatRuns, chainPlan, applyFoldPlan, contiguousStretch, chainFolds } = await import(pathToFileURL(pleatsBundle).href);
+const edgePathBundle = join(tmp, 'edge-path.mjs');
+execFileSync(join(ROOT, 'node_modules/.bin/esbuild'), [
+  join(ROOT, 'src/lib/edge-path.ts'), '--bundle', '--format=esm', '--platform=node', `--outfile=${edgePathBundle}`,
+  '--define:import.meta.env.VITE_API_BASE=""', '--define:import.meta.env.DEV=false',
+], { stdio: ['ignore', 'ignore', 'pipe'] });
+const { obstacleField, routeEdge } = await import(pathToFileURL(edgePathBundle).href);
 
 let failures = 0;
 function test(name, fn) {
@@ -627,6 +639,148 @@ test('settling a benchmark canvas after its own auto layout moves nothing, as ha
     if (after > before) bad.push(`${f}: as stored, violations ${before} -> ${after}`);
   }
   assert(bad.length === 0, bad.join('; '));
+});
+
+
+// ── Pleats: a run of folded turns is one strip (lib/pleats) ──
+const PLEAT = 120; // PLEAT_LAYOUT_HEIGHT
+const chainOf = (ids) => ids.slice(1).map((id, i) => ed(ids[i], id));
+const fold = (nodes, ids) => nodes.map((n) => (ids.includes(n.id) ? { ...n, data: { ...n.data, inPleat: true } } : n));
+const foldedIds = (nodes) => nodes.filter((n) => n.data.inPleat).map((n) => n.id).sort();
+const typed = (id, move, over = {}) => th(id, { summaryTypes: [move], ...over });
+
+test('a folded run lays out as one strip: what follows hangs one strip below it', () => {
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f'];
+  const edges = chainOf(ids);
+  const laid = autoLayout(fold(ids.map((i) => th(i)), ['c', 'd']), edges);
+  const h = nodeHeight(nodeOf(laid, 'b'));
+  assert(at(laid, 'c').y === at(laid, 'b').y + h + GAP, `the strip at ${at(laid, 'c').y}`);
+  assert(at(laid, 'e').y === at(laid, 'c').y + PLEAT + GAP, `e at ${at(laid, 'e').y}, expected ${at(laid, 'c').y + PLEAT + GAP}`);
+  assert(at(laid, 'd').x === at(laid, 'c').x && at(laid, 'd').y === at(laid, 'c').y, 'the hidden turn is not at its strip');
+  assert(new Set(laid.map((n) => at(laid, n.id).x)).size === 1, 'the chain left its column');
+});
+
+test('a branch off a folded turn hangs beside the strip, never taking over the column', () => {
+  const ids = ['a', 'b', 'c', 'd', 'e'];
+  const edges = [...chainOf(ids), ed('c', 'x'), ed('x', 'y'), ed('d', 'z', { isBranchFromSelection: true })];
+  const nodes = fold([...ids, 'x', 'y', 'z'].map((i) => th(i)), ['b', 'c', 'd']);
+  const laid = autoLayout(nodes, edges);
+  assert(at(laid, 'e').x === at(laid, 'a').x, 'the chain after the strip left its column');
+  assert(at(laid, 'e').y === at(laid, 'b').y + PLEAT + GAP, 'the chain does not hang from the strip');
+  for (const id of ['x', 'z']) {
+    assert(at(laid, id).x > at(laid, 'b').x, `${id} is not beside the strip`);
+    assert(at(laid, id).y >= at(laid, 'b').y && at(laid, id).y < at(laid, 'b').y + PLEAT, `${id} does not hang off the strip`);
+  }
+  assert(at(laid, 'y').y > at(laid, 'x').y, 'the branch lost its own order');
+});
+
+test('gather keeps the head, landmarks, wired turns and the last two; folds stretches of two or more', () => {
+  const ids = ['h', 'p1', 'p2', 'dec', 'p3', 'p4', 'marked', 'p5', 'wired', 'p6', 'p7', 'p8', 'last1', 'last2'];
+  const nodes = ids.map((i) => (i === 'dec' ? typed(i, 'decision')
+    : i === 'marked' ? th(i, { highlights: [{ id: 'm', text: 'x' }] })
+    : th(i)));
+  nodes.push(th('side'));
+  const edges = [...chainOf(ids), ed('wired', 'side', { isBranchFromSelection: true })];
+  const plan = chainPlan(nodes, edges, 'p3', 'gather');
+  const folded = [...plan].filter(([, on]) => on).map(([id]) => id).sort();
+  assert(JSON.stringify(folded) === JSON.stringify(['p1', 'p2', 'p3', 'p4', 'p6', 'p7', 'p8'].sort()),
+    `folded ${folded.join(',')}`);
+  assert(plan.get('p5') === false, 'a lone turn between landmarks folded on its own');
+});
+
+test('keep-ends folds everything between the head and the tail, except a card placed by hand', () => {
+  const ids = ['h', 'a', 'b', 'c', 'pinned', 'd', 'e', 't'];
+  const nodes = ids.map((i) => (i === 'pinned' ? pin(th(i)) : th(i)));
+  const plan = chainPlan(nodes, chainOf(ids), 'h', 'middle');
+  const folded = [...plan].filter(([, on]) => on).map(([id]) => id).sort();
+  assert(JSON.stringify(folded) === JSON.stringify(['a', 'b', 'c', 'd', 'e']), `folded ${folded.join(',')}`);
+  const f = chainFolds(nodes, chainOf(ids), 'c');
+  assert(f.turns === 8 && f.middle === 5 && !f.middled, 'the chain status is wrong');
+});
+
+test('folding pulls the chain up under the strip; unfolding hangs the turns back in order', () => {
+  const ids = ['h', 'a', 'b', 'c', 'd', 't'];
+  const edges = chainOf(ids);
+  const laid0 = autoLayout(ids.map((i) => th(i)), edges);
+  const step = applyFoldPlan(laid0, edges, chainPlan(laid0, edges, 'h', 'middle'));
+  assert(step && JSON.stringify(step.sources) === '["a"]', `sources ${step && step.sources}`);
+  const folded = settleLayout(step.nodes, edges, step.sources);
+  assert(JSON.stringify(foldedIds(folded)) === '["a","b","c","d"]', 'the wrong turns folded');
+  assert(at(folded, 'a').y === at(laid0, 'a').y, 'the strip did not stay where its first turn was');
+  assert(at(folded, 't').y === at(folded, 'a').y + PLEAT + GAP, `the tail at ${at(folded, 't').y}`);
+  const back = applyFoldPlan(folded, edges, chainPlan(folded, edges, 'h', 'open'));
+  const opened = settleLayout(back.nodes, edges, back.sources);
+  assert(foldedIds(opened).length === 0, 'something stayed folded');
+  const moved = movedOther(spots(laid0), opened, []);
+  assert(moved.length === 0, `not back where they were: ${moved.join(', ')}`);
+});
+
+test('a gather with several strips hangs each one right under the card above it', () => {
+  const ids = ['h', 'a', 'b', 'dec', 'c', 'd', 'piv', 'e', 'f', 'l1', 'l2'];
+  const edges = chainOf(ids);
+  const nodes = ids.map((i) => (i === 'dec' ? typed(i, 'decision') : i === 'piv' ? typed(i, 'pivot') : th(i)));
+  const laid0 = autoLayout(nodes, edges);
+  const step = applyFoldPlan(laid0, edges, chainPlan(laid0, edges, 'h', 'gather'));
+  assert(JSON.stringify(step.sources) === '["a"]', `sources ${step.sources}`);
+  const laid = settleLayout(step.nodes, edges, step.sources);
+  assert(JSON.stringify(foldedIds(laid)) === '["a","b","c","d","e","f"]', `folded ${foldedIds(laid)}`);
+  const below = (upper, lower) => at(laid, lower).y === at(laid, upper).y + nodeHeight(nodeOf(laid, upper)) + GAP;
+  for (const [u, l] of [['h', 'a'], ['a', 'dec'], ['dec', 'c'], ['c', 'piv'], ['piv', 'e'], ['e', 'l1'], ['l1', 'l2']]) {
+    assert(below(u, l), `${l} does not hang right under ${u}: ${at(laid, u).y} -> ${at(laid, l).y}`);
+  }
+});
+
+test('taking a turn out splits the strip; a run left with one turn opens', () => {
+  const ids = ['h', 'a', 'b', 'c', 'd', 'e', 't'];
+  const edges = chainOf(ids);
+  const nodes = fold(autoLayout(ids.map((i) => th(i)), edges), ['a', 'b', 'c', 'd', 'e']);
+  const step = applyFoldPlan(nodes, edges, new Map([['b', false]]));
+  assert(JSON.stringify(foldedIds(step.nodes)) === '["c","d","e"]', `folded ${foldedIds(step.nodes)}`);
+  const runs = pleatRuns(step.nodes, edges);
+  assert(runs.length === 1 && runs[0].head === 'c', 'the strip did not split where the turn came out');
+  const laid = settleLayout(step.nodes, edges, step.sources);
+  assert(at(laid, 'a').y < at(laid, 'b').y && at(laid, 'b').y < at(laid, 'c').y && at(laid, 'c').y < at(laid, 't').y,
+    'the column is out of order after taking a turn out');
+  const v = violations(laid.filter((n) => !n.data.inPleat || n.id === 'c'), edges.filter((e) => !['d', 'e'].includes(e.source) && !['d', 'e'].includes(e.target)));
+  assert(v.length === 0, v.join('; '));
+});
+
+test('a new card asked off the tail lands below the strip, not inside it', () => {
+  const ids = ['h', 'a', 'b', 'c', 't'];
+  const edges = chainOf(ids);
+  const folded = settleLayout(fold(autoLayout(ids.map((i) => th(i)), edges), ['a', 'b', 'c']), edges, ['a']);
+  const laid = placeNewNodes([...folded, seat('next', 0, 0)], [...edges, ed('t', 'next')], ['next']);
+  assert(at(laid, 'next').x === at(laid, 't').x, 'the new card left the column');
+  assert(at(laid, 'next').y >= at(laid, 't').y + nodeHeight(nodeOf(laid, 't')), 'the new card does not hang below the tail');
+});
+
+test('a stretch of one column can fold; a gap or another column cannot', () => {
+  const ids = ['h', 'a', 'b', 'c', 't'];
+  const nodes = [...ids, 'x'].map((i) => th(i));
+  const edges = [...chainOf(ids), ed('a', 'x', { isBranchFromSelection: true })];
+  assert(JSON.stringify(contiguousStretch(nodes, edges, ['c', 'a', 'b'])) === '["a","b","c"]', 'a stretch was refused');
+  assert(contiguousStretch(nodes, edges, ['a', 'c']) === null, 'a gap was accepted');
+  assert(contiguousStretch(nodes, edges, ['a', 'x']) === null, 'two columns were accepted');
+});
+
+test('a folded turn is in no wire\'s way, and folding one re-routes against the new boxes', () => {
+  // a wire straight down the column, past a card sitting on its line
+  const nodes = [placed(th('s'), 0, 0), placed(th('mid'), 0, 312), placed(th('t'), 0, 900)];
+  const straight = (field) => routeEdge(260, 120, 'bottom', 260, 900, 'top', 's', 't', field).path.split(' ')
+    .filter((_, i) => [4, 6].includes(i)).every((x) => Number(x) === 260);
+  assert(!straight(obstacleField(nodes)), 'a card on the line did not bend the wire');
+  const folded = fold(nodes, ['mid']);
+  assert(straight(obstacleField(folded)), 'a folded turn still bent the wire');
+  const before = obstacleField(nodes);
+  const after = obstacleField(folded);
+  assert(after !== before, 'folding a turn kept the old boxes');
+  assert(obstacleField([...folded]) === after, 'the same boxes did not share one field');
+});
+
+test('nothing folded: layout hands the same canvas back', () => {
+  const ids = ['h', 'a', 'b'];
+  const laid = autoLayout(ids.map((i) => th(i)), chainOf(ids));
+  assert(settleLayout(laid, chainOf(ids), ['h']) === laid, 'a settle with nothing to move returned a new canvas');
 });
 
 rmSync(tmp, { recursive: true, force: true });

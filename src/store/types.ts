@@ -55,6 +55,10 @@ export interface NodeSlice {
   tidyChain: (nodeId: string) => void;
   /** Re-flow the cards inside a frame; nothing outside it moves (undoable). */
   tidyFrame: (frameId: string) => void;
+  /** Fold a chain into pleats (lib/pleats): 'gather' keeps its landmarks and last turns, 'middle' keeps only its head and tail, 'open' unfolds it. View state only; undoable. */
+  foldChain: (nodeId: string, kind: 'gather' | 'middle' | 'open') => void;
+  /** Fold or unfold these turns: a pleat's own turns, one taken out of it, a card folded into the strip beside it, a selected stretch. A run left with one turn opens. Undoable. */
+  setFolded: (nodeIds: string[], folded: boolean) => void;
   /** These cards changed size: settle what hangs from them (and what stands in the way) once React Flow has re-measured them. Columns never move. */
   settleFrom: (nodeIds: string[]) => void;
   /** Stack the selected nodes into one vertical column, in conversation order (undoable). */

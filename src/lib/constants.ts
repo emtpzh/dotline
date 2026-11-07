@@ -31,6 +31,13 @@ export const COLLAPSED_NODE_HEIGHT = 80;
 // overlap the moment the user zoomed to the map.
 export const COLLAPSED_LAYOUT_HEIGHT = 240;
 
+// A pleat (lib/pleats): a run of folded turns drawn as one strip. 76px at
+// working size; the map draws it up to 1.5× larger, so layout budgets 120.
+export const PLEAT_HEIGHT = 76;
+export const PLEAT_LAYOUT_HEIGHT = 120;
+// A chain this many turns long offers to fold itself (the pill under its head).
+export const LONG_CHAIN = 8;
+
 // JS mirror of the design tokens in src/index.css — for places that take
 // color values rather than classes. Canvas wires resolve theirs at render
 // time (lib/appearance edgePalette, lib/edge-look); nothing is persisted.

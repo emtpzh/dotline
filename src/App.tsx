@@ -25,6 +25,7 @@ import { ARROW_IDS, drawnEdge, drawnList, edgeMeaning, emphasized, routesOf } fr
 import EdgeMarkers from './components/EdgeMarkers';
 import ContentNode from './components/ContentNode';
 import FrameNode from './components/FrameNode';
+import PleatNode from './components/PleatNode';
 import ThoughtEdgeView from './components/ThoughtEdgeView';
 import FocusPanel from './components/focus-panel';
 import SelectionToolbar from './components/SelectionToolbar';
@@ -55,6 +56,7 @@ import { recapCamera } from './lib/recap';
 import type { ThoughtNode as ThoughtNodeType, ThoughtEdge } from './types';
 import { FILE_INPUT_ACCEPT } from './lib/attachments';
 import { walkUpAncestors, partitionContext } from './lib/graph';
+import { pleatHeads, pleatRuns } from './lib/pleats';
 import { buildContext } from './store/context-builder';
 import { exportActiveParadigm, exportActiveProjectJson, exportEventLogCsv } from './lib/export';
 import { countTokens } from './utils';
@@ -111,6 +113,8 @@ const NodeDispatch = memo(function NodeDispatch(props: Parameters<typeof Thought
   const isParadigm = useProjects((s) => s.projects.find((p) => p.id === s.activeId)?.kind === 'paradigm');
   if (props.data?.stepKind === 'frame') return <FrameNode {...props} />;
   if (isContentKind(props.data?.stepKind)) return <ContentNode {...props} />;
+  // the first turn of a folded run draws the run's pleat (lib/pleats)
+  if (props.data?.inPleat) return <PleatNode {...props} />;
   return isParadigm ? <ParadigmNode {...props} /> : <ThoughtNode {...props} />;
 });
 const nodeTypes = { thought: NodeDispatch };
@@ -925,6 +929,22 @@ function Canvas() {
     let out = nodes.map((n) => (
       n.data.stepKind === 'frame' ? { ...n, zIndex: frameZ.get(n.id) ?? -1 } : n
     ));
+    // Pleats (lib/pleats): a run of folded turns is drawn by its first turn
+    // as one strip; the others are hidden. The strip is not a card you pick
+    // up or select — its own controls unfold it or take a turn out — and it
+    // sits above the cards so a hovered turn's face can lift over them.
+    const runs = pleatRuns(nodes, edges);
+    if (runs.length > 0) {
+      const heads = new Map(runs.map((r) => [r.head, r]));
+      const folded = pleatHeads(runs);
+      out = out.map((n) => {
+        const r = heads.get(n.id);
+        if (!r) return folded.has(n.id) ? { ...n, hidden: true } : n;
+        const ctx = focusSets ? r.ids.filter((id) => focusSets.ctx.has(id)).length : 0;
+        const hit = searchHitIds !== null && r.ids.some((id) => searchHitIds.has(id));
+        return { ...n, selectable: false, draggable: false, zIndex: 1, data: { ...n.data, pleat: { ids: r.ids, ctx, hit } } };
+      });
+    }
     if (annotationsHidden) {
       out = out.map((n) => {
         const k = n.data.stepKind;
@@ -936,7 +956,7 @@ function Canvas() {
     // dimming via [data-searching]; frames stay out — they are the ground).
     if (searchHitIds !== null) {
       out = out.map((n) => (
-        searchHitIds.has(n.id) || n.data.stepKind === 'frame'
+        searchHitIds.has(n.id) || n.data.pleat?.hit || n.data.stepKind === 'frame'
           ? { ...n, className: 'search-hit' }
           : n.className === 'search-hit' ? { ...n, className: undefined } : n
       ));
@@ -968,7 +988,22 @@ function Canvas() {
     // — a streaming chunk, a measurement — re-renders none.
     const routes = routesOf(nodes, edges);
     const byId = new Map(nodes.map((n) => [n.id, n]));
-    const base = edges.map((e) => drawnEdge(e, edgeMeaning(e, routes, byId), themePalette));
+    // A wire that touches a folded turn is drawn to its pleat instead; the
+    // wires inside a run are not drawn at all. Meaning (color, dash) is still
+    // read off the real wire, and its id is kept, so selecting or deleting
+    // the drawn wire acts on the real one. A re-aimed wire is kept by
+    // identity like any other, one object per strip it is drawn to.
+    const folded = pleatHeads(pleatRuns(nodes, edges));
+    const base = edges.flatMap((e): ThoughtEdge[] => {
+      const sh = folded.get(e.source);
+      const th = folded.get(e.target);
+      if (sh && sh === th) return [];
+      const drawn = drawnEdge(e, edgeMeaning(e, routes, byId), themePalette);
+      if (!sh && !th) return [drawn];
+      const source = sh ?? e.source;
+      const target = th ?? e.target;
+      return [emphasized(drawn, `pleat ${source} ${target}`, (w) => ({ ...w, source, target }))];
+    });
     if (focusSets) {
       return drawnList(edges, base.map((e) => {
         if (focusSets.pathEdgeIds.has(e.id)) {

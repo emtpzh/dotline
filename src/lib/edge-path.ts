@@ -60,6 +60,13 @@ export interface ObstacleField {
   mark: number;
 }
 
+// A turn folded into a pleat (lib/pleats) sits stacked under its strip, out
+// of sight: it is in no wire's way. Its box is empty — kept in the arrays,
+// so the mirror test still finds its x and width, but never filed and never
+// met by a query (an empty box overlaps nothing).
+const boxTop = (n: ThoughtNode) => (n.data.inPleat ? Infinity : n.position.y - MARGIN);
+const boxBottom = (n: ThoughtNode) => (n.data.inPleat ? -Infinity : n.position.y + nodeHeight(n) + MARGIN);
+
 const fields = new WeakMap<ThoughtNode[], ObstacleField>();
 let lastField: ObstacleField | null = null;
 
@@ -84,8 +91,8 @@ function sameBoxes(field: ObstacleField, nodes: ThoughtNode[]): boolean {
     if (n.id !== field.ids[i]
       || n.position.x !== field.px[i]
       || (n.measured?.width ?? NODE_CSS_WIDTH) !== field.w[i]
-      || n.position.y - MARGIN !== field.y1[i]
-      || n.position.y + nodeHeight(n) + MARGIN !== field.y2[i]) return false;
+      || boxTop(n) !== field.y1[i]
+      || boxBottom(n) !== field.y2[i]) return false;
   }
   return true;
 }
@@ -106,10 +113,15 @@ function buildField(nodes: ThoughtNode[]): ObstacleField {
     if (!index.has(n.id)) index.set(n.id, i);
     px[i] = n.position.x;
     w[i] = width;
+    y1[i] = boxTop(n);
+    y2[i] = boxBottom(n);
+    if (n.data.inPleat) {
+      x1[i] = Infinity;
+      x2[i] = -Infinity;
+      continue;
+    }
     x1[i] = n.position.x - MARGIN;
-    y1[i] = n.position.y - MARGIN;
     x2[i] = n.position.x + width + MARGIN;
-    y2[i] = n.position.y + nodeHeight(n) + MARGIN;
     const cx1 = Math.floor(x1[i] / CELL), cx2 = Math.floor(x2[i] / CELL);
     const cy1 = Math.floor(y1[i] / CELL), cy2 = Math.floor(y2[i] / CELL);
     if (!(fileable(cx1) && fileable(cx2) && fileable(cy1) && fileable(cy2))

@@ -247,6 +247,54 @@ body.tdag-connecting :is(.thought-node, .content-card) > .react-flow__handle.tda
   word-break: break-word;
 }
 
+/* ── Pleat: a run of folded turns drawn as one strip (lib/pleats) ──────
+   The card it is (.thought-node) with the cards it holds peeking out
+   underneath. Working size 76px (PLEAT_HEIGHT); the map draws the same
+   strip larger, at most 1.5×, inside the 120px layout budget. */
+.pleat { position: relative; width: 520px; }
+.pleat.map-node { --k: clamp(1, calc(0.8 / var(--tdag-zoom, 1)), 1.5); }
+.pleat-sheet {
+  position: absolute; left: var(--inset); right: var(--inset); bottom: calc(-1 * var(--drop));
+  height: 32px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--card);
+  box-shadow: 0 1px 2px color-mix(in oklch, var(--foreground) 5%, transparent);
+}
+.pleat-sheet[data-depth='1'] { --inset: 8px; --drop: 5px; }
+.pleat-sheet[data-depth='2'] { --inset: 16px; --drop: 10px; }
+.pleat-card {
+  display: flex; flex-direction: column; justify-content: center; gap: 0.29em;
+  height: calc(76px * var(--k, 1)); padding: 0 1.15em; font-size: calc(14px * var(--k, 1));
+}
+/* its turns feed the selected card's context */
+.thought-node.pleat-card.pleat-ctx { outline: 1.5px solid color-mix(in oklch, var(--primary) 55%, transparent); outline-offset: -1px; }
+
+/* One turn's mark: its judged move (summaryTypes). A plain turn is a soft
+   dot; ruled out is hollow; a decision a solid primary square; a pivot a
+   warning diamond; an open question a primary ring. A branch leaving the
+   turn rings it in the fork wire's color; the person's own highlight lays a
+   highlighter stroke under it. */
+.pleat-bead {
+  position: relative; display: block; flex: none; width: 0.57em; height: 0.57em; border-radius: 9999px;
+  background: color-mix(in oklch, var(--muted-foreground) 50%, transparent);
+}
+.pleat-bead[data-move='ruleout'] { background: transparent; box-shadow: inset 0 0 0 0.11em var(--muted-foreground); }
+.pleat-bead[data-move='decision'] { background: var(--primary); border-radius: 0.14em; }
+.pleat-bead[data-move='pivot'] { background: var(--warning); border-radius: 0.1em; transform: rotate(45deg) scale(0.9); }
+.pleat-bead[data-move='open'] { background: transparent; box-shadow: inset 0 0 0 0.14em var(--primary); }
+.pleat-bead[data-fork] { outline: 0.11em solid var(--edge-explore); outline-offset: 0.18em; }
+.pleat-bead[data-marked]::after {
+  content: ''; position: absolute; left: -0.2em; right: -0.2em; bottom: -0.36em; height: 0.2em; border-radius: 0.14em;
+  background: color-mix(in srgb, var(--warning) 60%, transparent);
+}
+.pleat-beads { display: flex; align-items: center; gap: 0.6em; min-width: 0; overflow: hidden; }
+/* where a branch leaves the strip: a dot in the fork wire's color */
+.pleat-port {
+  position: absolute; right: -5px; top: 68%; width: 10px; height: 10px; margin-top: -5px;
+  border-radius: 9999px; background: var(--edge-explore); box-shadow: 0 0 0 2.5px var(--canvas);
+}
+/* the run's span in time, and the trail of what it held */
+.pleat-meta { font-size: 0.78em; color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pleat-meta[data-ctx] { color: var(--primary); }
+
 /* ── Timeline bar (map/glyph tiers): recently-edited dots breathe ── */
 @keyframes tdag-timeline-glow {
   0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--primary) 45%, transparent); }

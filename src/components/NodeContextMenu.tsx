@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import { Archive, ArchiveRestore, BookOpen, Copy, Files, FlaskConical, GitFork, LayoutGrid, PinOff, RefreshCw, Split, StickyNote, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, BookOpen, ChevronsDownUp, Copy, Files, FlaskConical, GitFork, LayoutGrid, Milestone, PinOff, RefreshCw, Split, StickyNote, Trash2, UnfoldVertical } from 'lucide-react';
 import { useStore } from '../store';
 import { useUiStore, confirmDialog, toast } from '../lib/ui-store';
 import { recapToNote } from '../lib/recap';
+import { besidePleat, chainFoldsKey, parseChainFolds, pleatRuns } from '../lib/pleats';
 import { useT, fmt, t as ti } from '../i18n';
 import {
   DropdownMenu,
@@ -22,6 +23,11 @@ export default function NodeContextMenu({ x, y, nodeId, onClose }: {
   const t = useT();
   const node = useStore((s) => s.nodes.find((n) => n.id === nodeId));
   const hasFollowers = useStore((s) => s.edges.some((e) => e.source === nodeId && !e.data?.isCrossLink));
+  // folding its chain (lib/pleats): where the chain stands, and whether this
+  // card sits next to a strip it can fold into
+  const foldsKey = useStore((s) => chainFoldsKey(s.nodes, s.edges, nodeId));
+  const canFoldInto = useStore((s) => besidePleat(s.nodes, s.edges, nodeId));
+  const runIds = useStore((s) => pleatRuns(s.nodes, s.edges).find((r) => r.head === nodeId)?.ids.join(' ') ?? '');
 
   // The menu opens at the pointer, not at a trigger, so it is anchored to a
   // zero-size rectangle there; the positioner keeps it inside the viewport.
@@ -36,6 +42,23 @@ export default function NodeContextMenu({ x, y, nodeId, onClose }: {
     : node.data.response;
 
   const icon = 'text-muted-foreground shrink-0';
+  const folds = isContent ? null : parseChainFolds(foldsKey);
+
+  // a pleat's own menu: it is not a card, so the card actions are not its
+  if (node.data.inPleat && runIds) {
+    return (
+      <DropdownMenu open onOpenChange={(next: boolean) => { if (!next) onClose(); }}>
+        <DropdownMenuContent anchor={anchor} align="start" className="w-[200px]">
+          <DropdownMenuItem onClick={() => useStore.getState().setFolded(runIds.split(' '), false)} data-ctx-unfold-pleat>
+            <UnfoldVertical size={14} strokeWidth={1.75} className={icon} /> {t('ctx.unfoldPleat')}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => useStore.getState().foldChain(nodeId, 'open')} data-ctx-unfold-chain>
+            <UnfoldVertical size={14} strokeWidth={1.75} className={icon} /> {t('ctx.unfoldChain')}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
 
   return (
     <DropdownMenu open onOpenChange={(next: boolean) => { if (!next) onClose(); }}>
@@ -102,6 +125,26 @@ export default function NodeContextMenu({ x, y, nodeId, onClose }: {
         {!isContent && hasFollowers && (
           <DropdownMenuItem title={ti('ctx.tidyChainTitle')} onClick={() => useStore.getState().tidyChain(nodeId)}>
             <LayoutGrid size={14} strokeWidth={1.75} className={icon} /> {t('ctx.tidyChain')}
+          </DropdownMenuItem>
+        )}
+        {folds && folds.gather > 0 && !folds.gathered && (
+          <DropdownMenuItem title={ti('chain.gatherTitle')} onClick={() => useStore.getState().foldChain(nodeId, 'gather')} data-ctx-gather>
+            <Milestone size={14} strokeWidth={1.75} className={icon} /> {t('ctx.gatherChain')}
+          </DropdownMenuItem>
+        )}
+        {folds && folds.middle > 0 && !folds.middled && (
+          <DropdownMenuItem title={fmt(ti('chain.keepEndsTitle'), { n: folds.middle })} onClick={() => useStore.getState().foldChain(nodeId, 'middle')} data-ctx-keep-ends>
+            <ChevronsDownUp size={14} strokeWidth={1.75} className={icon} /> {t('ctx.keepEnds')}
+          </DropdownMenuItem>
+        )}
+        {canFoldInto && (
+          <DropdownMenuItem title={ti('pleat.foldIntoTitle')} onClick={() => useStore.getState().setFolded([nodeId], true)} data-ctx-fold-into>
+            <ChevronsDownUp size={14} strokeWidth={1.75} className={icon} /> {t('pleat.foldInto')}
+          </DropdownMenuItem>
+        )}
+        {folds && folds.folded > 0 && (
+          <DropdownMenuItem title={ti('chain.unfoldAllTitle')} onClick={() => useStore.getState().foldChain(nodeId, 'open')} data-ctx-unfold-chain>
+            <UnfoldVertical size={14} strokeWidth={1.75} className={icon} /> {t('ctx.unfoldChain')}
           </DropdownMenuItem>
         )}
         {!isContent && node.data.layoutPinned && (

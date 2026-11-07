@@ -1,7 +1,8 @@
 import type { ThoughtNode, ThoughtEdge } from '../types';
 import { getDescendantIds } from './graph';
 import { frameContains, frameMembers, frameRect, isFrameNode } from './frames';
-import { COLLAPSED_LAYOUT_HEIGHT, LAYOUT_COL_WIDTH, LAYOUT_H_GAP, LAYOUT_V_GAP } from './constants';
+import { COLLAPSED_LAYOUT_HEIGHT, LAYOUT_COL_WIDTH, LAYOUT_H_GAP, LAYOUT_V_GAP, PLEAT_HEIGHT, PLEAT_LAYOUT_HEIGHT } from './constants';
+import { throughPleats } from './pleats';
 
 /** Material + regions: user-arranged, never moved by any layout pass.
  *  Notes/files/links are content the user placed; a frame is a region rather
@@ -21,6 +22,8 @@ export const isPinned = (node: ThoughtNode) => !!node.data.layoutPinned && !isCo
 // — an uncapped formula here would keep spreading nodes for content the
 // card no longer grows for.
 export function estimateNodeHeight(node: ThoughtNode): number {
+  // a pleat (lib/pleats) is one strip, however many turns it holds
+  if (node.data.inPleat) return PLEAT_LAYOUT_HEIGHT;
   if (node.data.isCollapsed) return COLLAPSED_LAYOUT_HEIGHT;
   // Calibrated against measured DOM heights (2026-08): CJK markdown renders
   // ~1px per char at card width before the 400px CSS cap; chrome (name row
@@ -42,7 +45,17 @@ export function estimateNodeHeight(node: ThoughtNode): number {
 // laying out with it would overlap once the user zooms back in. Slightly
 // generous spacing beats overlapping cards.
 export function nodeHeight(node: ThoughtNode): number {
+  // a card folded into a pleat a moment ago still reports its own measured
+  // height: the strip's budget is the truth
+  if (node.data.inPleat) return PLEAT_LAYOUT_HEIGHT;
   return Math.max(node.measured?.height ?? 0, estimateNodeHeight(node));
+}
+
+/** What the eye sees of a card at working zoom: a folded card's measured
+ *  face, a pleat's strip, else the layout height. */
+function seenCardHeight(n: ThoughtNode, layoutHeight: number): number {
+  if (n.data.inPleat) return PLEAT_HEIGHT;
+  return n.data.isCollapsed && n.measured?.height ? n.measured.height : layoutHeight;
 }
 
 /** Rendered width of a card: React Flow's measurement when it has one, the
@@ -107,6 +120,10 @@ function innermostFrameOf(node: ThoughtNode, allNodes: ThoughtNode[]): ThoughtNo
  * the frames that had to grow change.
  */
 export function placeNewNodes(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], newNodeIds: string[]): ThoughtNode[] {
+  return throughPleats(allNodes, allEdges, (nodes, edges) => placeNewNodesIn(nodes, edges, newNodeIds));
+}
+
+function placeNewNodesIn(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], newNodeIds: string[]): ThoughtNode[] {
   const byId = new Map(allNodes.map((n) => [n.id, n]));
   const pending = newNodeIds.filter((id) => byId.has(id));
   if (pending.length === 0) return allNodes;
@@ -456,7 +473,13 @@ export type AutoLayoutOptions = {
   frames?: ReadonlySet<string>;
 };
 
+/** Every layout pass sees a pleat as one card (lib/pleats): the folded turns
+ *  are out of the pass and come back sitting at their strip. */
 export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], options: AutoLayoutOptions = {}): ThoughtNode[] {
+  return throughPleats(allNodes, allEdges, (nodes, edges) => autoLayoutIn(nodes, edges, options));
+}
+
+function autoLayoutIn(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], options: AutoLayoutOptions = {}): ThoughtNode[] {
   if (allNodes.length === 0) return allNodes;
   const frameSnapshots = snapshotLayoutFrames(allNodes, options.frames);
   // Content nodes (notes / files) are user-arranged material: layout never
@@ -927,10 +950,7 @@ export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], opt
   // ancestor of the held card never steps below it — that would turn the
   // arrow between them upward; the user put the card there, beside its line.
   if (fixedIds.size > 0) {
-    const seenHeight = (id: string) => {
-      const n = nodeById.get(id)!;
-      return n.data.isCollapsed && n.measured?.height ? n.measured.height : (nodeHeightMap.get(id) || 220);
-    };
+    const seenHeight = (id: string) => seenCardHeight(nodeById.get(id)!, nodeHeightMap.get(id) || 220);
     const parentsOf = new Map<string, string[]>();
     for (const e of edges) {
       if (e.data?.isCrossLink) continue;
@@ -1028,7 +1048,7 @@ export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], opt
         const width = node.measured?.width ?? node.width ?? LAYOUT_COL_WIDTH;
         const height = contentKinds.has(node.data.stepKind ?? '')
           ? (node.measured?.height ?? node.height ?? 120)
-          : Math.max(node.measured?.height ?? 0, node.height ?? 0, nodeHeight(node));
+          : node.data.inPleat ? nodeHeight(node) : Math.max(node.measured?.height ?? 0, node.height ?? 0, nodeHeight(node));
         return { x: position.x, y: position.y, width, height };
       })
       .filter((r): r is { x: number; y: number; width: number; height: number } => r !== null);
@@ -1079,6 +1099,10 @@ export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], opt
  * Frames that held a moved card grow to keep holding it, as when seating.
  */
 export function settleLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], sourceIds: string[]): ThoughtNode[] {
+  return throughPleats(allNodes, allEdges, (nodes, edges) => settleLayoutIn(nodes, edges, sourceIds));
+}
+
+function settleLayoutIn(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], sourceIds: string[]): ThoughtNode[] {
   const byId = new Map(allNodes.map((n) => [n.id, n]));
   const sources = new Set(sourceIds.filter((id) => byId.has(id)));
   if (sources.size === 0) return allNodes;
@@ -1117,7 +1141,7 @@ export function settleLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], s
   for (const s of sources) addDown(s);
 
   const V_PAD = 24;
-  const seenHeight = (n: ThoughtNode) => (n.data.isCollapsed && n.measured?.height ? n.measured.height : layoutHeight(n));
+  const seenHeight = (n: ThoughtNode) => seenCardHeight(n, layoutHeight(n));
   const ancestorsOf = (id: string) => {
     const out = new Set<string>();
     const stack = (parentWires.get(id) ?? []).map((e) => e.source);
