@@ -33,6 +33,16 @@ const DOCS = DOCS_URL;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.4.30',
+    date: '2026-11-08',
+    announce: false,
+    lead: {
+      zh: '画布可以像桌面一样用标签切换了。打开的画布排在顶栏：点一下切过去；点 × 或中键把它暂存，它会留在「全部画布」里，回来时还是离开时的样子；拖动标签可以调整顺序，标签菜单里可以重命名、暂存、暂存其他画布或归档。从「全部画布」、会话地图或新建打开的画布，都会作为新标签出现在当前标签旁边。原来的画布切换器变成了「全部画布」，同样可以搜索，按打开着、暂存和已归档分组。每张画布都记得你离开时的视角、选中的卡片和详情面板是否打开，切回来或刷新后都回到那里。Alt+1…9 跳到对应的标签（9 是最后一个），桌面版还可以用 ⌘/Ctrl+1…9 和 Ctrl+Tab。不在眼前的标签会显示那里的情况：有回答在生成时转圈，有问题在等你或离开后有新内容时显示一个圆点。顶栏放不下时，标签先变窄，再收进一个菜单。切到别的画布时，正在生成的回答也不会被打断了：它会接着写进原来那张卡片，写完后会弹出提示，点「前往」就切过去并定位到那张卡。卡片变长后下方卡片的挪位、等着这个回答的自动重跑和下一步，会等你切回那张画布时再进行；「重放陈旧」或「添加视角」进行到一半时切走，已经开始的回答在后台写完，剩下的等你回来再开始。几百张卡片的大画布，切换和刷新都快了很多：切过去时只画出视野里的卡片。另外，长对话链的「地标收拢」和「只留头尾」按钮在缩小看全图时也会显示，不用再放大到链的第一张卡；右键链上任意一张卡也能折叠。',
+      en: 'Canvases now work like desktops, as tabs along the top bar. Click a tab to bring its canvas into view; × or a middle click stashes it (it waits in All canvases, just as you left it); drag a tab to move it; its menu renames it, stashes it or the other canvases, or archives it. A canvas opened from All canvases, from the session map or as a new canvas becomes a tab beside the one in view. The canvas switcher is now All canvases: the same searchable list, grouped as open, stashed and archived. Every canvas remembers where you were on it: the camera, the selected card and whether the details panel was open, so coming back or reloading lands there. Alt+1…9 jumps to a tab (9 is the last); the desktop app also takes ⌘/Ctrl+1…9 and Ctrl+Tab. A tab out of view shows what goes on there: it spins while an answer is being written, and a dot means a question is waiting for you or something is new since you left. When the top bar runs short of room, the tabs narrow first, then fold into a menu. Switching canvases no longer stops an answer either: it keeps being written into its card, a notice says when it is ready, and Go there brings you to the card. What only the canvas in view can do waits until you are back: moving the cards below a grown answer, and the reruns and next steps waiting on it. When you switch away during Replay stale or Add perspectives, the answers already under way finish out of view and the rest start when you return. Large canvases of several hundred cards switch and reload much faster: arriving draws only the cards in view. And the Gather and Keep the ends buttons of a long chain now show when zoomed out to see the whole canvas, so there is no need to zoom in on its first card; right-clicking any card of the chain folds it too.',
+    },
+    items: [],
+  },
+  {
     version: '0.4.29',
     date: '2026-11-07',
     announce: false,
