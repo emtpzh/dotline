@@ -24,7 +24,7 @@ execFileSync(join(ROOT, 'node_modules/.bin/esbuild'), [
   `--outfile=${bundle}`, '--define:import.meta.env.VITE_API_BASE=""',
   '--define:import.meta.env.DEV=false',
 ], { stdio: ['ignore', 'ignore', 'pipe'] });
-const { autoLayout, nodeHeight, placeNewNodes, reseatSubtree, releasePin, tidyChain, tidyFrame, settleLayout } = await import(pathToFileURL(bundle).href);
+const { autoLayout, nodeHeight, placeNewNodes, reseatSubtree, releasePin, tidyChain, tidyFrame, settleLayout, placeByHand, seatDroppedCard } = await import(pathToFileURL(bundle).href);
 const framesBundle = join(tmp, 'frames.mjs');
 execFileSync(join(ROOT, 'node_modules/.bin/esbuild'), [
   join(ROOT, 'src/lib/frames.ts'), '--bundle', '--format=esm', '--platform=node', `--outfile=${framesBundle}`,
@@ -781,6 +781,48 @@ test('nothing folded: layout hands the same canvas back', () => {
   const ids = ['h', 'a', 'b'];
   const laid = autoLayout(ids.map((i) => th(i)), chainOf(ids));
   assert(settleLayout(laid, chainOf(ids), ['h']) === laid, 'a settle with nothing to move returned a new canvas');
+});
+
+// ── Cards put down by hand: a double-click, the palette, a dropped wire ──
+const asking = (id, x, y) => ({ ...th(id, { question: '', response: '', responses: [], responseIndex: -1, isCollapsed: false }), position: { x, y } });
+
+test('a card put down by hand on free canvas stays right there, pinned', () => {
+  const laid = placeByHand([seat('a', 0, 0), asking('new', 900, 400)], 'new');
+  const n = nodeOf(laid, 'new');
+  assert(n.position.x === 900 && n.position.y === 400, `moved to ${n.position.x},${n.position.y}`);
+  assert(n.data.layoutPinned === true, 'not pinned');
+  assert(at(laid, 'a').x === 0 && at(laid, 'a').y === 0, 'another card moved');
+});
+
+test('a card put down on top of a card steps aside to the nearest free spot', () => {
+  const laid = placeByHand([seat('a', 0, 0), asking('new', 100, 50)], 'new');
+  const n = nodeOf(laid, 'new');
+  assert(n.position.x === 100 && n.position.y === 264, `landed at ${n.position.x},${n.position.y}, expected just below a`);
+  const v = violations(laid, []);
+  assert(v.length === 0, v.join('; '));
+});
+
+test('a card put down by hand survives a relayout, and what is asked from it hangs below it', () => {
+  const chain = [seat('a', 0, 0), seat('b', 0, 312)];
+  const placed = placeByHand([...chain, asking('new', 1400, 900)], 'new');
+  const relaid = autoLayout(placed, [ed('a', 'b')]);
+  assert(at(relaid, 'new').x === 1400 && at(relaid, 'new').y === 900, 'the relayout moved it');
+  const asked = placeNewNodes([...relaid, seat('q', 0, 0)], [ed('a', 'b'), ed('new', 'q')], ['q']);
+  assert(at(asked, 'q').x === 1400, 'its follow-up left its column');
+  assert(at(asked, 'q').y >= 900 + nodeHeight(nodeOf(asked, 'new')), 'its follow-up does not hang below it');
+});
+
+test('a wire dropped near its seat takes the seat; dropped far off, the card stays put, pinned', () => {
+  const parent = seat('p', 0, 0);
+  const edges = [ed('p', 'new')];
+  const near = seatDroppedCard([parent, asking('new', 40, 330)], edges, 'new');
+  const seated = nodeOf(near, 'new');
+  assert(seated.position.x === 0 && seated.position.y === nodeHeight(parent) + GAP, `near drop at ${seated.position.x},${seated.position.y}`);
+  assert(!seated.data.layoutPinned, 'a drop near the seat was pinned');
+  const far = seatDroppedCard([parent, asking('new', 1500, 1200)], edges, 'new');
+  const kept = nodeOf(far, 'new');
+  assert(kept.position.x === 1500 && kept.position.y === 1200, `far drop moved to ${kept.position.x},${kept.position.y}`);
+  assert(kept.data.layoutPinned === true, 'a far drop was not pinned');
 });
 
 rmSync(tmp, { recursive: true, force: true });

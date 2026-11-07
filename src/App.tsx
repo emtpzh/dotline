@@ -42,7 +42,7 @@ import WaitingQuestions from './components/app/WaitingQuestions';
 import SessionAtlas from './components/SessionAtlas';
 import { useStore } from './store';
 import { frameMembers } from './lib/frames';
-import { isPinned } from './lib/layout';
+import { isPinned, placeByHand, seatDroppedCard } from './lib/layout';
 import { holdLayout, registerViewport } from './lib/layout-motion';
 import { MOTION, fitMotion, flyTo, ms, easeStandard } from './lib/motion';
 import { usePresence } from './lib/use-presence';
@@ -103,6 +103,23 @@ import TimelineOverviewModal from './components/app/TimelineOverviewModal';
 import { useStore as useRfStore } from '@xyflow/react';
 import { Button } from './components/ui/button';
 import { APP_NAME, REPO_URL } from './lib/brand';
+
+/** An empty ask card at `pos`: an ordinary Q&A node with no question yet —
+ *  wire material in, then type the question. */
+function freshAskNode(id: string, pos: { x: number; y: number }): ThoughtNodeType {
+  return {
+    id, type: 'thought', position: pos, dragHandle: '.drag-handle',
+    data: {
+      question: '', response: '', responses: [], responseIndex: -1,
+      isCollapsed: false, isEditing: false, isEditingResponse: false, isLoading: false,
+      tokenCount: 0, highlights: [], highlightMode: 'tag',
+      attachments: [], excludedAttachmentIds: [], includedAttachmentIds: [],
+      roleMode: 'inherit', isRoot: false, isBranch: false,
+      webSearch: useUiStore.getState().webSearchEnabled,
+      scholarSearch: useUiStore.getState().scholarSearchEnabled,
+    },
+  };
+}
 
 // One node type key, three renderers: content nodes (notes / files) render
 // the same in every mode; otherwise the active project's kind decides
@@ -411,22 +428,13 @@ function Canvas() {
   }, []);
 
   // Ask node: an ordinary Q&A node dropped EMPTY — wire material in, then
-  // type the question; it answers from whatever the edges carry.
+  // type the question; it answers from whatever the edges carry. Put down
+  // by hand (a double-click, the palette), it stays where it was put —
+  // pinned like a dragged card, beside any card it would land on.
   const spawnAskNode = useCallback((pos: { x: number; y: number }): string => {
     const st = useStore.getState();
     const id = generateId();
-    st.setNodes([...st.nodes, {
-      id, type: 'thought', position: pos, dragHandle: '.drag-handle',
-      data: {
-        question: '', response: '', responses: [], responseIndex: -1,
-        isCollapsed: false, isEditing: false, isEditingResponse: false, isLoading: false,
-        tokenCount: 0, highlights: [], highlightMode: 'tag',
-        attachments: [], excludedAttachmentIds: [], includedAttachmentIds: [],
-        roleMode: 'inherit', isRoot: false, isBranch: false,
-        webSearch: useUiStore.getState().webSearchEnabled,
-        scholarSearch: useUiStore.getState().scholarSearchEnabled,
-      },
-    }]);
+    st.setNodes(placeByHand([...st.nodes, freshAskNode(id, pos)], id));
     st.pushHistory();
     return id;
   }, []);
@@ -674,7 +682,9 @@ function Canvas() {
     document.body.classList.add('tdag-connecting');
   }, []);
   // Dropping a wire on empty canvas = "continue from here": a fresh ask
-  // node at the drop point, wired as a solid child (same as a follow-up).
+  // node wired as a solid child (same as a follow-up). Dropped near the seat
+  // the arrow grammar gives it, it takes that seat; dropped further off, it
+  // stays where it was dropped, placed by hand (lib/layout seatDroppedCard).
   // Wiring to an EXISTING node stays a dashed reference — the distinction
   // is newborn vs. existing conversation, not which handle you aimed at.
   const onConnectEnd = useCallback<NonNullable<React.ComponentProps<typeof ReactFlow>['onConnectEnd']>>((event, connectionState) => {
@@ -701,8 +711,8 @@ function Canvas() {
     const pos = flowPosAt({ x: clientX, y: clientY });
     const st = useStore.getState();
     if (st.nodes.find((n) => n.id === parentId)?.data.stepKind === 'frame') return;
-    const newId = spawnAskNode(pos);
-    st.setEdges([...useStore.getState().edges, {
+    const newId = generateId();
+    const edges: ThoughtEdge[] = [...st.edges, {
       id: `edge-${parentId}-${newId}`,
       source: parentId,
       target: newId,
@@ -710,9 +720,10 @@ function Canvas() {
       targetHandle: 'top',
       type: 'smoothstep',
       data: {},
-    }]);
+    }];
+    useStore.setState({ nodes: seatDroppedCard([...st.nodes, freshAskNode(newId, pos)], edges, newId), edges });
     useStore.getState().pushHistory();
-  }, [isParadigm, flowPosAt, spawnAskNode]);
+  }, [isParadigm, flowPosAt]);
 
   const selectedNodeId = useStore((s) => s.selectedNodeId);
   const selectedNodeIds = useStore((s) => s.selectedNodeIds);
@@ -1099,8 +1110,9 @@ function Canvas() {
       <div
         className="relative h-full w-full"
         onDoubleClick={(e) => {
-          // Double-click on empty canvas → drop an ask node right there
-          // (same gesture family as double-click-on-node = open panel)
+          // Double-click on empty canvas → drop an ask node right there,
+          // placed by hand (same gesture family as double-click-on-node =
+          // open panel)
           if ((e.target as HTMLElement).classList.contains('react-flow__pane') && !isParadigm) {
             spawnAskNode(flowPosAt({ x: e.clientX, y: e.clientY }));
           }

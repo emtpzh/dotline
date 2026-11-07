@@ -276,6 +276,63 @@ function placeNewNodesIn(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], newNo
   });
 }
 
+// How far a card put down by hand may step aside to clear the cards in its
+// way, and how close a dropped wire's card must land to its seat to take it.
+const NUDGE_REACH = 1200;
+const SNAP_RADIUS = 360;
+
+/**
+ * A spot for a card put down by hand with its top-left at `at`: right there
+ * when nothing is in the way, else the nearest spot that clears every card —
+ * stepping aside just far enough, to the edge of whatever was in the way.
+ * Frames are regions, not obstacles: landing inside one is the point of one.
+ */
+export function freeSpotNear(allNodes: ThoughtNode[], at: { x: number; y: number }, size: { width: number; height: number }): { x: number; y: number } {
+  const PAD = 24;
+  const { width: w, height: h } = size;
+  const boxes = allNodes
+    .filter((n) => !isFrameNode(n))
+    .map((n) => ({ x: n.position.x, y: n.position.y, w: cardWidth(n), h: isContentKind(n) ? (n.measured?.height ?? n.height ?? 120) : nodeHeight(n) }))
+    .filter((b) => b.x < at.x + w + NUDGE_REACH && b.x + b.w > at.x - NUDGE_REACH && b.y < at.y + h + NUDGE_REACH && b.y + b.h > at.y - NUDGE_REACH);
+  const free = (x: number, y: number) =>
+    boxes.every((b) => !(x < b.x + b.w + PAD && x + w + PAD > b.x && y < b.y + b.h + PAD && y + h + PAD > b.y));
+  if (free(at.x, at.y)) return at;
+  // the candidate edges: where the card stands clear of one card, on each side
+  const xs = [at.x, ...boxes.flatMap((b) => [b.x + b.w + PAD, b.x - w - PAD])];
+  const ys = [at.y, ...boxes.flatMap((b) => [b.y + b.h + PAD, b.y - h - PAD])];
+  const spots = xs.flatMap((x) => ys.map((y) => ({ x, y, d: (x - at.x) ** 2 + (y - at.y) ** 2 })))
+    .sort((a, b) => a.d - b.d);
+  for (const s of spots) if (free(s.x, s.y)) return { x: s.x, y: s.y };
+  return at;
+}
+
+/** The new card `id`, put down by hand where it sits (a double-click on empty
+ *  canvas, the palette): it stays there — pinned, so no layout pass moves it,
+ *  as if it had been dragged there — at the nearest free spot when it would
+ *  land on a card. */
+export function placeByHand(allNodes: ThoughtNode[], id: string): ThoughtNode[] {
+  const node = allNodes.find((n) => n.id === id);
+  if (!node) return allNodes;
+  const spot = freeSpotNear(allNodes.filter((n) => n.id !== id), node.position, { width: cardWidth(node), height: estimateNodeHeight(node) });
+  return allNodes.map((n) => (n.id === id ? { ...n, position: spot, data: { ...n.data, layoutPinned: true } } : n));
+}
+
+/**
+ * The new card `id`, asked by dropping a wire on empty canvas (its wire is in
+ * `allEdges`, it sits at the drop point). Dropped near the seat the arrow
+ * grammar gives it, it takes that seat: it is asking on, like the "+" under a
+ * card. Dropped further off, the spot was chosen: it stays there, placed by
+ * hand (placeByHand).
+ */
+export function seatDroppedCard(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], id: string): ThoughtNode[] {
+  const node = allNodes.find((n) => n.id === id);
+  if (!node) return allNodes;
+  const seated = placeNewNodes(allNodes, allEdges, [id]);
+  const seat = seated.find((n) => n.id === id)?.position;
+  if (seat && Math.hypot(seat.x - node.position.x, seat.y - node.position.y) <= SNAP_RADIUS) return seated;
+  return placeByHand(allNodes, id);
+}
+
 /**
  * Re-seat one card and everything that grows OUT of it, after the graph
  * itself changed under it (a dashed reference promoted to a real wire, so the
