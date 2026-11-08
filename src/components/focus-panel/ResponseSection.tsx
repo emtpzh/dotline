@@ -5,6 +5,8 @@ import { isFactNode } from '../../lib/facts';
 import { generateId } from '../../utils';
 import { copyText } from '../../lib/export';
 import { Markdown, HighlightedMarkdown } from '../Markdown';
+import { WebLink } from '../RichLink';
+import { siteOf } from '../../lib/link-preview';
 import { useT } from '../../i18n';
 import { isViewerMode } from '../../lib/viewer';
 import { collectExploreMarksKey, type ExploreMark } from '../../lib/explore-marks';
@@ -23,12 +25,6 @@ import { interleave, transcriptSteps } from '../../lib/transcript';
 import { LiveStepsLine, StepsLine } from './StepsLine';
 import { ACTION, ACTION_ICON } from './line';
 import { TurnStamp } from './TurnLines';
-
-/** a source's site, where it names no outlet of its own: "zettelkasten.de" */
-const siteOf = (url?: string): string => {
-  if (!url) return '';
-  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
-};
 
 export default function ResponseSection({
   nodeId,
@@ -147,8 +143,8 @@ export default function ResponseSection({
   const base = turnOf(data)?.cwd ?? undefined;
   // the panel is where an answer is read at length (Markdown's 'panel' surface)
   const answerText = (text: string) => (highlightedTexts.size > 0 || exploreSpecs.length > 0
-    ? <HighlightedMarkdown content={text} highlights={highlightedTexts} exploreMarks={exploreSpecs} base={base} surface="panel" />
-    : <Markdown base={base} surface="panel">{text}</Markdown>);
+    ? <HighlightedMarkdown content={text} highlights={highlightedTexts} exploreMarks={exploreSpecs} base={base} surface="panel" sources={data.references} />
+    : <Markdown base={base} surface="panel" sources={data.references}>{text}</Markdown>);
   // the calls sit where they came back, while the answer is the one they were recorded against
   const placed = !!data.source && data.response === data.source.response;
   const liveText = data.restreaming ? '' : data.response;
@@ -162,7 +158,7 @@ export default function ResponseSection({
             ? <LiveStepsLine key={`s${i}`} entries={part.steps} />
             : (
               <div key={`t${i}`} className="markdown-body tdag-reading text-foreground">
-                <Markdown base={base} surface="panel">{part.text}</Markdown>
+                <Markdown base={base} surface="panel" sources={data.references}>{part.text}</Markdown>
                 {i === parts.length - 1 && <span className="tdag-caret ml-0.5 align-text-bottom" />}
               </div>
             )))}
@@ -266,8 +262,9 @@ export default function ResponseSection({
       {data.references && data.references.length > 0 && !data.isLoading && (
         <div className="pt-2 border-t border-border/60" data-panel-section="refs">
           <p className="text-2xs text-muted-foreground font-medium mb-1.5">{t('refs.title')}</p>
-          {/* the title breaks between words (a long URL as a title still
-              wraps); where it came from and when sit on a line under it */}
+          {/* each carries its site's icon and the card the [n] pills show; the
+              title breaks between words (a long URL as a title still wraps);
+              where it came from and when sit on a line under it */}
           <ol className="space-y-1.5">
             {data.references.map((r, i) => {
               const meta = [r.media || siteOf(r.url), r.date].filter(Boolean).join(' · ');
@@ -276,9 +273,10 @@ export default function ResponseSection({
                   <span className="shrink-0 text-2xs text-muted-foreground font-mono mt-0.5">[{i + 1}]</span>
                   <div className="min-w-0">
                     {r.url ? (
-                      <a href={r.url} target="_blank" rel="noreferrer" title={r.url} className="text-primary hover:text-primary/90 hover:underline wrap-anywhere">
+                      <WebLink href={r.url} known={{ title: r.title, site: r.media, date: r.date }}
+                        className="text-primary hover:text-primary/90 hover:underline wrap-anywhere">
                         {r.title}
-                      </a>
+                      </WebLink>
                     ) : (
                       <span className="text-muted-foreground wrap-anywhere">{r.title}</span>
                     )}

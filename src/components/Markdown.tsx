@@ -12,8 +12,12 @@ import type { Element, ElementContent } from 'hast';
 import type { PluggableList } from 'unified';
 import { Check, ChevronDown, Copy, WrapText } from 'lucide-react';
 import rehypeMarks, { type MarkSpec } from '../lib/rehype-marks';
+import rehypeCites from '../lib/rehype-cites';
 import { useT, fmt } from '../i18n';
 import { localPathOf, openLocalPath, basenameOf } from '../lib/local-path';
+import { hostOf, shortUrl } from '../lib/link-preview';
+import type { Reference } from '../types';
+import { CitationPill, LocalLink, WebLink } from './RichLink';
 import { Button } from './ui/button';
 import { Toggle } from './ui/toggle';
 
@@ -166,9 +170,42 @@ function Table(props: React.HTMLAttributes<HTMLTableElement>) {
 // The writer's working directory, when the text came from a session: a
 // relative path in it resolves against this, not against the app.
 const BaseContext = createContext<string | undefined>(undefined);
+// The sources a web answer cites as [n] (rehype-cites makes the pills).
+const SourcesContext = createContext<Reference[] | undefined>(undefined);
 
-function Anchor(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
+// A bare address the text names as itself (an autolink, www. ones too):
+// shown short beside its icon, the card has the whole of it.
+const isBare = (text: string, href: string): boolean =>
+  text === href || `http://${text}` === href || `https://${text}` === href;
+
+// On the panel a link is rich (components/RichLink): a web link carries its
+// site's icon and a card on hover, a local one a file glyph and a card, a
+// citation is a pill. A card keeps them plain: it is small, and it renders
+// far more often than it is read.
+type AnchorProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & { node?: Element; 'data-cite'?: string };
+
+function Anchor({ node, ...props }: AnchorProps) {
+  const surface = useContext(SurfaceContext);
+  const sources = useContext(SourcesContext);
   const local = localPathOf(props.href, useContext(BaseContext));
+  const cite = props['data-cite'];
+  if (cite) {
+    const n = Number(cite);
+    const source = sources?.[n - 1];
+    return source ? <CitationPill n={n} source={source} /> : <>[{cite}]</>;
+  }
+  if (surface === 'panel') {
+    if (local) return <LocalLink href={props.href} path={local}>{props.children}</LocalLink>;
+    if (props.href && hostOf(props.href)) {
+      const href = props.href;
+      const source = sources?.find((s) => s.url === href);
+      return (
+        <WebLink href={href} known={source && { title: source.title, site: source.media, date: source.date }}>
+          {node && isBare(textOf(node), href) ? shortUrl(href) : props.children}
+        </WebLink>
+      );
+    }
+  }
   if (local) {
     return (
       <a
@@ -222,17 +259,31 @@ const COMPONENTS = { pre: Pre, table: Table, a: Anchor, img: Img };
 // memo: the unified parse + KaTeX layout is the most expensive render on a
 // card, and cards re-render far more often than their text changes (every
 // streamed chunk anywhere re-renders every card). Same string → skip.
-export const Markdown = memo(function Markdown({ children, base, marks, surface = 'card' }: { children: string; base?: string; marks?: MarkSpec[]; surface?: MarkdownSurface }) {
-  const rehypePlugins = useMemo(
-    (): PluggableList => (marks?.length ? [...REHYPE_PLUGINS, [rehypeMarks, marks] as [typeof rehypeMarks, MarkSpec[]]] : REHYPE_PLUGINS),
-    [marks],
-  );
+// `sources`: the web sources the text cites as [n]; on the panel each [n]
+// becomes a pill with its source's card.
+export const Markdown = memo(function Markdown({ children, base, marks, surface = 'card', sources }: {
+  children: string;
+  base?: string;
+  marks?: MarkSpec[];
+  surface?: MarkdownSurface;
+  sources?: Reference[];
+}) {
+  const cites = surface === 'panel' ? sources?.length ?? 0 : 0;
+  const rehypePlugins = useMemo((): PluggableList => {
+    if (!marks?.length && !cites) return REHYPE_PLUGINS;
+    const list: PluggableList = [...REHYPE_PLUGINS];
+    if (marks?.length) list.push([rehypeMarks, marks] as [typeof rehypeMarks, MarkSpec[]]);
+    if (cites) list.push([rehypeCites, { count: cites }]);
+    return list;
+  }, [marks, cites]);
   return (
     <SurfaceContext.Provider value={surface}>
       <BaseContext.Provider value={base}>
-        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={rehypePlugins} components={COMPONENTS}>
-          {normalizeMath(children)}
-        </ReactMarkdown>
+        <SourcesContext.Provider value={sources}>
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={rehypePlugins} components={COMPONENTS}>
+            {normalizeMath(children)}
+          </ReactMarkdown>
+        </SourcesContext.Provider>
       </BaseContext.Provider>
     </SurfaceContext.Provider>
   );
@@ -247,7 +298,7 @@ export interface ExploreMarkSpec { text: string; nodeId: string; title: string }
 // tree (see rehype-marks). Callers rebuild the Set/array props every
 // render, so memo compares by CONTENT (see areMarkPropsEqual below).
 // `base` as for Markdown: a marked answer still resolves its relative paths.
-export const HighlightedMarkdown = memo(function HighlightedMarkdown({ content, highlights, exploreMarks, base, surface }: HMProps) {
+export const HighlightedMarkdown = memo(function HighlightedMarkdown({ content, highlights, exploreMarks, base, surface, sources }: HMProps) {
   const marks: MarkSpec[] = [
     ...[...highlights].map((text) => ({ text, prio: 0, properties: { className: ['user-mark'] } })),
     // the user's own highlight outranks the structural trace
@@ -257,12 +308,12 @@ export const HighlightedMarkdown = memo(function HighlightedMarkdown({ content, 
       properties: { className: ['explore-mark'], dataExploreTarget: em.nodeId, title: em.title },
     })),
   ];
-  return <Markdown marks={marks} base={base} surface={surface}>{content}</Markdown>;
+  return <Markdown marks={marks} base={base} surface={surface} sources={sources}>{content}</Markdown>;
 }, areMarkPropsEqual);
 
-type HMProps = { content: string; highlights: Set<string>; exploreMarks?: ExploreMarkSpec[]; base?: string; surface?: MarkdownSurface };
+type HMProps = { content: string; highlights: Set<string>; exploreMarks?: ExploreMarkSpec[]; base?: string; surface?: MarkdownSurface; sources?: Reference[] };
 function areMarkPropsEqual(prev: HMProps, next: HMProps): boolean {
-  if (prev.content !== next.content || prev.base !== next.base || prev.surface !== next.surface) return false;
+  if (prev.content !== next.content || prev.base !== next.base || prev.surface !== next.surface || prev.sources !== next.sources) return false;
   if (prev.highlights.size !== next.highlights.size) return false;
   for (const h of prev.highlights) if (!next.highlights.has(h)) return false;
   const a = prev.exploreMarks ?? [];

@@ -184,6 +184,60 @@
 /* The panel's code block: its frame (header, fold) is the block's, not the pre's */
 .markdown-body .tdag-code pre { margin: 0; border: 0; border-radius: 0; }
 
+/* Links on the panel (components/RichLink): a web link leads with its
+   site's icon, a local one with a file glyph, at the text's own size; the
+   underline stays quiet until the pointer is on it. */
+.tdag-link-icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.3em;
+  vertical-align: -0.14em;
+  border-radius: 3px;
+  object-fit: contain;
+}
+svg.tdag-link-icon { color: var(--muted-foreground); }
+/* a site draws its icon for a light page: on the dark theme it sits on a
+   light chip, so a dark logo stays visible */
+.dark img.tdag-site-icon {
+  box-sizing: border-box;
+  padding: 1px;
+  background: color-mix(in srgb, var(--foreground) 92%, transparent);
+  border-radius: 4px;
+}
+.markdown-body.tdag-reading a {
+  text-decoration-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 150ms ease-out;
+}
+.markdown-body.tdag-reading a:hover,
+.markdown-body.tdag-reading a[data-popup-open] { text-decoration-color: var(--primary); }
+
+/* An inline citation [n]: a small numbered pill that opens its source;
+   its card is the source's */
+.tdag-cite {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5em;
+  height: 1.5em;
+  padding: 0 0.4em;
+  margin: 0 0.12em;
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 0.72em;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  vertical-align: 0.12em;
+  transition: background-color 150ms ease-out, color 150ms ease-out;
+}
+.markdown-body a.tdag-cite { color: var(--muted-foreground); text-decoration: none; }
+.markdown-body a.tdag-cite:hover,
+.markdown-body a.tdag-cite[data-popup-open] { background: var(--accent); color: var(--foreground); }
+
 /* ── MaterialReader: pdf.js text layer ─────────────────────────────
    Invisible glyph boxes positioned over the canvas render — this is what
    makes the ORIGINAL page selectable. pdf.js sets per-span inline geometry;
