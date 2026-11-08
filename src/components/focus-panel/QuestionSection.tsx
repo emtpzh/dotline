@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Check, Copy, Pencil, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { isFactNode } from '../../lib/facts';
@@ -37,6 +37,21 @@ export default function QuestionSection({
   const t = useT();
 
   const [editValue, setEditValue] = useState('');
+
+  // folded to six lines; whether it is long is measured while folded (open,
+  // it no longer overflows, and the way to fold it again must stay)
+  const [expanded, setExpanded] = useState(false);
+  const [long, setLong] = useState(false);
+  const bubbleRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = bubbleRef.current;
+    if (!el || expanded) return;
+    const measure = () => setLong(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [question, expanded, isEditing]);
 
   const handleDoubleClickQuestion = () => {
     setEditValue(question);
@@ -80,6 +95,8 @@ export default function QuestionSection({
 
   // The question is the person's turn: a bubble on the right, like a chat.
   // Editing opens it to the panel's width; double-click or the pencil.
+  // A long one folds to its first lines with a way to open it, instead of
+  // scrolling inside the panel's own scroll.
   return (
     <div className="group/question flex flex-col items-end gap-1" data-panel-question>
       {branchContext && <PassageQuote text={branchContext} className="max-w-[86%]" />}
@@ -134,13 +151,22 @@ export default function QuestionSection({
               <Copy strokeWidth={1.75} />
             </Button>
           </div>
+          {/* the clamp sits inside the padding: clamped on the bubble itself,
+              the next line would show through its bottom padding */}
           <div
             onDoubleClick={handleDoubleClickQuestion}
-            className="min-w-0 max-w-[86%] max-h-[240px] overflow-y-auto rounded-2xl bg-foreground/5 px-3.5 py-2 text-[13px] text-foreground leading-relaxed whitespace-pre-wrap break-words"
+            className="min-w-0 max-w-[86%] rounded-2xl bg-foreground/5 px-3.5 py-2 text-[15px] text-foreground leading-relaxed whitespace-pre-wrap break-words"
+            data-question-bubble
           >
-            {question}
+            <div ref={bubbleRef} className={expanded ? undefined : 'line-clamp-6'}>{question}</div>
           </div>
         </div>
+      )}
+      {long && !(isEditing && !isViewerMode) && (
+        <Button variant="link" size="xs" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}
+          className="h-auto px-1 font-normal text-muted-foreground" data-question-fold>
+          {expanded ? t('transcript.showLess') : t('transcript.showMore')}
+        </Button>
       )}
     </div>
   );

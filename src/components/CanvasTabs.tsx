@@ -27,9 +27,10 @@ const jumpKey = (n: number) => (DESKTOP ? (MAC ? `⌘${n}` : `Ctrl+${n}`) : (MAC
 const keyFor = (n: number, count: number) => (n <= 8 ? jumpKey(n) : n === count ? jumpKey(9) : null);
 const TAB_TYPE = 'application/x-dotline-tab';
 
-/** compact: the top bar's last resort for room — the canvas in view keeps
- *  its tab, the other open ones fold into a menu beside it */
-export default function CanvasTabs({ onSwitched, compact = false }: { onSwitched: () => void; compact?: boolean }) {
+/** compact: the top bar short of room — the canvas in view keeps its tab,
+ *  the other open ones fold into a menu beside it. hidden: its last resort —
+ *  no tab is drawn (the library lists them), the keys still switch. */
+export default function CanvasTabs({ onSwitched, compact = false, hidden = false }: { onSwitched: () => void; compact?: boolean; hidden?: boolean }) {
   const t = useT();
   const projects = useProjects((s) => s.projects);
   const openIds = useProjects((s) => s.openIds);
@@ -212,6 +213,8 @@ export default function CanvasTabs({ onSwitched, compact = false }: { onSwitched
       </ContextMenu>
     );
   };
+
+  if (hidden) return null;
 
   if (compact) {
     const current = tabs.find((p) => p.id === activeId);

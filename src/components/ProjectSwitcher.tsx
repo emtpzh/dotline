@@ -36,10 +36,18 @@ function relativeTime(ts: number): string {
 /**
  * The canvas chrome on the left of the top bar: the library (every canvas,
  * grouped as open, stashed and archived), the open canvases as tabs, a new
- * canvas, and the session map. compact: the top bar's last resort for room —
- * only the tab in view stays, the others fold into a menu beside it.
+ * canvas, and the session map. The top bar's folds for room, in order:
+ * compact — only the tab in view stays, the others fold into a menu beside
+ * it; atlasFolded — the session map leaves the row for the library's foot;
+ * tabsFolded — the tabs and the new-canvas button leave it too, and the
+ * library alone stands for them (its list holds both).
  */
-export default function ProjectSwitcher({ onSwitched, compact = false }: { onSwitched: () => void; compact?: boolean }) {
+export default function ProjectSwitcher({ onSwitched, compact = false, atlasFolded = false, tabsFolded = false }: {
+  onSwitched: () => void;
+  compact?: boolean;
+  atlasFolded?: boolean;
+  tabsFolded?: boolean;
+}) {
   const t = useT();
   const projects = useProjects((s) => s.projects);
   const activeId = useProjects((s) => s.activeId);
@@ -198,6 +206,7 @@ export default function ProjectSwitcher({ onSwitched, compact = false }: { onSwi
   // face of this canvas, one click away
   const mirror = mainSubscription(active);
   const newCanvas = () => { setOpen(false); void createProject().then(onSwitched); };
+  const openAtlas = () => { setOpen(false); setAtlasFocus(mirror?.sessionId); setAtlasOpen(true); };
 
   return (
     // in flow: the top bar's left cluster places it (and gives it z-20 over
@@ -209,7 +218,9 @@ export default function ProjectSwitcher({ onSwitched, compact = false }: { onSwi
       <div className="flex h-8 min-w-0 items-center gap-0.5 rounded-lg border border-border bg-card/90 p-0.5 shadow-sm backdrop-blur" data-canvas-desktops>
         <Popover open={open} onOpenChange={(next) => { setOpen(next); if (next) { setQuery(''); setShowArchived(false); } else endRename(); }}>
           <PopoverTrigger
-            render={<Button variant="ghost" size="xs" className="shrink-0 gap-0.5 px-1.5 text-muted-foreground" aria-label={t('switcher.library')} title={t('switcher.library')} data-canvas-library />}
+            // folded, the library stands for the tabs: it names the canvas in view
+            render={<Button variant="ghost" size="xs" className="shrink-0 gap-0.5 px-1.5 text-muted-foreground" aria-label={t('switcher.library')}
+              title={tabsFolded && active ? `${t('switcher.library')} · ${active.name}` : t('switcher.library')} data-canvas-library />}
           >
             <Layers strokeWidth={1.75} />
             <ChevronDown strokeWidth={1.75} />
@@ -240,7 +251,8 @@ export default function ProjectSwitcher({ onSwitched, compact = false }: { onSwi
             </Command>
             {/* pinned under the list: however many canvases there are, the
                 way to make a new one never scrolls away. The session map has
-                its own button in the top bar, so it is not repeated here */}
+                its own button in the top bar, so it is not repeated here —
+                until the top bar folds it away for room */}
             <div className="flex items-center gap-1 border-t border-border p-1">
               <Button variant="ghost" size="sm" className="flex-1 justify-start" disabled={switching} onClick={newCanvas}>
                 <Plus />
@@ -256,6 +268,11 @@ export default function ProjectSwitcher({ onSwitched, compact = false }: { onSwi
                 <Button variant="ghost" size="sm" className="text-muted-foreground" aria-pressed={showArchived} onClick={() => setShowArchived((v) => !v)} data-toggle-archived>
                   <Archive />
                   {showArchived ? t('switcher.hideArchived') : fmt(t('switcher.showArchived'), { n: archivedTotal })}
+                </Button>
+              )}
+              {atlasFolded && (
+                <Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label={t('switcher.sessionAtlas')} title={t('switcher.sessionAtlas')} onClick={openAtlas} data-library-atlas>
+                  <MapIcon />
                 </Button>
               )}
               <DropdownMenu>
@@ -297,30 +314,35 @@ export default function ProjectSwitcher({ onSwitched, compact = false }: { onSwi
             />
           </PopoverContent>
         </Popover>
-        <CanvasTabs onSwitched={onSwitched} compact={compact} />
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          className="shrink-0 text-muted-foreground"
-          disabled={switching}
-          aria-label={t('switcher.newCanvas')}
-          title={t('tabs.newHint')}
-          onClick={newCanvas}
-          data-new-canvas
-        >
-          <Plus strokeWidth={1.75} />
-        </Button>
+        {/* folded, the tabs still answer their keys: they only stop drawing */}
+        <CanvasTabs onSwitched={onSwitched} compact={compact} hidden={tabsFolded} />
+        {!tabsFolded && (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="shrink-0 text-muted-foreground"
+            disabled={switching}
+            aria-label={t('switcher.newCanvas')}
+            title={t('tabs.newHint')}
+            onClick={newCanvas}
+            data-new-canvas
+          >
+            <Plus strokeWidth={1.75} />
+          </Button>
+        )}
       </div>
-      <Button
-        variant="chrome"
-        size={compact ? 'icon' : 'default'}
-        className={compact ? 'shrink-0' : 'shrink-0 px-3 text-xs'}
-        aria-label={t('switcher.sessionAtlas')}
-        title={t('switcher.sessionAtlas')}
-        onClick={() => { setAtlasFocus(mirror?.sessionId); setAtlasOpen(true); }}>
-        <MapIcon strokeWidth={1.75} />
-        {!compact && t('switcher.sessionAtlas')}
-      </Button>
+      {!atlasFolded && (
+        <Button
+          variant="chrome"
+          size={compact ? 'icon' : 'default'}
+          className={compact ? 'shrink-0' : 'shrink-0 px-3 text-xs'}
+          aria-label={t('switcher.sessionAtlas')}
+          title={t('switcher.sessionAtlas')}
+          onClick={openAtlas}>
+          <MapIcon strokeWidth={1.75} />
+          {!compact && t('switcher.sessionAtlas')}
+        </Button>
+      )}
       {chatImport && (
         <ImportChatModal
           conversations={chatImport}

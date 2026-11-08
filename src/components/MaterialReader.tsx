@@ -963,7 +963,7 @@ function ReaderOverlay({ node, onLocate }: { node: ThoughtNode; onLocate: (id: s
                   ) : (
                     <div className="markdown-body text-sm text-foreground leading-relaxed" data-turn-answer={turn.id}>
                       {(turn.data.highlights?.length ?? 0) > 0 ? (
-                        <HighlightedMarkdown content={turn.data.response} highlights={new Set(turn.data.highlights.map((h) => h.text))} />
+                        <HighlightedMarkdown content={turn.data.response} highlights={new Set(turn.data.highlights.map((h) => h.text))} base={turnOf(turn.data)?.cwd ?? undefined} />
                       ) : (
                         <Markdown base={turnOf(turn.data)?.cwd ?? undefined}>{turn.data.response}</Markdown>
                       )}

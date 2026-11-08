@@ -693,7 +693,7 @@ export default function ThoughtNode({ id, data: stored }: NodeProps<ThoughtNodeT
               className="tdag-scroll-fade markdown-body text-sm text-foreground leading-relaxed max-h-[400px] overflow-y-auto cursor-text nopan nodrag nowheel"
             >
               {highlightedTexts.size > 0 || exploreSpecs.length > 0 ? (
-                <HighlightedMarkdown content={data.response} highlights={highlightedTexts} exploreMarks={exploreSpecs} />
+                <HighlightedMarkdown content={data.response} highlights={highlightedTexts} exploreMarks={exploreSpecs} base={turnOf(data)?.cwd ?? undefined} />
               ) : (
                 <Markdown base={turnOf(data)?.cwd ?? undefined}>{data.response}</Markdown>
               )}

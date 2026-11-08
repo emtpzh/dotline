@@ -8,12 +8,14 @@ import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import type { Schema } from 'hast-util-sanitize';
+import type { Element, ElementContent } from 'hast';
 import type { PluggableList } from 'unified';
-import { Check, Copy } from 'lucide-react';
+import { Check, ChevronDown, Copy, WrapText } from 'lucide-react';
 import rehypeMarks, { type MarkSpec } from '../lib/rehype-marks';
-import { useT } from '../i18n';
+import { useT, fmt } from '../i18n';
 import { localPathOf, openLocalPath, basenameOf } from '../lib/local-path';
 import { Button } from './ui/button';
+import { Toggle } from './ui/toggle';
 
 // CommonMark closes `**` only where it is right-flanking, which a full-width
 // stop followed by a CJK letter is not: `**结论。**后文` would show its stars.
@@ -54,9 +56,77 @@ const SANITIZE_SCHEMA: Schema = {
 };
 const REHYPE_PLUGINS: PluggableList = [rehypeRaw, [rehypeSanitize, SANITIZE_SCHEMA], rehypeHighlight, rehypeKatex];
 
-// Code blocks get a hover copy button (no toast: too frequent an action —
-// the icon flashes a check instead).
-function Pre(props: React.HTMLAttributes<HTMLPreElement>) {
+/** Where the text is read. A card on the canvas keeps its code blocks light
+ *  (a copy button on hover); the panel, where an answer is read at length,
+ *  gives each one a header — its language, a copy that stays, line
+ *  wrapping — and folds a long one to its first lines. */
+export type MarkdownSurface = 'card' | 'panel';
+const SurfaceContext = createContext<MarkdownSurface>('card');
+
+// The text of a hast subtree: what a code block copies, and how long it is.
+const textOf = (n: ElementContent): string => (n.type === 'text' ? n.value : 'children' in n ? n.children.map(textOf).join('') : '');
+
+// react-markdown hands each component its hast node; it is not a DOM prop
+type PreProps = React.HTMLAttributes<HTMLPreElement> & { node?: Element };
+
+function Pre({ node, ...props }: PreProps) {
+  const surface = useContext(SurfaceContext);
+  const code = node?.children.find((c): c is Element => c.type === 'element' && c.tagName === 'code');
+  return surface === 'panel' && code ? <CodeBlock code={code} {...props} /> : <HoverCopyPre {...props} />;
+}
+
+// a block longer than this opens folded to its first lines
+const FOLD_LINES = 24;
+
+// No toast on copy: too frequent an action — the icon flashes a check.
+function CodeBlock({ code, className, ...props }: React.HTMLAttributes<HTMLPreElement> & { code: Element }) {
+  const t = useT();
+  const text = useMemo(() => textOf(code).replace(/\n$/, ''), [code]);
+  const cls = code.properties.className;
+  const lang = (Array.isArray(cls) ? cls.map(String) : []).find((c) => c.startsWith('language-'))?.slice('language-'.length);
+  const lines = text.split('\n').length;
+  const long = lines > FOLD_LINES;
+  const [open, setOpen] = useState(false);
+  const [wrap, setWrap] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const folded = long && !open;
+  return (
+    <div className="tdag-code my-3 overflow-hidden rounded-lg border border-border bg-muted" data-code-block>
+      <div className="flex h-8 items-center gap-0.5 border-b border-border pr-1 pl-3 text-xs text-muted-foreground">
+        <span className="min-w-0 truncate font-mono" data-code-lang>{lang}</span>
+        <Toggle size="sm" pressed={wrap} onPressedChange={setWrap} title={t('code.wrap')} aria-label={t('code.wrap')}
+          className="ml-auto h-6 min-w-6 px-1.5 text-muted-foreground hover:bg-background aria-pressed:bg-background aria-pressed:text-foreground">
+          <WrapText strokeWidth={1.75} />
+        </Toggle>
+        <Button variant="ghost" size="xs" className="text-muted-foreground hover:bg-background hover:text-foreground"
+          onClick={(e) => {
+            e.stopPropagation();
+            void navigator.clipboard.writeText(text);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1600);
+          }}
+          data-code-copy
+        >
+          {copied ? <Check strokeWidth={2} className="text-success" /> : <Copy strokeWidth={1.75} />}
+          {copied ? t('code.copied') : t('code.copy')}
+        </Button>
+      </div>
+      <pre {...props}
+        className={`${className ?? ''} ${wrap ? 'whitespace-pre-wrap wrap-anywhere' : ''} ${folded ? 'max-h-[22em] overflow-y-hidden mask-b-from-60%' : ''}`} />
+      {long && (
+        <Button variant="ghost" size="xs" aria-expanded={open} onClick={() => setOpen(!open)}
+          className="w-full rounded-none border-t border-border text-muted-foreground hover:bg-background hover:text-foreground"
+          data-code-fold>
+          <ChevronDown strokeWidth={1.75} className={open ? 'rotate-180' : undefined} />
+          {open ? t('code.collapse') : fmt(t('code.expand'), { n: lines })}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// A card's code block: a copy button on hover.
+function HoverCopyPre(props: React.HTMLAttributes<HTMLPreElement>) {
   const ref = useRef<HTMLPreElement>(null);
   const [copied, setCopied] = useState(false);
   const t = useT();
@@ -152,17 +222,19 @@ const COMPONENTS = { pre: Pre, table: Table, a: Anchor, img: Img };
 // memo: the unified parse + KaTeX layout is the most expensive render on a
 // card, and cards re-render far more often than their text changes (every
 // streamed chunk anywhere re-renders every card). Same string → skip.
-export const Markdown = memo(function Markdown({ children, base, marks }: { children: string; base?: string; marks?: MarkSpec[] }) {
+export const Markdown = memo(function Markdown({ children, base, marks, surface = 'card' }: { children: string; base?: string; marks?: MarkSpec[]; surface?: MarkdownSurface }) {
   const rehypePlugins = useMemo(
     (): PluggableList => (marks?.length ? [...REHYPE_PLUGINS, [rehypeMarks, marks] as [typeof rehypeMarks, MarkSpec[]]] : REHYPE_PLUGINS),
     [marks],
   );
   return (
-    <BaseContext.Provider value={base}>
-      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={rehypePlugins} components={COMPONENTS}>
-        {normalizeMath(children)}
-      </ReactMarkdown>
-    </BaseContext.Provider>
+    <SurfaceContext.Provider value={surface}>
+      <BaseContext.Provider value={base}>
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={rehypePlugins} components={COMPONENTS}>
+          {normalizeMath(children)}
+        </ReactMarkdown>
+      </BaseContext.Provider>
+    </SurfaceContext.Provider>
   );
 });
 
@@ -174,7 +246,8 @@ export interface ExploreMarkSpec { text: string; nodeId: string; title: string }
 // Markdown with user highlights (and explore traces) marked on the rendered
 // tree (see rehype-marks). Callers rebuild the Set/array props every
 // render, so memo compares by CONTENT (see areMarkPropsEqual below).
-export const HighlightedMarkdown = memo(function HighlightedMarkdown({ content, highlights, exploreMarks }: { content: string; highlights: Set<string>; exploreMarks?: ExploreMarkSpec[] }) {
+// `base` as for Markdown: a marked answer still resolves its relative paths.
+export const HighlightedMarkdown = memo(function HighlightedMarkdown({ content, highlights, exploreMarks, base, surface }: HMProps) {
   const marks: MarkSpec[] = [
     ...[...highlights].map((text) => ({ text, prio: 0, properties: { className: ['user-mark'] } })),
     // the user's own highlight outranks the structural trace
@@ -184,12 +257,12 @@ export const HighlightedMarkdown = memo(function HighlightedMarkdown({ content, 
       properties: { className: ['explore-mark'], dataExploreTarget: em.nodeId, title: em.title },
     })),
   ];
-  return <Markdown marks={marks}>{content}</Markdown>;
+  return <Markdown marks={marks} base={base} surface={surface}>{content}</Markdown>;
 }, areMarkPropsEqual);
 
-type HMProps = { content: string; highlights: Set<string>; exploreMarks?: ExploreMarkSpec[] };
+type HMProps = { content: string; highlights: Set<string>; exploreMarks?: ExploreMarkSpec[]; base?: string; surface?: MarkdownSurface };
 function areMarkPropsEqual(prev: HMProps, next: HMProps): boolean {
-  if (prev.content !== next.content) return false;
+  if (prev.content !== next.content || prev.base !== next.base || prev.surface !== next.surface) return false;
   if (prev.highlights.size !== next.highlights.size) return false;
   for (const h of prev.highlights) if (!next.highlights.has(h)) return false;
   const a = prev.exploreMarks ?? [];

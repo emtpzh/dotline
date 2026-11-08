@@ -164,6 +164,26 @@
   margin: 1em 0;
 }
 
+/* The panel, where an answer is read at length (Markdown's 'panel'
+   surface): a reading size, headings that step down clearly, emphasis in
+   the text's own colour. Cards on the canvas keep the rules above — their
+   size is the card's, and their height is the layout's. Sizes inside are
+   em-based, so code, tables and formulas follow the reading size. */
+.markdown-body.tdag-reading {
+  font-size: 15px;
+  line-height: 1.75;
+}
+.markdown-body.tdag-reading > :first-child { margin-top: 0; }
+.markdown-body.tdag-reading h1 { font-size: 1.45em; margin-top: 1.4em; margin-bottom: 0.6em; line-height: 1.35; }
+.markdown-body.tdag-reading h2 { font-size: 1.25em; margin-top: 1.3em; margin-bottom: 0.55em; line-height: 1.4; }
+.markdown-body.tdag-reading h3 { font-size: 1.1em; margin-top: 1.2em; margin-bottom: 0.5em; line-height: 1.45; }
+.markdown-body.tdag-reading :is(h4, h5, h6) { font-size: 1em; margin-top: 1.1em; margin-bottom: 0.4em; }
+.markdown-body.tdag-reading p { margin-bottom: 0.9em; }
+.markdown-body.tdag-reading em { color: inherit; }
+
+/* The panel's code block: its frame (header, fold) is the block's, not the pre's */
+.markdown-body .tdag-code pre { margin: 0; border: 0; border-radius: 0; }
+
 /* ── MaterialReader: pdf.js text layer ─────────────────────────────
    Invisible glyph boxes positioned over the canvas render — this is what
    makes the ORIGINAL page selectable. pdf.js sets per-span inline geometry;

@@ -40,6 +40,10 @@ const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.
 const post = (data: Record<string, unknown>) =>
   window.parent.postMessage({ source: SOURCE, ...data }, window.location.origin);
 
+/** Fired on the window once the corners above are set: what makes room
+ *  beside the top bar (lib/panel-width) measures again. */
+export const CHROME_EVENT = 'tdag:chrome';
+
 function applyChrome(c: Chrome): void {
   const s = document.documentElement.style;
   const rowTop = c.center > 0 ? Math.max(4, Math.round(c.center - ROW_HEIGHT / 2)) : 16;
@@ -49,6 +53,7 @@ function applyChrome(c: Chrome): void {
   // a right corner (Windows) sits where the panel's header would; a left
   // one (macOS) is clear of the panel
   s.setProperty('--chrome-panel-top', c.right > 0 ? `${c.band + 8}px` : '12px');
+  window.dispatchEvent(new Event(CHROME_EVENT));
 }
 
 // The canvas's own layers that can float over the strip: the search bar

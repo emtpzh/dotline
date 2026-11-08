@@ -1,6 +1,7 @@
 import { useUiStore } from './ui-store';
 import { useStore } from '../store';
 import { PANEL_INSET } from './constants';
+import { panelWidthNow } from './panel-width';
 import type { ThoughtData } from '../types';
 
 /** Horizontal screen-pixel shift that recenters a node in the strip of
@@ -14,5 +15,5 @@ export function panelShift(nodeId: string): number {
   if (!ui.panelOpen) return 0;
   const kind = (useStore.getState().nodes.find((n) => n.id === nodeId)?.data as ThoughtData | undefined)?.stepKind;
   if (kind === 'note' || kind === 'file' || kind === 'link' || kind === 'frame') return 0;
-  return ui.panelWidth + PANEL_INSET + 12;
+  return panelWidthNow() + PANEL_INSET + 12;
 }

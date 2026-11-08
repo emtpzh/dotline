@@ -65,6 +65,7 @@ import { countTokens } from './utils';
 import { buildExampleGraph } from './lib/example-graph';
 import { FRAME_COLORS, PANEL_INSET } from './lib/constants';
 import { panelShift } from './lib/panel-shift';
+import { panelWidthNow, TOPBAR_PANEL_GAP, usePanelWidth } from './lib/panel-width';
 import { migrateActiveCanvasToVault, gcVaultAtBoot } from './lib/attachment-vault-boot';
 import { consumeOpenRouterCallback, handMintedKeyToModal, startOpenRouterOAuth } from './lib/openrouter-oauth';
 import { bootDesktopUpdateUI } from './lib/desktop-update-ui';
@@ -803,7 +804,8 @@ function Canvas() {
   const panelMode = useUiStore((s) => s.panelOpen);
   const viewerLoadError = useUiStore((s) => s.viewerLoadError);
   const staleCount = useStore((s) => s.staleIds.length);
-  const livePanelWidth = useUiStore((s) => s.panelWidth);
+  // the panel's width as drawn, which the top bar ends before
+  const livePanelWidth = usePanelWidth();
   const selectedKind = nodes.find((nd) => nd.id === selectedNodeId)?.data.stepKind;
   const selectedIsContent = isContentKind(selectedKind) || selectedKind === 'frame';
   const panelOpen = panelMode && !!selectedNodeId && !isParadigm && !selectedIsContent;
@@ -940,10 +942,13 @@ function Canvas() {
   const [frameNavOpen, setFrameNavOpen] = useState(false);
   // Top-bar folds, lowest priority first: each level moves one more group
   // of tools into the ⋯ menu, then labels give way to icons — the pickers',
-  // the way back to the chat's — and last the open canvases fold into one
-  // tab and a menu. Opening or stashing a canvas starts the ladder over.
+  // the way back to the chat's — then the open canvases fold into one tab
+  // and a menu, the session map moves into the canvas library, and last the
+  // tabs go into the library too (a wide panel beside a narrow window). The
+  // panel leaves the row at least that last level's room (lib/panel-width).
+  // Opening or stashing a canvas starts the ladder over.
   const openTabCount = useProjects((s) => s.openIds.length);
-  const [topbarRef, squeeze] = useSqueeze(8, openTabCount);
+  const [topbarRef, squeeze] = useSqueeze(10, openTabCount);
   const foldLang = squeeze >= 1;
   const foldBackup = squeeze >= 2;
   const foldFrames = squeeze >= 3;
@@ -952,6 +957,8 @@ function Canvas() {
   const foldLabels = squeeze >= 6;
   const foldBackLabel = squeeze >= 7;
   const foldTabs = squeeze >= 8;
+  const foldAtlas = squeeze >= 9;
+  const foldDesktops = squeeze >= 10;
   // a panel beside the harness's sidebar needs no way back of its own
   const hostBack = useHostBack();
   // embedded: the window drags from the top bar's gap, which these move or
@@ -1157,7 +1164,7 @@ function Canvas() {
       const vp = rf.getViewport();
       const w = node.measured?.width ?? node.width ?? 480;
       const margin = 24;
-      const visibleRight = window.innerWidth - useUiStore.getState().panelWidth - PANEL_INSET - margin;
+      const visibleRight = window.innerWidth - panelWidthNow() - PANEL_INSET - margin;
       const nodeLeft = node.position.x * vp.zoom + vp.x;
       const nodeRight = (node.position.x + w) * vp.zoom + vp.x;
       if (nodeLeft >= margin && nodeRight <= visibleRight) return;
@@ -1601,7 +1608,7 @@ function Canvas() {
       {isViewerMode && (
         <div
           className="absolute top-[var(--chrome-row-top)] z-10 flex gap-1.5 items-center transition-[right] duration-(--dur-base) ease-(--ease-standard)"
-          style={{ right: panelOpen ? livePanelWidth + PANEL_INSET + 12 : 'max(16px, calc(var(--chrome-right) + 8px))' }}
+          style={{ right: panelOpen ? livePanelWidth + PANEL_INSET + TOPBAR_PANEL_GAP : 'max(16px, calc(var(--chrome-right) + 8px))' }}
         >
           <span className="bg-card/90 backdrop-blur border border-border rounded-lg h-8 px-3 flex items-center gap-1.5 shadow-sm text-muted-foreground text-xs font-medium" data-viewer-badge>
             <Eye size={14} strokeWidth={1.75} /> {t('viewer.badge')}
@@ -1647,7 +1654,7 @@ function Canvas() {
         style={{
           left: 'max(16px, var(--chrome-left))',
           // the open panel ends the row; else a right window corner does
-          right: panelOpen ? livePanelWidth + PANEL_INSET + 12 : 'max(16px, calc(var(--chrome-right) + 8px))',
+          right: panelOpen ? livePanelWidth + PANEL_INSET + TOPBAR_PANEL_GAP : 'max(16px, calc(var(--chrome-right) + 8px))',
         }}
         data-topbar
         data-squeeze={squeeze}
@@ -1663,7 +1670,7 @@ function Canvas() {
             <ArrowLeft strokeWidth={1.75} /> {!foldBackLabel && t('embed.backToChat')}
           </Button>
         )}
-        <ProjectSwitcher onSwitched={afterProjectSwitch} compact={foldTabs} />
+        <ProjectSwitcher onSwitched={afterProjectSwitch} compact={foldTabs} atlasFolded={foldAtlas} tabsFolded={foldDesktops} />
         <WaitingQuestions />
       </div>
       <div className="min-w-0 flex-1 self-stretch" data-topbar-gap />

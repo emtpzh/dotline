@@ -24,6 +24,12 @@ import { LiveStepsLine, StepsLine } from './StepsLine';
 import { ACTION, ACTION_ICON } from './line';
 import { TurnStamp } from './TurnLines';
 
+/** a source's site, where it names no outlet of its own: "zettelkasten.de" */
+const siteOf = (url?: string): string => {
+  if (!url) return '';
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
+};
+
 export default function ResponseSection({
   nodeId,
   data,
@@ -139,9 +145,10 @@ export default function ResponseSection({
   }
 
   const base = turnOf(data)?.cwd ?? undefined;
+  // the panel is where an answer is read at length (Markdown's 'panel' surface)
   const answerText = (text: string) => (highlightedTexts.size > 0 || exploreSpecs.length > 0
-    ? <HighlightedMarkdown content={text} highlights={highlightedTexts} exploreMarks={exploreSpecs} />
-    : <Markdown base={base}>{text}</Markdown>);
+    ? <HighlightedMarkdown content={text} highlights={highlightedTexts} exploreMarks={exploreSpecs} base={base} surface="panel" />
+    : <Markdown base={base} surface="panel">{text}</Markdown>);
   // the calls sit where they came back, while the answer is the one they were recorded against
   const placed = !!data.source && data.response === data.source.response;
   const liveText = data.restreaming ? '' : data.response;
@@ -154,8 +161,8 @@ export default function ResponseSection({
           {interleave(liveText, liveTrace, true).map((part, i, parts) => (part.kind === 'steps'
             ? <LiveStepsLine key={`s${i}`} entries={part.steps} />
             : (
-              <div key={`t${i}`} className="markdown-body text-[13px] text-foreground">
-                <Markdown base={base}>{part.text}</Markdown>
+              <div key={`t${i}`} className="markdown-body tdag-reading text-foreground">
+                <Markdown base={base} surface="panel">{part.text}</Markdown>
                 {i === parts.length - 1 && <span className="tdag-caret ml-0.5 align-text-bottom" />}
               </div>
             )))}
@@ -201,7 +208,7 @@ export default function ResponseSection({
           {interleave(data.response, transcriptSteps(data.steps), placed).map((part, i) => (part.kind === 'steps'
             ? <StepsLine key={`s${i}`} steps={part.steps} />
             : (
-              <div key={`t${i}`} className="markdown-body text-[13px] text-foreground cursor-text" onClick={handleExploreMarkClick}>
+              <div key={`t${i}`} className="markdown-body tdag-reading text-foreground cursor-text" onClick={handleExploreMarkClick}>
                 {answerText(part.text)}
               </div>
             )))}
@@ -259,22 +266,27 @@ export default function ResponseSection({
       {data.references && data.references.length > 0 && !data.isLoading && (
         <div className="pt-2 border-t border-border/60" data-panel-section="refs">
           <p className="text-2xs text-muted-foreground font-medium mb-1.5">{t('refs.title')}</p>
-          <ol className="space-y-1">
-            {data.references.map((r, i) => (
-              <li key={i} className="flex items-start gap-2 text-xs leading-snug">
-                <span className="shrink-0 text-2xs text-muted-foreground font-mono mt-0.5">[{i + 1}]</span>
-                {r.url ? (
-                  <a href={r.url} target="_blank" rel="noreferrer" className="text-primary hover:text-primary/90 hover:underline break-all">
-                    {r.title}
-                  </a>
-                ) : (
-                  <span className="text-muted-foreground">{r.title}</span>
-                )}
-                {(r.media || r.date) && (
-                  <span className="shrink-0 text-2xs text-muted-foreground">{[r.media, r.date].filter(Boolean).join(' · ')}</span>
-                )}
-              </li>
-            ))}
+          {/* the title breaks between words (a long URL as a title still
+              wraps); where it came from and when sit on a line under it */}
+          <ol className="space-y-1.5">
+            {data.references.map((r, i) => {
+              const meta = [r.media || siteOf(r.url), r.date].filter(Boolean).join(' · ');
+              return (
+                <li key={i} className="flex items-start gap-2 text-xs leading-snug">
+                  <span className="shrink-0 text-2xs text-muted-foreground font-mono mt-0.5">[{i + 1}]</span>
+                  <div className="min-w-0">
+                    {r.url ? (
+                      <a href={r.url} target="_blank" rel="noreferrer" title={r.url} className="text-primary hover:text-primary/90 hover:underline wrap-anywhere">
+                        {r.title}
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground wrap-anywhere">{r.title}</span>
+                    )}
+                    {meta && <div className="mt-0.5 truncate text-2xs text-muted-foreground">{meta}</div>}
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         </div>
       )}

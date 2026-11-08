@@ -7,7 +7,8 @@ import { scrollFade } from '../../lib/scroll-fade';
 import { pullReveal } from '../../lib/pull-reveal';
 import { partitionContext } from '../../lib/graph';
 import { resolveRoleSourceFor } from '../../store/context-builder';
-import { PANEL_WIDTH_KEY, PANEL_MIN_WIDTH, PANEL_DEFAULT_WIDTH, PANEL_INSET } from '../../lib/constants';
+import { PANEL_WIDTH_KEY, PANEL_DEFAULT_WIDTH, PANEL_INSET } from '../../lib/constants';
+import { panelWidthAt, usePanelWidth } from '../../lib/panel-width';
 import { awaitingInput } from '../../utils';
 import { useT } from '../../i18n';
 import { isViewerMode } from '../../lib/viewer';
@@ -52,8 +53,10 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
   const [branchContext, setBranchContext] = useState('');
 
   // Resizable width, persisted on drag end; double-click resets the default.
-  // The width lives in ui-store so the canvas toolbar can offset itself.
-  const panelWidth = useUiStore((s) => s.panelWidth);
+  // The width lives in ui-store so the canvas toolbar can offset itself; the
+  // panel is drawn at what the window has room for (lib/panel-width), the
+  // same width the top bar and the camera make room for.
+  const panelWidth = usePanelWidth();
   const setPanelWidth = useUiStore((s) => s.setPanelWidth);
   const [resizing, setResizing] = useState(false);
 
@@ -64,8 +67,7 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
   };
   const onResizePointerMove = (e: React.PointerEvent) => {
     if (!resizing) return;
-    const maxW = Math.floor(window.innerWidth * 0.7);
-    setPanelWidth(Math.min(maxW, Math.max(PANEL_MIN_WIDTH, window.innerWidth - PANEL_INSET - e.clientX)));
+    setPanelWidth(panelWidthAt(window.innerWidth - PANEL_INSET - e.clientX));
   };
   const onResizePointerUp = (e: React.PointerEvent) => {
     if (!resizing) return;
@@ -151,7 +153,7 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
     <div
       data-focus-panel
       className={`@container/panel absolute right-3 top-[var(--chrome-panel-top)] bottom-3 z-20 bg-card border border-border rounded-2xl shadow-xl overflow-hidden flex flex-col ${leaving ? 'tdag-panel-out' : 'tdag-panel-in'} ${resizing ? 'select-none' : ''}`}
-      style={{ width: panelWidth, minWidth: PANEL_MIN_WIDTH, maxWidth: '70vw' }}
+      style={{ width: panelWidth }}
     >
       {/* Resize handle on the left edge */}
       <div
@@ -185,9 +187,11 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
       </div>
 
       {/* Scrollable content: one conversation column, fading under the
-          title row and into the ask box where it continues */}
+          title row and into the ask box where it continues. A wide panel
+          centres the column at a reading measure (40rem) instead of running
+          its lines to the edge; the ask box keeps to the same column. */}
       <div ref={scrollBox}
-        className="tdag-scroll-fade flex-1 overflow-y-auto px-5 pt-1 pb-4 flex flex-col gap-4" data-panel-scroll>
+        className="tdag-scroll-fade flex-1 overflow-y-auto px-[max(1.25rem,calc((100%_-_40rem)/2))] pt-1 pb-4 flex flex-col gap-4" data-panel-scroll>
         {/* the negative margin takes back the column's gap while closed */}
         <div ref={earlierSlot} inert={!earlierShown}
           className="-mb-4 flex shrink-0 flex-col justify-end overflow-hidden"
@@ -246,7 +250,7 @@ export default function FocusPanel({ onFocusNode, nodeId, leaving = false }: {
           typed here (it goes into the card); once answered, the same box
           asks on, and selected text or highlights stage into it. */}
       {!isViewerMode && (
-        <div className="relative shrink-0 px-4 pb-3 pt-2">
+        <div className="relative shrink-0 px-[max(1rem,calc((100%_-_40.5rem)/2))] pb-3 pt-2">
             <Composer
               key={selectedNodeId}
               contextPreview={false}
