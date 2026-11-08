@@ -1208,6 +1208,8 @@ export const en = {
   'tutorial.shortcuts': 'Keyboard shortcuts',
   'shortcut.panKeys': 'Two-finger scroll · middle/right-drag',
   'shortcut.pan': 'pan the canvas',
+  'shortcut.optionPanKeys': '⌥+two-finger scroll',
+  'shortcut.optionPan': 'pan even over cards',
   'shortcut.zoomKeys': 'Pinch · \u2318/Ctrl+wheel',
   'shortcut.zoom': 'zoom',
   'shortcut.marqueeKeys': 'Left-drag',

@@ -1207,6 +1207,8 @@ export const zh: Record<keyof typeof en, string> = {
   'tutorial.shortcuts': '键盘快捷键',
   'shortcut.panKeys': '双指滑动 · 中键/右键拖动',
   'shortcut.pan': '平移画布',
+  'shortcut.optionPanKeys': '⌥+双指滑动',
+  'shortcut.optionPan': '在卡片上也平移画布',
   'shortcut.zoomKeys': '双指捏合 · \u2318/Ctrl+滚轮',
   'shortcut.zoom': '缩放',
   'shortcut.marqueeKeys': '左键拖动',

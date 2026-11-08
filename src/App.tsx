@@ -103,7 +103,8 @@ import { useZoomTier } from './lib/use-map-mode';
 import { scheduleBatchNaming } from './lib/batch-naming';
 import { TimelineBar } from './components/app/TimelineBar';
 import TimelineOverviewModal from './components/app/TimelineOverviewModal';
-import { useStore as useRfStore } from '@xyflow/react';
+import { useStore as useRfStore, useStoreApi } from '@xyflow/react';
+import { optionPan } from './lib/option-pan';
 import { Button } from './components/ui/button';
 import { APP_NAME, REPO_URL } from './lib/brand';
 
@@ -1328,6 +1329,7 @@ function Canvas() {
         <EdgeMarkers palette={themePalette} />
         {OCEAN_AVAILABLE && <Suspense fallback={null}><OceanBackdrop enabled={oceanOn} landing={!hasNodes && !isParadigm && !isViewerMode} /></Suspense>}
         <ZoomTierTag />
+        <OptionPan />
         <TimelineBar />
         <CanvasControls />
         <LayoutPreview />
@@ -2129,5 +2131,24 @@ function ZoomTierTag() {
   useEffect(() => {
     document.querySelector('.react-flow')?.setAttribute('data-far-band', String(farBand));
   }, [farBand]);
+  return null;
+}
+
+// ⌥ + two-finger scroll pans the canvas even where a card's scrolling text
+// would take the wheel (lib/option-pan). Must live inside <ReactFlow> to
+// reach the flow store.
+function OptionPan() {
+  const store = useStoreApi();
+  const root = useRfStore((s) => s.domNode);
+  useEffect(() => {
+    if (!root) return;
+    return optionPan(root, (dx, dy) => {
+      const { userSelectionActive, panBy } = store.getState();
+      // a box being drawn holds the canvas still, as the plain scroll does
+      if (userSelectionActive) return false;
+      void panBy({ x: dx, y: dy });
+      return true;
+    });
+  }, [root, store]);
   return null;
 }

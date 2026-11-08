@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useUiStore } from '../lib/ui-store';
 import { useT, useI18n } from '../i18n';
+import { OPTION_PAN } from '../lib/option-pan';
 import { Button } from './ui/button';
 
 // Miniature diagrams for each concept — same visual language as the canvas:
@@ -262,6 +263,7 @@ export default function Tutorial() {
 
         <div className="px-7 py-2.5 border-t border-border/60 shrink-0 flex flex-wrap gap-x-4 gap-y-1 text-2xs text-muted-foreground font-mono">
           <span>{t('shortcut.panKeys')} {t('shortcut.pan')}</span>
+          {OPTION_PAN && <span>{t('shortcut.optionPanKeys')} {t('shortcut.optionPan')}</span>}
           <span>{t('shortcut.zoomKeys')} {t('shortcut.zoom')}</span>
           <span>{t('shortcut.marqueeKeys')} {t('shortcut.marquee')}</span>
           <span>{'\u2318'}F {t('shortcut.search')}</span>
